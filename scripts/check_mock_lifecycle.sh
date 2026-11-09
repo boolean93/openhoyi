@@ -225,17 +225,17 @@ grep -F 'SERVICE_SHUTDOWN_CHECKS_PASSED fixtures=4 allowed=1 blocked=3 pendingPr
 grep -F 'SERVICE_OWNER_CLEANUP_CHECKS_PASSED detached=true fakeTransports=true callbacksRemoved=true pendingPreserved=true noBle=true ownerThread=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'HUB_CLEANUP_CHECKS_PASSED fixtures=4 detached=true fakeTransports=true bothOwnersClosed=true tickersRemoved=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true rendering=true errorReporting=true failedDeliveryRetried=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'SCALE_TREND_CHART_CHECKS_PASSED languages=8 themes=2 nativeSegments=true gaps=true empty=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 destinations=4 tools=2 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_CONTEXT_CHECKS_PASSED languages=2 themes=2 sameService=true preservedState=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=2 sameCup=true retainedSamples=true translatedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_CHART_CHECKS_PASSED languages=2 themes=2 charts=3 scientificOrdering=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'SCALE_TREND_CHART_CHECKS_PASSED languages=2 themes=2 nativeSegments=true gaps=true empty=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'CHART_LEGEND_CHECKS_PASSED languages=2 themes=2 widths=4 fixtures=16 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=2 stableChannels=true translatedActions=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=2 stableKeys=true translatedUpdates=true removed=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=2 themes=2 compactWidths=320,360,600 destinations=4 tools=2 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=2 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
-grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 destinations=4 tools=2 actualHomeSelected=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=2 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 destinations=4 tools=2 actualHomeSelected=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
 # Real window layout matrices, still solely the disposable cloud Mock emulator.
 # A fresh Mock process prevents startActivitySync waiting on an existing NEW_TASK root.
@@ -252,18 +252,18 @@ for profile in landscape wideFont; do
   fi
   sleep 2
   run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
-  grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
-  grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
-  grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=5 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
-  grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=2 themes=2 pages=6 fixtures=24 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=2 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=2 themes=2 curveKinds=5 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=2 themes=2 choices=2 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   adb pull "/sdcard/Android/data/$package/files/language-detail-success" "$output_dir/"
   python3 - "$output_dir/language-detail-success" "$profile" <<'FOOTER_PY'
 from pathlib import Path
 import sys
 directory,profile=Path(sys.argv[1]),sys.argv[2]
 captures=list(directory.glob(f'footer-{profile}_*-window.png'))
-if len(captures) != 32: # 8 languages x 2 themes x longFactory/noPressure, existing landscape profiles only.
-    raise SystemExit(f'{profile} successful real footer windows missing: {len(captures)}/32')
+if len(captures) != 8: # 2 languages x 2 themes x longFactory/noPressure, existing landscape profiles only.
+    raise SystemExit(f'{profile} successful real footer windows missing: {len(captures)}/8')
 for capture in captures:
     geometry=capture.with_suffix('.txt').read_text()
     if 'actualWindow=true screenshotMethod=UiAutomation.takeScreenshot' not in geometry or 'after-capture' not in geometry:

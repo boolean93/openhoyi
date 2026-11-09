@@ -60,7 +60,7 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
         val density = view.resources.displayMetrics.density
         val width = (600 * density).toInt()
         val height = (340 * density).toInt()
-        view.layoutDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        view.layoutDirection = View.LAYOUT_DIRECTION_LTR
         view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
         view.layout(0, 0, width, height)
@@ -93,7 +93,7 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                 check(count > 0) { "No rendered series pixels for ${view.javaClass.simpleName} ${language.tag}" }
                 return total.toDouble() / count
             }
-            // The fixture rises with time/stage. Its right-side trace must remain higher on screen in RTL too.
+            // The fixture rises with time/stage. Its right-side trace must remain higher on screen in both supported languages.
             check(meanY(.1f, .3f) - meanY(.7f, .9f) > 20 * density) {
                 "Native scientific ordering reversed for ${view.javaClass.simpleName} ${language.tag}"
             }

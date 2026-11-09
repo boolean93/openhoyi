@@ -40,18 +40,18 @@ class AndroidResourcesTest(unittest.TestCase):
             (directory / f"{tag}.json").write_text(json.dumps({"app_name": "Translated", "message": "%1$s\nEnd"}))
         return directory
 
-    def test_generation_and_readonly_check_require_all_languages(self):
+    def test_generation_and_readonly_check_require_english(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             directory = self.fixture(root)
             target = root / "generated"
             with patch.object(converter.validator, "ROOT", root):
                 result = converter.generate(directory, target, check=True)
-                self.assertEqual(7, len(result["drift"]))
+                self.assertEqual(1, len(result["drift"]))
                 self.assertFalse(target.exists())
                 self.assertEqual([], converter.generate(directory, target)["drift"])
                 files = sorted(target.glob("values-*/strings.xml"))
-                self.assertEqual(7, len(files))
+                self.assertEqual(1, len(files))
                 for path in files:
                     self.assertEqual(["message"], [n.attrib['name'] for n in ET.parse(path).getroot()])
                 self.assertEqual([], converter.generate(directory, target, check=True)["drift"])
@@ -63,7 +63,7 @@ class AndroidResourcesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             directory = self.fixture(root)
-            (directory / "es.json").write_text('{"app_name":"Brand","message":"wrong %1$d"}')
+            (directory / "en.json").write_text('{"app_name":"Brand","message":"wrong %1$d"}')
             target = root / "generated"
             with patch.object(converter.validator, "ROOT", root):
                 with self.assertRaises(ValueError): converter.generate(directory, target)

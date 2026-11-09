@@ -264,7 +264,7 @@ references={
 required={
 'app':{'theme-write-rejected','language-write-rejected','feedback-write-rejected','feedback-preview-start-stop',
 'feedback-preview-leave-stopped','saf-cancel','saf-failure','saf-owned-success','theme-success-recreated','hardware-audio-output'} |
-{'language-'+tag for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es')},
+{'language-'+tag for tag in ('zh-Hans','en')},
 'machine':{'section-'+str(index) for index in range(5)} | {'section-recreated','invalid-brew','invalid-compensation',
 'invalid-steam','legal-input-mock-preview','temperature-native-ime','schedule-editor-collapsed','schedule-editor-expanded',
 'schedule-draft-native-ime','schedule-cancel-no-write','device-confirmed-unknown-recovery','no-service-disabled'},
@@ -658,7 +658,7 @@ for path in manifests:
         fixture=json.loads((folder/'fixture.json').read_text())
         assert fixture['synthetic'] and not fixture['hardwareMeasurement'] and fixture['clock']=='DEFAULT_SYSTEM_MONOTONIC'
         assert fixture['noDeviceControl'] and fixture['noMockReadOnlyScaleInput']
-        assert fixture['realMockService']
+        assert fixture['realMockService'], 'Current settings evidence requires a real Mock service fixture'
         if m['page']=='machine':
             assert fixture['realMockService'] and fixture['realSettingsReadback']
             for name in ('actualServiceDestroyed','serviceRecoveryLazyIdentityRestored','serviceHandlersDrained','serviceHubClosed',
@@ -679,7 +679,7 @@ for path in manifests:
                 for name in ('schedule-editor-collapsed','schedule-editor-expanded')],m)
         if m['page']=='scale-settings':require_reach(folder/'special-states/all-instructions','scale-settings','all-instructions')
         if m['page']=='app':
-            for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es'):
+            for tag in ('zh-Hans','en'):
                 require_reach(folder/'special-states'/('language-'+tag)/'current-reachable','app','language-current')
             saf=json.loads((folder/'special-states/saf-business.json').read_text())
             assert saf['providerSessionRemoved'] and saf['providerSession']

@@ -41,7 +41,7 @@ adb shell settings put system user_rotation 0
 adb shell settings put secure show_ime_with_hard_keyboard 1
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
-# Add the focused regression without replacing or skipping the original 336-page matrix.
+# Add the focused regression without replacing or skipping the original 84-page matrix.
 history_footer_exit=0
 if [[ "$profile" == tablet-large-font ]]; then
   if python3 - "$output_dir/history-footer-instrumentation.txt" <<'FOOTER_PY'
@@ -55,7 +55,7 @@ command=['adb','shell','am','instrument','-w','-e','historyFooterChecks','true',
 path=Path(sys.argv[1])
 with path.open('w') as output:
     result=subprocess.run(command,stdout=output,stderr=subprocess.STDOUT,timeout=300)
-marker='HISTORY_FOOTER_FOCUSED_PASSED nativeCases=12 originalFailures=10 canvasMinimumDp=96 wideFraction=0.4 syntheticNarrowFooterDp=320 noBle=true'
+marker='HISTORY_FOOTER_FOCUSED_PASSED nativeCases=4 canvasMinimumDp=96 wideFraction=0.4 syntheticNarrowFooterDp=320 noBle=true'
 if result.returncode or marker not in path.read_text():
     print(path.read_text())
     raise SystemExit('Focused History footer regression failed; original full matrix still runs')
@@ -71,9 +71,9 @@ with output.open('w') as capture:
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],stdout=capture,timeout=1200)
 if result.returncode:
     raise SystemExit(result.returncode)
-expected='SINGLE_SCREEN_WINDOW_GEOMETRY_PASSED pages=21 fixtures=336 legacyDetailFixture=true noBle=true'
+expected='SINGLE_SCREEN_WINDOW_GEOMETRY_PASSED pages=21 fixtures=84 legacyDetailFixture=true noBle=true'
 if expected not in output.read_text():
-    raise SystemExit('Single screen matrix did not confirm all 336 populated windows')
+    raise SystemExit('Single screen matrix did not confirm all 84 populated windows')
 list_expected='SINGLE_SCREEN_LIST_STATE_PASSED pages=7 restoreFixtures=14 language=zh-Hans appearance=light noBle=true'
 if list_expected not in output.read_text():
     raise SystemExit('Actual list scroll/recreation/return checks did not confirm all 14 fixtures')
@@ -91,14 +91,14 @@ restored=[root/name for name in sorted(restore_names)]
 if not all(path.is_file() for path in restored):
     raise SystemExit('Selected inventory/legacy-curve restoration screenshots missing')
 paths=[path for path in root.glob('*.png') if path.name not in restore_names]
-if len(paths)!=336:
-    raise SystemExit(f'Incomplete screenshots: {len(paths)}/336')
+if len(paths)!=84:
+    raise SystemExit(f'Incomplete screenshots: {len(paths)}/84')
 collection_details=list((root/'collection-details').glob('*.png'))
 if {path.name for path in collection_details} != {'history-selected-restored.png'}:
     raise SystemExit('Populated restored history-pane screenshot missing')
 states=list((root/'states').glob('*.png'))
-if len(states)!=64:
-    raise SystemExit(f'Incomplete initial/populated state screenshots: {len(states)}/64')
+if len(states)!=16:
+    raise SystemExit(f'Incomplete initial/populated state screenshots: {len(states)}/16')
 forms=list((root/'chinese-form-states').glob('*.png'))
 if len(forms)<44:
     raise SystemExit(f'Incomplete Chinese form groups/long editor screenshots: {len(forms)}')
@@ -114,7 +114,7 @@ for path in paths+states+forms+extra+safety+restored+collection_details:
         raise SystemExit(f'Invalid screenshot: {path}')
     if not all(struct.unpack('>II',data[16:24])):
         raise SystemExit(f'Empty screenshot: {path}')
-print(f'Validated 336 pages, 64 initial/populated captures, {len(forms)} Chinese form states, 2 scale dose captures and 6 full warning captures')
+print(f'Validated 84 pages, 16 initial/populated captures, {len(forms)} Chinese form states, 2 scale dose captures and 6 full warning captures')
 CHECK_PY
 
 if (( history_footer_exit != 0 )); then

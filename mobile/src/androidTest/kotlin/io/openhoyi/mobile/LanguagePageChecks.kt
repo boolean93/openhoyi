@@ -151,7 +151,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                             "$fixture unexpected real window configuration: width=${config.screenWidthDp} font=${config.fontScale}"
                         }
                         check(config.locales[0] == language.locale && HoyiUi.dark(activity) == dark)
-                        check(activity.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
+                        check(activity.window.decorView.layoutDirection == View.LAYOUT_DIRECTION_LTR)
                     }
                     checkPage(activity, fixture)
                     when (page) {
@@ -260,7 +260,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                                 home.resources.configuration.locales[0] == language.locale && HoyiUi.dark(home) == dark &&
                                 home.resources.configuration.screenWidthDp == expectedWidth &&
                                 kotlin.math.abs(home.resources.configuration.fontScale - expectedScale) < .001f &&
-                                home.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
+                                home.window.decorView.layoutDirection == View.LAYOUT_DIRECTION_LTR)
                             MainPageTestHost(test, home).active(requireNotNull(returnParentTag))
                             // MainActivity.bound is a computed property since the visible service
                             // binding refactor: it has a private getter, not a backing field.
@@ -279,7 +279,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     } else if (page != "Home") MainPageTestHost(test, home).select(TaskDestination.BREW)
                 }
             }
-            check(completed == 96) { "Page matrix incomplete: $completed" }
+            check(completed == 24) { "Page matrix incomplete: $completed" }
         } catch (error: Throwable) { failure = error }
         finally {
             fun cleanup(action: () -> Unit) {

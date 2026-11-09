@@ -48,7 +48,7 @@ class EmbeddedHistoryMetricsContract(unittest.TestCase):
         x=0;y=0;row=0
         for index,(w,h) in enumerate(zip(s['measuredWidthsPx'],s['measuredHeightsPx'])):
             if x and x+w>width:y+=row+18;x=0;row=0
-            left=width-x-w if a['layoutDirection']==1 else x
+            left=x
             nodes.append(dict(semanticId=tags[index],rectPx=[left,y,left+w,y+h],complete=True,textLineBoxes=[]))
             x+=w+s['gapPx'];row=max(row,h)
         return nodes
@@ -97,9 +97,7 @@ class EmbeddedHistoryMetricsContract(unittest.TestCase):
         budget=evidence();nodes=self.nodes(budget);nodes.append(copy.deepcopy(nodes[1]))
         with self.assertRaises(AssertionError):self.validate(budget,nodes)
 
-    def test_rtl_and_narrow_wrapping_keep_original_node_order(self):
-        budget=evidence();budget['metricsArrangement']['layoutDirection']=1
-        self.validate(budget)
+    def test_narrow_wrapping_keeps_original_node_order(self):
         narrow=evidence(width=400)
         for item in [narrow['metricsArrangement']['original'],narrow['metricsArrangement']['selected']]:item['measuredHeightPx']=620
         narrow['metricsResolvedHeightPx']=620

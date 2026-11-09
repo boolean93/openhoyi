@@ -84,7 +84,7 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
                             "${language.tag} dark=$dark real Home selected state incorrect: ${destination.name}"
                         }
                     }
-                    val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+                    val expectedDirection = View.LAYOUT_DIRECTION_LTR
                     check(home.window.decorView.layoutDirection == expectedDirection)
                     check((home.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                         if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)

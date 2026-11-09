@@ -18,7 +18,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** Additive, disposable-emulator regression; the full 336-case matrix still runs afterward. */
+/** Additive, disposable-emulator regression; the full supported-language matrix still runs afterward. */
 internal class HistoryFooterChecks(private val test:Instrumentation) {
     private fun main(block:()->Unit) { var error:Throwable?=null;test.runOnMainSync {try {block()} catch(t:Throwable){error=t}};error?.let {throw it} }
     private fun nodes(view:View):List<View> = listOf(view)+if(view is ViewGroup)(0 until view.childCount).flatMap {nodes(view.getChildAt(it))}else emptyList()
@@ -41,7 +41,7 @@ internal class HistoryFooterChecks(private val test:Instrumentation) {
         val beforeJournal=journal.exportJson();val beforeHistory=app.history.entries;val beforeInventory=app.beanInventoryResult.getOrThrow().events()
         val directory=File(requireNotNull(context.getExternalFilesDir(null)),"single-screen-window-checks/history-footer-focused").apply {check(isDirectory||mkdirs())}
         val results=JSONArray();val failures=mutableListOf<String>();val frames=NativeWindowFrameEvidence(test)
-        val locales=listOf(AppLanguage.CHINESE,AppLanguage.THAI,AppLanguage.ARABIC,AppLanguage.JAPANESE,AppLanguage.KOREAN,AppLanguage.RUSSIAN)
+        val locales=AppLanguage.entries
         try {
             for(locale in locales)for(dark in listOf(false,true)) {
                 val name="${locale.tag}-${if(dark)"dark" else "light"}"
@@ -136,8 +136,8 @@ internal class HistoryFooterChecks(private val test:Instrumentation) {
             restore("appearance") {restoreMockPreferences(appearance,oldAppearance)}
             File(directory,"results.json").writeText(JSONObject().put("cases",results).put("failures",JSONArray(failures)).toString(2))
         }
-        check(results.length()==12 && failures.isEmpty()){failures.joinToString("\n")}
+        check(results.length()==4 && failures.isEmpty()){failures.joinToString("\n")}
         check(journal.exportJson()==beforeJournal && app.samples.load(id)==samples)
-        test.sendStatus(0,Bundle().apply {putString("stream","HISTORY_FOOTER_FOCUSED_PASSED nativeCases=12 originalFailures=10 canvasMinimumDp=96 wideFraction=0.4 syntheticNarrowFooterDp=320 noBle=true\n")})
+        test.sendStatus(0,Bundle().apply {putString("stream","HISTORY_FOOTER_FOCUSED_PASSED nativeCases=4 canvasMinimumDp=96 wideFraction=0.4 syntheticNarrowFooterDp=320 noBle=true\n")})
     }
 }

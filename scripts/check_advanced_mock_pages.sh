@@ -59,7 +59,7 @@ with Path(output).open('w') as capture:
         raise SystemExit('Advanced Mock page matrix timed out; partial output retained')
 if result.returncode:
     raise SystemExit(result.returncode)
-expected=f'ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile={profile} languages=8 themes=2 pages=15 fixtures=240 preservedState=true noBle=true'
+expected=f'ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile={profile} languages=2 themes=2 pages=15 fixtures=60 preservedState=true noBle=true'
 if expected not in Path(output).read_text():
     raise SystemExit(f'Advanced Mock page matrix did not confirm completion: {output}')
 PY

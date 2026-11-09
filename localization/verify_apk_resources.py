@@ -92,7 +92,20 @@ def parse_dump(text):
     return table
 
 
+def verify_configurations(configurations):
+    """Reject packaged locales outside Chinese/English, including dependency resources."""
+    for config in configurations:
+        # AAPT2 configuration qualifiers use language or b+language+script notation.
+        # car is Android's UI mode qualifier rather than a three-letter language.
+        languages = re.findall(r"(?:^|-)([a-z]{2,3})(?=-|$)", config)
+        languages += re.findall(r"(?:^|-)b\+([a-z]{2,3})(?:\+|$)", config)
+        unsupported = set(languages) - {"en", "zh", "car"}
+        if unsupported:
+            raise ValueError(f"unsupported compiled locale: {config}")
+
+
 def verify(table, source, catalogs, brand):
+    verify_configurations(config for entries in table.values() for config in entries)
     missing = source.keys() - table.keys()
     unexpected = table.keys() - source.keys() - DEPENDENCY_STRING_DEFAULTS.keys()
     if missing or unexpected:
@@ -153,6 +166,8 @@ def main():
         result = {"literalRoundTrips": verify_literal_encoding(args.aapt2, args.android_jar)}
         for name, apk, brand in [("alpha", args.alpha, "OpenHOYI"), ("mock", args.mock, "HOYI Mock")]:
             dump = subprocess.run([str(args.aapt2), "dump", "resources", str(apk)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode("utf-8")
+            configurations = subprocess.run([str(args.aapt2), "dump", "configurations", str(apk)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode("utf-8")
+            verify_configurations(configurations.splitlines())
             result[name] = {"matchedStrings": verify(parse_dump(dump), source, catalogs, brand)}
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False))

@@ -58,7 +58,8 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         check(preferenceNames.all { prefs(it).all.isEmpty() }) { "Upgrade seed requires empty Mock preferences" }
         check(app.filesDir.listFiles().orEmpty().isEmpty()) { "Upgrade seed must not overwrite existing files" }
         check(prefs("appearance").edit().putBoolean("dark", true).commit())
-        check(app.languagePreferences.select(AppLanguage.SPANISH) == AppLanguagePreference.Selection.APPLIED)
+        // One retired persisted language exercises the generic upgrade fallback without rewriting stored bytes.
+        check(prefs("app_language").edit().putString("tag", "es").commit())
         check(app.feedbackPreferences.setEnabled(true))
         check(prefs("curves").edit().putString("selected", "factory-v3-001").commit())
         check(prefs("presets").edit().putString("slot_1", "factory-v3-002").commit())
@@ -179,7 +180,8 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         check(CoffeeCredentialStore(app).read(address.lowercase()) == "123456") { "Encrypted fixture credential did not survive" }
         check(CoffeeCredentialRetryGate(store = SharedPreferencesCoffeeFailureStore(app)).mayUse(address))
         check(SharedPreferencesCoffeeFailureStore(app).read(address) == 1)
-        check(app.languagePreferences.current == AppLanguage.SPANISH && app.feedbackPreferences.enabled)
+        check(app.languagePreferences.current == AppLanguage.CHINESE) { "Unsupported stored language must fall back to Chinese" }
+        check(app.feedbackPreferences.enabled)
         val entries = app.history.entries
         check(entries.size == 2)
         check(entries.single { it.id == "upgrade-ended" }.let { it.status == ShotHistory.Status.ENDED && it.weightHundredthsGram == 3570 })

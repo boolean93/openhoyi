@@ -67,13 +67,18 @@ class CatalogSourceValidationTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "content differs"):
                 validator.source_catalog(self.catalog)
 
-    def test_partial_language_set_cannot_be_reported_complete(self):
+    def test_only_english_is_required_alongside_chinese_source(self):
         (self.root / "en.json").write_text(json.dumps({"a": "Text\n%1$s"}))
         with patch.object(validator, "ROOT", self.root):
             result = validator.report(self.root)
+        self.assertTrue(result["complete"])
+        self.assertEqual({"en"}, set(result["languages"]))
+
+    def test_missing_english_cannot_be_reported_complete(self):
+        with patch.object(validator, "ROOT", self.root):
+            result = validator.report(self.root)
         self.assertFalse(result["complete"])
-        self.assertTrue(result["languages"]["en"]["valid"])
-        self.assertFalse(result["languages"]["ar"]["valid"])
+        self.assertFalse(result["languages"]["en"]["valid"])
 
     def test_non_object_source_is_a_validation_error(self):
         self.catalog.write_text("[]")
