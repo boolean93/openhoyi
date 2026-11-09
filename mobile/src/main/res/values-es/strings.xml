@@ -115,11 +115,13 @@
     <string name="curve_view_legacy">"Curvas antiguas"</string>
     <string name="device_initial_message">"Todavía no hay ningún dispositivo conectado"</string>
     <string name="device_remembered_identity">"Dispositivo guardado: %1$s"</string>
+    <string name="device_state_auth_failed">"Autenticación incompleta, inténtalo de nuevo"</string>
     <string name="device_state_connecting">"Conectando"</string>
     <string name="device_state_disconnected">"Desconectado"</string>
     <string name="device_state_discovering">"Buscando servicios"</string>
     <string name="device_state_failed">"Error de conexión"</string>
     <string name="device_state_initializing">"Inicializando"</string>
+    <string name="device_state_protocol_timeout">"Tiempo de inicialización del protocolo agotado"</string>
     <string name="device_state_ready">"Listo"</string>
     <string name="device_state_subscribing">"Suscribiendo a datos"</string>
     <string name="device_state_synchronizing">"Sincronizando"</string>
@@ -244,7 +246,8 @@
     <string name="feedback_stop_preview">"Detener reproducción"</string>
     <string name="feedback_title">"Tu taza está lista"</string>
     <string name="firmware_mock">"Firmware simulado %1$s · Sin control Bluetooth"</string>
-    <string name="firmware_unverified">"Firmware %1$s · Sin verificar, controles desactivados"</string>
+    <string name="firmware_protocol_timeout">"Tiempo de lectura de la versión del firmware agotado · Posible firmware nuevo no compatible"</string>
+    <string name="firmware_unsupported">"Firmware %1$s · Firmware nuevo aún no compatible"</string>
     <string name="firmware_verified">"Firmware %1$s · Protocolo verificado"</string>
     <string name="history_count">"%1$s registros locales · Se conservan hasta 30 días / 500 registros"</string>
     <string name="history_detail_mock_title">"Detalles de extracción simulada"</string>
@@ -315,7 +318,7 @@
     <string name="home_device_connection">"Conexión de dispositivos"</string>
     <string name="home_export">"Exportar registro de operaciones en ZIP"</string>
     <string name="home_firmware_initial">"Versión del firmware: pendiente de lectura tras conectar"</string>
-    <string name="home_firmware_readonly">"Firmware sin verificar · Solo lectura"</string>
+    <string name="home_firmware_readonly">"Firmware nuevo no compatible · Controles desactivados"</string>
     <string name="home_history">"Historial de extracción"</string>
     <string name="home_lever_button">"Modo de palanca"</string>
     <string name="home_lever_choose_title">"Seleccionar modo de palanca"</string>

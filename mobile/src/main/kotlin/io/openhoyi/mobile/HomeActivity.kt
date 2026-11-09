@@ -707,7 +707,7 @@ class HomeActivity : ThemedActivity() {
                 }
                 else -> ""
             })
-        firmwareStatus.show(firmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE))
+        firmwareStatus.show(firmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE,s.coffeeFailure))
         coffeeDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&
@@ -745,8 +745,8 @@ class HomeActivity : ThemedActivity() {
         sleepStatus.show(getString(R.string.home_sleep_summary, reportedSleep, sleepProgress))
         alarmStatus.show(machineAlarms.describe(s.alarmBits, s.alarmAt, now))
         val compactStatus = resources.configuration.screenWidthDp < 400
-        coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else label(s.coffeeState))
-            else getString(R.string.home_coffee_status, label(s.coffeeState), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
+        coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else DeviceStatusText.coffeeLabel(this,s.coffeeState,s.coffeeFailure))
+            else getString(R.string.home_coffee_status, DeviceStatusText.coffeeLabel(this,s.coffeeState,s.coffeeFailure), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
         coffeeDot.showDot(when (s.coffeeState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
@@ -771,7 +771,7 @@ class HomeActivity : ThemedActivity() {
             ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.weightHundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
-        machineCardState.show(label(s.coffeeState) + if (coffeeFresh) getString(R.string.home_live_suffix) else "")
+        machineCardState.show(DeviceStatusText.coffeeLabel(this,s.coffeeState,s.coffeeFailure) + if (coffeeFresh) getString(R.string.home_live_suffix) else "")
         scaleCardState.show(label(s.scaleState) + if (liveScale != null) getString(R.string.home_live_suffix) else "")
         fun cardColor(state: DeviceState, live: Boolean) = if (state in setOf(DeviceState.FAILED, DeviceState.UNSUPPORTED))
             getColor(R.color.mobile_danger) else if (live) productStyle.accent else productStyle.muted
@@ -881,7 +881,7 @@ class HomeActivity : ThemedActivity() {
     }
     private fun label(state: DeviceState): String = when (state) {
         DeviceState.READY -> getString(R.string.home_connected); DeviceState.DISCONNECTED -> getString(R.string.device_state_disconnected); DeviceState.FAILED -> getString(R.string.device_state_failed)
-        DeviceState.UNSUPPORTED -> getString(R.string.home_firmware_readonly); else -> getString(R.string.device_state_connecting)
+        DeviceState.UNSUPPORTED -> getString(R.string.device_state_unsupported); else -> getString(R.string.device_state_connecting)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun number(hundredths: Int) = String.format(Locale.ROOT, "%.2f", hundredths / 100.0)

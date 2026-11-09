@@ -171,6 +171,8 @@
     <string name="device_state_ready">已就绪</string>
     <string name="device_state_unsupported">不支持</string>
     <string name="device_state_failed">连接失败</string>
+    <string name="device_state_protocol_timeout">协议初始化超时</string>
+    <string name="device_state_auth_failed">认证未完成，请重试</string>
     <string name="home_lever_manual">手动</string>
     <string name="home_lever_pressure">自动压力</string>
     <string name="home_lever_flow">自动流量</string>
@@ -395,7 +397,7 @@
     <string name="home_curve_replace">"更换可萃取曲线"</string>
     <string name="home_curve_prepare">"查看萃取准备"</string>
     <string name="home_connected">"已连接"</string>
-    <string name="home_firmware_readonly">"固件未验证 · 只读"</string>
+    <string name="home_firmware_readonly">"暂不支持新版固件 · 控制已禁用"</string>
     <string name="home_live">"实时"</string>
     <string name="home_live_suffix">" · 实时"</string>
     <string name="home_curve_readonly">"仅浏览，不可萃取"</string>
@@ -412,7 +414,8 @@
     <string name="stop_interrupted">"连接中断 · 请检查机器"</string>
     <string name="firmware_mock">"模拟固件 %1$s · 无蓝牙控制"</string>
     <string name="firmware_verified">"固件 %1$s · 已验证协议"</string>
-    <string name="firmware_unverified">"固件 %1$s · 未验证，控制已禁用"</string>
+    <string name="firmware_unsupported">"固件 %1$s · 暂不支持新版固件"</string>
+    <string name="firmware_protocol_timeout">"固件版本读取超时 · 可能是暂不支持的新版固件"</string>
     <string name="shot_safety_unknown_disconnected">"萃取结果未知且连接中断。请立即检查咖啡机，必要时手动复位拨杆。"</string>
     <string name="shot_safety_unknown">"萃取结果未知。请检查咖啡机；若仍在运行，请在确认后重试停止。"</string>
     <string name="shot_safety_active_disconnected">"萃取中连接中断。请立即检查咖啡机，必要时手动复位拨杆。"</string>

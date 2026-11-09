@@ -3,6 +3,7 @@ package io.openhoyi.session
 import io.openhoyi.protocol.*
 import java.time.LocalDateTime
 
+private const val PROTOCOL_TIMEOUT_REASON = "protocol initialization timeout"
 enum class DeviceRole { COFFEE, BOOKOO }
 enum class DeviceState { DISCONNECTED, CONNECTING, DISCOVERING, SUBSCRIBING, INITIALIZING, SYNCHRONIZING, READY, UNSUPPORTED, FAILED }
 class CoffeeAuthentication(val time:LocalDateTime,private val password:String) {
@@ -56,6 +57,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var connectionRequest=0L
     val generation:Long get()=queue.generation
     var state=DeviceState.DISCONNECTED;private set
+    /** Classification of the most recent FAILED; display-only, never a control permit. */
+    var lastFailure:CoffeeSessionFailure?=null;private set
     private var activeAddress:String?=null
     val address:String? get()=activeAddress
     val observedFirmware:CoffeeFirmware? get()=lastSettings?.let {
@@ -150,7 +153,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val request=++connectionRequest
         endConnection(DeviceState.DISCONNECTED,"user disconnect","coffee disconnected")
         if(connectionRequest!=request)return
-        lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();activeAddress=address
+        lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();lastFailure=null;activeAddress=address
         val expected=queue.open()
         scaleDecoder=scaleAdapter.newDecoder {event->scaleEvent(expected,event)} ?: scaleAdapter::decode
         if(!initializationState(expected,DeviceState.CONNECTING,22_000))return
@@ -204,7 +207,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(role==DeviceRole.BOOKOO) {
             // No pre-subscription unit/status packet may seed the new decoder's trusted state.
             if(state !in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING,DeviceState.READY))return
-            if(state!=DeviceState.READY && now>=stageDeadline){fail("protocol initialization timeout");return}
+            if(state!=DeviceState.READY && now>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return}
         }
         if(role==DeviceRole.COFFEE)when(val decoded=HoyiCodec.decode(bytes)) {
             is DecodeResult.Valid -> {
@@ -251,8 +254,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
     }
     private fun acceptSettings(frame:Settings){
-        // First validated profile only; other firmware remains read-only.
-        setState(if(frame.firmwareInteger==0x113)DeviceState.READY else DeviceState.UNSUPPORTED)
+        // Only profiles with protocol evidence may control; every other firmware stays read-only.
+        val permitted=CoffeeFirmwareProfiles.permitsControl(frame.firmwareInteger)
+        // UNSUPPORTED bypasses endConnection; clear any stale display classification defensively.
+        if(!permitted)lastFailure=null
+        setState(if(permitted)DeviceState.READY else DeviceState.UNSUPPORTED)
     }
     fun tick() {
         queue.tick()
@@ -267,7 +273,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 }
             }
         }
-        if(state in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING)&&clock()>=stageDeadline){fail("protocol initialization timeout");return}
+        if(state in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING)&&clock()>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return}
         if(role==DeviceRole.BOOKOO&&state==DeviceState.INITIALIZING&&!initBusy&&clock()>=initDue){
             val commands=scaleAdapter.initializationCommands;val cmd=commands[initNext]
             initBusy=true
@@ -514,6 +520,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     private fun endConnection(terminal:DeviceState,reason:String,sleepReason:String=reason) {
         val expected=generation
+        // Display-only classification must be visible to observers of the new state and must not
+        // survive into READY/DISCONNECTED/UNSUPPORTED.
+        if(terminal!=DeviceState.FAILED)lastFailure=null
         // Detach old session work before invoking any observer that may reconnect.
         val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
         heartbeatDue=null;heartbeatBusy=false
@@ -528,8 +537,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             }
         }
     }
+    private fun classifyFailure(reason:String):CoffeeSessionFailure = when {
+        reason==PROTOCOL_TIMEOUT_REASON -> CoffeeSessionFailure.PROTOCOL_TIMEOUT
+        role==DeviceRole.COFFEE && state==DeviceState.CONNECTING -> CoffeeSessionFailure.CONNECT
+        role==DeviceRole.COFFEE && state==DeviceState.INITIALIZING -> CoffeeSessionFailure.AUTH
+        else -> CoffeeSessionFailure.OTHER   // service discovery/subscribe/queue timeout; scale sessions are unread
+    }
     private fun fail(reason:String){
         connectionRequest++
+        lastFailure=classifyFailure(reason)
         endConnection(DeviceState.FAILED,reason)
         diagnostic(reason)
     }

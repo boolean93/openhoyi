@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.CoffeeSessionFailure
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.SettingsWriteTracker
 import io.openhoyi.session.SleepNowTracker
@@ -7,7 +8,8 @@ import io.openhoyi.session.SleepNowTracker
 /** Conservative display projection only; command gates remain with the existing owners. */
 internal object TaskShellDeviceStatus {
     fun coffee(active: Boolean, sleep: SleepNowTracker.State?, setting: SettingsWriteTracker.State?,
-        unavailable: Boolean, running: Boolean, connection: DeviceState, sleepRaw: Int?): Int = when {
+        unavailable: Boolean, running: Boolean, connection: DeviceState, sleepRaw: Int?,
+        failure: CoffeeSessionFailure? = null): Int = when {
         active -> R.string.task_shell_machine_extraction
         sleep == SleepNowTracker.State.UNKNOWN || setting == SettingsWriteTracker.State.UNKNOWN ->
             R.string.task_shell_machine_unknown
@@ -17,7 +19,7 @@ internal object TaskShellDeviceStatus {
             R.string.task_shell_machine_setting
         unavailable -> R.string.task_shell_machine_unavailable
         !running -> R.string.device_state_disconnected
-        connection != DeviceState.READY -> DeviceStatusText.resource(connection)
+        connection != DeviceState.READY -> DeviceStatusText.coffeeResource(connection, failure)
         sleepRaw == 1 -> R.string.task_shell_machine_asleep
         sleepRaw == 0 -> R.string.task_shell_machine_awake
         else -> R.string.task_shell_machine_unconfirmed

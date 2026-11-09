@@ -70,7 +70,7 @@ class AppSettingsFragment : Fragment() {
         document?.setStatus("maintenance",badge(it?.cupResetState?.name))
         val current = it?.snapshot
         val diagnosticText = listOf(
-            FirmwarePresentation(requireContext()).describe(it?.coffeeFirmware, current?.coffeeState ?: io.openhoyi.session.DeviceState.DISCONNECTED, BuildConfig.MOCK_MODE),
+            FirmwarePresentation(requireContext()).describe(it?.coffeeFirmware, current?.coffeeState ?: io.openhoyi.session.DeviceState.DISCONNECTED, BuildConfig.MOCK_MODE, current?.coffeeFailure),
             MachineAlarms(requireContext()).describe(current?.alarmBits, current?.alarmAt, android.os.SystemClock.elapsedRealtime())
         ).joinToString("\n")
         diagnosticState?.let { view -> if(view.text.toString()!=diagnosticText)view.text=diagnosticText }

@@ -40,6 +40,7 @@ import io.openhoyi.protocol.Settings
 import io.openhoyi.protocol.SleepPart
 import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.CoffeeFirmware
+import io.openhoyi.session.CoffeeSessionFailure
 import io.openhoyi.session.CoffeeAuthentication
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
@@ -73,6 +74,8 @@ data class MobileSnapshot(
     val candidates: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
     val message: SnapshotMessage? = null,
+    /** Display-only reason for the last coffee FAILED state; never a control permit. */
+    val coffeeFailure: CoffeeSessionFailure? = null,
 ) {
     /** Null means no event yet; an explicit empty event must not be replaced. */
     fun messageForDisplay(text: (Int, Array<out Any?>) -> String): String =
@@ -502,8 +505,9 @@ class MobileService : Service() {
             if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
                 snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
                     alarmBits = null, alarmAt = null,
-                    settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
-            else snapshot.copy(coffeeState = state)
+                    settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null,
+                    coffeeFailure = if (state == DeviceState.FAILED) hub?.coffeeFailure else null)
+            else snapshot.copy(coffeeState = state, coffeeFailure = null)
         } else if (state != DeviceState.READY) {
             snapshot.copy(scaleState = state, weight = null, weightAt = null,
                 scaleObservation = null, scaleCapabilities = null)

@@ -245,7 +245,7 @@ internal class TaskShellStatusView(
             active, owner?.sleepNowState, owner?.settingWriteState,
             owner != null && (owner.brewPreparationState != BrewPreparation.State.IDLE ||
                 owner.machineControlSafetyMessage != null), owner?.running == true,
-            snapshot.coffeeState, idle?.sleepStateRaw)
+            snapshot.coffeeState, idle?.sleepStateRaw, snapshot.coffeeFailure)
         val status = host.getString(statusId)
         val coffeeLine = "● $status"
         if (coffeeStatus.text.toString() != coffeeLine) {
