@@ -30,6 +30,21 @@ class ShotSeriesTest {
     }
     private val frame = ExtractionTelemetry(1, 2, 93, 120, 9200, 24, 0x40, 0, ByteFrame(byteArrayOf()))
 
+    @Test fun rebindKeepsRealtimePointsAndOnlyReplacesIdentity() {
+        val series = ShotSeries()
+        series.begin("provisional", 1_000, "manual")
+        series.machine(frameOf(), 1_100, null, null)
+        series.machine(frameOf(), 2_100, null, null)
+        val points = series.points
+        series.rebind("history-id")
+        assertEquals("history-id", series.traceIdentity)
+        assertEquals("manual", series.curveId)
+        assertEquals(points, series.points)
+        assertEquals("history-id", series.finish()?.first)
+    }
+
+    private fun frameOf() = ExtractionTelemetry(1, 2, 93, 120, 9200, 24, 0x40, 0, ByteFrame(byteArrayOf()))
+
     @Test fun recordsMachineTelemetryAndOnlyFreshScaleWeight() {
         val series = ShotSeries()
         series.begin("shot-1", 1_000)

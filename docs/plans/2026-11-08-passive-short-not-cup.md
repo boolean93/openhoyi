@@ -1,0 +1,62 @@
+# 短时被动出水不计为一杯，且不污染下一次 App 萃取（出水立即进入实时曲线）
+
+- 需求与范围：
+  - 用户反馈：App 先萃一杯，机器空放几十毫升水洗冲煮头，之后从 App 再萃一杯时，萃取页头部显示「机器手动萃取」。
+  - 用户确认（初版）：第二杯由 App 发起；名字在打开/回到萃取页、还没点开始时出现；「萃取时间很短就不算一杯，也不影响下次萃取」；真实拨杆（机器发起）手动萃取路径不能被破坏。
+  - 用户澄清（改版1）：**只要机器出水（包括空放）就应该立即进入实时曲线界面**，不能延迟到第 12 秒；12 秒阈值只用于判断“算不算一杯/写不写历史/结束后名字是否残留”。
+  - 用户澄清（改版2，真机复验后）：短空放结束后**要保留刚才的实时曲线和“机器手动萃取”显示**，不能清空曲线或把页头跳回所选曲线；仍然不写历史、不出“手动萃取结束”提示；下一次 App 发起萃取时由 `series.begin` 覆盖成正确曲线名。这是“名字污染下一次萃取”的实际修复点——不需要在被动结束时清空显示。
+  - 根因：`PassiveShotDetector` 两条一致 valveOpen 帧即 Started；基线 `MobileService.onCoffeeFrame` 在 Started 立即写 history（manual/slot=6）、`series.begin(..., "manual")`、`manualPresentation.started` 并导航，结束后仍保留 manual 曲线身份。空放被当成一杯，且曲线身份残留污染下一次 App 萃取页头部。
+  - 范围：device-session 被动识别保留 Started 即时门禁并改为 active 期间逐帧输出实时 Point，增加“达到最短时长才 Committed”；mobile 服务在 Started 立即建临时实时曲线并导航，仅在 Committed 时写 history/关联历史 identity；未提交的 Ended/Interrupted 不写历史、不发结束提示，但保留刚观测的实时曲线与 manual 页头显示，等下一次 `series.begin` 覆盖。不改协议帧、不改出站命令、不新增设备写入、不改 App 发起萃取路径。
+- 来源分支/基线提交：`develop`（起始 `1d604fa`；分支过程中已合并更新后的 `origin/develop`，见 `b3bbc83`）。
+- 工作分支：`fix/passive-short-not-cup`（工作树 `openhoyi-fix-passive-short`）。
+- PR 目标：`develop`。
+- 改动文件与步骤：
+  - `device-session/src/main/kotlin/io/openhoyi/session/PassiveShotDetector.kt`
+    - 新增 `Event.Committed`（无载荷，提交前帧已实时输出）；`observe` 返回事件列表。
+    - Started 仍在两条一致 0x80 帧后立即产生，`active` 门禁语义不变（`manualShotActive` 继续阻止 App 启动/去皮/写设置/自动连接等）。
+    - active 期间每一帧 0x80 都返回 `Point`（提交前也返回，供实时图表/实时采样）；达到阈值时在同一帧的 Point 之后追加一次 `Committed`。
+    - 阈值使用「首帧之后的机器 elapsedSeconds 增量」为主、「首帧之后观测时长」为辅（兜底冻结计数），避免上一杯残留阀开尾帧（elapsed 已 20–30 s）用绝对值立刻误提交。
+    - 只有阀门开启帧才能提交；阀位关闭的 0x80 仍作为实时 Point，但不得单独触发 Committed。
+    - 单一常量 `MIN_MANUAL_CUP_SECONDS = 12`（空放通常 ≤10 s，见用户反馈；单测可注入，真机验收后可调）。
+    - 不再缓存/回放帧；Ended 仍只由新鲜 idle > 2.8 s 判定，不做静默超时推断。
+  - `mobile/src/main/kotlin/io/openhoyi/mobile/ShotSeries.kt`
+    - 新增 `rebind(id)`：临时 id 被历史 id 替换时只改 id/traceIdentity，保留 points/curveId/startedAtMs，实时图表不中断。
+    - 不新增 `clear()`：`finish()` 只置空活动 id，保留 points/curveId/traceIdentity（既有显示设计），短空放结束后页面继续显示刚观测曲线；下一次 App 萃取 `series.begin` 会整体覆盖为所选曲线。原改版1的 `clear()` 已删除，无死代码。
+  - `mobile/src/main/kotlin/io/openhoyi/mobile/MobileService.kt`
+    - Started：先 arm `shotRecovery` 并记录「本轮 own 的 recovery 标记」（并保留 R3 提示清理逻辑）；立即用临时 UUID 执行 `series.begin(provisionalId, first.atMs, "manual")` → `manualPresentation.started(provisionalId)`（立刻导航到实时曲线）→ `beginBrewFeedback` → 录制 first/second 两帧。不写 history。
+    - Point：`recordMachinePoint` 实时记录图表/采样检查点。
+    - Committed（增量 ≥12 s 且阀开）：`history.begin("manual", atMs=首帧墙钟回填, slot=6)`（失败保留临时 id 并报 `history_unwritable`）→ 成功后 `series.rebind(historyId)` → `history.transition(RUNNING, "机器手动萃取")` → 发 `shot.passive_started` 事件。不回放帧。
+    - `Ended` 未提交（短空放）：`manualPresentation.ended()` → `finishBrewFeedback(false)` → `finishSeries(false)` → 只释放本轮 own 的 recovery 标记（沿用原清理判据与 `shot_clear_failed` 兜底）；不写 history、不发 manual_ended。`finishSeries(false)` 只把活动 id 置空，保留 points/curveId/traceIdentity，因此页面继续显示刚才的实时曲线与“机器手动萃取”页头。临时采样文件不在历史/导出中可见，`prune` 只会清理超过 30 天的孤儿文件，因此短空放期间落盘的 `samples-<临时UUID>.tsv` 可能最多留存约 30 天（磁盘小垃圾，非历史/导出数据）。
+    - `Ended` 已提交：完全保持基线结束逻辑（ENDED_OBSERVED、`finishSeries(true)`、manual_ended、background、recovery 清理）。
+    - `Interrupted` 两条路径（`onDeviceState` 断连、`onDestroy`）：未提交 → 同上结束临时系列（用 `ended` 而非 `disconnected`，不 abandon history、不发未知结果提醒，保留已绘制的实时曲线/页头）；已提交 → 保持基线 abandon/`finishSeries(false)`/disconnect warning/unknown 提醒。`onDestroy` 不改显示（进程销毁）。
+    - 未提交不清除观测前已 pending 的旧 recovery 标记（ownership token 限定本轮写入的记录）。
+    - R3：Started 时若 `shotRecovery.arm` 失败会设 `shot_record_failed` 提示；未提交丢弃时仅清除本轮自己设的这一提示（armFailed 标志 + 记录 arm 前提示，必要时恢复），提交成功的杯保持原提示语义不变。
+  - `device-session/src/test/kotlin/io/openhoyi/session/PassiveShotDetectorTest.kt`
+    - 更新到新事件序列：短被动 Started→逐帧 Point→Ended 且无 Committed；长被动在阈值帧出现 Point+Committed 且只提交一次；上一杯残留阀开尾帧不因绝对值误提交；乱序帧不误提交；断连不误提交且后续观测不继承；冻结 elapsed 用观测时长兜底；阀关帧即使增量过阈值也不得单独提交、随后阀开过阈值帧才提交。
+  - `mobile/src/test/kotlin/io/openhoyi/mobile/ShotSeriesTest.kt`
+    - 保留 `rebind`（保留实时 points/curveId/startedAtMs，仅换 identity）用例；删除改版1的 `clear` 用例，并确认无其他调用点。
+  - `docs/mobile-alpha.md`、本规划：同步“出水立即进实时曲线；12 秒只决定是否记为 manual 一杯、是否写历史；短空放结束后保留实时曲线与机器手动萃取页头、不写历史、不弹结束提示；下一次 App 开始萃取时覆盖为所选曲线”，删除“结束后清空身份回落所选曲线”的旧描述。
+- 推送与合并：检查工作树 → 本地最小验证 → 普通推送 `fix/passive-short-not-cup` → Lead 创建 PR → `branch-policy`、`verify` 通过 → PR 合并。不 force、不 `--no-verify`、不直推 develop、不合并、不创建 PR。
+- 验证证据：
+  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :device-session:test :mobile:testDebugUnitTest` → BUILD SUCCESSFUL；`PassiveShotDetectorTest` 11/11 通过，`ShotSeriesTest` 8/8 通过，device-session Session checks 101 passed，device-session + mobile 单测聚合 1129 例（163 suites）、0 失败。
+  - 真机复验（平板 trace，2026-11-08 14:57:22–14:57:25）：一次约 3.2 秒 / 18.7 ml / 压力 0 / 阀门开启的空放；改版1把这类短空放结束后清空曲线、页头回落所选曲线，用户明确要求保留其曲线与“机器手动萃取”显示，因此改版2只调整未提交系列的显示保留，不写历史/不弹结束提示。
+  - 真实抓包事实（Lead 用本机 2026-09-20 协议录制核对，固件 1.1.3，来源 `captures/2026-09-20`）：
+    - 空放（无 App 启动命令）：4 秒/23.3 ml、4 秒/22.4 ml、9 秒/49.4 ml，phase=7，最后帧阀位仍开，结束后约 0.2–0.9 秒直接转为 0x40 idle。
+    - App 发起真实萃取：18/34/44 秒、63–70 ml，phase=8。
+    - 结论：12 秒阈值对本机有实际余量（空放 ≤9 秒，真实萃取 ≥18 秒）；真实序列未见“阀位已关的 0x80 尾帧”，阀关不可单独提交的加固仍保留以防其他固件/时序。
+  - 说明：本次环境 JDK 17 + Android SDK 已就绪；因会话沙盒不能写 `~/.gradle`，使用工作区外本地 `GRADLE_USER_HOME` 复用现有缓存离线构建，未改动仓库文件。
+  - 未做：真机/平板实测（需用户上平板验收），Mock 无空放入口不能替代硬件验收。
+- 协议与设备风险：
+  - 不改帧编解码、不发出站命令、不新增重试/清记录；被动识别仅观察通知。
+  - Started 仍立即 `manualShotActive=true`，App 启动/去皮/设置写入/自动连接/断连安全门禁不变。
+  - 任何被动出水都会立即导航到实时曲线（用户已确认），包括短空放：短空放期间及结束后页头都显示“机器手动萃取”并保留刚绘制的曲线，但不算一杯、不进历史、不弹结束提示；下一次 App 萃取 `series.begin` 覆盖为所选曲线（这就是原名字污染的修复点）。
+  - 未提交断连/服务销毁无法确认机器最终是否继续出水，按用户「短时不算一杯」语义丢弃临时曲线；若真实长萃取的观测在提交前中断，将不会产生历史记录（保守取舍，真机验收关注）。
+  - 立即导航依赖 Started（两条一致阀开帧）：若某固件在 App 萃取结束后仍残留阀开 0x80 尾帧，可能短暂弹出“机器手动萃取”实时曲线；本机 2026-09-20 录制未见该尾帧，真机验收关注。
+  - 阈值用「首帧之后增量」而非 elapsedSeconds 绝对值，以避开上一杯残留阀开尾帧（elapsed 已 20–30 s）误提交；代价是 App 在被动手动萃取进行中才连上时，从连上首帧起算增量，可能少记或不记该杯（安全优先取舍）。
+  - `history.begin` 仍要求 `activeId==null`：上一杯若停在 OUTCOME_UNKNOWN，提交会抛异常（保留临时 series id，仅报 history_unwritable；既有缺陷，本任务不扩大范围修复）。
+  - 未提交结束不清空临时 series（保留显示），也不触碰上一杯已 finish 的历史/采样；短空放期间 checkpoint 仍可能落盘 `samples-<临时UUID>.tsv`，`ShotSamplesStore.prune` 只会删除超过 30 天且不在历史保留集合中的孤儿文件，因此该临时采样文件可能最多留存约 30 天（历史列表与导出均不可见）。
+- 发布：不发版。不打标签、不构建/发布 APK、不安装、不操作机器。
+- 回退：回退本任务相关提交即可恢复原行为；无数据 schema 变更，不清理历史/未知记录，不以卸载或清数据代替恢复。
+- 未完成与阻塞：
+  - 真机/平板验收（阈值 12 s、短空放结束后保留曲线/页头、真实拨杆、App 第二杯名字覆盖均需真机确认；用户已愿意上平板实测，Lead 将重建 versionCode 64 覆盖安装复验）。
+  - Astra 独立只读复核（改版后）待 Lead 安排，以 Lead 记录为准。

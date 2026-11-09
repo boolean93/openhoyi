@@ -8,62 +8,182 @@ import org.junit.Test
 
 class PassiveShotDetectorTest {
     private val raw = ByteFrame(byteArrayOf())
+    private val minimumSeconds = PassiveShotDetector.MIN_MANUAL_CUP_SECONDS
     private fun extraction(seconds: Int, water: Int, valve: Boolean = true) =
         ExtractionTelemetry(6, seconds, 70, water, 9300, 20, if (valve) 64 else 0, 0, raw)
     private val idle = IdleTelemetry(9300, 12000, 0, 8, 0, 0, 42, 0, raw)
 
+    private fun events(detector: PassiveShotDetector, frame: io.openhoyi.protocol.HoyiMessage,
+        atMs: Long, appShot: Boolean = false) = detector.observe(frame, atMs, appShot)
+
+    private fun List<PassiveShotDetector.Event>.points() =
+        filterIsInstance<PassiveShotDetector.Event.Point>()
+
+    private fun List<PassiveShotDetector.Event>.commits() =
+        filterIsInstance<PassiveShotDetector.Event.Committed>()
+
     @Test fun startsOnlyAfterTwoConsistentValveFramesAndEndsAfterFreshIdle() {
         val detector = PassiveShotDetector()
-        assertNull(detector.observe(extraction(0, 1), 1000, false))
+        assertTrue(events(detector, extraction(0, 1), 1000).isEmpty())
         assertFalse(detector.active)
-        assertTrue(detector.observe(extraction(1, 4), 1800, false) is PassiveShotDetector.Event.Started)
+        assertTrue(events(detector, extraction(1, 4), 1800).single() is PassiveShotDetector.Event.Started)
         assertTrue(detector.active)
-        assertTrue(detector.observe(extraction(2, 6), 2200, false) is PassiveShotDetector.Event.Point)
-        assertNull(detector.observe(idle, 4900, false))
-        assertEquals(PassiveShotDetector.Event.Ended, detector.observe(idle, 5101, false))
+        // Every active frame is a realtime point even before the cup is committed.
+        val point = events(detector, extraction(2, 6), 2200).single()
+        assertTrue(point is PassiveShotDetector.Event.Point)
+        assertFalse(detector.isCommitted)
+        assertTrue(events(detector, idle, 4900).isEmpty())
+        assertEquals(PassiveShotDetector.Event.Ended, events(detector, idle, 5101).single())
         assertFalse(detector.active)
     }
 
     @Test fun ignoresAppShotAndNoiseAndDoesNotInferEndFromSilence() {
         val detector = PassiveShotDetector()
-        assertNull(detector.observe(extraction(0, 1), 1000, true))
-        assertNull(detector.observe(extraction(1, 2), 2000, true))
-        assertNull(detector.observe(extraction(0, 1), 3000, false))
-        assertNull(detector.observe(extraction(1, 2), 5000, false))
-        assertNull(detector.observe(extraction(1, 0), 5200, false))
-        assertNull(detector.observe(ExtractionTelemetry(6, 2, 70, 4, 9300, 20,
-            64 or 32, 0, raw), 5300, false))
+        assertTrue(events(detector, extraction(0, 1), 1000, appShot = true).isEmpty())
+        assertTrue(events(detector, extraction(1, 2), 2000, appShot = true).isEmpty())
+        assertTrue(events(detector, extraction(0, 1), 3000).isEmpty())
+        assertTrue(events(detector, extraction(1, 2), 5000).isEmpty())
+        assertTrue(events(detector, extraction(1, 0), 5200).isEmpty())
+        assertTrue(events(detector, ExtractionTelemetry(6, 2, 70, 4, 9300, 20,
+            64 or 32, 0, raw), 5300).isEmpty())
         assertFalse(detector.active)
-        assertNull(detector.observe(idle, 50_000, false))
+        assertTrue(events(detector, idle, 50_000).isEmpty())
     }
 
     @Test fun lateValveFrameCannotMoveLastActiveTimeBackwardsOrEndEarly() {
         val detector=PassiveShotDetector()
-        detector.observe(extraction(0,1),1000,false)
-        detector.observe(extraction(1,2),1500,false)
-        detector.observe(extraction(2,6),4000,false)
-        detector.observe(extraction(1,2),1500,false)
-        assertNull(detector.observe(idle,5000,false))
+        events(detector, extraction(0,1),1000)
+        events(detector, extraction(1,2),1500)
+        events(detector, extraction(2,6),4000)
+        events(detector, extraction(1,2),1500)
+        assertTrue(events(detector, idle,5000).isEmpty())
         assertTrue(detector.active)
-        assertNull(detector.observe(idle,6800,false))
-        assertEquals(PassiveShotDetector.Event.Ended,detector.observe(idle,6801,false))
+        assertTrue(events(detector, idle,6800).isEmpty())
+        assertEquals(PassiveShotDetector.Event.Ended, events(detector, idle,6801).single())
     }
+
     @Test fun outOfOrderCandidateAndDuplicatePointDoNotReplaceFreshEvidence() {
         val detector=PassiveShotDetector()
-        assertNull(detector.observe(extraction(0,1),2000,false))
-        assertNull(detector.observe(extraction(2,4),1000,false))
-        assertTrue(detector.observe(extraction(1,2),2500,false) is PassiveShotDetector.Event.Started)
-        assertNull(detector.observe(extraction(1,2),2500,false))
-        assertNull(detector.observe(idle,2400,false))
+        assertTrue(events(detector, extraction(0,1),2000).isEmpty())
+        assertTrue(events(detector, extraction(2,4),1000).isEmpty())
+        assertTrue(events(detector, extraction(1,2),2500).single() is PassiveShotDetector.Event.Started)
+        assertTrue(events(detector, extraction(1,2),2500).isEmpty())
+        assertTrue(events(detector, idle,2400).isEmpty())
         assertTrue(detector.active)
-        assertTrue(detector.observe(extraction(2,4),3000,false) is PassiveShotDetector.Event.Point)
+        assertTrue(events(detector, extraction(2,4),3000).single() is PassiveShotDetector.Event.Point)
+        assertFalse(detector.isCommitted)
     }
+
     @Test fun disconnectMarksObservedShotUnknownRatherThanEnded() {
         val detector = PassiveShotDetector()
-        detector.observe(extraction(0, 1), 1000, false)
-        detector.observe(extraction(1, 2), 1500, false)
+        events(detector, extraction(0, 1), 1000)
+        events(detector, extraction(1, 2), 1500)
         assertEquals(PassiveShotDetector.Event.Interrupted, detector.disconnected())
         assertFalse(detector.active)
         assertNull(detector.disconnected())
+    }
+
+    @Test fun shortPassiveWaterIsStartedWithRealtimePointsButNeverCommitted() {
+        val detector = PassiveShotDetector()
+        assertTrue(events(detector, extraction(0, 1), 1000).isEmpty())
+        assertTrue(events(detector, extraction(1, 4), 1800).single() is PassiveShotDetector.Event.Started)
+        for (seconds in 2..5) {
+            val atMs = 1800L + (seconds - 1) * 1000
+            val observed = events(detector, extraction(seconds, seconds * 2), atMs)
+            assertEquals(1, observed.size)
+            assertTrue(observed.single() is PassiveShotDetector.Event.Point)
+            assertFalse(detector.isCommitted)
+        }
+        assertTrue(events(detector, idle, 7000).isEmpty())
+        assertEquals(PassiveShotDetector.Event.Ended, events(detector, idle, 8700).single())
+        assertFalse(detector.active)
+        assertFalse(detector.isCommitted)
+    }
+
+    @Test fun longPassiveWaterCommitsExactlyOnceOnTheThresholdPoint() {
+        val detector = PassiveShotDetector()
+        events(detector, extraction(0, 1), 1000)
+        assertTrue(events(detector, extraction(1, 4), 1800).single() is PassiveShotDetector.Event.Started)
+        var commits = 0
+        for (seconds in 2..minimumSeconds) {
+            val atMs = 1800L + (seconds - 1) * 1000
+            val observed = events(detector, extraction(seconds, seconds * 4), atMs)
+            assertEquals(1, observed.points().size)
+            commits += observed.commits().size
+            when (seconds) {
+                minimumSeconds -> assertTrue(detector.isCommitted)
+                else -> assertFalse(detector.isCommitted)
+            }
+        }
+        assertEquals(1, commits)
+        assertTrue(events(detector, extraction(minimumSeconds + 1, 96), 1800L + minimumSeconds * 1000)
+            .single() is PassiveShotDetector.Event.Point)
+        assertEquals(PassiveShotDetector.Event.Ended,
+            events(detector, idle, 1800L + minimumSeconds * 1000 + 2900).single())
+        assertFalse(detector.isCommitted)
+    }
+
+    @Test fun staleValveTailFromThePreviousAppCupNeverCommitsFromAbsoluteElapsed() {
+        val detector = PassiveShotDetector()
+        assertTrue(events(detector, extraction(25, 300), 1000).isEmpty())
+        val observed = events(detector, extraction(26, 302), 1500)
+        assertEquals(1, observed.size)
+        assertTrue(observed.single() is PassiveShotDetector.Event.Started)
+        assertFalse(detector.isCommitted)
+        assertTrue(events(detector, extraction(27, 304), 2000).single() is PassiveShotDetector.Event.Point)
+        assertFalse(detector.isCommitted)
+        assertEquals(PassiveShotDetector.Event.Ended, events(detector, idle, 5000).single())
+        assertFalse(detector.isCommitted)
+    }
+
+    @Test fun frozenElapsedCounterFallsBackToObservedDuration() {
+        val detector = PassiveShotDetector()
+        assertTrue(events(detector, extraction(0, 1), 1000).isEmpty())
+        assertTrue(events(detector, extraction(0, 4), 1500).single() is PassiveShotDetector.Event.Started)
+        for (step in 1..5) {
+            val observed = events(detector, extraction(0, 0), 1500L + step * 1000)
+            assertEquals(1, observed.points().size)
+            assertTrue(observed.commits().isEmpty())
+        }
+        assertTrue(events(detector, extraction(0, 0), 1000L + minimumSeconds * 1000 - 1)
+            .commits().isEmpty())
+        val committed = events(detector, extraction(0, 0), 1000L + minimumSeconds * 1000)
+        assertEquals(1, committed.points().size)
+        assertEquals(1, committed.commits().size)
+        assertTrue(detector.isCommitted)
+    }
+
+    @Test fun reorderedFrameCannotCommitAndShortDisconnectNeverCommits() {
+        val detector = PassiveShotDetector()
+        events(detector, extraction(0, 1), 1000)
+        events(detector, extraction(1, 4), 1800)
+        // Out-of-order timestamps are ignored, even when the payload already crosses the threshold.
+        assertTrue(events(detector, extraction(minimumSeconds, 40), 1700).isEmpty())
+        assertFalse(detector.isCommitted)
+        assertEquals(PassiveShotDetector.Event.Interrupted, detector.disconnected())
+        assertFalse(detector.isCommitted)
+        assertFalse(detector.active)
+        // A later, unrelated short observation must not inherit the discarded one.
+        events(detector, extraction(0, 1), 20_000)
+        assertTrue(events(detector, extraction(1, 4), 21_000).single() is PassiveShotDetector.Event.Started)
+        assertTrue(events(detector, idle, 24_500).single() is PassiveShotDetector.Event.Ended)
+        assertFalse(detector.isCommitted)
+    }
+
+    @Test fun closingValveFrameCannotCommitTheCupOnItsOwn() {
+        val detector = PassiveShotDetector()
+        assertTrue(events(detector, extraction(0, 1), 1000).isEmpty())
+        assertTrue(events(detector, extraction(1, 4), 1800).single() is PassiveShotDetector.Event.Started)
+        // The increment is already past the threshold, but the valve is closed: still not a cup.
+        val closing = events(detector, extraction(minimumSeconds + 3, 20, valve = false), 4200)
+        assertEquals(1, closing.size)
+        assertTrue(closing.single() is PassiveShotDetector.Event.Point)
+        assertFalse(detector.isCommitted)
+        assertTrue(detector.active)
+        // The next open-valve frame past the threshold commits (still a realtime point).
+        val committed = events(detector, extraction(minimumSeconds + 4, 22), 5200)
+        assertEquals(1, committed.points().size)
+        assertEquals(1, committed.commits().size)
+        assertTrue(detector.isCommitted)
     }
 }
