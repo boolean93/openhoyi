@@ -294,7 +294,7 @@
   "home_permission_required": "Bluetooth permission is required to connect devices",
   "home_password_hint": "Six-digit device password",
   "home_connect_coffee_title": "Connect coffee machine",
-  "home_password_message": "Enter the device password for the first connection. After a successful connection, it is encrypted and saved locally for future connections; repeated connection failures will prompt for it again.",
+  "home_password_message": "Enter the device password for the first connection. After a successful connection, it is encrypted and saved locally for future connections.",
   "home_connect": "Connect",
   "home_password_error": "Enter six digits",
   "home_lever_mock": "The Mock version does not change the machine lever mode",
@@ -959,5 +959,7 @@
   "settings_section_schedule": "Standby and schedules",
   "settings_section_feedback": "Brew feedback",
   "settings_section_maintenance": "Maintenance and diagnostics",
-  "settings_section_about": "About"
+  "settings_section_about": "About",
+  "home_connect_with_password": "Connect with password",
+  "service_coffee_credential_unavailable": "The saved password is temporarily unavailable. Please try again later."
 }

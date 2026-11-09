@@ -298,6 +298,7 @@
     <string name="home_coffee_status">"커피 머신 · %1$s%2$s"</string>
     <string name="home_connect">"연결"</string>
     <string name="home_connect_coffee_title">"커피 머신 연결"</string>
+    <string name="home_connect_with_password">"비밀번호로 연결"</string>
     <string name="home_connected">"연결됨"</string>
     <string name="home_controls_collapse">"기기 제어 접기"</string>
     <string name="home_controls_expand">"기기 제어 펼치기"</string>
@@ -333,7 +334,7 @@
     <string name="home_not_connected_initial">"아직 연결 안 됨"</string>
     <string name="home_password_error">"숫자 6자리를 입력하세요"</string>
     <string name="home_password_hint">"6자리 기기 비밀번호"</string>
-    <string name="home_password_message">"처음 연결할 때 기기 비밀번호를 입력해야 합니다. 연결 성공 후 로컬에 암호화해 저장하므로 다음에는 다시 입력하지 않아도 됩니다. 연결이 계속 실패하면 다시 묻습니다."</string>
+    <string name="home_password_message">"처음 연결할 때 기기 비밀번호를 입력해야 합니다. 연결 성공 후 로컬에 암호화해 저장하므로 다음에는 다시 입력하지 않아도 됩니다."</string>
     <string name="home_permission_expired">"블루투스 권한 만료"</string>
     <string name="home_permission_required">"기기 연결에 블루투스 권한 필요"</string>
     <string name="home_quick_curves">"빠른 곡선"</string>
@@ -630,6 +631,7 @@
     <string name="recovery_event_sleep_schedule_recovery_waiting">"원래 머신에 연결하고 새 주간 일정 두 부분 응답 및 깨어 있는 대기 상태를 받은 뒤 알림을 지우세요"</string>
     <string name="service_coffee_connect_failed">"커피 머신 연결 실패: %1$s"</string>
     <string name="service_coffee_connect_remembered">"로컬 저장 비밀번호로 커피 머신 연결"</string>
+    <string name="service_coffee_credential_unavailable">"저장된 비밀번호를 일시적으로 읽을 수 없습니다. 잠시 후 다시 시도해 주세요."</string>
     <string name="service_coffee_mock">"Mock 커피 머신 준비됨, 블루투스 연결 없음"</string>
     <string name="service_connection_cancel_preheat">"예열 취소 중, 결과 확인 후 커피 머신을 전환하세요"</string>
     <string name="service_connection_cups_busy">"누적 잔 수 0 응답 대기 중, 커피 머신 전환 보류"</string>

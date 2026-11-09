@@ -294,7 +294,7 @@
   "home_permission_required": "기기 연결에 블루투스 권한 필요",
   "home_password_hint": "6자리 기기 비밀번호",
   "home_connect_coffee_title": "커피 머신 연결",
-  "home_password_message": "처음 연결할 때 기기 비밀번호를 입력해야 합니다. 연결 성공 후 로컬에 암호화해 저장하므로 다음에는 다시 입력하지 않아도 됩니다. 연결이 계속 실패하면 다시 묻습니다.",
+  "home_password_message": "처음 연결할 때 기기 비밀번호를 입력해야 합니다. 연결 성공 후 로컬에 암호화해 저장하므로 다음에는 다시 입력하지 않아도 됩니다.",
   "home_connect": "연결",
   "home_password_error": "숫자 6자리를 입력하세요",
   "home_lever_mock": "Mock 버전은 머신 레버 모드를 변경하지 않습니다",
@@ -959,5 +959,7 @@
   "settings_section_schedule": "대기 및 일정",
   "settings_section_feedback": "추출 피드백",
   "settings_section_maintenance": "유지보수 및 진단",
-  "settings_section_about": "정보"
+  "settings_section_about": "정보",
+  "home_connect_with_password": "비밀번호로 연결",
+  "service_coffee_credential_unavailable": "저장된 비밀번호를 일시적으로 읽을 수 없습니다. 잠시 후 다시 시도해 주세요."
 }

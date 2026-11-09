@@ -120,21 +120,36 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 localError=null
                 if(candidate.candidateRole==DeviceRole.BOOKOO) {
                     (candidate.scaleProtocolId ?: if(BuildConfig.MOCK_MODE)io.openhoyi.session.BookooScaleProtocolAdapter.id else null)?.let {owner?.connectScale(candidate.address,it)}
-                } else if(owner?.connectRememberedCoffee(candidate.address)!=true) {
-                    val input=EditText(host).apply {inputType=android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD;filters=arrayOf(android.text.InputFilter.LengthFilter(6));isSaveEnabled=false;importantForAutofill=View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS}
-                    dialog=AlertDialog.Builder(host).setTitle(R.string.home_connect_coffee_title).setView(input).setPositiveButton(R.string.home_connect,null).setNegativeButton(android.R.string.cancel,null).create().also {window->
-                        window.setOnShowListener {window.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                            val password=input.text.toString()
-                            if(!password.matches(Regex("[0-9]{6}")))input.error=host.getString(R.string.home_password_error)
-                            else if(connectedActionAllowed()){owner?.connectCoffee(candidate.address,password);window.dismiss()}
-                        }}
-                        window.setOnDismissListener {input.text.clear()};AppDialog.show(window)
-                    }
+                } else if(owner?.connectRememberedCoffee(candidate.address)==RememberedCoffeeConnection.PASSWORD_REQUIRED) {
+                    showPassword(candidate.address)
                 }
             }.apply {visual.action(this,outline=true);isEnabled=connectedActionAllowed();tag="product/devices/candidate/${candidate.address}/connect"}
             (connect.parent as android.view.ViewGroup).removeView(connect)
-            style.add(candidates,visual.pair(words,connect,"settings/devices/candidate/${candidate.address}"));visual.divider(candidates)
+            val actions=style.column()
+            style.add(actions,connect)
+            if(candidate.candidateRole==DeviceRole.COFFEE && !BuildConfig.MOCK_MODE) {
+                HoyiUi.button(host,actions,host.getString(R.string.home_connect_with_password)) {
+                    if(connectedActionAllowed())showPassword(candidate.address) else error(host.getString(R.string.scale_active_guard))
+                }.apply {visual.action(this,outline=true);isEnabled=connectedActionAllowed();tag="product/devices/candidate/${candidate.address}/password"}
+            }
+            style.add(candidates,visual.pair(words,actions,"settings/devices/candidate/${candidate.address}"));visual.divider(candidates)
         }
+    }
+    private fun showPassword(address:String) {
+        val input=EditText(host).apply {
+            inputType=android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            filters=arrayOf(android.text.InputFilter.LengthFilter(6));hint=host.getString(R.string.home_password_hint)
+            isSaveEnabled=false;importantForAutofill=View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        }
+        dialog=AlertDialog.Builder(host).setTitle(R.string.home_connect_coffee_title).setMessage(R.string.home_password_message)
+            .setView(input).setPositiveButton(R.string.home_connect,null).setNegativeButton(android.R.string.cancel,null).create().also {window->
+                window.setOnShowListener {window.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val password=input.text.toString()
+                    if(!password.matches(Regex("[0-9]{6}")))input.error=host.getString(R.string.home_password_error)
+                    else if(connectedActionAllowed()){owner?.connectCoffee(address,password);window.dismiss()}
+                }}
+                window.setOnDismissListener {input.text.clear()};AppDialog.show(window)
+            }
     }
     fun close(){dialog?.dismiss();dialog=null;owner?.endDeviceSelection();owner=null}
 }

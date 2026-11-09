@@ -298,6 +298,7 @@
     <string name="home_coffee_status">"Cafetera · %1$s%2$s"</string>
     <string name="home_connect">"Conectar"</string>
     <string name="home_connect_coffee_title">"Conectar cafetera"</string>
+    <string name="home_connect_with_password">"Conectar con contraseña"</string>
     <string name="home_connected">"Conectado"</string>
     <string name="home_controls_collapse">"Contraer controles de dispositivos"</string>
     <string name="home_controls_expand">"Expandir controles de dispositivos"</string>
@@ -333,7 +334,7 @@
     <string name="home_not_connected_initial">"Aún sin conexión"</string>
     <string name="home_password_error">"Introduce seis dígitos"</string>
     <string name="home_password_hint">"Contraseña del dispositivo de seis dígitos"</string>
-    <string name="home_password_message">"Introduzca la contraseña del dispositivo para la primera conexión. Tras conectar correctamente, se guarda cifrada en este dispositivo para futuras conexiones; si se producen fallos repetidos, se volverá a pedir."</string>
+    <string name="home_password_message">"Introduzca la contraseña del dispositivo para la primera conexión. Tras conectar correctamente, se guarda cifrada en este dispositivo para futuras conexiones."</string>
     <string name="home_permission_expired">"El permiso Bluetooth ha caducado"</string>
     <string name="home_permission_required">"Se requiere permiso Bluetooth para conectar dispositivos"</string>
     <string name="home_quick_curves">"Curvas rápidas"</string>
@@ -630,6 +631,7 @@
     <string name="recovery_event_sleep_schedule_recovery_waiting">"Conecte la cafetera original y espere dos partes nuevas del informe del horario semanal y un estado de espera activa antes de borrar el aviso"</string>
     <string name="service_coffee_connect_failed">"Error al conectar cafetera: %1$s"</string>
     <string name="service_coffee_connect_remembered">"Conectando cafetera con la contraseña guardada localmente"</string>
+    <string name="service_coffee_credential_unavailable">"La contraseña guardada no está disponible temporalmente. Inténtelo de nuevo más tarde."</string>
     <string name="service_coffee_mock">"Cafetera Mock lista; sin conexión Bluetooth"</string>
     <string name="service_connection_cancel_preheat">"Cancelando precalentamiento; confirme el resultado antes de cambiar de cafetera"</string>
     <string name="service_connection_cups_busy">"Esperando informe de total de tazas a cero; aún no se puede cambiar de cafetera"</string>

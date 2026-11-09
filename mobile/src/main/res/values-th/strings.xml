@@ -298,6 +298,7 @@
     <string name="home_coffee_status">"เครื่องกาแฟ · %1$s%2$s"</string>
     <string name="home_connect">"เชื่อมต่อ"</string>
     <string name="home_connect_coffee_title">"เชื่อมต่อเครื่องชงกาแฟ"</string>
+    <string name="home_connect_with_password">"เชื่อมต่อด้วยรหัสผ่าน"</string>
     <string name="home_connected">"เชื่อมต่อแล้ว"</string>
     <string name="home_controls_collapse">"ย่อการควบคุมอุปกรณ์"</string>
     <string name="home_controls_expand">"ขยายการควบคุมอุปกรณ์"</string>
@@ -333,7 +334,7 @@
     <string name="home_not_connected_initial">"ยังไม่ได้เชื่อมต่อ"</string>
     <string name="home_password_error">"ป้อนตัวเลข 6 หลัก"</string>
     <string name="home_password_hint">"รหัสผ่านอุปกรณ์ 6 หลัก"</string>
-    <string name="home_password_message">"การเชื่อมต่อครั้งแรกต้องกรอกรหัสอุปกรณ์ เมื่อเชื่อมต่อสำเร็จจะเข้ารหัสเก็บในเครื่อง ครั้งต่อไปไม่ต้องกรอกซ้ำ หากเชื่อมต่อล้มเหลวหลายครั้งจะถามอีก"</string>
+    <string name="home_password_message">"การเชื่อมต่อครั้งแรกต้องกรอกรหัสอุปกรณ์ เมื่อเชื่อมต่อสำเร็จจะเข้ารหัสเก็บในเครื่อง ครั้งต่อไปไม่ต้องกรอกซ้ำ"</string>
     <string name="home_permission_expired">"สิทธิ์บลูทูธหมดอายุ"</string>
     <string name="home_permission_required">"เชื่อมต่ออุปกรณ์ต้องมีสิทธิ์บลูทูธ"</string>
     <string name="home_quick_curves">"กราฟทางลัด"</string>
@@ -630,6 +631,7 @@
     <string name="recovery_event_sleep_schedule_recovery_waiting">"เชื่อมต่อเครื่องเดิม รอรายงานตารางทั้งสัปดาห์สองส่วนใหม่และตื่นสแตนด์บายก่อนล้างเตือน"</string>
     <string name="service_coffee_connect_failed">"เชื่อมต่อเครื่องกาแฟไม่สำเร็จ: %1$s"</string>
     <string name="service_coffee_connect_remembered">"ใช้รหัสที่บันทึกในเครื่องเชื่อมต่อเครื่องกาแฟ"</string>
+    <string name="service_coffee_credential_unavailable">"ไม่สามารถอ่านรหัสผ่านที่บันทึกไว้ได้ชั่วคราว โปรดลองอีกครั้งภายหลัง"</string>
     <string name="service_coffee_mock">"เครื่องกาแฟ Mock พร้อมแล้ว ไม่เชื่อมต่อบลูทูธ"</string>
     <string name="service_connection_cancel_preheat">"กำลังยกเลิกการอุ่น ยืนยันผลก่อนเปลี่ยนเครื่องกาแฟ"</string>
     <string name="service_connection_cups_busy">"รอรายงานจำนวนแก้วสะสมเป็นศูนย์ ยังไม่เปลี่ยนเครื่องกาแฟ"</string>

@@ -4,6 +4,8 @@ import android.app.Instrumentation
 import android.os.Bundle
 import android.os.SystemClock
 import android.graphics.Rect
+import android.graphics.Bitmap
+import java.io.File
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -16,7 +18,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
 
-    private fun compactHomeGeometry(host: MainPageTestHost, activeCup: Boolean) {
+    private fun compactHomeGeometry(host: MainPageTestHost, activeCup: Boolean, lastCurveRecorded: Boolean = false) {
         val activity = host.activity
         val real = android.graphics.Point()
         @Suppress("DEPRECATION")
@@ -25,20 +27,42 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         val widthDp = real.x / density
         val heightDp = real.y / density
         val state = if (activeCup) "running" else "idle"
-        val geometry = "state=$state displayPx=${real.x}x${real.y} density=$density dp=${widthDp}x${heightDp}"
+        val geometry = "state=$state displayPx=${real.x}x${real.y} density=$density dp=${widthDp}x${heightDp} lastCurveRecorded=$lastCurveRecorded"
         if (kotlin.math.abs(widthDp - 720f) > 1f ||
             kotlin.math.abs(heightDp - 360f) > 1f) {
             test.sendStatus(0, Bundle().apply { putString("stream", "MAIN_HOME_720_GEOMETRY_SKIP $geometry\n") })
             return
         }
         val home = host.select(TaskDestination.BREW) as HomeFragment
+        if (lastCurveRecorded) {
+            val deadline = SystemClock.elapsedRealtime() + 5000
+            var ready = false
+            while (!ready && SystemClock.elapsedRealtime() < deadline) {
+                test.runOnMainSync {
+                    ready = home.view?.findViewWithTag<View>("product/home/last-curve/preview")?.isShown == true
+                }
+                if (!ready) SystemClock.sleep(50)
+            }
+            check(ready) { "Observed Mock use did not render the last-curve preview" }
+        }
+        val directory = File(requireNotNull(test.targetContext.getExternalFilesDir(null)), "compact-home-navigation")
+            .apply { check(mkdirs() || isDirectory) }
+        val fixture = if (lastCurveRecorded) "idle-last-curve" else state
+        val committedFrame = NativeWindowFrameEvidence(test).committedFrame(requireNotNull(home.view))
+        File(directory, "$fixture-frame.json").writeText(committedFrame.toString(2))
+        val screenshot = requireNotNull(test.uiAutomation.takeScreenshot())
+        try { File(directory, "$fixture.png").outputStream().use { check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
+        finally { screenshot.recycle() }
         var geometryFailure: Throwable? = null
         test.runOnMainSync { try {
             val root = requireNotNull(home.view)
             val viewport = Rect()
             check(root.getGlobalVisibleRect(viewport) && !viewport.isEmpty)
-            val tags = listOf("machine-status", "brew-boiler", "steam-boiler") +
-                (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).map { "direct-preset/$it" })
+            val tags = listOf("machine-status", "connect", "brew-boiler", "steam-boiler",
+                "brew-boiler/toggle", "steam-boiler/toggle") +
+                (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
+                    listOf("direct-preset/$it", "direct-preset/$it/preview")
+                }) + (if (lastCurveRecorded) listOf("last-curve/preview", "quick-recipe") else emptyList())
             val bounds = tags.associateWith { name ->
                 val view = requireNotNull(descendants(root).singleOrNull { it.tag == "product/home/$name" }) {
                     "Missing actual Home view product/home/$name"
@@ -57,8 +81,13 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     }
                     "720x360 Home $name outside page viewport: $visible viewport=$viewport view=${view.width}x${view.height} shown=$shown globalVisible=$globalVisible attached=${view.isAttachedToWindow} ancestors=$ancestors"
                 }
+                if (view.isClickable) check(view.width >= 48 * density && view.height >= 48 * density) {
+                    "720x360 Home $name has a touch target smaller than 48dp: ${view.width}x${view.height} density=$density"
+                }
                 visible
             }
+            File(directory, "$fixture.txt").writeText(geometry + "\n" +
+                bounds.entries.joinToString("\n") { (tag, rect) -> "$tag=$rect" } + "\n")
             if (activeCup) {
                 val stop = descendants(root).singleOrNull { it.tag == "product/home/dock" && it.isShown }
                     ?: descendants(root).filterIsInstance<android.widget.Button>().singleOrNull {
@@ -67,6 +96,11 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     ?: error("Active Mock cup has no fixed Home action")
                 val stopBounds = Rect()
                 check(stop.getGlobalVisibleRect(stopBounds) && stopBounds.height() > 0)
+                check(stopBounds.width() == stop.width && stopBounds.height() == stop.height &&
+                    stop.width >= 48 * density && stop.height >= 48 * density)
+                check(home.view?.findViewWithTag<View>("product/home/last-curve")?.isShown == false) {
+                    "Last-curve action must hide with presets during an active cup"
+                }
                 for (name in tags) check(!Rect.intersects(stopBounds, bounds.getValue(name))) {
                     "Active Home action overlaps $name"
                 }
@@ -249,6 +283,11 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 if (previousCurve == null) edit.remove("selected") else edit.putString("selected", previousCurve)
                 check(edit.commit())
             }
+            val idleDeadline = SystemClock.elapsedRealtime() + 5000
+            while (ShotGate.active(service.shotState) && SystemClock.elapsedRealtime() < idleDeadline)
+                SystemClock.sleep(50)
+            check(!ShotGate.active(service.shotState)) { "Mock stop did not return to idle" }
+            compactHomeGeometry(host, activeCup = false, lastCurveRecorded = true)
             host.select(TaskDestination.CURVES)
             check(search?.text?.toString() == "navigation-state") { "Curve filter state was lost" }
             host.select(TaskDestination.HISTORY)

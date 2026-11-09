@@ -294,7 +294,7 @@
   "home_permission_required": "Se requiere permiso Bluetooth para conectar dispositivos",
   "home_password_hint": "Contraseña del dispositivo de seis dígitos",
   "home_connect_coffee_title": "Conectar cafetera",
-  "home_password_message": "Introduzca la contraseña del dispositivo para la primera conexión. Tras conectar correctamente, se guarda cifrada en este dispositivo para futuras conexiones; si se producen fallos repetidos, se volverá a pedir.",
+  "home_password_message": "Introduzca la contraseña del dispositivo para la primera conexión. Tras conectar correctamente, se guarda cifrada en este dispositivo para futuras conexiones.",
   "home_connect": "Conectar",
   "home_password_error": "Introduce seis dígitos",
   "home_lever_mock": "La versión Mock no cambia el modo de palanca de la máquina",
@@ -959,5 +959,7 @@
   "settings_section_schedule": "Espera y horarios",
   "settings_section_feedback": "Comentarios de preparación",
   "settings_section_maintenance": "Mantenimiento y diagnóstico",
-  "settings_section_about": "Acerca de"
+  "settings_section_about": "Acerca de",
+  "home_connect_with_password": "Conectar con contraseña",
+  "service_coffee_credential_unavailable": "La contraseña guardada no está disponible temporalmente. Inténtelo de nuevo más tarde."
 }

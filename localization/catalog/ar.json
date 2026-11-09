@@ -294,7 +294,7 @@
   "home_permission_required": "يلزم إذن Bluetooth للاتصال بالأجهزة",
   "home_password_hint": "كلمة مرور الجهاز المكوّنة من ستة أرقام",
   "home_connect_coffee_title": "الاتصال بآلة القهوة",
-  "home_password_message": "أدخل كلمة مرور الجهاز عند الاتصال الأول. بعد نجاح الاتصال تُحفظ محليًا مشفرة ولا يلزم إدخالها مجددًا؛ سيُطلب إدخالها مجددًا عند تكرار فشل الاتصال.",
+  "home_password_message": "أدخل كلمة مرور الجهاز عند الاتصال الأول. بعد نجاح الاتصال تُحفظ محليًا مشفرة ولا يلزم إدخالها مجددًا.",
   "home_connect": "اتصال",
   "home_password_error": "أدخل ستة أرقام",
   "home_lever_mock": "إصدار Mock لا يغير وضع ذراع الآلة",
@@ -959,5 +959,7 @@
   "settings_section_schedule": "الاستعداد والجداول",
   "settings_section_feedback": "تعليقات التحضير",
   "settings_section_maintenance": "الصيانة والتشخيص",
-  "settings_section_about": "حول"
+  "settings_section_about": "حول",
+  "home_connect_with_password": "الاتصال بكلمة المرور",
+  "service_coffee_credential_unavailable": "كلمة المرور المحفوظة غير متاحة مؤقتًا. يُرجى المحاولة لاحقًا."
 }
