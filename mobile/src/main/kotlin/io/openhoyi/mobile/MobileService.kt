@@ -225,7 +225,6 @@ class MobileService : Service() {
     private val coffeeCredentialRetries by lazy {
         CoffeeCredentialRetryGate(store = SharedPreferencesCoffeeFailureStore(this))
     }
-    private data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean)
     private var pendingCoffeeCredential: PendingCoffeeCredential? = null
     private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime { getString(it) } else null
     private val mockExtractionScenario = MockExtractionScenario(BuildConfig.MOCK_MODE,
@@ -518,10 +517,12 @@ class MobileService : Service() {
                         event(ResourceMessage(R.string.service_event_credential_save_failed),"coffee.address_save_failed")
                 }
                 pendingCoffeeCredential?.let { credential ->
-                if (!credential.remembered && !coffeeCredentials.save(credential.address, credential.password))
-                    event(ResourceMessage(R.string.service_event_credential_save_failed), "coffee.credential_save_failed")
-                coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
-                pendingCoffeeCredential = null
+                    credential.passwordToSave(hub?.coffeeAddress, state)?.let { password ->
+                        if (!coffeeCredentials.save(credential.address, password))
+                            event(ResourceMessage(R.string.service_event_credential_save_failed), "coffee.credential_save_failed")
+                    }
+                    coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
+                    pendingCoffeeCredential = null
                 }
             }
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> pendingCoffeeCredential?.let { credential ->
@@ -824,7 +825,7 @@ class MobileService : Service() {
                 },
                 onCoffeeReconnect = { address ->
                     if(recentReadyCoffeeAddress?.equals(address,ignoreCase=true)!=true)false
-                    else connectRememberedCoffee(address,automatic=true)
+                    else connectRememberedCoffee(address,automatic=true)==RememberedCoffeeConnection.STARTED
                 },
                 rememberedScaleSuppressed=autoConnect.paused(DeviceRole.BOOKOO),
                 automaticAllowed=::automaticAllowed,
@@ -884,7 +885,7 @@ class MobileService : Service() {
             else event(error)
         })
     }
-    fun connectRememberedCoffee(address: String): Boolean = connectRememberedCoffee(address,automatic=false)
+    fun connectRememberedCoffee(address: String): RememberedCoffeeConnection = connectRememberedCoffee(address,automatic=false)
     fun ensureKnownDevices() {
         if(mock!=null || !running || initialKnownCoffeeChecked)return
         initialKnownCoffeeChecked=true
@@ -892,20 +893,27 @@ class MobileService : Service() {
         if(!autoConnect.enabled(DeviceRole.COFFEE)||autoConnect.paused(DeviceRole.COFFEE))return
         val address=recentReadyCoffeeAddress ?: return
         if(!shotRecovery.matchesDevice(address) || !machineWriteRecovery.matchesDevice(address))return
-        if(!coffeeCredentialRetries.mayUse(address))return
-        if(coffeeCredentials.read(address)==null)return
+        // Credential availability is checked by the reconnect callback, so a temporary
+        // Keystore failure at startup cannot consume this one-time restore opportunity.
         hub?.ensureKnownCoffee(address)
     }
-    private fun connectRememberedCoffee(address: String,automatic:Boolean): Boolean {
-        if(automatic && !automaticAllowed(DeviceRole.COFFEE))return false
-        if (mock != null || !shotRecovery.matchesDevice(address) ||
-            !machineWriteRecovery.matchesDevice(address)) return false
-        if(!coffeeCredentialRetries.mayUse(address)){if(automatic)hub?.disableCoffeeRecovery();return false}
-        val password = coffeeCredentials.read(address) ?: run {if(automatic)hub?.disableCoffeeRecovery();return false}
-        return connectCoffee(address, password, remembered = true,automatic=automatic)
+    private fun connectRememberedCoffee(address: String,automatic:Boolean): RememberedCoffeeConnection {
+        val allowed = (!automatic || automaticAllowed(DeviceRole.COFFEE)) && coffeeConnectionAllowed(address, automatic)
+        val result = RememberedCoffeeConnection.attempt(allowed, {
+            coffeeCredentials.readState(address).also {
+                if (it == CoffeeCredentialRead.Unavailable)
+                    event(ResourceMessage(R.string.service_coffee_credential_unavailable), "coffee.credential_unavailable")
+            }
+        }) { password -> startCoffeeConnection(address, password, remembered = true, automatic = automatic) }
+        if (automatic && result == RememberedCoffeeConnection.PASSWORD_REQUIRED) hub?.disableCoffeeRecovery()
+        return result
     }
-    fun connectCoffee(address: String, password: String) { connectCoffee(address, password, remembered = false,automatic=false) }
-    private fun connectCoffee(address: String, password: String, remembered: Boolean,automatic:Boolean):Boolean {
+    fun connectCoffee(address: String, password: String) {
+        if (!coffeeConnectionAllowed(address, automatic = false)) return
+        require(password.matches(Regex("[0-9]{6}")))
+        startCoffeeConnection(address, password, remembered = false, automatic = false)
+    }
+    private fun coffeeConnectionAllowed(address: String, automatic: Boolean): Boolean {
         if (mock != null) { event(ResourceMessage(R.string.service_coffee_mock), "mock.connect"); return false }
         if (manualShotActive) { event(ResourceMessage(R.string.service_connection_manual_block)); return false }
         if (!shotRecovery.matchesDevice(address)) {
@@ -914,7 +922,6 @@ class MobileService : Service() {
         if (!machineWriteRecovery.matchesDevice(address)) {
             event(ResourceMessage(R.string.service_connection_write_device_mismatch), "machine_write.device_mismatch"); return false
         }
-        require(password.matches(Regex("[0-9]{6}")))
         if(!automatic)manualDeviceUse()
         if (cupResetBusy) { event(ResourceMessage(R.string.service_connection_cups_busy)); return false }
         if (scheduleBusy) { event(ResourceMessage(R.string.service_connection_schedule_busy)); return false }
@@ -926,6 +933,9 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_connection_cancel_preheat), "brew_wait.connect_deferred")
             return false
         }
+        return hub != null
+    }
+    private fun startCoffeeConnection(address: String, password: String, remembered: Boolean, automatic: Boolean): Boolean {
         val current = hub ?: return false
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
             settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)

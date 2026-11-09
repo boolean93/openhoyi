@@ -298,6 +298,7 @@
     <string name="home_coffee_status">"آلة القهوة · %1$s%2$s"</string>
     <string name="home_connect">"اتصال"</string>
     <string name="home_connect_coffee_title">"الاتصال بآلة القهوة"</string>
+    <string name="home_connect_with_password">"الاتصال بكلمة المرور"</string>
     <string name="home_connected">"متصل"</string>
     <string name="home_controls_collapse">"طيّ عناصر التحكم بالأجهزة"</string>
     <string name="home_controls_expand">"توسيع عناصر التحكم بالأجهزة"</string>
@@ -333,7 +334,7 @@
     <string name="home_not_connected_initial">"لم يتم الاتصال بعد"</string>
     <string name="home_password_error">"أدخل ستة أرقام"</string>
     <string name="home_password_hint">"كلمة مرور الجهاز المكوّنة من ستة أرقام"</string>
-    <string name="home_password_message">"أدخل كلمة مرور الجهاز عند الاتصال الأول. بعد نجاح الاتصال تُحفظ محليًا مشفرة ولا يلزم إدخالها مجددًا؛ سيُطلب إدخالها مجددًا عند تكرار فشل الاتصال."</string>
+    <string name="home_password_message">"أدخل كلمة مرور الجهاز عند الاتصال الأول. بعد نجاح الاتصال تُحفظ محليًا مشفرة ولا يلزم إدخالها مجددًا."</string>
     <string name="home_permission_expired">"لم يعد إذن Bluetooth صالحًا"</string>
     <string name="home_permission_required">"يلزم إذن Bluetooth للاتصال بالأجهزة"</string>
     <string name="home_quick_curves">"المنحنيات السريعة"</string>
@@ -630,6 +631,7 @@
     <string name="recovery_event_sleep_schedule_recovery_waiting">"اتصل بآلة القهوة الأصلية وانتظر قطعتين جديدتين لجدول الأسبوع واستعدادًا مستيقظًا قبل مسح التنبيه"</string>
     <string name="service_coffee_connect_failed">"فشل الاتصال بآلة القهوة: %1$s"</string>
     <string name="service_coffee_connect_remembered">"الاتصال بآلة القهوة باستخدام كلمة المرور المحفوظة محليًا"</string>
+    <string name="service_coffee_credential_unavailable">"كلمة المرور المحفوظة غير متاحة مؤقتًا. يُرجى المحاولة لاحقًا."</string>
     <string name="service_coffee_mock">"آلة القهوة Mock جاهزة؛ لا اتصال Bluetooth"</string>
     <string name="service_connection_cancel_preheat">"جارٍ إلغاء التسخين المسبق؛ أكد النتيجة قبل تبديل آلة القهوة"</string>
     <string name="service_connection_cups_busy">"في انتظار إبلاغ بتصفير إجمالي الأكواب؛ لا يمكن تبديل آلة القهوة حاليًا"</string>

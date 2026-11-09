@@ -25,6 +25,13 @@ object CoffeeCredentialCodec {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(byteArrayOf(iv.size.toByte()) + iv + sealed)
     }
 
+    /** A present but unreadable blob is preserved, including when Android Keystore is temporarily unavailable. */
+    fun read(encoded: String?, address: String, key: () -> SecretKey): CoffeeCredentialRead {
+        if (encoded == null) return CoffeeCredentialRead.Missing
+        return runCatching { decrypt(key(), address, encoded)?.let(CoffeeCredentialRead::Available) }
+            .getOrNull() ?: CoffeeCredentialRead.Unavailable
+    }
+
     fun decrypt(key: SecretKey, address: String, encoded: String): String? = runCatching {
         require(encoded.length <= 256)
         val bytes = Base64.getUrlDecoder().decode(encoded)
@@ -50,20 +57,45 @@ private class MemoryCoffeeCredentialFailureStore : CoffeeCredentialFailureStore 
     override fun write(address: String, count: Int) { counts[address] = count }
 }
 
-/** A transport failure never deletes a valid credential. Prompt again after two silent failures. */
+/** Legacy API retained for upgrade checks. Transport failures cannot establish password rejection. */
+@Suppress("UNUSED_PARAMETER")
 class CoffeeCredentialRetryGate(private val maxFailures: Int = 2,
                                 private val store: CoffeeCredentialFailureStore = MemoryCoffeeCredentialFailureStore()) {
     init { require(maxFailures > 0) }
-    private fun key(address: String) = address.uppercase(Locale.ROOT)
-    fun mayUse(address: String): Boolean = store.read(key(address)) < maxFailures
-    fun failed(address: String) { val key = key(address); store.write(key, (store.read(key) + 1).coerceAtMost(maxFailures)) }
-    fun succeeded(address: String) { store.write(key(address), 0) }
-    fun connectionState(address: String, state: DeviceState, remembered: Boolean) {
-        when(state) {
-            DeviceState.READY -> succeeded(address)
-            DeviceState.FAILED -> if(remembered) failed(address)
-            else -> Unit
+    fun mayUse(address: String): Boolean = true
+    fun failed(address: String) = Unit
+    fun succeeded(address: String) = Unit
+    fun connectionState(address: String, state: DeviceState, remembered: Boolean) = Unit
+}
+
+sealed interface CoffeeCredentialRead {
+    data class Available(val password: String) : CoffeeCredentialRead {
+        override fun toString() = "Available(password=REDACTED)"
+    }
+    data object Missing : CoffeeCredentialRead
+    data object Unavailable : CoffeeCredentialRead
+}
+
+enum class RememberedCoffeeConnection {
+    STARTED, PASSWORD_REQUIRED, BLOCKED;
+
+    companion object {
+        fun attempt(allowed: Boolean, read: () -> CoffeeCredentialRead,
+                    connect: (String) -> Boolean): RememberedCoffeeConnection {
+            if (!allowed) return BLOCKED
+            return when (val credential = read()) {
+                CoffeeCredentialRead.Missing -> PASSWORD_REQUIRED
+                CoffeeCredentialRead.Unavailable -> BLOCKED
+                is CoffeeCredentialRead.Available -> if (connect(credential.password)) STARTED else BLOCKED
+            }
         }
+    }
+}
+
+internal data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean) {
+    override fun toString() = "PendingCoffeeCredential(address=$address, password=REDACTED, remembered=$remembered)"
+    fun passwordToSave(readyAddress: String?, state: DeviceState): String? = password.takeIf {
+        !remembered && state == DeviceState.READY && address.equals(readyAddress, ignoreCase = true)
     }
 }
 
@@ -81,12 +113,10 @@ class CoffeeCredentialStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("coffee_credentials", Context.MODE_PRIVATE)
     private fun keyFor(address: String) = address.uppercase(Locale.ROOT)
 
-    fun read(address: String): String? {
-        val encoded = prefs.getString(keyFor(address), null) ?: return null
-        val password = runCatching { CoffeeCredentialCodec.decrypt(key(), address, encoded) }.getOrNull()
-        if (password == null) prefs.edit().remove(keyFor(address)).apply()
-        return password
-    }
+    fun read(address: String): String? = (readState(address) as? CoffeeCredentialRead.Available)?.password
+
+    fun readState(address: String): CoffeeCredentialRead = CoffeeCredentialCodec.read(
+        prefs.getString(keyFor(address), null), address, ::key)
 
     fun save(address: String, password: String): Boolean = runCatching {
         prefs.edit().putString(keyFor(address), CoffeeCredentialCodec.encrypt(key(), address, password)).commit()

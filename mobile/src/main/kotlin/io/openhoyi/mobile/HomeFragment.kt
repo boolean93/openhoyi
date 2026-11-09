@@ -66,6 +66,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var steamBoilerTarget: TextView
     private lateinit var brewBoilerToggle: Button
     private lateinit var steamBoilerToggle: Button
+    private lateinit var lastCurveRow: LinearLayout
     private lateinit var lastCurveName: TextView
     private lateinit var lastCurvePreview: CurveLibrarySparklineView
     private lateinit var lastCurveDivider: View
@@ -140,6 +141,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setBackgroundColor(productStyle.page)
         }
         val shortHome = resources.configuration.screenHeightDp <= 420
+        val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
         val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(if (shortHome) 1 else 8), dp(16), dp(if (shortHome) 1 else 8)) }
         root.addView(ScrollView(host).apply {
             tag = "product/home/page-scroll"
@@ -221,10 +223,20 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val machineRow = productStyle.row("product/home/machine-status").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
         }
-        content.addView(machineRow, LinearLayout.LayoutParams(-1, -2))
+        val compactTopRow = if (shortWideHome) productStyle.row("product/home/compact-top").also {
+            it.gravity = android.view.Gravity.CENTER_VERTICAL
+            content.addView(it, LinearLayout.LayoutParams(-1, -2))
+        } else null
+        (compactTopRow ?: content).addView(machineRow, if (compactTopRow != null)
+            LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
         machineRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         machineConnect = button(machineRow, getString(R.string.home_connect)) { showDevicePanel() }.apply {
-            tag = "product/home/connect"; layoutParams = LinearLayout.LayoutParams(-2, dp(48))
+            tag = "product/home/connect"
+            layoutParams = LinearLayout.LayoutParams(-2, dp(48))
+            if (shortWideHome) {
+                minWidth = dp(64); minimumWidth = dp(64)
+                setPadding(dp(8), paddingTop, dp(8), paddingBottom)
+            }
         }
         val spaciousHome = resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
@@ -283,14 +295,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 0 else 8) })
         if (spaciousHome) quickRow.addView(productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.section, "product/home/quick-title"))
-        val lastCurveRow = productStyle.row("product/home/last-curve").apply {
+        lastCurveRow = productStyle.row("product/home/last-curve").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
             minimumHeight = dp(48)
             setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0),
                 dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0))
             background = productStyle.shape(productStyle.surface, true)
         }
-        quickRow.addView(lastCurveRow, LinearLayout.LayoutParams(-1, -2).apply {
+        if (compactTopRow != null) compactTopRow.addView(lastCurveRow,
+            LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
+        else quickRow.addView(lastCurveRow, LinearLayout.LayoutParams(-1, -2).apply {
             if (spaciousHome) topMargin = dp(8)
         })
         lastCurvePreview = CurveLibrarySparklineView(host, productStyle).apply {
@@ -351,13 +365,19 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val slotLabel = productStyle.text(getString(R.string.home_slot, slot.toString()),
                 TaskProductVisualStyle.Type(if (shortHome) 11 else 14, 400, if (shortHome) 16 else 20),
                 secondary = true).apply { gravity = android.view.Gravity.CENTER }
-            contents.addView(slotLabel, LinearLayout.LayoutParams(-1, -2))
+            val previewHeader = if (shortWideHome) productStyle.row().apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                contents.addView(this, LinearLayout.LayoutParams(-1, -2))
+            } else contents
+            previewHeader.addView(slotLabel, LinearLayout.LayoutParams(if (shortWideHome) -2 else -1, -2))
             val sparkline = CurveLibrarySparklineView(host, productStyle).apply {
                 visibility = View.GONE
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 tag = "product/home/direct-preset/$slot/preview"
             }
-            contents.addView(sparkline, LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 32)))
+            previewHeader.addView(sparkline, if (shortWideHome)
+                LinearLayout.LayoutParams(0, dp(24), 1f).apply { marginStart = dp(4) }
+            else LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 32)))
             val name = productStyle.text("", TaskProductVisualStyle.Type(if (shortHome) 11 else 14,
                 500, if (shortHome) 16 else 20)).apply {
                 gravity = android.view.Gravity.CENTER
@@ -669,7 +689,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             return
         }
         if (device.candidateRole == DeviceRole.BOOKOO) { device.scaleProtocolId?.let { service?.connectScale(device.address, it) }; return }
-        if (service?.connectRememberedCoffee(device.address) == true) return
+        if (service?.connectRememberedCoffee(device.address) != RememberedCoffeeConnection.PASSWORD_REQUIRED) return
         val input = EditText(host).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
             filters = arrayOf(InputFilter.LengthFilter(6)); hint = getString(R.string.home_password_hint)
@@ -880,6 +900,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
+        lastCurveRow.visibility = quickRow.visibility
         if (!cupActive && (lastCurveDirty || previousCupActive)) {
             showLastCurve(resolveLastCurve())
             lastCurveDirty = false
@@ -995,12 +1016,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         // Loading history also migrates positively observed recent uses into the permanent ledger.
         val history = runCatching { app.history }.getOrNull() ?: return HomeLastCurve.DataUnavailable
         val ledger = app.curveUsageResult.getOrNull() ?: return HomeLastCurve.DataUnavailable
-        val journal = app.journalResult.getOrNull() ?: return HomeLastCurve.DataUnavailable
-        val manualAt = journal.entries().firstOrNull { it.observation.curveId == "manual" }
-            ?.observation?.startedAtMs
         val recentObserved = history.entries.firstOrNull { it.curveId != "manual" && it.observedRunning }
             ?.let { CurveUsage(it.id, it.curveId, it.startedAtMs) }
-        return HomeLastCurve.from(ledger.latest(), manualAt, app.curves.items, recentObserved) {
+        return HomeLastCurve.from(ledger.latest(), app.curves.items, recentObserved) {
             app.curves.canStart(it)
         }
     }
@@ -1009,7 +1027,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val ready = state as? HomeLastCurve.Ready
         val label = when (state) {
             HomeLastCurve.Empty -> getString(R.string.task_brew_usage_empty)
-            HomeLastCurve.Manual -> getString(R.string.extraction_manual_label)
             HomeLastCurve.DataUnavailable -> getString(R.string.task_brew_usage_unavailable)
             is HomeLastCurve.Unavailable -> getString(if (state.reason == HomeLastCurve.Reason.MUTABLE_DRAFT)
                 R.string.home_last_draft_changed else R.string.home_last_unavailable)
