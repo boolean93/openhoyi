@@ -67,3 +67,15 @@ slug仅小写字母、数字与单横杠，不嵌套；版本为无前导零的�
 `python3 -m unittest discover -s scripts -p test_git_policy.py` 验证规则；`python3 scripts/git_policy.py branch`检查当前工作分支。GitHub rulesets阻止main/develop直接合入、强推和删除，并要求`branch-policy`、`verify`两项检查；版本标签禁止更新和删除。`lifecycle`、`upgrade`保留为受保护分支push的发布前置workflow，不列入PR必需context。管理员修改仓库规则、绕过本地hook或故意伪造证据不属于本脚本能保证的范围。治理修改也必须走chore PR，不得为了临时通过关闭保护。
 
 GitHub 服务端规则的可审查配置保存在 [integration.json](../.github/rulesets/integration.json)、[releases.json](../.github/rulesets/releases.json)、[develop-apk-tags.json](../.github/rulesets/develop-apk-tags.json) 与 [develop-apk-ledger.json](../.github/rulesets/develop-apk-ledger.json)；配置更新须按仓库 API 返回核对，不把 JSON 文件存在当远端已启用。首次建立develop是迁移引导操作，在安装保护与hook之前仅推送既有c3710e3基线，此后不保留直推例外。
+
+## 从本地创建 PR
+
+提交本次改动，按现有流程推送工作分支，然后在仓库根目录运行：
+
+```sh
+./scripts/create-pr --title 'PR 标题' --body-file /tmp/openhoyi-pr.md
+```
+
+正文沿用 `.github/pull_request_template.md` 的四个小节。默认目标为 develop，其他目标用 `--base main` 明确指定；草稿加 `--draft`。单独运行检查用 `./scripts/create-pr --check-only`。
+
+入口按目标分支的完整差异使用与 CI 相同的分类器和检查命令。文档和站点白名单走快速检查，其他改动跑完整 verify（包括 Gradle 单测、构建和 Android lint）。完整检查需要与 verify 工作流匹配的 JDK、Android SDK 及 ANDROID_HOME。失败时修复后重跑，成功后脚本把实际执行的检查写入 PR 正文。网页和直接调用 gh 可以绕开本地入口，合并仍须通过服务端必需检查。
