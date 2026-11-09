@@ -306,10 +306,10 @@ starts++;done(OperationResult.Success())}
         val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0});s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
         fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
         complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))));complete();complete()
-        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830114FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830115FD5C007D0F3500190068"))
         check(s.state==DeviceState.UNSUPPORTED)
-        check(s.observedFirmware==CoffeeFirmware(1,1,4))
-        check(s.observedFirmware.toString()=="1.1.4")
+        check(s.observedFirmware==CoffeeFirmware(1,1,5))
+        check(s.observedFirmware.toString()=="1.1.5")
         val writesBefore=d.calls.size
         var result:OperationResult?=null
         s.startExtraction(StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)){result=it}
@@ -1159,6 +1159,46 @@ starts++;done(OperationResult.Success())}
         complete()
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(
             io.openhoyi.protocol.CoffeeCommands.stop(7).frame.toByteArray()))
+    }
+    case("1.1.4 firmware profile opens the existing ready gate") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))));complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830114FD5C007D0F3500190069"))
+        check(s.state==DeviceState.READY)
+        check(s.observedFirmware==CoffeeFirmware(1,1,4) && s.observedFirmware.toString()=="1.1.4")
+        check(s.lastFailure==null)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        var result:OperationResult?=null
+        s.writeSetting(MachineSettingChange.BrewTemperature(93)){result=it}
+        val write=d.calls.last().third as? GattOperation.Write
+        check(write!=null && write.bytes.contentEquals(hex("0402005D00")))
+        complete();check(result is OperationResult.Success)
+    }
+    case("coffee failure classification is display-only and cleared on reconnect") {
+        val d=SessionDriver();var now=0L
+        val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        fun discovered()=OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false)))
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        complete(OperationResult.Failed("gatt connect failed"))
+        check(s.state==DeviceState.FAILED && s.lastFailure==CoffeeSessionFailure.CONNECT)
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        check(s.lastFailure==null)
+        complete();complete(discovered());complete()
+        check(s.state==DeviceState.INITIALIZING && s.lastFailure==null)
+        complete(OperationResult.Failed("authentication write failed"))
+        check(s.state==DeviceState.FAILED && s.lastFailure==CoffeeSessionFailure.AUTH)
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        complete();complete(discovered());complete();complete()
+        check(s.state==DeviceState.SYNCHRONIZING && s.lastFailure==null)
+        now=10_001;s.tick()
+        check(s.state==DeviceState.FAILED && s.lastFailure==CoffeeSessionFailure.PROTOCOL_TIMEOUT)
+        s.connect("other",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"654321"))
+        check(s.lastFailure==null)
     }
     return tests
 }

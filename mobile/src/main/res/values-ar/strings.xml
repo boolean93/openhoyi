@@ -115,11 +115,13 @@
     <string name="curve_view_legacy">"منحنيات الإصدار القديم"</string>
     <string name="device_initial_message">"لم يتم توصيل جهاز بعد"</string>
     <string name="device_remembered_identity">"الجهاز المحفوظ: %1$s"</string>
+    <string name="device_state_auth_failed">"لم تكتمل المصادقة، يرجى إعادة المحاولة"</string>
     <string name="device_state_connecting">"جارٍ الاتصال"</string>
     <string name="device_state_disconnected">"غير متصل"</string>
     <string name="device_state_discovering">"جارٍ اكتشاف الخدمات"</string>
     <string name="device_state_failed">"فشل الاتصال"</string>
     <string name="device_state_initializing">"جارٍ التهيئة"</string>
+    <string name="device_state_protocol_timeout">"انتهت مهلة تهيئة البروتوكول"</string>
     <string name="device_state_ready">"جاهز"</string>
     <string name="device_state_subscribing">"جارٍ الاشتراك في البيانات"</string>
     <string name="device_state_synchronizing">"جارٍ المزامنة"</string>
@@ -244,7 +246,8 @@
     <string name="feedback_stop_preview">"إيقاف المعاينة"</string>
     <string name="feedback_title">"فنجانك جاهز"</string>
     <string name="firmware_mock">"برنامج ثابت محاكى %1$s · بلا تحكم Bluetooth"</string>
-    <string name="firmware_unverified">"البرنامج الثابت %1$s · غير متحقق منه، التحكم معطل"</string>
+    <string name="firmware_protocol_timeout">"انتهت مهلة قراءة إصدار البرنامج الثابت · قد يكون برنامجًا ثابتًا جديدًا غير مدعوم"</string>
+    <string name="firmware_unsupported">"البرنامج الثابت %1$s · البرنامج الثابت الجديد غير مدعوم بعد"</string>
     <string name="firmware_verified">"البرنامج الثابت %1$s · تم التحقق من البروتوكول"</string>
     <string name="history_count">"%1$s سجلات محلية · يُحتفظ بحد أقصى 30 يومًا / 500 سجل"</string>
     <string name="history_detail_mock_title">"تفاصيل محاكاة الاستخلاص"</string>
@@ -315,7 +318,7 @@
     <string name="home_device_connection">"اتصال الأجهزة"</string>
     <string name="home_export">"تصدير سجل العمليات بصيغة ZIP"</string>
     <string name="home_firmware_initial">"إصدار البرنامج الثابت: انتظار القراءة بعد الاتصال"</string>
-    <string name="home_firmware_readonly">"البرنامج الثابت غير متحقق منه · قراءة فقط"</string>
+    <string name="home_firmware_readonly">"البرنامج الثابت الجديد غير مدعوم · التحكم معطل"</string>
     <string name="home_history">"سجل الاستخلاص"</string>
     <string name="home_lever_button">"وضع الذراع"</string>
     <string name="home_lever_choose_title">"اختيار وضع الذراع"</string>

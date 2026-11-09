@@ -88,7 +88,7 @@ class CustomPressureStartPermitTest {
         val f=CoffeeSessionFixture {true};fresh(f)
         assertNotNull(f.session.captureStartContext(p))
         f.now=1501;assertNull(f.session.captureStartContext(p))
-        f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,f.hex("830114FD5C007D0F350019006E"))
+        f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,f.hex("830115FD5C007D0F3500190068"))
         fresh(f);assertNull(f.session.captureStartContext(p))
     }
 }

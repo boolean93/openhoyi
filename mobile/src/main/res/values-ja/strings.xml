@@ -115,11 +115,13 @@
     <string name="curve_view_legacy">"旧版曲線"</string>
     <string name="device_initial_message">"機器はまだ接続されていません"</string>
     <string name="device_remembered_identity">"記憶済みデバイス：%1$s"</string>
+    <string name="device_state_auth_failed">"認証が完了していません。再試行してください"</string>
     <string name="device_state_connecting">"接続中"</string>
     <string name="device_state_disconnected">"未接続"</string>
     <string name="device_state_discovering">"サービスを検索中"</string>
     <string name="device_state_failed">"接続失敗"</string>
     <string name="device_state_initializing">"初期化中"</string>
+    <string name="device_state_protocol_timeout">"プロトコル初期化タイムアウト"</string>
     <string name="device_state_ready">"準備完了"</string>
     <string name="device_state_subscribing">"データ通知を登録中"</string>
     <string name="device_state_synchronizing">"同期中"</string>
@@ -244,7 +246,8 @@
     <string name="feedback_stop_preview">"試聴を停止"</string>
     <string name="feedback_title">"この一杯ができました"</string>
     <string name="firmware_mock">"模擬ファームウェア%1$s · Bluetooth制御なし"</string>
-    <string name="firmware_unverified">"ファームウェア%1$s · 未検証、制御無効"</string>
+    <string name="firmware_protocol_timeout">"ファームウェアのバージョン読み取りがタイムアウト · 未対応の新しいファームウェアの可能性"</string>
+    <string name="firmware_unsupported">"ファームウェア%1$s · 新しいファームウェアには未対応"</string>
     <string name="firmware_verified">"ファームウェア%1$s · プロトコル検証済み"</string>
     <string name="history_count">"端末内記録%1$s件 · 最大30日／500件保存"</string>
     <string name="history_detail_mock_title">"模擬抽出詳細"</string>
@@ -315,7 +318,7 @@
     <string name="home_device_connection">"デバイス接続"</string>
     <string name="home_export">"操作記録をZIP出力"</string>
     <string name="home_firmware_initial">"ファームウェア：接続後の読み込み待ち"</string>
-    <string name="home_firmware_readonly">"ファームウェア未検証 · 読取専用"</string>
+    <string name="home_firmware_readonly">"新しいファームウェアには未対応 · 制御無効"</string>
     <string name="home_history">"抽出履歴"</string>
     <string name="home_lever_button">"レバーモード"</string>
     <string name="home_lever_choose_title">"レバーモードを選択"</string>

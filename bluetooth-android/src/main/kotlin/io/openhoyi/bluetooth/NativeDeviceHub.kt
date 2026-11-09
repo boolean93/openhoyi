@@ -108,6 +108,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     val scaleProtocolId:String? get()=scaleSlot.current?.selection?.protocolId
     val scaleAddress:String? get()=scaleSlot.current?.owner?.device?.session?.let { it.address.takeIf { _->it.state==DeviceState.READY } }
     val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
+    /** Display-only classification of the last FAILED coffee session; never a control permit. */
+    val coffeeFailure:CoffeeSessionFailure? get()=coffee.session.lastFailure
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
     private fun bluetoothReady():Boolean=scanner.environmentReady()
     val environmentReady:Boolean get()=bluetoothReady()

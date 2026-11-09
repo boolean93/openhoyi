@@ -115,11 +115,13 @@
     <string name="curve_view_legacy">"이전 곡선"</string>
     <string name="device_initial_message">"아직 연결된 기기가 없습니다"</string>
     <string name="device_remembered_identity">"저장된 기기: %1$s"</string>
+    <string name="device_state_auth_failed">"인증이 완료되지 않았습니다. 다시 시도하세요"</string>
     <string name="device_state_connecting">"연결 중"</string>
     <string name="device_state_disconnected">"연결 안 됨"</string>
     <string name="device_state_discovering">"서비스 검색 중"</string>
     <string name="device_state_failed">"연결 실패"</string>
     <string name="device_state_initializing">"초기화 중"</string>
+    <string name="device_state_protocol_timeout">"프로토콜 초기화 시간 초과"</string>
     <string name="device_state_ready">"준비 완료"</string>
     <string name="device_state_subscribing">"데이터 알림 구독 중"</string>
     <string name="device_state_synchronizing">"동기화 중"</string>
@@ -244,7 +246,8 @@
     <string name="feedback_stop_preview">"미리 듣기 중지"</string>
     <string name="feedback_title">"커피 한 잔이 완성됐어요"</string>
     <string name="firmware_mock">"모의 펌웨어 %1$s · 블루투스 제어 없음"</string>
-    <string name="firmware_unverified">"펌웨어 %1$s · 미검증, 제어 비활성화"</string>
+    <string name="firmware_protocol_timeout">"펌웨어 버전 읽기 시간 초과 · 지원되지 않는 새 펌웨어일 수 있음"</string>
+    <string name="firmware_unsupported">"펌웨어 %1$s · 새 펌웨어는 아직 지원되지 않음"</string>
     <string name="firmware_verified">"펌웨어 %1$s · 프로토콜 검증됨"</string>
     <string name="history_count">"로컬 기록 %1$s개 · 최대 30일 / 500개 보관"</string>
     <string name="history_detail_mock_title">"모의 추출 상세"</string>
@@ -315,7 +318,7 @@
     <string name="home_device_connection">"기기 연결"</string>
     <string name="home_export">"작업 기록 ZIP 내보내기"</string>
     <string name="home_firmware_initial">"펌웨어 버전: 연결 후 읽기 대기"</string>
-    <string name="home_firmware_readonly">"펌웨어 미검증 · 읽기 전용"</string>
+    <string name="home_firmware_readonly">"새 펌웨어는 지원되지 않음 · 제어 비활성화"</string>
     <string name="home_history">"추출 이력"</string>
     <string name="home_lever_button">"레버 모드"</string>
     <string name="home_lever_choose_title">"레버 모드 선택"</string>

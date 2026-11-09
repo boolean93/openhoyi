@@ -772,7 +772,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
             R.color.mobile_danger else R.color.mobile_accent))
         status.show(getString(R.string.home_machine_title) + " · " + if (owner?.manualShotActive == true)
-            getString(R.string.home_manual_shot_status) else label(s.coffeeState) +
+            getString(R.string.home_manual_shot_status) else DeviceStatusText.coffeeLabel(host,s.coffeeState,s.coffeeFailure) +
             if (LiveTelemetry.machine(s.coffee, s.coffeeState, s.coffeeAt, now) != null)
                 getString(R.string.home_live_suffix) else "")
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
@@ -809,7 +809,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 }
                 else -> ""
             })
-        firmwareStatus.show(firmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE))
+        firmwareStatus.show(firmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE,s.coffeeFailure))
         coffeeDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&
@@ -847,8 +847,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         sleepStatus.show(getString(R.string.home_sleep_summary, reportedSleep, sleepProgress))
         alarmStatus.show(machineAlarms.describe(s.alarmBits, s.alarmAt, now))
         val compactStatus = resources.configuration.screenWidthDp < 400
-        coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else label(s.coffeeState))
-            else getString(R.string.home_coffee_status, label(s.coffeeState), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
+        coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else DeviceStatusText.coffeeLabel(host,s.coffeeState,s.coffeeFailure))
+            else getString(R.string.home_coffee_status, DeviceStatusText.coffeeLabel(host,s.coffeeState,s.coffeeFailure), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
         coffeeDot.showDot(when (s.coffeeState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
@@ -1009,7 +1009,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     }
     private fun label(state: DeviceState): String = when (state) {
         DeviceState.READY -> getString(R.string.home_connected); DeviceState.DISCONNECTED -> getString(R.string.device_state_disconnected); DeviceState.FAILED -> getString(R.string.device_state_failed)
-        DeviceState.UNSUPPORTED -> getString(R.string.home_firmware_readonly); else -> getString(R.string.device_state_connecting)
+        DeviceState.UNSUPPORTED -> getString(R.string.device_state_unsupported); else -> getString(R.string.device_state_connecting)
     }
     private fun resolveLastCurve(): HomeLastCurve {
         val app = application as MobileApplication
