@@ -52,7 +52,6 @@
     <string name="curve_browse_only">"Только просмотр"</string>
     <string name="curve_cannot_start">"Этот профиль недоступен для экстракции"</string>
     <string name="curve_category_all">"Все"</string>
-    <string name="curve_category_captured">"Проверенные по захваченным данным"</string>
     <string name="curve_category_dark">"Тёмная обжарка"</string>
     <string name="curve_category_light">"Светлая обжарка"</string>
     <string name="curve_category_medium">"Средняя обжарка"</string>

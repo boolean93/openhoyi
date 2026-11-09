@@ -65,7 +65,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
             }
             var outerFailure:Throwable?=null
             try {
-                val selected=if(custom==null) CurveCatalog.profiles[if(window=="FLOW_START")1 else 2] else {
+                val selected=if(custom==null) ServiceCurveFixtures.profile(app, weighted = window!="FLOW_START") else {
                     app.customCurvesResult.getOrThrow().save(custom.copy(targetHundredthsGram=if(window=="FLOW_START")0 else custom.targetHundredthsGram))
                     requireNotNull(app.curves.resolve(custom.id,true,7)).also {
                         check(it.parameters.pressureLogic.not() && it.parameters.variableFlowLogic.not())
@@ -95,7 +95,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         val instance=attach()
                         val receiveScale = MobileService::class.java.getDeclaredMethod("onScaleObservation", ScaleObservation::class.java)
                             .apply { isAccessible = true }
-                        val owner=NativeDeviceHub(context,onScaleObservation={ observation -> receiveScale.invoke(instance, observation) },
+                        val owner=NativeDeviceHub(context,legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames,onScaleObservation={ observation -> receiveScale.invoke(instance, observation) },
                             customPressureStartPermit={parameters ->
                             custom!=null && app.curves.permitsCustomPressureStart(curvePrefs.getString("selected",null),parameters)
                         });hub=owner
@@ -189,7 +189,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         val other="AA:BB:CC:DD:EE:02"
                         when(mode) {
                             "MANUAL"->field(passive,"active").setBoolean(passive,true)
-                            "CURVE"->check(curvePrefs.edit().putString("selected",CurveCatalog.profiles.first().id).commit())
+                            "CURVE"->check(curvePrefs.edit().putString("selected",ServiceCurveFixtures.profile(app, excluding = selected.id).id).commit())
                             "HUB"->field(instance,"hub").set(instance,null)
                             "NOT_READY"->field(instance,"snapshot").set(instance,instance.snapshot.copy(coffeeState=DeviceState.SYNCHRONIZING))
                             "SHOT_CLEAR"->check(shot.clear())

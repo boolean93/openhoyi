@@ -379,7 +379,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             val factory=FactoryCurveCatalog.load(context.assets.open("factory_curves_v3.tsv"))
             val proof=FactoryWireProof.load(context.assets.open("factory_wire_v1.tsv"),factory,context.assets.open("factory_slot_wire_v1.tsv"))
             baseLibraryIds=CurveLibrary(factory,proof).items.map { it.id }
-            check(baseLibraryIds.size==103) { "M3 must preserve the original complete 103-item fixture" }
+            check(baseLibraryIds.size==100) { "M3 must preserve the complete 100-item factory fixture" }
             curves=CurveLibrary(factory,proof,{ custom.items() },true)
             check(curves.items.map { it.id }.containsAll(baseLibraryIds) &&
                 curves.items.size==baseLibraryIds.size+(if(specialLibrary) 2 else 1))
@@ -1177,15 +1177,13 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val long=factory.maxWithOrNull(compareBy<CurveLibraryItem> {
             CurveDetailsText(context).render(it,scope.curves.canStart(it)).length
         }.thenBy { it.id }) ?: error("M3 no real factory")
-        val captured=original.filter { it.controlProfile?.let(CurveCatalog::validated)==true }.minByOrNull { it.id }
-            ?: error("M3 no validated captured curve")
         val mixedFlow=factory.filter { CurveStageParameters.preview(it).let { preview -> preview.renderable && preview.mixed } }
             .minByOrNull { it.id } ?: error("M3 factory has no real mixed-stage source; fixture capability FAIL")
         val readonly=requireNotNull(scope.curves.find(requireNotNull(scope.readonly).id))
         val four=requireNotNull(scope.curves.find(scope.document.id))
-        val cases=listOf("long-factory" to long,"captured" to captured,"mixed-flow" to mixedFlow,
+        val cases=listOf("long-factory" to long,"mixed-flow" to mixedFlow,
             "readonly-flow" to readonly,"four-stage-pressure" to four,"short-pressure" to four)
-        check(cases.size==6 && original.size==105 && scope.baseLibraryIds.size==103)
+        check(cases.size==5 && original.size==102 && scope.baseLibraryIds.size==100)
         val frozen=invariant(scope); val prefs=context.getSharedPreferences("curves",Context.MODE_PRIVATE).all.toMap()
         cases.forEach { (name,item) ->
             val case=File(folder,name).apply { check(isDirectory || mkdirs()) }
@@ -1401,7 +1399,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 cleanupFailure?.let { throw it }
             }
         }
-        return listOf(long,captured,readonly)
+        return listOf(long,four,readonly)
     }
     private fun popupList(activity:Activity):ListView? = android.view.inspector.WindowInspector.getGlobalWindowViews()
         .filter { it!==activity.window.decorView && it.isAttachedToWindow }
@@ -1576,11 +1574,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         }
         return null
     }
-    private fun librarySlots(scope: Scope, directory: File, qualified:CurveLibraryItem, captured:CurveLibraryItem,
+    private fun librarySlots(scope: Scope, directory: File, qualified:CurveLibraryItem, customPressure:CurveLibraryItem,
         readonly:CurveLibraryItem) {
         val folder=File(directory,"preset-eligibility-and-slots").apply { check(isDirectory || mkdirs()) }
         check(qualified.factoryCurve!=null && scope.curves.canStart(qualified) &&
-            captured.factoryCurve==null && readonly.factoryCurve==null)
+            customPressure.factoryCurve==null && readonly.factoryCurve==null)
         val prefs=context.getSharedPreferences("presets",Context.MODE_PRIVATE)
         val before=prefs.all.toMap(); val diskBefore=presetDisk(); val frozen=invariant(scope)
         val report=JSONObject().put("qualifiedId",qualified.id).put("before",prefMapJson(before))
@@ -1722,7 +1720,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 }
                 check(invariant(scope)==frozen && scope.readOnlyService())
             }
-            for((label,item) in listOf("captured" to captured,"readonly-flow" to readonly)) {
+            for((label,item) in listOf("custom-pressure" to customPressure,"readonly-flow" to readonly)) {
                 librarySelect(page,scope,item)
                 main { check(field(page,"lastAssignedCurveId")==null && field(page,"lastAssignedSlot")==null) }
                 val unchanged=prefs.all.toMap()
@@ -2567,7 +2565,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     }
                     (0 until pairs.length()).forEach { check(pairs.getJSONObject(it).getString("status")!="FAIL") }
                     if(page=="library") {
-                        check(list(activity).count==active.curves.items.size && list(activity).count==104)
+                        check(list(activity).count==active.curves.items.size && list(activity).count==101)
                         check((field(activity,"selected") as CurveLibraryItem).id==active.document.id)
                         val actions=listOf(field(activity,"parameterShortcut") as Button,field(activity,"select") as Button)
                         actions.forEach { check(whole(observation(it)) && it.height>=HoyiUi.dp(activity,48)) }
@@ -2607,9 +2605,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         .put("noService",services().isEmpty())
                         .put("singleReadOnlyService",special.singleReadOnlyService()).toString(2))
                     scope=null; special.cleanup(); isolatedScopes++
-                    manifest.put("libraryVisualCaseCount",6).put("libraryBusinessCaseCount",2)
+                    manifest.put("libraryVisualCaseCount",5).put("libraryBusinessCaseCount",2)
                         .put("librarySpecialActualCount",special.curves.items.size)
-                        .put("mainLibraryOriginalCount",104)
+                        .put("mainLibraryOriginalCount",101)
                 }
                 "import" -> importBusiness(activity,active,directory)
                 else -> { previewReachability(activity,directory); previewBusiness(activity,active,directory) }

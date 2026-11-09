@@ -559,7 +559,6 @@
   "curve_unavailable": "Только просмотр · Проверка команды запуска недоступна",
   "curve_cannot_start": "Этот профиль недоступен для экстракции",
   "curve_category_all": "Все",
-  "curve_category_captured": "Проверенные по захваченным данным",
   "curve_category_dark": "Тёмная обжарка",
   "curve_category_medium": "Средняя обжарка",
   "curve_category_light": "Светлая обжарка",

@@ -198,9 +198,8 @@ assert_activity HomeActivity
 capture home-light
 tap_nav CurveActivity
 capture curves-light
-# Captured profiles are guaranteed by CurveCatalog; legacy factory names are not fixtures.
-tap_control '已采集验证'
-tap_control '采集曲线 3'
+tap_control '浅烘'
+tap_control 'HOYI Turbo Shot'
 capture curves-selected-light
 tap_nav ExtractionActivity
 capture extraction-light
@@ -219,9 +218,8 @@ adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$out
 grep 'name="dark" value="true"' "$output_dir/theme-pref.xml" >/dev/null
 tap_nav CurveActivity
 capture curves-dark
-# Captured profiles are guaranteed by CurveCatalog; legacy factory names are not fixtures.
-tap_control '已采集验证'
-tap_control '采集曲线 3'
+tap_control '浅烘'
+tap_control 'HOYI Turbo Shot'
 capture curves-selected-dark
 tap_nav ExtractionActivity
 capture extraction-dark
@@ -233,14 +231,14 @@ tap_nav MachineSettingsActivity
 capture settings-dark
 
 tap_nav CurveActivity
-tap_control '已采集验证'
-tap_control '采集曲线 2'
+tap_control '浅烘'
+tap_control 'SOE浅烘'
 sleep 2
 capture curve-detail-dark
 tap_control '使用此曲线'
 sleep 2
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/curves.xml > "$output_dir/selected-curve.xml"
-grep 'name="selected">capture-2<' "$output_dir/selected-curve.xml" >/dev/null
+grep 'name="selected">factory-v3-002<' "$output_dir/selected-curve.xml" >/dev/null
 tap_nav HomeActivity
 capture home-selected-dark
 tap_nav ExtractionActivity
@@ -260,7 +258,7 @@ capture extraction-ended-dark
 python3 scripts/mock_capture_continuity.py ended dark "$output_dir"
 tap_nav HistoryActivity
 capture history-list-dark
-tap_control '采集曲线 2'
+tap_control 'SOE浅烘'
 assert_activity HistoryActivity
 capture history-selected-dark
 tap_control '查看详情' --node-class android.widget.Button

@@ -52,7 +52,6 @@
     <string name="curve_browse_only">"Browse only"</string>
     <string name="curve_cannot_start">"This curve cannot be used for extraction"</string>
     <string name="curve_category_all">"All"</string>
-    <string name="curve_category_captured">"Captured and verified"</string>
     <string name="curve_category_dark">"Dark roast"</string>
     <string name="curve_category_light">"Light roast"</string>
     <string name="curve_category_medium">"Medium roast"</string>

@@ -59,8 +59,8 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
             try {
                 // startShot reads selection before the BREW_WAIT cancellation gate. Keep it
                 // isolated and valid, so rejection cannot come from a missing curve fixture.
-                val selected = CurveCatalog.profiles.first()
-                check(app.curves.resolve(selected.id, false, 7) == selected && CurveCatalog.validated(selected))
+                val selected = ServiceCurveFixtures.profile(app)
+                check(app.curves.resolve(selected.id, true, 7) == selected && app.curves.validated(selected))
                 val curvePrefs = app.getSharedPreferences(fixtures.getValue("curves"), Context.MODE_PRIVATE)
                 check(curvePrefs.edit().putString("selected", selected.id).commit())
                 val curveBefore = curvePrefs.all.toMap()
@@ -94,7 +94,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                         field(instance, "logs").set(instance, journal)
                         field(instance, "mock").set(instance, null)
                         field(instance, "machineWriteRecovery\$delegate").set(instance, lazyOf(recovery))
-                        val owner = NativeDeviceHub(context)
+                        val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames)
                         hub = owner
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
                         val drivers = listOf(Driver(), Driver())

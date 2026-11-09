@@ -77,7 +77,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
             }
             var outerFailure:Throwable?=null
             try {
-                val selected = CurveCatalog.profiles.first()
+                val selected = ServiceCurveFixtures.profile(app)
                 check(app.curves.resolve(selected.id, true, 7) == selected && app.curves.validated(selected))
                 check(app.getSharedPreferences(fixtures.getValue("curves"), Context.MODE_PRIVATE).edit()
                     .putString("selected", selected.id).commit())
@@ -107,7 +107,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                             field(instance,"preheatTimeoutScheduler").set(instance,schedule)
                         }
                         val readback = MobileService::class.java.getDeclaredMethod("onCoffeeFrame",HoyiMessage::class.java).apply { isAccessible=true }
-                        val owner = NativeDeviceHub(context,onCoffee={ readback.invoke(instance,it) })
+                        val owner = NativeDeviceHub(context,legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames,onCoffee={ readback.invoke(instance,it) })
                         hub = owner
                         field(instance, "hub").set(instance, owner)
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
@@ -173,7 +173,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                             val originalOwner=requireNotNull(recovery(instance).captureOwnership())
                             if(ready) {
                                 check(app.getSharedPreferences(fixtures.getValue("curves"),Context.MODE_PRIVATE).edit()
-                                    .putString("selected",CurveCatalog.profiles[2].id).commit())
+                                    .putString("selected",ServiceCurveFixtures.profile(app, excluding = selected.id).id).commit())
                             } else {
                                 check(recovery(instance).clear());check(recovery(instance).arm(kind,address))
                                 check(!recovery(instance).owns(originalOwner))

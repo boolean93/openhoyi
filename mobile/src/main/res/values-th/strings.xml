@@ -52,7 +52,6 @@
     <string name="curve_browse_only">"ดูเท่านั้น"</string>
     <string name="curve_cannot_start">"กราฟนี้สกัดไม่ได้"</string>
     <string name="curve_category_all">"ทั้งหมด"</string>
-    <string name="curve_category_captured">"เก็บตัวอย่างและยืนยันแล้ว"</string>
     <string name="curve_category_dark">"คั่วเข้ม"</string>
     <string name="curve_category_light">"คั่วอ่อน"</string>
     <string name="curve_category_medium">"คั่วกลาง"</string>

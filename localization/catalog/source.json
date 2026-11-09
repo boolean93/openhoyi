@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "79f442da961da8b517c9e8de0cf964e36c7b97be328e4be04cd3d9487707bbf4",
+  "sha256": "9fc903dbf3d422f5712cb58bd08a7b6943583c55d050b6b462df825dd594f14e",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -626,7 +626,6 @@
     "curve_unavailable": "仅可浏览 · 启动报文校验不可用",
     "curve_cannot_start": "此曲线不可萃取",
     "curve_category_all": "全部",
-    "curve_category_captured": "已采集验证",
     "curve_category_dark": "深烘",
     "curve_category_medium": "中烘",
     "curve_category_light": "浅烘",

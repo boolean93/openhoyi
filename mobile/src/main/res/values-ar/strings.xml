@@ -52,7 +52,6 @@
     <string name="curve_browse_only">"للتصفح فقط"</string>
     <string name="curve_cannot_start">"هذا المنحنى غير متاح للاستخلاص"</string>
     <string name="curve_category_all">"الكل"</string>
-    <string name="curve_category_captured">"تم التحقق ببيانات ملتقطة"</string>
     <string name="curve_category_dark">"تحميص داكن"</string>
     <string name="curve_category_light">"تحميص فاتح"</string>
     <string name="curve_category_medium">"تحميص متوسط"</string>

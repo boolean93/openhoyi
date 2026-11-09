@@ -44,7 +44,7 @@ internal class ServiceStopFeedbackChecks(private val test:Instrumentation) {
             }
             var primary:Throwable?=null
             try {
-                val selected=CurveCatalog.profiles[1]
+                val selected=ServiceCurveFixtures.profile(app, weighted = false)
                 check(selected.targetHundredthsGram==0 && app.curves.resolve(selected.id,true,7)==selected && app.curves.validated(selected))
                 check(context.getSharedPreferences("curves",0).edit().putString("selected",selected.id).commit())
                 var failure:Throwable?=null
@@ -63,7 +63,7 @@ internal class ServiceStopFeedbackChecks(private val test:Instrumentation) {
                             field(service,"history").set(service,detachedShotHistory())
                             check(!field(service,"running").getBoolean(service))
                         }
-                        val service=attach();val hub=NativeDeviceHub(context);owner=hub
+                        val service=attach();val hub=NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames);owner=hub
                         field(service,"hub").set(service,hub)
                         val session=hubDevice(hub, "coffee").session
                         val queue=field(session,"queue").get(session) as GattQueue

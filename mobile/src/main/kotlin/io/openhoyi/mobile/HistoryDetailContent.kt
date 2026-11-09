@@ -21,7 +21,8 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         return
     }
     val curve = if (entry.curveId == "manual") getString(R.string.extraction_manual_label) else
-        runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
+        runCatching { app.curves.find(entry.curveId)?.name }.getOrNull()
+            ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
     if (!standalone) HoyiUi.label(this, body, curve, 18, true).apply {
         // The fixed details button exposes the unabridged name and metadata.
         maxLines = 2
@@ -228,7 +229,8 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         ?: permanent?.observation?.historySummary()
     if (entry == null) { style.add(body, style.text(getString(R.string.history_missing))); return }
     val curve = if (entry.curveId == "manual") getString(R.string.extraction_manual_label) else
-        runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
+        runCatching { app.curves.find(entry.curveId)?.name }.getOrNull()
+            ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
     if (!standalone) {
         renderEmbeddedHistoryPreview(body, entry, curve, permanent, app.journalResult.isFailure, openFullPage, visual)
         return

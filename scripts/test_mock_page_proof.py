@@ -1,9 +1,9 @@
 import unittest
 import mock_ui_tap as tap
 
-SHOT = {'id': 'actual-cup', 'curve': 'capture-2', 'status': 'RUNNING', 'observedRunning': True}
+SHOT = {'id': 'actual-cup', 'curve': 'factory-v3-002', 'status': 'RUNNING', 'observedRunning': True}
 XML = ('<hierarchy><node class="android.widget.Button" text="立即停止萃取" clickable="true" enabled="true" visible-to-user="true" bounds="[306,1321][2488,1447]"/>'
-       '<node text="正在萃取，请守在机器旁"/><node text="采集曲线 2"/>'
+       '<node text="正在萃取，请守在机器旁"/><node text="SOE浅烘"/>'
        '<node text="00:07 · Mock" content-desc="00:07 · Mock · 模拟模式 · 不发送蓝牙命令"/></hierarchy>')
 
 class PageProofTest(unittest.TestCase):
@@ -29,7 +29,7 @@ class PageProofTest(unittest.TestCase):
 
     def test_wrong_page_or_missing_running_context_is_rejected(self):
         for xml in (XML.replace('正在萃取，请守在机器旁', '等待开始'),
-                    XML.replace('采集曲线 2', '其他曲线'), XML.replace(' · 模拟模式 · 不发送蓝牙命令', '')):
+                    XML.replace('SOE浅烘', '其他曲线'), XML.replace(' · 模拟模式 · 不发送蓝牙命令', '')):
             with self.subTest(xml=xml), self.assertRaises(ValueError): self.check_running(xml)
 
     def test_unobserved_or_ended_wrong_cup_cannot_replace_actual_running_state(self):
