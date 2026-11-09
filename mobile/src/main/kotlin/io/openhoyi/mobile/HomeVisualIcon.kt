@@ -12,13 +12,14 @@ import org.json.JSONObject
 import java.util.Locale
 
 /** M1's explicit native glyphs. Decorative only; owning action containers retain their callbacks. */
-internal class HomeVisualIcon(context: Context, private val kind: String, private val tint: Int) : View(context) {
+internal class HomeVisualIcon(context: Context, private val kind: String, private val tint: Int,
+    private val strokeDp: Float = 1f, private val solidAccents: Boolean = false) : View(context) {
     var productDrawEvidence = JSONObject()
         private set
     init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        productDrawEvidence = drawGlyph(context, canvas, width, height, kind, tint, tag)
+        productDrawEvidence = drawGlyph(context, canvas, width, height, kind, tint, tag, strokeDp, solidAccents)
     }
     companion object {
         fun buttonIcon(button: android.widget.Button, kind: String, atEnd: Boolean = false) {
@@ -70,14 +71,15 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
                 }), null, null, null)
         }
         fun drawable(context: Context, kind: String, tint: Int, currentTint: (() -> Int)? = null,
-            horizontalOffset: (() -> Float)? = null, mirrorHorizontally: (() -> Boolean)? = null): Drawable = object : Drawable() {
+            horizontalOffset: (() -> Float)? = null, mirrorHorizontally: (() -> Boolean)? = null,
+            strokeDp: Float = 1f, solidAccents: Boolean = false): Drawable = object : Drawable() {
             private val size = (24 * context.resources.displayMetrics.density).toInt()
             override fun getIntrinsicWidth() = size
             override fun getIntrinsicHeight() = size
             override fun draw(canvas: Canvas) {
                 canvas.save(); canvas.translate(bounds.left + (horizontalOffset?.invoke() ?: 0f), bounds.top.toFloat())
                 if (mirrorHorizontally?.invoke() == true) { canvas.translate(bounds.width().toFloat(), 0f); canvas.scale(-1f, 1f) }
-                drawGlyph(context, canvas, bounds.width(), bounds.height(), kind, currentTint?.invoke() ?: tint, null)
+                drawGlyph(context, canvas, bounds.width(), bounds.height(), kind, currentTint?.invoke() ?: tint, null, strokeDp, solidAccents)
                 canvas.restore()
             }
             override fun isStateful() = currentTint != null
@@ -87,14 +89,37 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
             @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
         }
         private fun drawGlyph(context: Context, canvas: Canvas, width: Int, height: Int,
-            kind: String, tint: Int, id: Any?): JSONObject {
+            kind: String, tint: Int, id: Any?, strokeDp: Float, solidAccents: Boolean): JSONObject {
         val scale = width / 24f
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint; style = Paint.Style.STROKE; strokeWidth = context.resources.displayMetrics.density }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint; style = Paint.Style.STROKE; strokeWidth = strokeDp * context.resources.displayMetrics.density
+            if (strokeDp > 1f) { strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+        }
         canvas.save(); canvas.scale(scale, scale)
         paint.strokeWidth /= scale
         val operations = JSONArray()
         fun line(x: Float, y: Float, x2: Float, y2: Float) {
             canvas.drawLine(x, y, x2, y2, paint); operations.put(JSONObject().put("line24", JSONArray(listOf(x,y,x2,y2))))
+        }
+        // Opt-in night chrome: solid accents preserve each glyph's open body and internal marks.
+        if (solidAccents) {
+            paint.style = Paint.Style.FILL
+            when (kind) {
+                "coffee" -> canvas.drawRoundRect(RectF(4f,12f,18f,17f),2f,2f,paint)
+                "history" -> canvas.drawRoundRect(RectF(5f,3f,20f,6f),1f,1f,paint)
+                "bean" -> canvas.drawPath(Path().apply {
+                    moveTo(14f,3f); cubicTo(7f,1f,3f,6f,4f,13f)
+                    cubicTo(4f,18f,7f,21f,10f,21f)
+                    cubicTo(19f,13f,5f,10f,14f,3f); close()
+                },paint)
+                "scale" -> canvas.drawPath(Path().apply {
+                    moveTo(3f,17f); lineTo(21f,17f); lineTo(22f,21f); lineTo(2f,21f); close()
+                },paint)
+                "moon" -> canvas.drawPath(Path().apply {
+                    moveTo(19f,16f); cubicTo(8f,19f,4f,10f,10f,3f)
+                    cubicTo(1f,5f,1f,17f,9f,21f); cubicTo(13f,23f,18f,20f,19f,16f); close()
+                },paint)
+            }
+            paint.style = Paint.Style.STROKE
         }
         when (kind) {
             "check" -> { line(5f,12f,10f,17f); line(10f,17f,20f,6f) }
@@ -147,7 +172,7 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
             .put("boundsPx",JSONArray(listOf(0,0,width,height))).put("coordinateScaleFrom24",scale)
             .put("colorArgb",String.format(Locale.ROOT,"#%08X",paint.color))
             .put("strokeWidthPx",if (paint.style == Paint.Style.FILL) JSONObject.NULL else paint.strokeWidth * scale)
-            .put("style",paint.style.name).put("lineOperations24",operations).put("pathSource","HomeVisualIcon.drawGlyph").put("status","actual_production_draw")
+            .put("solidAccents",solidAccents).put("style",paint.style.name).put("lineOperations24",operations).put("pathSource","HomeVisualIcon.drawGlyph").put("status","actual_production_draw")
         if (kind == "statusDot") evidence.put("circle", JSONObject()
             .put("centerPx", JSONArray(listOf(12f * scale, 12f * scale)))
             .put("radiusPx", 11f * scale).put("operation", "fillCircle"))

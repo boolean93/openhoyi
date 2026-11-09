@@ -152,6 +152,39 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
     }
 
+    private fun shellThemeStates(activity: MainActivity) {
+        for (night in listOf(false, true)) {
+            val config = android.content.res.Configuration(activity.resources.configuration).apply {
+                uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                    if (night) android.content.res.Configuration.UI_MODE_NIGHT_YES else android.content.res.Configuration.UI_MODE_NIGHT_NO
+            }
+            val context = android.view.ContextThemeWrapper(activity.createConfigurationContext(config), R.style.MobileTheme)
+            val chrome = TaskShellVisualStyle(context)
+            val action = android.widget.Button(context)
+            chrome.action(action)
+            action.isEnabled = true
+            val enabledInk = action.currentTextColor
+            action.isEnabled = false
+            check(action.currentTextColor != enabledInk && action.currentTextColor != chrome.surface) {
+                "Device action needs a distinct readable disabled state: night=$night"
+            }
+            action.isEnabled = true
+            check(action.currentTextColor == enabledInk)
+            val size = HoyiUi.dp(activity, 24)
+            fun paintedPixels(icon: HomeVisualIcon): Int {
+                icon.layout(0, 0, size, size)
+                val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                try {
+                    icon.draw(android.graphics.Canvas(bitmap))
+                    return (0 until size).sumOf { x -> (0 until size).count { y -> bitmap.getPixel(x,y) ushr 24 > 0 } }
+                } finally { bitmap.recycle() }
+            }
+            val regular = paintedPixels(HomeVisualIcon(context, "bean", chrome.ink))
+            val shell = paintedPixels(HomeVisualIcon(context, "bean", chrome.ink, chrome.iconStrokeDp, chrome.solidIcons))
+            check(shell > regular) { "Shell glyph should have more visual weight: night=$night" }
+        }
+    }
+
     /** Same view tree crosses rail/short-rail/phone/rail without touching device controls. */
     private fun adaptiveRailPlacement(activity: MainActivity) {
         val frame = TaskPageFrame.host(activity, TaskProductVisualStyle(activity), { TaskDestination.BREW }, {})
@@ -204,6 +237,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         val activity = host.activity
         try {
             test.runOnMainSync {
+                shellThemeStates(activity)
                 adaptiveRailPlacement(activity)
                 for ((mode, compact, widthDp) in listOf(
                     Triple(TaskNavigationMode.RAIL, false, 80),

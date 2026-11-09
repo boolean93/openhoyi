@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.RippleDrawable
-import android.graphics.drawable.StateListDrawable
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -35,17 +34,19 @@ internal class TaskShellStatusView(
     onDisconnectScale: () -> Unit,
 ) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
+    private val chrome = TaskShellVisualStyle(host)
     private var mode: TaskNavigationMode? = null
     private val divider = View(host).apply { tag = "task-shell-divider"; setBackgroundColor(style.border) }
     private fun statusText(id: String, ink: Boolean = false) = TextView(host).apply {
         tag = id
         style.apply(this, TaskProductVisualStyle.Type(14, if (ink) 500 else 400, 20), !ink)
+        setTextColor(if (ink) chrome.ink else chrome.muted)
         gravity = Gravity.CENTER; setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
     }
     private fun group(id: String) = LinearLayout(host).apply {
         tag = id; orientation = VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
         setPadding(0, style.dp(4), 0, style.dp(4))
-        background = style.shape(style.selected, radius = 10)
+        background = chrome.cardBackground()
     }
     private val coffeeGroup = group("task-shell-coffee-group")
     private val scaleGroup = group("task-shell-scale-group")
@@ -76,11 +77,7 @@ internal class TaskShellStatusView(
             .coerceAtLeast(0).toFloat(), 1f)
         isSingleLine = false; maxLines = Int.MAX_VALUE; ellipsize = null
         gravity = Gravity.CENTER; minHeight = style.dp(48); minimumHeight = style.dp(48)
-        background = StateListDrawable().apply {
-            addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.disabled, true, 8))
-            addState(intArrayOf(), RippleDrawable(ColorStateList.valueOf(style.selected),
-                style.shape(style.surface, true, 8), style.shape(android.graphics.Color.WHITE, radius = 8)))
-        }
+        chrome.action(this)
         setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
     }
     private val sleep = action("task-shell-sleep", onSleep)
@@ -94,7 +91,7 @@ internal class TaskShellStatusView(
     private var disconnectIcon = ""
 
     init {
-        setBackgroundColor(style.surface)
+        setBackgroundColor(chrome.surface)
         coffeeGroup.addView(coffeeFacts, LayoutParams(-1, -2))
         coffeeGroup.addView(sleep, actionParams())
         scaleGroup.addView(scaleFacts, LayoutParams(-1, -2))
@@ -129,7 +126,7 @@ internal class TaskShellStatusView(
         if (button === sleep && sleepIcon == kind || button === reconnect && reconnectIcon == kind ||
             button === disconnect && disconnectIcon == kind) return
         val drawable = HomeVisualIcon.drawable(host, kind, button.currentTextColor,
-            currentTint = { button.currentTextColor }).apply { setBounds(0, 0, style.dp(20), style.dp(20)) }
+            currentTint = { button.currentTextColor }, strokeDp = chrome.iconStrokeDp, solidAccents = chrome.solidIcons).apply { setBounds(0, 0, style.dp(20), style.dp(20)) }
         val label = button.text.toString().removePrefix("\uFFFC")
         button.text = SpannableString("\uFFFC$label").apply {
             setSpan(ActionIconSpan(button, drawable), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
