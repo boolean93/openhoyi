@@ -837,7 +837,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_connection_cancel_preheat), "brew_wait.connect_deferred")
             return false
         }
-        return hub != null && running
+        return hub != null
     }
     private fun startCoffeeConnection(address: String, password: String, remembered: Boolean, automatic: Boolean): Boolean {
         val current = hub ?: return false

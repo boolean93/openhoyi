@@ -1,6 +1,6 @@
 # 小屏首页预设按钮裁切修复
 
-- 需求与范围：用户确认修好既有布局阻塞并合入。咖啡机密码修复已在 PR #33 合入；本任务独立修复 720×360 首页预设按钮超出视口，不修改密码、协议或设备控制。
+- 需求与范围：用户确认修好既有布局阻塞并合入。咖啡机密码修复已在 PR #33 合入；本任务修复 720×360 首页预设按钮超出视口，并恢复原有同机手动连接的有效所有者契约；不修改凭据、协议帧或设备控制门禁。
 - 来源分支/基线提交：develop / 9fade537fd5549b8c98b078586bd88e5a671719c。
 - 工作分支：fix/home-compact-presets；工作树 /Users/boolean93/workspace/hoyi_app/openhoyi-fix-home-compact。
 - PR目标：develop。
@@ -22,3 +22,13 @@
 - 相关 JVM 6 项通过，assembleMock、assembleMockAndroidTest 成功；最终构建退出0（BUILD SUCCESSFUL，1m6s）。git diff --check、bash -n scripts/check_mock_lifecycle.sh 通过。
 - Astra 首轮源码审查：确认短横屏2:3顶行、全宽预设、萃取中入口同步隐藏、长屏与窄窗沿原布局；新增验收代码错误包名已在最终编译前修正。实际截图与几何仍待CI，未声称视觉验收完成。
 - MainNavigationChecks 保留原全可见断言，并检查至少48dp触控、5个预设预览及停止不重叠；截图来自Mock实际窗口，共idle/running/idle-last-curve三状态，最后一项复用原有Mock萃取产生的真实观测记录。
+
+## 定向渲染结果与后续修正
+
+- 首次本分支CI 42555471208：720×360 idle、running、idle-last-curve 三项几何与20轮×6页导航均通过，5预设完整可见且触控至少48dp；原裁切已消除。
+- 独立截图复核：idle/running布局成立；idle的机器状态有单字换行，短横屏连接按钮改为64dp并适配padding；第三张截图为页面切换前的合成帧，改用已有 NativeWindowFrameEvidence.committedFrame 等待真实画面提交，不使用延时伪造或绘制截图。
+- 同次lifecycle的后续ServiceWriteDisconnectionChecks暴露PR33提取连接门禁时新增running条件的回归。恢复原hub非空契约，保留全部身份、萃取和未知写入门禁，不将隔离fixture设为running或绕过其禁止系统调用的保护。
+- 同时核对既有自动暂停偏好的测试隔离：实际DeviceAutoConnectOwner.pause继续执行，原隔离偏好与原应用偏好不变断言均保留；不得通过放松断言使检查通过。最终实现须经Astra复核。
+
+- 后续补丁本地验证：CoffeeCredentialTest、HomeLastCurveTest、HomePresetPreviewTest、PresetSlotsTest 共15项通过；最终Mock与AndroidTest编译成功（1m34s），差异/脚本检查通过。
+- Astra最终源码复核通过：手动连接恢复原hub非空契约；隔离fixture两引用在异常路径独立恢复、原安全断言保留且新增内存暂停状态断言；按钮为WRAP_CONTENT、短横屏最小宽64dp与8dp横padding；截图等待真实render commit。最终实际画面待新HEAD工件复核。

@@ -48,6 +48,8 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         val directory = File(requireNotNull(test.targetContext.getExternalFilesDir(null)), "compact-home-navigation")
             .apply { check(mkdirs() || isDirectory) }
         val fixture = if (lastCurveRecorded) "idle-last-curve" else state
+        val committedFrame = NativeWindowFrameEvidence(test).committedFrame(requireNotNull(home.view))
+        File(directory, "$fixture-frame.json").writeText(committedFrame.toString(2))
         val screenshot = requireNotNull(test.uiAutomation.takeScreenshot())
         try { File(directory, "$fixture.png").outputStream().use { check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
         finally { screenshot.recycle() }

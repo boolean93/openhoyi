@@ -231,7 +231,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
         machineRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         machineConnect = button(machineRow, getString(R.string.home_connect)) { showDevicePanel() }.apply {
-            tag = "product/home/connect"; layoutParams = LinearLayout.LayoutParams(-2, dp(48))
+            tag = "product/home/connect"
+            layoutParams = LinearLayout.LayoutParams(-2, dp(48))
+            if (shortWideHome) {
+                minWidth = dp(64); minimumWidth = dp(64)
+                setPadding(dp(8), paddingTop, dp(8), paddingBottom)
+            }
         }
         val spaciousHome = resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
