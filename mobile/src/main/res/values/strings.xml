@@ -623,7 +623,6 @@
     <string name="curve_unavailable">"仅可浏览 · 启动报文校验不可用"</string>
     <string name="curve_cannot_start">"此曲线不可萃取"</string>
     <string name="curve_category_all">"全部"</string>
-    <string name="curve_category_captured">"已采集验证"</string>
     <string name="curve_category_dark">"深烘"</string>
     <string name="curve_category_medium">"中烘"</string>
     <string name="curve_category_light">"浅烘"</string>

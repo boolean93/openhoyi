@@ -559,7 +559,6 @@
   "curve_unavailable": "Browse only · Start packet verification unavailable",
   "curve_cannot_start": "This curve cannot be used for extraction",
   "curve_category_all": "All",
-  "curve_category_captured": "Captured and verified",
   "curve_category_dark": "Dark roast",
   "curve_category_medium": "Medium roast",
   "curve_category_light": "Light roast",

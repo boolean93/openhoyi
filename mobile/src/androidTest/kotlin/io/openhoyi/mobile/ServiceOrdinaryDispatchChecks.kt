@@ -73,7 +73,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
             }
             var outerFailure:Throwable?=null
             try {
-                val selected = CurveCatalog.profiles.first()
+                val selected = ServiceCurveFixtures.profile(app)
                 check(app.curves.resolve(selected.id, true, 7) == selected && app.curves.validated(selected))
                 check(app.getSharedPreferences(fixtures.getValue("curves"), Context.MODE_PRIVATE).edit()
                     .putString("selected", selected.id).commit())
@@ -97,7 +97,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             check(!field(instance, "running").getBoolean(instance))
                         }
                         val instance = attach()
-                        val owner = NativeDeviceHub(context)
+                        val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames)
                         hub = owner
                         field(instance, "hub").set(instance, owner)
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }

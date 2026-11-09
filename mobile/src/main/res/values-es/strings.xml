@@ -52,7 +52,6 @@
     <string name="curve_browse_only">"Solo consulta"</string>
     <string name="curve_cannot_start">"Esta curva no puede usarse para extracción"</string>
     <string name="curve_category_all">"Todas"</string>
-    <string name="curve_category_captured">"Capturadas y verificadas"</string>
     <string name="curve_category_dark">"Tueste oscuro"</string>
     <string name="curve_category_light">"Tueste claro"</string>
     <string name="curve_category_medium">"Tueste medio"</string>

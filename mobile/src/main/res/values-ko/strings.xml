@@ -52,7 +52,6 @@
     <string name="curve_browse_only">"보기 전용"</string>
     <string name="curve_cannot_start">"이 곡선은 추출 불가"</string>
     <string name="curve_category_all">"전체"</string>
-    <string name="curve_category_captured">"수집 및 검증됨"</string>
     <string name="curve_category_dark">"강배전"</string>
     <string name="curve_category_light">"약배전"</string>
     <string name="curve_category_medium">"중배전"</string>

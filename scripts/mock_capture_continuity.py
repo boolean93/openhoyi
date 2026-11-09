@@ -48,8 +48,8 @@ def snapshot(folder, phase):
     xml = adb('shell', 'run-as', PACKAGE, 'cat', 'shared_prefs/shot_history.xml')
     (folder / (phase + '-history.xml')).write_text(xml)
     running = [r for r in rows(xml) if r['status'] == 'RUNNING']
-    if len(running) != 1 or running[0]['curve'] != 'capture-2' or not running[0]['observedRunning']:
-        raise ValueError('Expected the real capture-2 running cup')
+    if len(running) != 1 or running[0]['curve'] != 'factory-v3-002' or not running[0]['observedRunning']:
+        raise ValueError('Expected the real factory-v3-002 running cup')
     epoch_seconds = int(adb('shell', 'date', '+%s').strip())
     return {'pid': pid, 'serviceToken': next(iter(owners)), 'shot': running[0],
             'elapsedLowerMs': epoch_seconds * 1000 - running[0]['startedAtMs'],

@@ -14,7 +14,7 @@ class CurveDetailsTextTest {
         }
         val text = CurveDetailsText(DefaultStringResources::resolve)
         for (library in listOf(CurveLibrary(factory), CurveLibrary(factory, proof))) {
-            assertEquals(103, library.items.size)
+            assertEquals(100, library.items.size)
             for (item in library.items) {
                 val before = library.resolve(item.id, true)
                 assertEquals(item.id, item.details, text.render(item, library.canStart(item)))
@@ -24,13 +24,14 @@ class CurveDetailsTextTest {
     }
 
     @Test fun emptyTranslationDoesNotAlterEligibilityOrStoredDetails() {
-        val library = CurveLibrary(emptyList())
+        val factory = File("src/main/assets/factory_curves_v3.tsv").inputStream().use(FactoryCurveCatalog::load)
+        val library = CurveLibrary(factory)
         val item = library.items.first()
         val before = library.resolve(item.id, true)
         val details = item.details
         val text = CurveDetailsText { _, _ -> "" }
         assertEquals("", text.render(item, library.canStart(item)))
-        assertTrue(library.canStart(item))
+        assertFalse(library.canStart(item))
         assertEquals(before, library.resolve(item.id, true))
         assertEquals(details, item.details)
     }

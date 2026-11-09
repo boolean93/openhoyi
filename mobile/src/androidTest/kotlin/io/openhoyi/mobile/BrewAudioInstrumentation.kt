@@ -574,9 +574,9 @@ class BrewAudioInstrumentation : Instrumentation() {
                     connection, Context.BIND_AUTO_CREATE)
             }
             check(bound && connected.await(10, TimeUnit.SECONDS))
-            check(prefs.edit().putString("selected", "capture-2").commit())
+            check(prefs.edit().putString("selected", "factory-v3-002").commit())
             awaitMain(5000) { owner.get()?.machineSettingsFresh == true }
-            runOnMainSync { check(owner.get()!!.startShot("capture-2", null, 7) == null) }
+            runOnMainSync { check(owner.get()!!.startShot("factory-v3-002", owner.get()!!.snapshot.scaleState == io.openhoyi.session.DeviceState.READY, 7) == null) }
             awaitMain(5000) { (owner.get()?.snapshot?.coffee as? ExtractionTelemetry)?.slotOrPhase == 8 }
             awaitMain(40000) {
                 owner.get()?.shotState == ExtractionState.ENDED_OBSERVED && owner.get()?.brewFeedbackResult != null
@@ -601,7 +601,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                     "Mock feedback early water exceeds its 10-second wire bucket: ${result.earlyWaterTenthsMl}"
                 }
                 check(result.level == BrewFeedbackClips.Level.LOW_FLOW)
-                check(owner.get()!!.startShot("capture-2", null, 7) == null)
+                check(owner.get()!!.startShot("factory-v3-002", owner.get()!!.snapshot.scaleState == io.openhoyi.session.DeviceState.READY, 7) == null)
                 check(owner.get()!!.brewFeedbackResult == null)
             }
             awaitMain(5000) { owner.get()?.snapshot?.coffee is ExtractionTelemetry && !homePage().feedbackUi.isShowing }
@@ -612,7 +612,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             runOnMainSync { check(owner.get()!!.brewFeedbackResult == null) }
             val extraction = MainPageTestHost(this, home).extraction()
             waitForIdleSync()
-            runOnMainSync { check(owner.get()!!.startShot("capture-2", null, 7) == null) }
+            runOnMainSync { check(owner.get()!!.startShot("factory-v3-002", owner.get()!!.snapshot.scaleState == io.openhoyi.session.DeviceState.READY, 7) == null) }
             awaitMain(40000) { extraction.feedbackUi.isShowing }
             awaitMusic(true)
             runOnMainSync {

@@ -68,13 +68,16 @@ class CustomCurveTest {
     }
     @Test fun copyingVerifiedMetadataNeverCopiesItsIdentityOrExecutionProof() {
         val library = CurveLibrary(emptyList())
-        val original = library.find("capture-1")!!
+        val profile = CurveCatalog.profiles[0]
+        val original = CurveLibraryItem(profile.id, profile.name, "", "", profile)
         val draft = CustomCurveDocument.fromLibraryItem(original)
         assertTrue(draft.id.startsWith("draft-"))
         assertEquals(90, draft.stages.first().target)
         assertEquals(350, draft.stages.first().waterTenthsMl)
-        assertTrue(library.canStart(original))
-        val flow = CustomCurveDocument.fromLibraryItem(library.find("capture-2")!!)
+        assertFalse(library.canStart(original))
+        val flowProfile = CurveCatalog.profiles[1]
+        val flow = CustomCurveDocument.fromLibraryItem(
+            CurveLibraryItem(flowProfile.id, flowProfile.name, "", "", flowProfile))
         assertEquals(CustomCurveDocument.ControlMode.FLOW_RAW, flow.controlMode)
     }
     @Test fun callersCannotMutateSavedStageLists() {

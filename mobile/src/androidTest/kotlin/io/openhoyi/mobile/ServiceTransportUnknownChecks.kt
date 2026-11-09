@@ -62,7 +62,7 @@ internal class ServiceTransportUnknownChecks(private val test: Instrumentation) 
                 override fun stopService(intent: Intent): Boolean { componentCalls++; error("No component dispatch") }
             }
             try {
-                val selected = CurveCatalog.profiles.first()
+                val selected = ServiceCurveFixtures.profile(app)
                 check(app.curves.resolve(selected.id, true, 7) == selected && app.curves.validated(selected))
                 check(app.getSharedPreferences(fixtures.getValue("curves"), Context.MODE_PRIVATE).edit()
                     .putString("selected", selected.id).commit())
@@ -86,7 +86,7 @@ internal class ServiceTransportUnknownChecks(private val test: Instrumentation) 
                             check(!field(instance, "running").getBoolean(instance))
                         }
                         val instance = attach()
-                        val owner = NativeDeviceHub(context)
+                        val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames)
                         hub = owner
                         field(instance, "hub").set(instance, owner)
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }

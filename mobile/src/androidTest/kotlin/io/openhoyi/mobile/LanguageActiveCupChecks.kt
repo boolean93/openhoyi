@@ -287,7 +287,7 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         val safety = listOf("devices", "presets", "shot_safety", "machine_write_safety")
             .associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         try {
-            test.runOnMainSync { check(curves.edit().putString("selected", "capture-2").commit()) }
+            test.runOnMainSync { check(curves.edit().putString("selected", "factory-v3-002").commit()) }
             val cases = if (visualEvidence) listOf(AppLanguage.CHINESE to true, AppLanguage.CHINESE to false)
                 else AppLanguage.entries.map { it to originalScaleConnected }
             for ((language, connected) in cases) {
@@ -295,7 +295,7 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     test.runOnMainSync { runtime.scaleConnected = connected }
                     awaitMain { (original.snapshot.scaleState == io.openhoyi.session.DeviceState.READY) == connected }
                 }
-                test.runOnMainSync { check(original.startShot("capture-2", null, 7) == null) }
+                test.runOnMainSync { check(original.startShot("factory-v3-002", original.snapshot.scaleState == io.openhoyi.session.DeviceState.READY, 7) == null) }
                 awaitMain { original.snapshot.coffee is ExtractionTelemetry && original.chartPoints.isNotEmpty() &&
                     observedState(original) == ExtractionState.RUNNING }
                 var recipe: ShotRecipeSnapshot? = null
