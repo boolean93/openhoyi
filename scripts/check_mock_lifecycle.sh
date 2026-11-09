@@ -115,13 +115,13 @@ adb shell am start -W -n "$package/io.openhoyi.mobile.MainActivity"
 assert_activity MainActivity
 sleep 3
 assert_edges 1 1
-tap_control() { python3 scripts/mock_ui_tap.py "$1" --scroll; sleep 2; }
+tap_control() { python3 scripts/mock_ui_tap.py "$@" --scroll; sleep 2; }
 for label in '曲线' '历史' '豆子' '电子秤' '设置' '首页'; do
-  tap_control "$label"
+  tap_control "$label" --node-class android.widget.LinearLayout
   assert_activity MainActivity
   assert_edges 1 1
 done
-tap_control '设置'
+tap_control '设置' --node-class android.widget.LinearLayout
 assert_activity MainActivity
 assert_edges 1 1
 
@@ -173,7 +173,7 @@ adb shell am start -W -n "$package/io.openhoyi.mobile.MainActivity"
 assert_activity MainActivity
 sleep 3
 assert_edges 2 2
-tap_control '首页'
+tap_control '首页' --node-class android.widget.LinearLayout
 assert_activity MainActivity
 assert_edges 2 2
 adb shell input keyevent KEYCODE_HOME
