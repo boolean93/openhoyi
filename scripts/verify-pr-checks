@@ -1,0 +1,49 @@
+#!/bin/sh
+# Shared by verify.yml and scripts/create-pr. Stop at the first failed check.
+set -eux
+case "${1:-}" in
+  fast-site)
+    python3 -m unittest discover -s scripts -p test_product_pages.py -v
+    ;;
+  fast-docs)
+    python3 scripts/pr_verify_scope.py check-docs
+    ;;
+  fast-policy)
+    python3 -m unittest discover -s scripts -p test_pr_verify_scope.py
+    python3 -m unittest discover -s scripts -p test_ci_workflow_policy.py
+    ;;
+  full)
+    python3 -m unittest discover -s scripts -p test_create_pr.py
+    python3 -m unittest discover -s scripts -p test_git_policy.py
+    python3 -m unittest discover -s scripts -p test_apk_distribution.py
+    python3 -m unittest discover -s scripts -p 'test_develop_release*.py'
+    python3 -m unittest discover -s scripts -p test_mock_upgrade.py
+    python3 -m unittest discover -s scripts -p test_mock_ui_tap.py
+    python3 -m unittest discover -s scripts -p test_pr_verify_scope.py
+    python3 -m unittest discover -s scripts -p test_ci_workflow_policy.py
+    python3 -m unittest discover -s localization/tests
+    python3 localization/validate_catalog.py
+    python3 localization/android_resources.py --check
+    ./gradlew --no-daemon --console=plain \
+      :bean-core:test \
+      :protocol-core:check \
+      :device-session:check \
+      :trace-core:test \
+      :bluetooth-android:testDebugUnitTest \
+      :app:testDebugUnitTest \
+      :mobile:testDebugUnitTest \
+      :mobile:testMockUnitTest \
+      :app:assembleDebug \
+      :mobile:assembleDebug \
+      :mobile:assembleMock \
+      :mobile:lintDebug
+    python3 localization/verify_apk_resources.py \
+      --aapt2 "$ANDROID_HOME/build-tools/35.0.0/aapt2" \
+      --android-jar "$ANDROID_HOME/platforms/android-35/android.jar" \
+      --alpha mobile/build/outputs/apk/debug/mobile-debug.apk \
+      --mock mobile/build/outputs/apk/mock/mobile-mock.apk
+    python3 scripts/check_release_configuration.py \
+      --assemble-fixture --sdk "$ANDROID_HOME"
+    ;;
+  *) echo "Unknown verification mode" >&2; exit 2 ;;
+esac
