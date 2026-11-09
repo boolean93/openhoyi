@@ -152,6 +152,51 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
     }
 
+    /** Same view tree crosses rail/short-rail/phone/rail without touching device controls. */
+    private fun adaptiveRailPlacement(activity: MainActivity) {
+        val frame = TaskPageFrame.host(activity, TaskProductVisualStyle(activity), { TaskDestination.BREW }, {})
+        val status = TaskShellStatusView(activity, { error("Unexpected sleep") }, { error("Unexpected scale") },
+            { error("Unexpected reconnect") }, { error("Unexpected disconnect") })
+        frame.installShellStatus(status)
+        val draft = EditText(activity).apply { setText("unsent draft"); setSelection(3) }
+        frame.pageContent.addView(draft)
+        for ((widthDp, heightDp) in listOf(1137 to 668, 1137 to 240, 360 to 640, 1137 to 668)) {
+            val width = HoyiUi.dp(activity, widthDp)
+            val height = HoyiUi.dp(activity, heightDp)
+            frame.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+            frame.layout(0, 0, width, height)
+            check(draft.parent === frame.pageContent && draft.text.toString() == "unsent draft" && draft.selectionStart == 3)
+            check(descendants(frame.navigation).count { it.tag?.toString()?.startsWith("task-nav:") == true } == 6)
+            if (widthDp >= 600) {
+                check(frame.mode == TaskNavigationMode.RAIL)
+                val scroll = frame.findViewWithTag<android.widget.ScrollView>("task-rail-scroll")
+                val column = scroll.getChildAt(0) as android.widget.LinearLayout
+                check(status.parent === column && frame.navigation.parent === column) { "Devices left the navigation rail" }
+                check(status.top >= frame.navigation.bottom && scroll.right <= frame.pageContent.left)
+                if (heightDp == 668) check(column.height <= scroll.height) { "Tablet rail should fit without scrolling" }
+                else check(column.height > scroll.height) { "Short rail must scroll as a whole" }
+                val targets = descendants(column).filter {
+                    it.tag?.toString()?.startsWith("task-nav:") == true ||
+                        it.tag in setOf("task-shell-coffee-facts", "task-shell-scale-facts", "task-shell-sleep",
+                            "task-shell-scale-reconnect", "task-shell-scale-disconnect") && it.visibility == View.VISIBLE
+                }
+                for (target in targets) {
+                    val bounds = Rect(0, 0, target.width, target.height)
+                    column.offsetDescendantRectToMyCoords(target, bounds)
+                    scroll.scrollTo(0, bounds.top)
+                    check(bounds.top >= scroll.scrollY && bounds.bottom <= scroll.scrollY + scroll.height) {
+                        "${target.tag} is unreachable in ${widthDp}x$heightDp"
+                    }
+                }
+                scroll.scrollTo(0, 0)
+            } else {
+                check(frame.mode == TaskNavigationMode.BOTTOM && status.parent === frame.pageContent)
+                check(frame.navigation.parent === frame)
+            }
+        }
+    }
+
     /** Small UI regression: no extraction or device action is invoked. */
     fun runInlineOnly() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
@@ -159,6 +204,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         val activity = host.activity
         try {
             test.runOnMainSync {
+                adaptiveRailPlacement(activity)
                 for ((mode, compact, widthDp) in listOf(
                     Triple(TaskNavigationMode.RAIL, false, 80),
                     Triple(TaskNavigationMode.RAIL, true, 104),
@@ -238,7 +284,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 test.waitForIdleSync()
                 host.active("root:BEANS")
             }
-            test.sendStatus(0, Bundle().apply { putString("stream", "NAV_INLINE_CHECKS_PASSED layouts=3 deviceTextEntries=4 repeatedAnchor=true backOrigin=true noExtraction=true\n") })
+            test.sendStatus(0, Bundle().apply { putString("stream", "NAV_INLINE_CHECKS_PASSED adaptiveRail=true draftRetained=true layouts=3 deviceTextEntries=4 repeatedAnchor=true backOrigin=true noExtraction=true\n") })
         } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
     }
 
