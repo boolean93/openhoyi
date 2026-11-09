@@ -185,7 +185,7 @@ class HistoryActivity : ThemedActivity() {
                 views.day.visibility = if (day != previousDay) View.VISIBLE else View.GONE
                 val library = runCatching { (application as MobileApplication).curves }.getOrNull()
                 views.title.text = if (entry.curveId == "manual") getString(R.string.extraction_manual_label)
-                    else library?.find(entry.curveId)?.name ?: entry.curveId
+                    else library?.find(entry.curveId)?.name ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
                 views.status.text = status(entry.status)
                 views.status.setTextColor(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningInk else style.accent)
                 val metadata = listOf(date(entry.startedAtMs),

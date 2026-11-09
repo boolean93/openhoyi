@@ -9,6 +9,8 @@ class CurveCategoryFilterTest {
             assertEquals(category,CurveCategoryFilter.restore(category.name))
             assertEquals(category,CurveCategoryFilter.restore(category.legacyKey))
         }
+        assertEquals(CurveCategoryFilter.ALL,CurveCategoryFilter.restore("CAPTURED"))
+        assertEquals(CurveCategoryFilter.ALL,CurveCategoryFilter.restore("已采集验证"))
         assertEquals(CurveCategoryFilter.ALL,CurveCategoryFilter.restore(null))
         assertEquals(CurveCategoryFilter.ALL,CurveCategoryFilter.restore("unrecognized-category"))
     }

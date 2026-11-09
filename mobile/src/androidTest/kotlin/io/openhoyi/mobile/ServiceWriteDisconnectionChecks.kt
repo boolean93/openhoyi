@@ -69,7 +69,7 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                 override fun stopService(intent: Intent): Boolean { componentCalls++; error("No component dispatch") }
             }
             try {
-                val selected = CurveCatalog.profiles.first()
+                val selected = ServiceCurveFixtures.profile(app)
                 check(app.curves.resolve(selected.id, true, 7) == selected && app.curves.validated(selected))
                 check(app.getSharedPreferences(fixtures.getValue("curves"), Context.MODE_PRIVATE).edit()
                     .putString("selected", selected.id).commit())
@@ -106,7 +106,7 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                         val instance = attach()
                         val stateCallback = MobileService::class.java.getDeclaredMethod("onDeviceState", DeviceRole::class.java, DeviceState::class.java)
                             .apply { isAccessible = true }
-                        val owner = NativeDeviceHub(context, onState = { role, state -> stateCallback.invoke(instance, role, state) })
+                        val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames, onState = { role, state -> stateCallback.invoke(instance, role, state) })
                         hub = owner
                         field(instance, "hub").set(instance, owner)
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }

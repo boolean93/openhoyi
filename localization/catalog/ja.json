@@ -559,7 +559,6 @@
   "curve_unavailable": "閲覧のみ · 開始電文検証が利用不可",
   "curve_cannot_start": "この曲線は抽出不可",
   "curve_category_all": "すべて",
-  "curve_category_captured": "採集・検証済み",
   "curve_category_dark": "深煎り",
   "curve_category_medium": "中煎り",
   "curve_category_light": "浅煎り",

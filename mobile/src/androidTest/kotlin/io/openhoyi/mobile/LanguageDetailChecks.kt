@@ -122,14 +122,13 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         val display = CurveDetailsText(activity)
         val factory = library.items.filter { it.factoryCurve != null }
             .maxBy { display.render(it, library.canStart(it)).length }
-        val captured = library.items.first { it.controlProfile != null }
         val noPressure = factory.takeIf { CurveStageParameters.pressureTargets(it).isEmpty() }
             ?: library.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() }
         val fourStage = CurveFooterFixtures.fourStage(library)
         val unavailable = CurveLibraryItem("language-readonly-fixture", "Read-only UI fixture", "其它",
             activity.getString(R.string.curve_unavailable), null)
         val show = CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
-        for ((kind, item) in listOf("longFactory" to factory, "captured" to captured, "unavailable" to unavailable,
+        for ((kind, item) in listOf("longFactory" to factory, "unavailable" to unavailable,
             "noPressure" to noPressure, "fourStage" to fourStage)) {
             onMain { show.invoke(page(activity), item) }
             test.waitForIdleSync()
@@ -252,7 +251,7 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         onMain { check(field(service, "hub").get(service) == null && field(service, "mock").get(service) != null) }
         val prefs = activity.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val original = prefs.all.toMap()
-        val profile = CurveCatalog.find("capture-2")!!
+        val profile = requireNotNull((activity.application as MobileApplication).curves.resolve("factory-v3-002", false))
         val state = service.shotState
         val message = service.snapshot.message
         var dialogMayBeOpen = false

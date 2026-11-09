@@ -291,14 +291,14 @@ def require_mock_page(xml, page, capture_name='', observed_shot=None):
                 or any(buttons[0].get(k) != 'true' for k in ('enabled', 'clickable', 'visible-to-user'))):
             raise ValueError('Running extraction requires its unique visible enabled stop action')
         center = find_target(xml, stop, node_class='android.widget.Button')
-        if center is None or not {'正在萃取，请守在机器旁', '采集曲线 2'} <= labels:
+        if center is None or not {'正在萃取，请守在机器旁', 'SOE浅烘'} <= labels:
             raise ValueError('Running extraction stop action/context is not reachable')
         clocks = [value for value in labels if re.fullmatch(r'\d{2}:\d{2} · Mock · 模拟模式 · 不发送蓝牙命令', value)]
         if len(clocks) != 1:
             raise ValueError('Running extraction requires the actual Mock cup clock')
         if (not observed_shot or observed_shot.get('status') != 'RUNNING'
-                or observed_shot.get('curve') != 'capture-2' or observed_shot.get('observedRunning') is not True):
-            raise ValueError('Running extraction requires the observed live capture-2 cup')
+                or observed_shot.get('curve') != 'factory-v3-002' or observed_shot.get('observedRunning') is not True):
+            raise ValueError('Running extraction requires the observed live factory-v3-002 cup')
         proof.update(stopAction=dict(buttons[0].attrib), reachableCenter=list(center),
                      mockClock=clocks[0], observedShot=observed_shot)
     return proof

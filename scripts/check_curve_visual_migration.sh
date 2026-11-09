@@ -332,16 +332,16 @@ def require_slot_transition(scope, step, chooser=None):
 def require_library_special(folder):
     scope=folder/'library-special-scope'
     fixture=json.loads((scope/'fixture.json').read_text())
-    assert fixture['specialLibraryScope'] and fixture['actualLibraryCount']==105 and len(fixture['baseLibraryIds'])==103
+    assert fixture['specialLibraryScope'] and fixture['actualLibraryCount']==102 and len(fixture['baseLibraryIds'])==100
     owned=json.loads((scope/'special-scope-business.json').read_text())
     assert owned['expectedOwnedCustomWrites']==owned['actualOwnedCustomWrites']==fixture['ownedCustomWriteAttemptsAtPrepare']==2
     assert owned['ownedDocumentIds']==[fixture['document']['id'],fixture['readonlyOwnedDocument']['id']]
-    assert owned['specialLibraryCount']==105 and owned['originalMainScopeAlreadyCleaned']
+    assert owned['specialLibraryCount']==102 and owned['originalMainScopeAlreadyCleaned']
     assert owned['noService'] is False and owned['singleReadOnlyService'] is True
     isolation=json.loads((scope/'fixture-isolation.json').read_text())
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['typedPreferencesRestored'] and isolation['businessDiskByteUnchanged']
     assert isolation['allOwnedLegacyReadersExitedAndMainCallbackBarrier'] and isolation['ownedLegacyArchiveSha256']
-    names=['long-factory','captured','no-pressure','readonly-flow','four-stage-pressure','short-pressure']
+    names=['long-factory','mixed-flow','readonly-flow','four-stage-pressure','short-pressure']
     assert {p.name for p in (scope/'special-states/library').iterdir() if p.is_dir()}==set(names)
     common={f'product/curve-library/summary/{i}/{suffix}' for i in range(3) for suffix in ('label','number')}
     common|={f'product/curve-library/summary/{i}/unit' for i in range(2)}
@@ -401,7 +401,6 @@ def require_library_special(folder):
             assert model['longSelectionRule']=='max_CurveDetailsText_render_length_then_id'
             assert model['formatterFullTextLength']>0 and len(model['formatterFullTextSha256'])==64
             assert all(ch in '0123456789abcdef' for ch in model['formatterFullTextSha256'])
-        if name=='captured': assert model['source']=='captured'
         if name=='short-pressure':
             assert report['originalWindowLayout']==report['windowLayoutAfterRestore']
             assert report['preRestoreActivityIdentity']==report['postRestoreActivityIdentity']
@@ -467,7 +466,7 @@ def require_library_special(folder):
         assert after[key]=={'type':'String','value':preset['qualifiedId']}
         assert {k:v for k,v in before.items() if k!=key}=={k:v for k,v in after.items() if k!=key}
         assert step['actualStoredId']==preset['qualifiedId']
-    assert [item['case'] for item in preset['negative']]==['captured','readonly-flow']
+    assert [item['case'] for item in preset['negative']]==['custom-pressure','readonly-flow']
     assert all(item['assignAbsent'] and not item['assignEnabled'] and item['slotMap']==preset['steps'][-1]['after']
         and item['actualMenu']==item['actualMenuNodes']['localizedAdapterChoices']
         and item['localizedAssignText'] not in item['actualMenu']
@@ -521,13 +520,13 @@ for path in manifests:
     assert business['completed'] and business['noMachineOrServiceCommands'], path
     assert (folder/'geometry.json').is_file()
     if m['page']=='library':
-        assert m['libraryVisualCaseCount']==6 and m['libraryBusinessCaseCount']==2 and m['mainLibraryOriginalCount']==104
-        assert m['librarySpecialActualCount']==105 and m['isolatedOwnedScopeCount']==2
+        assert m['libraryVisualCaseCount']==5 and m['libraryBusinessCaseCount']==2 and m['mainLibraryOriginalCount']==101
+        assert m['librarySpecialActualCount']==102 and m['isolatedOwnedScopeCount']==2
         require_library_special(folder)
 
 assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('library','import','preview') for theme in ('light','dark') for scale in ('1.0','1.3')}
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':12,'sourceSha':root.name,
-    'libraryVisualCasesPerProfile':6,'libraryBusinessCasesPerProfile':2,
+    'libraryVisualCasesPerProfile':5,'libraryBusinessCasesPerProfile':2,
     'visualAcceptance':'ASTRA_PENDING','specimenImagesUsedAsProductEvidence':False},indent=2)+'\n')
-print('CURVE_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING libraryVisualCasesPerProfile=6 libraryBusinessCasesPerProfile=2')
+print('CURVE_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING libraryVisualCasesPerProfile=5 libraryBusinessCasesPerProfile=2')
 VERIFY_PY

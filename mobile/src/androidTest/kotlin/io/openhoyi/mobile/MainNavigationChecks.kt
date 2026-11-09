@@ -447,8 +447,8 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 val readyDeadline = SystemClock.elapsedRealtime() + 10000
                 while (!service.machineSettingsFresh && SystemClock.elapsedRealtime() < readyDeadline) SystemClock.sleep(50)
                 check(service.machineSettingsFresh) { "Mock machine settings never became fresh" }
-                check(curvePrefs.edit().putString("selected", "capture-2").commit())
-                test.runOnMainSync { check(service.startShot("capture-2", null, 7) == null) }
+                check(curvePrefs.edit().putString("selected", "factory-v3-002").commit())
+                test.runOnMainSync { check(service.startShot("factory-v3-002", service.snapshot.scaleState == io.openhoyi.session.DeviceState.READY, 7) == null) }
                 val shotDeadline = SystemClock.elapsedRealtime() + 5000
                 while (service.shotState != ExtractionState.RUNNING && SystemClock.elapsedRealtime() < shotDeadline)
                     SystemClock.sleep(50)

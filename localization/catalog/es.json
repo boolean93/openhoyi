@@ -559,7 +559,6 @@
   "curve_unavailable": "Solo consulta · Verificación del paquete de inicio no disponible",
   "curve_cannot_start": "Esta curva no puede usarse para extracción",
   "curve_category_all": "Todas",
-  "curve_category_captured": "Capturadas y verificadas",
   "curve_category_dark": "Tueste oscuro",
   "curve_category_medium": "Tueste medio",
   "curve_category_light": "Tueste claro",

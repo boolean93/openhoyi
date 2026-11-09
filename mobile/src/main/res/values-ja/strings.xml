@@ -52,7 +52,6 @@
     <string name="curve_browse_only">"閲覧のみ"</string>
     <string name="curve_cannot_start">"この曲線は抽出不可"</string>
     <string name="curve_category_all">"すべて"</string>
-    <string name="curve_category_captured">"採集・検証済み"</string>
     <string name="curve_category_dark">"深煎り"</string>
     <string name="curve_category_light">"浅煎り"</string>
     <string name="curve_category_medium">"中煎り"</string>

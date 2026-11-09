@@ -5,7 +5,6 @@ import android.content.Context
 /** Stable UI filter identity. Legacy keys still match unmodified library data, never translated labels. */
 enum class CurveCategoryFilter(val legacyKey: String, private val labelResource: Int) {
     ALL("全部",R.string.curve_category_all),
-    CAPTURED("已采集验证",R.string.curve_category_captured),
     DARK("深烘",R.string.curve_category_dark),
     MEDIUM("中烘",R.string.curve_category_medium),
     LIGHT("浅烘",R.string.curve_category_light),

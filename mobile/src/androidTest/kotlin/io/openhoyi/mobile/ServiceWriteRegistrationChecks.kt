@@ -65,7 +65,7 @@ internal class ServiceWriteRegistrationChecks(private val test: Instrumentation)
                 override fun stopService(intent: Intent) = error("No component dispatch")
             }
             try {
-                val selected = CurveCatalog.profiles.first()
+                val selected = ServiceCurveFixtures.profile(app)
                 check(app.curves.resolve(selected.id, true, 7) == selected && app.curves.validated(selected))
                 check(app.getSharedPreferences(fixtures.getValue("curves"), Context.MODE_PRIVATE).edit()
                     .putString("selected", selected.id).commit())
@@ -99,7 +99,7 @@ internal class ServiceWriteRegistrationChecks(private val test: Instrumentation)
                         field(instance, "logs").set(instance, journal)
                         field(instance, "mock").set(instance, null)
                         field(instance, "machineWriteRecovery\$delegate").set(instance, lazyOf(recovery))
-                        val owner = NativeDeviceHub(context)
+                        val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames)
                         hub = owner
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
                         val drivers = listOf(Driver(), Driver())
