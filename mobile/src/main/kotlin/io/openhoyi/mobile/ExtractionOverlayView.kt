@@ -89,6 +89,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             pendingTraceReset = true
             snapAxisOnNextBuild = true
             lastYExpansionAt = 0L
+            previousSteps = emptyMap()
+            yExpansionStarted = false
             rebuildProjection()
             previousRanges = emptyMap()
             lastPointUpdateAt = null
@@ -139,6 +141,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     /** Realtime Y axes may batch at most one expansion per interval; clipping ignores it. */
     private var lastYExpansionAt = 0L
     private val yExpansionIntervalMs = 3_000L
+    private var previousSteps: Map<ChartMetric, Float> = emptyMap()
+    /** False until this cup's first Y expansion, which synchronises all recipe-targeted axes. */
+    private var yExpansionStarted = false
     private fun stopRevealTransition() {
         val oldRender = renderAnimator
         renderAnimator = null
@@ -257,6 +262,15 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         axisAnimator = animator
         animator.start()
     }
+    /** Recipe target ranges: the realtime Y axes prefer landing on these on their first expansion. */
+    var expectedRanges: Map<ChartMetric, ChartRange> = emptyMap()
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!liveChart) return
+            lastYExpansionAt = 0L
+            rebuildProjection()
+        }
     var unavailableLiveMetrics: Set<ChartMetric> = emptySet()
         set(value) {
             if (field == value) return
@@ -419,9 +433,22 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private fun rebuildProjection() {
         val now = android.os.SystemClock.elapsedRealtime()
         val allowYExpansion = lastYExpansionAt == 0L || now - lastYExpansionAt >= yExpansionIntervalMs
-        val projected = FourMetricChartProjection.build(points, reference, previousRanges,
-            livePauseBaseline = liveChart, liveFlow = liveChart,
-            allowLiveExpansion = allowYExpansion)
+        fun project(expandAllLiveAxes: Boolean) = FourMetricChartProjection.build(points, reference,
+            previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart,
+            allowLiveExpansion = allowYExpansion, expectedLiveRanges = expectedRanges,
+            previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes)
+        var projected = project(false)
+        if (liveChart && !yExpansionStarted && points.isNotEmpty() && projected.series.any { series ->
+                val before = previousRanges[series.metric] ?: ChartAxisScale.yAxis(
+                    series.metric.initialLow, series.metric.initialHigh, targetDivisions = 5).range
+                series.range != before
+            }) {
+            // The cup's first Y expansion expands every recipe-targeted axis in this same pass, so
+            // the four axes move together once instead of each finding its own trigger moment.
+            projected = project(true)
+            yExpansionStarted = true
+            lastYExpansionAt = now
+        }
         // The live time window (0-10 s filling, then a scrolling 10 s window) comes from the
         // projection; history/comparison keep their whole-cup end.
         val target: FourMetricChartData = projected
@@ -433,6 +460,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             before == null || before != series.range
         }
         previousRanges = target.series.associate { it.metric to it.range }
+        previousSteps = target.series.associate { it.metric to it.step }
         if (expanded) lastYExpansionAt = now
         // Snap for static contexts, unattached probes, identity/selection changes and the first
         // observation; progress-driven live changes animate.

@@ -32,6 +32,8 @@ internal const val LIVE_EXPANSION_THRESHOLD = 0.85f
 /** One expansion step reserves 40% above the observed peak and grows the old high by 60%. */
 internal const val LIVE_EXPANSION_HEADROOM = 1.4f
 internal const val LIVE_EXPANSION_FACTOR = 1.6f
+/** The observed peak must sit in the upper 8% of the axis, otherwise the curve looks flat. */
+internal const val LIVE_MAX_OBSERVED_FRACTION = 0.92f
 
 internal val historicalMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.WEIGHT, ChartMetric.TEMPERATURE)
 internal val liveMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.FLOW, ChartMetric.TEMPERATURE)
@@ -78,9 +80,20 @@ internal object FourMetricChartProjection {
         liveFlow: Boolean = false,
         /** Realtime throttle: when false only a clipping (must) expansion is allowed. */
         allowLiveExpansion: Boolean = true,
+        /** Recipe-derived final targets; the first needed expansion usually lands directly here. */
+        expectedLiveRanges: Map<ChartMetric, ChartRange> = emptyMap(),
+        /** Last rendered steps, so a throttled ("held") frame keeps range and step unchanged. */
+        previousSteps: Map<ChartMetric, Float> = emptyMap(),
+        /** First expansion of a cup: expand every recipe-targeted live axis in this one pass. */
+        expandAllLiveAxes: Boolean = false,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
+        expectedLiveRanges.forEach { (metric, range) ->
+            require(range.low.isFinite() && range.high.isFinite() && range.low < range.high) {
+                "Expected live range for $metric must be finite and increasing"
+            }
+        }
         // A live cup with no observations yet previews the reference cup; once the current cup
         // has any point, its own progress alone drives both axes.
         val referenceDrivesLiveAxes = liveFlow && points.isEmpty()
@@ -97,7 +110,10 @@ internal object FourMetricChartProjection {
                 require(old.low.isFinite() && old.high.isFinite() && old.low < old.high)
             }
             val axis = axis(metric, values, old, live = liveFlow,
-                allowLiveExpansion = allowLiveExpansion)
+                allowLiveExpansion = allowLiveExpansion,
+                expected = expectedLiveRanges[metric],
+                previousStep = previousSteps[metric],
+                expandAll = expandAllLiveAxes)
             MetricChartSeries(metric, current, historic, axis.range, axis.step)
         }
         val referenceEnd = if (!liveFlow || referenceDrivesLiveAxes)
@@ -133,24 +149,29 @@ internal object FourMetricChartProjection {
     }
 
     private fun axis(metric: ChartMetric, values: List<Float>, old: ChartRange?,
-        live: Boolean, allowLiveExpansion: Boolean = true): ChartAxisScale.YAxis {
+        live: Boolean, allowLiveExpansion: Boolean = true,
+        expected: ChartRange? = null, previousStep: Float? = null,
+        expandAll: Boolean = false): ChartAxisScale.YAxis {
         if (live) {
             val observedMax = values.maxOrNull()
             val observedMin = values.minOrNull()
             if (old == null) {
                 // Small initial range; a first observation that already exceeds it (clipping)
-                // expands immediately and generously.
+                // expands immediately and generously. The cup's first sync expansion also expands
+                // every recipe-targeted axis right away.
                 val insideInitial = observedMax == null || (observedMax <= metric.initialHigh &&
                     observedMin!! >= metric.initialLow)
-                if (insideInitial) {
+                if (insideInitial && !(expandAll && expected != null)) {
                     return ChartAxisScale.yAxis(metric.initialLow, metric.initialHigh,
                         targetDivisions = 5)
                 }
                 return expandLive(metric, metric.initialLow, metric.initialHigh,
                     observedMin, observedMax,
-                    highTriggered = observedMax!! > metric.initialHigh,
-                    lowTriggered = observedMin!! < metric.initialLow,
-                    targetDivisions = 4)
+                    highTriggered = (observedMax ?: metric.initialHigh) > metric.initialHigh ||
+                        (expandAll && expected != null),
+                    lowTriggered = (observedMin ?: metric.initialLow) < metric.initialLow ||
+                        (expandAll && expected != null && !metric.anchorZero),
+                    targetDivisions = 4, expected = expected)
             }
             val span = old.high - old.low
             val highReached = observedMax != null &&
@@ -163,12 +184,15 @@ internal object FourMetricChartProjection {
             // A throttled observation keeps the current range unchanged: identical targets mean
             // no animation, which is what removes the multi-axis random ticks.
             if (!mustExpand && !(allowLiveExpansion && (highReached || lowReached))) {
-                return ChartAxisScale.YAxis(old, ChartAxisScale.stepForRange(old))
+                val step = previousStep ?: ChartAxisScale.stepForRange(old)
+                if (!(expandAll && expected != null)) return ChartAxisScale.YAxis(old, step)
             }
             return expandLive(metric, old.low, old.high, observedMin, observedMax,
-                highTriggered = highClipped || (allowLiveExpansion && highReached),
-                lowTriggered = lowClipped || (allowLiveExpansion && lowReached),
-                targetDivisions = 4)
+                highTriggered = highClipped || (allowLiveExpansion && highReached) ||
+                    (expandAll && expected != null),
+                lowTriggered = lowClipped || (allowLiveExpansion && lowReached) ||
+                    (expandAll && expected != null && !metric.anchorZero),
+                targetDivisions = 4, expected = expected)
         }
         var low: Float
         var high: Float
@@ -206,13 +230,24 @@ internal object FourMetricChartProjection {
      */
     private fun expandLive(metric: ChartMetric, low: Float, high: Float,
         observedMin: Float?, observedMax: Float?, highTriggered: Boolean, lowTriggered: Boolean,
-        targetDivisions: Int): ChartAxisScale.YAxis {
+        targetDivisions: Int, expected: ChartRange?): ChartAxisScale.YAxis {
         // Trigger decisions are made by the caller from the real (possibly initial) span; only a
         // margin span below is floored to the metric minimum.
         val marginSpan = (high - low).coerceAtLeast(metric.minSpan)
         var newLow = low
         var newHigh = high
-        if (metric.anchorZero) {
+        if (expected != null) {
+            // Recipe target first: one expansion lands on the final scale and the curve fills it.
+            val growthFloorHigh = if (metric.anchorZero) high * 1.15f else high + marginSpan * 0.15f
+            val growthFloorLow = if (metric.anchorZero) low else low - marginSpan * 0.15f
+            if (highTriggered && observedMax != null)
+                newHigh = maxOf(observedMax, growthFloorHigh, expected.high)
+            if (lowTriggered && observedMin != null)
+                newLow = minOf(observedMin, growthFloorLow, expected.low)
+            // Expected bounds are a target, not a clip: also honour the untriggered side.
+            newLow = minOf(newLow, expected.low)
+            newHigh = maxOf(newHigh, expected.high)
+        } else if (metric.anchorZero) {
             if (highTriggered && observedMax != null)
                 newHigh = maxOf(observedMax * LIVE_EXPANSION_HEADROOM,
                     if (high > 0f) high * LIVE_EXPANSION_FACTOR else observedMax * LIVE_EXPANSION_HEADROOM)
@@ -227,6 +262,11 @@ internal object FourMetricChartProjection {
         }
         newHigh = maxOf(newHigh, observedMax ?: newHigh)
         newLow = minOf(newLow, observedMin ?: newLow)
+        // Never let the peak look flat: raise the axis until observed/newHigh <= 0.92.
+        observedMax?.let { peak ->
+            if (newHigh > 0f && peak / newHigh > LIVE_MAX_OBSERVED_FRACTION)
+                newHigh = peak / LIVE_MAX_OBSERVED_FRACTION
+        }
         return ChartAxisScale.yAxis(newLow, newHigh, targetDivisions)
     }
 

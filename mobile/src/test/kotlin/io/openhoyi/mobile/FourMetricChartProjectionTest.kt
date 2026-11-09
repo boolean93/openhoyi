@@ -312,6 +312,116 @@ class FourMetricChartProjectionTest {
             batch.series(ChartMetric.WATER).range)
     }
 
+    @Test fun liveExpansionLandsOnTheRecipeTargetInsteadOfOvershooting() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val expected = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f))
+        val data = FourMetricChartProjection.build(listOf(point(0, pressure = 90)), emptyList(),
+            initial, liveFlow = true, expectedLiveRanges = expected)
+        val range = data.series(ChartMetric.PRESSURE).range
+        assertEquals("expected target must be honoured, got $range", ChartRange(0f, 10f), range)
+        assertTrue(9f / range.high <= 0.92f)
+    }
+
+    @Test fun expectedTargetStillCoversAPeakAboveItAndKeepsTheCurveFillingThePlot() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val data = FourMetricChartProjection.build(listOf(point(0, pressure = 90)), emptyList(),
+            initial, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 5f)))
+        val range = data.series(ChartMetric.PRESSURE).range
+        assertTrue("must cover the observed peak: $range", range.high >= 9f)
+        assertTrue("observed must use the upper 8%: $range", 9f / range.high <= 0.92f)
+    }
+
+    @Test fun expectedTemperatureTargetExpandsTheWholeInterval() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val data = FourMetricChartProjection.build(listOf(point(0, temperature = 9450)), emptyList(),
+            initial, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.TEMPERATURE to ChartRange(87f, 97f)))
+        val range = data.series(ChartMetric.TEMPERATURE).range
+        assertTrue(range.low <= 87f)
+        assertTrue(range.high >= 97f)
+        assertTrue(94.5f / range.high <= 0.92f)
+    }
+
+    @Test fun historyIgnoresExpectedLiveRanges() {
+        val data = FourMetricChartProjection.build(listOf(point(0, pressure = 180)), emptyList(),
+            expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f)))
+        assertTrue("history must include the whole cup", data.series(ChartMetric.PRESSURE).range.high >= 18f)
+    }
+
+    @Test fun heldFrameKeepsTheExpandedRangeAndStepUnchanged() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val expected = mapOf(ChartMetric.TEMPERATURE to ChartRange(87f, 97f),
+            ChartMetric.PRESSURE to ChartRange(0f, 10f))
+        val expanded = FourMetricChartProjection.build(listOf(point(0, temperature = 9800,
+            pressure = 90)), emptyList(), initial, liveFlow = true, expectedLiveRanges = expected)
+        val ranges = expanded.series.associate { it.metric to it.range }
+        val steps = expanded.series.associate { it.metric to it.step }
+        // The next throttled frame must return the exact same range and step to keep the axis
+        // animation target identical (no spurious 380 ms re-layout).
+        val held = FourMetricChartProjection.build(listOf(point(0, temperature = 9800,
+            pressure = 90)), emptyList(), ranges, liveFlow = true, allowLiveExpansion = false,
+            expectedLiveRanges = expected, previousSteps = steps)
+        assertEquals(ranges, held.series.associate { it.metric to it.range })
+        assertEquals(steps, held.series.associate { it.metric to it.step })
+    }
+
+    @Test fun firstExpansionSynchronisesAllRecipeTargetedAxesInOnePass() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val expected = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f),
+            ChartMetric.TEMPERATURE to ChartRange(87f, 97f))
+        // Temperature 93.8 C is below the 85% trigger of the 90-95 initial range, so without the
+        // synchronised expansion only the clipping pressure axis would move.
+        val points = listOf(point(0, pressure = 90, water = 50, temperature = 9380, weight = 0),
+            point(1000, pressure = 90, water = 50, temperature = 9380, weight = 200))
+        // Without the flag only the pressure axis (already clipping) would expand.
+        val oneByOne = FourMetricChartProjection.build(points, emptyList(), initial, liveFlow = true,
+            expectedLiveRanges = expected)
+        assertEquals(initial.getValue(ChartMetric.TEMPERATURE),
+            oneByOne.series(ChartMetric.TEMPERATURE).range)
+        val synchronised = FourMetricChartProjection.build(points, emptyList(), initial,
+            liveFlow = true, expectedLiveRanges = expected, expandAllLiveAxes = true)
+        assertTrue(synchronised.series(ChartMetric.PRESSURE).range !=
+            initial.getValue(ChartMetric.PRESSURE))
+        assertTrue(synchronised.series(ChartMetric.TEMPERATURE).range !=
+            initial.getValue(ChartMetric.TEMPERATURE))
+        // A live axis without a recipe target only moves when clipping requires it.
+        assertEquals(initial.getValue(ChartMetric.WATER),
+            synchronised.series(ChartMetric.WATER).range)
+    }
+
+    @Test fun expandAllLeavesAxesWithoutRecipeTargetsAloneUnlessClipping() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val synchronised = FourMetricChartProjection.build(
+            listOf(point(0, pressure = 18, water = 50, temperature = 9200)),
+            emptyList(), initial, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f)),
+            expandAllLiveAxes = true)
+        // Water has no target and is still inside its 85% threshold: unchanged.
+        assertEquals(initial.getValue(ChartMetric.WATER),
+            synchronised.series(ChartMetric.WATER).range)
+        assertTrue(synchronised.series(ChartMetric.PRESSURE).range !=
+            initial.getValue(ChartMetric.PRESSURE))
+    }
+
+    @Test fun invalidExpectedRangesAreRejected() {
+        listOf(ChartRange(5f, 5f), ChartRange(6f, 5f), ChartRange(Float.NaN, 10f)).forEach { invalid ->
+            try {
+                FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true,
+                    expectedLiveRanges = mapOf(ChartMetric.PRESSURE to invalid))
+                fail("Expected IllegalArgumentException")
+            } catch (_: IllegalArgumentException) {
+                // A broken recipe target must be rejected instead of silently rescaled.
+            }
+        }
+    }
+
     @Test fun historyIgnoresTheRealtimeExpansionThrottle() {
         val points = listOf(point(0, pressure = 180), point(1000, pressure = 120))
         val throttled = FourMetricChartProjection.build(points, emptyList(), allowLiveExpansion = false)
