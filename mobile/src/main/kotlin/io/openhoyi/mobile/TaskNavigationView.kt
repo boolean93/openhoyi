@@ -43,7 +43,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 ?: activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
             val item = LinearLayout(activity).apply {
                 tag = "task-nav:${destination.name}"
-                orientation = HORIZONTAL
+                orientation = if (mode == TaskNavigationMode.RAIL) HORIZONTAL else VERTICAL
                 gravity = Gravity.CENTER
                 minimumHeight = HoyiUi.dp(activity, if (shellRail) if (shortRail) 48 else 60 else if (styledRail) 64 else 48)
                 minimumWidth = HoyiUi.dp(activity, 48)
@@ -71,7 +71,8 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
             val glyphSize = HoyiUi.dp(activity, if (styledRail && (!shellRail || !shortRail)) 24 else 20)
             item.addView(glyph, LayoutParams(glyphSize, glyphSize))
             item.addView(TextView(activity).apply {
-                text = activity.getString(labelId); textSize = if (shellRail) 12f else 14f; gravity = Gravity.CENTER
+                text = activity.getString(if (mode == TaskNavigationMode.BOTTOM && destination == TaskDestination.SCALE)
+                    R.string.task_scale_bottom_tab else labelId); textSize = if (shellRail) 12f else 14f; gravity = Gravity.CENTER
                 productVisualStyle?.apply(this, TaskProductVisualStyle.auxiliary)
                 if (shellRail) {
                     setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
@@ -83,7 +84,9 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 }
                 gravity = Gravity.CENTER
                 setTextColor(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(-2, -2).apply { marginStart = HoyiUi.dp(activity, 8) })
+            }, LayoutParams(if (mode == TaskNavigationMode.RAIL) -2 else -1, -2).apply {
+                if (mode == TaskNavigationMode.RAIL) marginStart = HoyiUi.dp(activity, 8)
+            })
             addView(item, if (mode == TaskNavigationMode.RAIL) LayoutParams(-1, -2).apply {
                 if (styledRail && destination != items.first() && destination != TaskDestination.SCALE) topMargin = HoyiUi.dp(activity, 8)
             } else LayoutParams(0, -2, 1f))

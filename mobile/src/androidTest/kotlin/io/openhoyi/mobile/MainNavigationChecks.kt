@@ -175,13 +175,25 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                         .filter { it.tag?.toString()?.startsWith("task-nav:") == true }) {
                         val glyph = item.getChildAt(0)
                         val label = item.getChildAt(1) as android.widget.TextView
-                        check(item.orientation == android.widget.LinearLayout.HORIZONTAL) { "${item.tag} is not inline in $mode/$compact" }
-                        check(glyph.right <= label.left && label.right <= item.width) { "${item.tag} overlaps or overflows" }
-                        check(kotlin.math.abs((glyph.top + glyph.bottom) - (label.top + label.bottom)) <= 2)
+                        if (mode == TaskNavigationMode.RAIL) {
+                            check(item.orientation == android.widget.LinearLayout.HORIZONTAL)
+                            check(glyph.right <= label.left && label.right <= item.width) { "${item.tag} overlaps or overflows" }
+                            check(kotlin.math.abs((glyph.top + glyph.bottom) - (label.top + label.bottom)) <= 2)
+                        } else {
+                            check(item.orientation == android.widget.LinearLayout.VERTICAL) { "${item.tag} is not stacked in bottom mode" }
+                            check(glyph.bottom <= label.top && label.bottom <= item.height)
+                            check(kotlin.math.abs((glyph.left + glyph.right) - (label.left + label.right)) <= 2)
+                        }
                         check(label.width > 0 && label.layout.getEllipsisCount(label.lineCount - 1) == 0)
                         check(label.layout.height <= label.height && label.layout.getLineEnd(label.lineCount - 1) == label.text.length)
-                        check(item.isFocusable && item.contentDescription == label.text)
                         val destination = TaskDestination.valueOf(item.tag.toString().substringAfter(':'))
+                        val fullLabel = if (destination == TaskDestination.SCALE) activity.getString(R.string.scale_title) else label.text
+                        check(item.isFocusable && item.contentDescription == fullLabel)
+                        if (destination == TaskDestination.SCALE) {
+                            val expected = if (mode == TaskNavigationMode.BOTTOM && activity.resources.configuration.locales[0].language == "zh")
+                                "秤" else activity.getString(R.string.scale_title)
+                            check(label.text.toString() == expected) { "Wrong scale label in $mode: ${label.text}" }
+                        }
                         check(item.isSelected == (destination == TaskDestination.BREW))
                         check(item.performClick() && selected == destination)
                     }
