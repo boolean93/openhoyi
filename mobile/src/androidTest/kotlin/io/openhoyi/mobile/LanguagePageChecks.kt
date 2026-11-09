@@ -262,7 +262,16 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                                 kotlin.math.abs(home.resources.configuration.fontScale - expectedScale) < .001f &&
                                 home.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
                             MainPageTestHost(test, home).active(requireNotNull(returnParentTag))
-                            check(home.javaClass.getDeclaredField("bound").apply { isAccessible = true }.getBoolean(home))
+                            // MainActivity.bound is a computed property since the visible service
+                            // binding refactor: it has a private getter, not a backing field.
+                            val bound = runCatching {
+                                home.javaClass.getDeclaredField("bound").apply { isAccessible = true }
+                                    .getBoolean(home)
+                            }.getOrElse {
+                                home.javaClass.getDeclaredMethod("getBound")
+                                    .apply { isAccessible = true }.invoke(home) as Boolean
+                            }
+                            check(bound)
                         }
                         checkPage(home, "$fixture returned actual Home")
                         assertState()
