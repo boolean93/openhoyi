@@ -88,6 +88,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             // old cup range, and defer the fresh 0-10 s window to the points replacement.
             pendingTraceReset = true
             snapAxisOnNextBuild = true
+            lastYExpansionAt = 0L
             rebuildProjection()
             previousRanges = emptyMap()
             lastPointUpdateAt = null
@@ -135,6 +136,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var pendingTraceReset = false
     private var snapAxisOnNextBuild = false
     private var lastUpdateGapMs = 250L
+    /** Realtime Y axes may batch at most one expansion per interval; clipping ignores it. */
+    private var lastYExpansionAt = 0L
+    private val yExpansionIntervalMs = 3_000L
     private fun stopRevealTransition() {
         val oldRender = renderAnimator
         renderAnimator = null
@@ -413,13 +417,23 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
 
     private fun rebuildProjection() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val allowYExpansion = lastYExpansionAt == 0L || now - lastYExpansionAt >= yExpansionIntervalMs
         val projected = FourMetricChartProjection.build(points, reference, previousRanges,
-            livePauseBaseline = liveChart, liveFlow = liveChart)
+            livePauseBaseline = liveChart, liveFlow = liveChart,
+            allowLiveExpansion = allowYExpansion)
         // The live time window (0-10 s filling, then a scrolling 10 s window) comes from the
         // projection; history/comparison keep their whole-cup end.
         val target: FourMetricChartData = projected
         // previousRanges tracks the committed target only; animation frames never feed back.
+        // An expansion (optional or clipping) starts a new 3 s batch window so the next optional
+        // expansion is evaluated for every live metric at once.
+        val expanded = liveChart && points.isNotEmpty() && target.series.any { series ->
+            val before = previousRanges[series.metric]
+            before == null || before != series.range
+        }
         previousRanges = target.series.associate { it.metric to it.range }
+        if (expanded) lastYExpansionAt = now
         // Snap for static contexts, unattached probes, identity/selection changes and the first
         // observation; progress-driven live changes animate.
         val snap = !liveChart || !isAttachedToWindow || snapAxisOnNextBuild ||

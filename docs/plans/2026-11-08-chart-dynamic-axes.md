@@ -6,6 +6,7 @@
   - 用户真机复验修正（观测驱动）：反馈「萃取曲线似乎只是改了单位密度，坐标并不会随着萃取进度变化」。根因：实时 X 轴被 `LiveChartGeometry.continuousTimeEnd = maxOf(previous, 30_000, projected)` 钉死在 0–30s；实时 Y 轴被配方种子（压力 0–10 等）预填满，整杯一开始就是最终范围。改为观测驱动、只扩不缩：X 从 5s 起按阶段边界扩展，Y 从小初始范围随观测值扩展；历史/对比不变。
   - 用户真机复验修正（平滑过渡）：阶段边界/nice 边界变化时轴瞬间跳变，只有曲线有 reveal 动画，观感「一跳一跳」。给实时轴（range low/high/step + timeStart/End）加约 380ms Decelerate 过渡动画；曲线 reveal 动画保留并行；历史/对比/嵌入历史保持静态。
   - 收尾（Astra note a + 体验）：实时 `end` 每次观测都变，若每次都用 380ms Decelerate 重启动画会产生 4Hz 速度脉动。改为按变化类型选过渡：仅时间轴变化（Y 范围/step 不变）时用 LinearInterpolator + 与观测间隔匹配的 200–300ms，连续匀速变化；Y 范围变化仍用 380ms Decelerate。
+  - 用户 D（纵轴降频）：横向缩放已满意，但多轴 Y 各自在不同时刻跳。改为保持观测驱动但降档：预扩阈值 85%、每 3 秒至多一次批量扩档、一次给足余量（新 high≈max(观测最大×1.4, 当前 high×1.6)）；同一次评估中所有达到阈值的轴一起扩（同一 380ms 动画事件），未达阈值的保持不动；观测超出当前 high（会裁切）时立即扩、不受节流。历史/对比不变。
   - 用户最终澄清（连续缩放，推翻滚动与阶段扩轴）：实时时间轴始终 `start=0`、`end=max(10_000, observedEnd)`。前 10 秒固定 0–10s（曲线从左往右画）；超过 10 秒后 end 连续跟随观测变大（0–12、0–15……），整杯曲线始终完整显示并被平滑横向压缩，最新点仍落在右边界（end=当前时长）。视觉是「连续缩放」，不是滚动换档、也不是 5→10→15 阶段扩轴。`timeStartMs` 字段保留但 live 恒为 0；结束/空闲时 end 自然等于整杯时长（无需额外 follow 状态）；历史/对比仍 start=0、整杯取整自适应；空闲无观测预览仍可显示完整参考杯。
   - 真机复验追加根因（参考曲线预撑）：实时页会自动加载同曲线上一杯作参考曲线（`ExtractionFragment.loadReference`），而 `FourMetricChartProjection.build` 把 reference 一并计入 `values` 与 `observedEnd`，于是即使没有配方预填，参考杯的时长/峰值仍会把实时轴预先定长定高。修正：当前杯已有观测时，实时 X/Y 轴只由当前杯驱动；参考曲线照常绘制，超出当前轴范围的部分由 canvas clip 裁剪、随进度展开逐步露出；当前杯无观测（空闲预览）时仍由参考杯决定轴与时长；历史/对比仍包含参考、按整杯自适应。
   - 范围：实时萃取页、历史详情（共用 `ProductHistoryChartRenderer` / `FourMetricChartProjection`）、对比页共用适配。纯显示层，不改协议帧、出站命令、采样/存储/历史数据。
@@ -21,10 +22,10 @@
     - `FourMetricChartData` 末尾新增 `timeStartMs: Long = 0`（live 恒 0、历史/对比 0）；实时 `end=max(10_000, observedEnd)`、`start=0`；空闲预览（无 current、有 reference）`start=0, end=max(10_000, referenceEnd)`；历史/对比现有 timeEnd 取整逻辑不变。
     - `ChartMetric` 由固定 floor/ceiling/step 改为每指标 `minSpan`（压力 4 bar、水量/重量 10、温度 5 °C、流速 2）、小的实时初始范围（压力 0–2、水量 0–10、重量 0–10、温度 90–95、流速 0–1）与历史空数据回退（沿用 0–10/0–40/0–40/88–98/0–4），并标记低频物理量锚 0、温度不锚 0。
     - `MetricChartSeries` 暴露 `step`；`build` 不再接收配方种子。
-    - 实时：`初始范围 ∪ previousRanges ∪ 当前杯已观测值`，只扩不缩（压力 0→9 会经历 0–2→0–3→0–5→0–10 一类阶梯）；当前杯已有观测时参考曲线的值/时长不参与轴范围（仅照常绘制、超出部分裁剪），当前杯无观测的空闲预览才让参考曲线决定轴与时长。历史：整杯 current+reference min/max + 最小跨度；`previousRanges` 非法仍拒绝。
+    - 实时（Y 轴迟滞）：`old==null` 用初始小范围（首次观测已超出则立即扩）；`old!=null` 时仅当 `allowLiveExpansion` 且观测达到当前 range 的 85%（温度低端同理）、或观测超出当前范围（must，立即不受节流）才扩；否则保持 old range/step（目标不变→无动画无抖动）。一次扩档：零锚定量 newHigh=max(观测×1.4, 旧 high×1.6)、温度按区间跨度给 40%/60% 余量，再用 nice yAxis 取整（targetDivisions 4）；`build` 增加 `allowLiveExpansion: Boolean = true`。当前杯已有观测时参考曲线的值/时长不参与实时轴范围（仅照常绘制、超出部分裁剪），空闲预览才让参考曲线决定轴与时长。历史：整杯 current+reference min/max + 最小跨度，不受节流影响；`previousRanges` 非法仍拒绝。
     - 历史/对比 `timeEndMs` 向上取整到时间主步长；实时保持观测末端。
   - `LiveChartGeometry.kt`：删除阶段边界 `stagedTimeEnd`/`liveTimeEnd`（时间窗口改由投影提供），仅保留 reveal/曲线插值工具。
-  - `ExtractionOverlayView.kt`：删除 liveTimeEnd/staged 逻辑，改用投影的 `timeStartMs`/`timeEndMs`；维护 `renderTimeStart`/`renderTimeEnd` 供绘制与轴动画；不再需要 `liveFollowProgress`/结束后切整杯的特殊逻辑（end 自然等于整杯时长）；新杯/traceIdentity/首次观测/未 attached/历史对比仍 snap。删除配方种子相关的 `expectedRanges` 属性。
+  - `ExtractionOverlayView.kt`：删除 liveTimeEnd/staged 逻辑，改用投影的 `timeStartMs`/`timeEndMs`；维护 `renderTimeStart`/`renderTimeEnd` 供绘制与轴动画；不再需要 `liveFollowProgress`/结束后切整杯的特殊逻辑（end 自然等于整杯时长）；Y 扩档节流：单调时钟 `lastYExpansionAt` 每 3s 允许一次 `allowLiveExpansion`，扩展发生后重置窗口（must-expand 由投影随时允许），新杯/新 traceIdentity 重置计时；新杯/traceIdentity/首次观测/未 attached/历史对比仍 snap。删除配方种子相关的 `expectedRanges` 属性。
   - 新增 `LiveAxisAnimation.kt`（纯逻辑）：实时轴插值状态（每指标 range low/high/step + timeStart/timeEnd），`interpolate`/`apply` 生成插值后的 `FourMetricChartData`，不修改点/参考/reset/pause 数据；`sameTarget` 判断运行中动画的目标是否与新目标完全一致；`transition` 按变化类型返回 `SCROLL`（仅时间窗口变化，Linear，duration 按观测间隔 clamp 200–300ms）或 `RANGE`（Y 变化，Decelerate 380ms）。
   - `ExtractionOverlayView` 轴动画：维护 `renderedRanges`/`renderedSteps`/`renderTimeEnd`，`rebuildProjection` 产生新目标时若是 liveChart、attached、已有上一帧渲染状态且非首次观测，则用 ValueAnimator + DecelerateInterpolator 平滑过渡并在结束 snap；新杯/traceIdentity、选择曲线变化、首次有数据、未 attached（probe）直接 snap；`previousRanges` 仍按目标单调更新；曲线 reveal 动画保留并行。
   - 轴动画状态机（Astra F1）：取消动画前先把字段置 null，`onAnimationCancel` 只清理不 snap，只有自然 `onAnimationEnd` 且仍是当前动画时才 snap；新目标与运行中目标完全一致时不取消/不重启；目标变化时从当前插值状态（renderedRanges/renderTimeEnd）平滑重定向，绝不先 snap；点更新（`points` setter）只重置 reveal 动画，不再每次取消轴动画（避免 250ms 数据流把 380ms 动画截断后瞬跳）。图例 range 文本在每次 rebuild 时按当前插值 data 刷新、动画结束再按目标刷新（不会在动画开始瞬间跳到目标）；动画期间轴列宽取 max(目标刻度, 当前插值刻度)（`ProductHistoryChartRenderer.layoutAxis`）避免插值文本越界或横向抖动。
@@ -37,12 +38,12 @@
   - `mobile/src/test/kotlin/io/openhoyi/mobile/ChartAxisScaleTest.kt`（新增）：niceStep/yAxis/主次刻度/时间轴/零宽/非法输入。
   - `LiveAxisAnimationTest.kt`（新增）：中点插值 range/step/timeEnd、fraction clamp、缺失指标取目标、apply 保留观测/reset/pause、时长范围、step 恒正、sameTarget 同/异目标判定、动画中重定向从当前插值状态继续。
   - `LiveChartGeometryTest.kt`：删除阶段时间轴用例，保留 reveal/插值工具回归。
-  - `FourMetricChartProjectionTest.kt`：缩放用例（5s→0–10、12s→0–12、25s→0–25、31.5s→0–31.5、end=observed 且单调、≥10s 最小、空闲参考预览 start=0、历史 start=0 不变）；`LiveAxisAnimationTest` 增加 SCROLL（仅时间变化，Linear/200–300ms）、RANGE（Y 变化，Decelerate 380ms）、NONE 的类型选择。
+  - `FourMetricChartProjectionTest.kt`：缩放用例（5s→0–10、12s→0–12、25s→0–25、31.5s→0–31.5、end=observed 且单调、≥10s 最小、空闲参考预览 start=0、历史 start=0 不变）；Y 迟滞用例（初始小范围、未到 85% 不扩、allow=false 不扩、达到阈值扩到 ≥观测×1.4 且 ≥旧 high×1.6 的 nice 取整、观测超 high 时不受节流立即扩、多指标同一次评估一起扩、历史忽略节流）；`LiveAxisAnimationTest` 增加 SCROLL（仅时间变化，Linear/200–300ms）、RANGE（Y 变化，Decelerate 380ms）、NONE 的类型选择。
   - `FourMetricChartProjectionTest.kt`：更新动态范围期望；补实时小初始范围、压力随观测阶梯扩展、同杯只扩不缩、温度最小跨度（91–94→90–95）、历史整杯自适应。
   - androidTest 兼容（不运行，已编译）：`LiveNarrowChartChecks` 轴端点改为与 `FourMetricChartProjection` 的动态 range 对比；`ChartLegendChecks` 图例范围改为投影 range 而非固定 0–12/0–60/0–50/80–100。androidTest 同步修正（只编译）：`FourMetricChartChecks` 新一杯时间轴 end 断言为 10_000；`LiveChartTimingChecks` 未 attached probe 的断言改为 30.1s 观测对应 start=0/end=30_100（连续缩放）；其余约束（每指标 axis-tick≥2 且首末==range 边界、轴文字不重叠、live 无 time-unit、末位 time-tick 以 “ s” 结尾、visualEvidence 结构、字形不重叠）保持不变。
 - 推送与合并：检查工作树 → 本地最小验证 → 普通推送 `feature/chart-dynamic-axis` → Lead 创建 PR → `branch-policy`、`verify` 通过 → PR 合并。不 force、不 `--no-verify`、不直推 develop、不合并、不创建 PR。
 - 验证证据：
-  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :mobile:testDebugUnitTest :device-session:test` → BUILD SUCCESSFUL（mobile+device-session 聚合 1163 例 / 166 suites，0 failed，1 既有跳过；device-session Session checks 101 passed）。`ChartAxisScaleTest` 13/13、`FourMetricChartProjectionTest` 32/32、`LiveAxisAnimationTest` 12/12、`LiveChartGeometryTest` 5/5。
+  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :mobile:testDebugUnitTest :device-session:test` → BUILD SUCCESSFUL（mobile+device-session 聚合 1167 例 / 166 suites，0 failed，1 既有跳过；device-session Session checks 101 passed）。`ChartAxisScaleTest` 13/13、`FourMetricChartProjectionTest` 36/36、`LiveAxisAnimationTest` 12/12、`LiveChartGeometryTest` 5/5。
   - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:compileMockKotlin` → BUILD SUCCESSFUL。
   - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:compileMockAndroidTestKotlin` → BUILD SUCCESSFUL（只编译 androidTest，不运行 AVD）。
   - 说明：会话沙盒不能写 `~/.gradle`，使用工作区外本地 `GRADLE_USER_HOME` 复制现有缓存离线构建，未改仓库配置。
@@ -52,6 +53,7 @@
   - 动态范围会让同一杯的曲线在不同屏幕/字体下显示不同刻度，但观测值、时间轴映射与证据 JSON 结构不变；历史详情与对比页均包含全部整杯数据（不裁切）。
   - 网格线数量增加（主+次），绘制仍在一次 Canvas pass 内；高度预算 `HistoryPlotBudget`/`minimumAxisHeight` 未改动，窄屏 fallback 不破。
   - 实时 X 轴连续缩放：start 恒 0，前 10s 固定 0–10，之后 end 连续跟随观测变大、整杯曲线完整显示并被平滑横向压缩，最新点仍在右边界；不做 10s 窗口滚动、不做 5→10→15 阶段扩轴。仅时间轴变化时用 Linear + 观测间隔 200–300ms（消除 4Hz 脉动），Y 范围变化用 380ms Decelerate；末端标签显示当前渲染 end 的秒数 + " s"；历史/对比/嵌入历史不做动画。
+  - 实时 Y 轴最多每 3s 批量扩一次，只扩不缩；85% 迟滞 + 一次给足余量显著减少跳档次数，多轴在同一评估中同步扩；must-expand（观测超出当前 high/含温度低端）立即扩避免裁切；历史/对比不受节流影响。
   - 空闲无当前观测时预览完整参考杯（start=0）；首次观测/新杯按 snap 规则直接到 0–10，不追求特殊过渡（非重点）。时间轴变化过渡期间最新点可能暂时略超出渲染 end 而被 canvas 裁在右边界，动画结束即精确位于右边界。
   - 轴动画只改变绘制投影（series range/step + timeEnd），不写入任何采样/历史/previousRanges；动画结束 snap 到目标，标签/刻度随插值重算，图例 range 文本在结束时一次更新，轴列宽在动画期间固定为目标刻度宽度。
   - 动画状态机已修：取消（新点触发 stop）不再直接 snap；同目标不重启；目标变化从渲染中的插值继续。剩余已知现象：动画期间 tick 文本数量/数值随插值重算（允许），但列宽稳定；若实机仍觉得刻度文字跳动可再议。

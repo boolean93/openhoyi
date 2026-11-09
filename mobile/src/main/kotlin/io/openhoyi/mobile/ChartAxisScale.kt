@@ -74,6 +74,15 @@ internal object ChartAxisScale {
     fun yRange(low: Float, high: Float, targetDivisions: Int = 5): ChartRange =
         yAxis(low, high, targetDivisions).range
 
+    /** Step that divides an existing nice range into 2-6 divisions; used when a range is kept. */
+    fun stepForRange(range: ChartRange, targetDivisions: Int = 5): Float {
+        require(range.low.isFinite() && range.high.isFinite() && range.high > range.low)
+        val span = range.high - range.low
+        val step = niceStep(span / targetDivisions.toFloat())
+        val divisions = (span / step).roundToInt().coerceAtLeast(2)
+        return span / divisions.toFloat()
+    }
+
     /** Major ticks of [range], always starting at low and ending exactly at high. */
     fun majorTicks(range: ChartRange, step: Float): List<Float> {
         require(range.low.isFinite() && range.high.isFinite() && range.high > range.low)

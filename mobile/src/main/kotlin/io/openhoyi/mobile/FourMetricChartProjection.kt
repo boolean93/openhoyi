@@ -27,6 +27,12 @@ internal enum class ChartMetric(
     FLOW("g/s", 2f, 0f, 1f, 0f, 4f, true),
 }
 
+/** Realtime Y axes expand only after observed data reaches 85% of the current range. */
+internal const val LIVE_EXPANSION_THRESHOLD = 0.85f
+/** One expansion step reserves 40% above the observed peak and grows the old high by 60%. */
+internal const val LIVE_EXPANSION_HEADROOM = 1.4f
+internal const val LIVE_EXPANSION_FACTOR = 1.6f
+
 internal val historicalMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.WEIGHT, ChartMetric.TEMPERATURE)
 internal val liveMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.FLOW, ChartMetric.TEMPERATURE)
 
@@ -70,6 +76,8 @@ internal object FourMetricChartProjection {
         previousRanges: Map<ChartMetric, ChartRange> = emptyMap(),
         livePauseBaseline: Boolean = false,
         liveFlow: Boolean = false,
+        /** Realtime throttle: when false only a clipping (must) expansion is allowed. */
+        allowLiveExpansion: Boolean = true,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
@@ -88,7 +96,8 @@ internal object FourMetricChartProjection {
             if (old != null) {
                 require(old.low.isFinite() && old.high.isFinite() && old.low < old.high)
             }
-            val axis = axis(metric, values, old, live = liveFlow)
+            val axis = axis(metric, values, old, live = liveFlow,
+                allowLiveExpansion = allowLiveExpansion)
             MetricChartSeries(metric, current, historic, axis.range, axis.step)
         }
         val referenceEnd = if (!liveFlow || referenceDrivesLiveAxes)
@@ -124,14 +133,42 @@ internal object FourMetricChartProjection {
     }
 
     private fun axis(metric: ChartMetric, values: List<Float>, old: ChartRange?,
-        live: Boolean): ChartAxisScale.YAxis {
+        live: Boolean, allowLiveExpansion: Boolean = true): ChartAxisScale.YAxis {
         if (live) {
-            // Observation-driven start: a small default range that only expands with data.
-            val low = minOf(metric.initialLow, values.minOrNull() ?: metric.initialLow,
-                old?.low ?: metric.initialLow)
-            val high = maxOf(metric.initialHigh, values.maxOrNull() ?: metric.initialHigh,
-                old?.high ?: metric.initialHigh)
-            return ChartAxisScale.yAxis(low, high, targetDivisions = 5)
+            val observedMax = values.maxOrNull()
+            val observedMin = values.minOrNull()
+            if (old == null) {
+                // Small initial range; a first observation that already exceeds it (clipping)
+                // expands immediately and generously.
+                val insideInitial = observedMax == null || (observedMax <= metric.initialHigh &&
+                    observedMin!! >= metric.initialLow)
+                if (insideInitial) {
+                    return ChartAxisScale.yAxis(metric.initialLow, metric.initialHigh,
+                        targetDivisions = 5)
+                }
+                return expandLive(metric, metric.initialLow, metric.initialHigh,
+                    observedMin, observedMax,
+                    highTriggered = observedMax!! > metric.initialHigh,
+                    lowTriggered = observedMin!! < metric.initialLow,
+                    targetDivisions = 4)
+            }
+            val span = old.high - old.low
+            val highReached = observedMax != null &&
+                observedMax >= old.low + span * LIVE_EXPANSION_THRESHOLD
+            val lowReached = !metric.anchorZero && observedMin != null &&
+                observedMin <= old.low + span * (1f - LIVE_EXPANSION_THRESHOLD)
+            val highClipped = observedMax != null && observedMax > old.high
+            val lowClipped = observedMin != null && observedMin < old.low
+            val mustExpand = highClipped || lowClipped
+            // A throttled observation keeps the current range unchanged: identical targets mean
+            // no animation, which is what removes the multi-axis random ticks.
+            if (!mustExpand && !(allowLiveExpansion && (highReached || lowReached))) {
+                return ChartAxisScale.YAxis(old, ChartAxisScale.stepForRange(old))
+            }
+            return expandLive(metric, old.low, old.high, observedMin, observedMax,
+                highTriggered = highClipped || (allowLiveExpansion && highReached),
+                lowTriggered = lowClipped || (allowLiveExpansion && lowReached),
+                targetDivisions = 4)
         }
         var low: Float
         var high: Float
@@ -160,6 +197,37 @@ internal object FourMetricChartProjection {
             }
         }
         return ChartAxisScale.yAxis(low, high, targetDivisions = 5)
+    }
+
+    /**
+     * One generous expansion step: a zero-anchored physical scale reserves 40% above the observed
+     * peak and grows the old high by 60%; temperature keeps its interval shape and expands the
+     * triggered side by span-relative margins. The nice rounding happens afterwards.
+     */
+    private fun expandLive(metric: ChartMetric, low: Float, high: Float,
+        observedMin: Float?, observedMax: Float?, highTriggered: Boolean, lowTriggered: Boolean,
+        targetDivisions: Int): ChartAxisScale.YAxis {
+        // Trigger decisions are made by the caller from the real (possibly initial) span; only a
+        // margin span below is floored to the metric minimum.
+        val marginSpan = (high - low).coerceAtLeast(metric.minSpan)
+        var newLow = low
+        var newHigh = high
+        if (metric.anchorZero) {
+            if (highTriggered && observedMax != null)
+                newHigh = maxOf(observedMax * LIVE_EXPANSION_HEADROOM,
+                    if (high > 0f) high * LIVE_EXPANSION_FACTOR else observedMax * LIVE_EXPANSION_HEADROOM)
+            if (lowTriggered && observedMin != null)
+                newLow = minOf(observedMin * LIVE_EXPANSION_HEADROOM,
+                    if (low < 0f) low * LIVE_EXPANSION_FACTOR else observedMin * LIVE_EXPANSION_HEADROOM)
+        } else {
+            if (highTriggered && observedMax != null)
+                newHigh = maxOf(observedMax + marginSpan * 0.4f, high + marginSpan * 0.6f)
+            if (lowTriggered && observedMin != null)
+                newLow = minOf(observedMin - marginSpan * 0.4f, low - marginSpan * 0.6f)
+        }
+        newHigh = maxOf(newHigh, observedMax ?: newHigh)
+        newLow = minOf(newLow, observedMin ?: newLow)
+        return ChartAxisScale.yAxis(newLow, newHigh, targetDivisions)
     }
 
     private fun validate(samples: List<ShotPoint>) {

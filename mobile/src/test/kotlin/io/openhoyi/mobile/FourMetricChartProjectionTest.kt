@@ -17,7 +17,7 @@ class FourMetricChartProjectionTest {
         val flow = live.series(ChartMetric.FLOW)
         assertEquals(listOf(ChartValue(500, 2f), ChartValue(1000, 2f)), flow.current.single())
         assertEquals(flow.current, flow.reference)
-        assertEquals(ChartRange(0f, 2f), flow.range)
+        assertEquals(ChartRange(0f, 3f), flow.range)
         val history = FourMetricChartProjection.build(points, points)
         assertEquals(historicalMetrics, history.series.map { it.metric })
         assertEquals(listOf(0f, 1f, 2f), history.series(ChartMetric.WEIGHT).current.single().map { it.value })
@@ -42,7 +42,7 @@ class FourMetricChartProjectionTest {
     @Test fun liveFlowRangeExpandsAndDoesNotShrinkWithinShot() {
         val high = FourMetricChartProjection.build(listOf(point(0, weight = 0), point(1000, weight = 620)),
             emptyList(), liveFlow = true)
-        assertEquals(ChartRange(0f, 8f), high.series(ChartMetric.FLOW).range)
+        assertEquals(ChartRange(0f, 10f), high.series(ChartMetric.FLOW).range)
         val next = FourMetricChartProjection.build(emptyList(), emptyList(),
             high.series.associate { it.metric to it.range }, liveFlow = true)
         assertEquals(high.series(ChartMetric.FLOW).range, next.series(ChartMetric.FLOW).range)
@@ -264,6 +264,59 @@ class FourMetricChartProjectionTest {
         assertTrue("pressure axis must move with progress, got $highs",
             highs.distinct().size >= 3)
         assertEquals(highs.sorted(), highs)
+    }
+
+    @Test fun liveAxisWaitsForEightyFivePercentAndRespectsThrottling() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        // 1.5 bar is below 85% of the 0-2 initial range: no expansion even when allowed.
+        val below = FourMetricChartProjection.build(listOf(point(0, pressure = 15)), emptyList(),
+            initial, liveFlow = true)
+        assertEquals(ChartRange(0f, 2f), below.series(ChartMetric.PRESSURE).range)
+        // 1.8 bar crosses the threshold, but a throttled evaluation keeps the current range.
+        val throttled = FourMetricChartProjection.build(listOf(point(0, pressure = 18)), emptyList(),
+            initial, liveFlow = true, allowLiveExpansion = false)
+        assertEquals(ChartRange(0f, 2f), throttled.series(ChartMetric.PRESSURE).range)
+        assertEquals(ChartAxisScale.stepForRange(ChartRange(0f, 2f)),
+            throttled.series(ChartMetric.PRESSURE).step, 0f)
+        // An allowed evaluation gives one generous hop: >= observed*1.4 and >= old high*1.6.
+        val expanded = FourMetricChartProjection.build(listOf(point(0, pressure = 18)), emptyList(),
+            initial, liveFlow = true)
+        val range = expanded.series(ChartMetric.PRESSURE).range
+        assertTrue("expanded range=$range initial=${initial[ChartMetric.PRESSURE]}", range.high >= 1.8f * 1.4f)
+        assertTrue(range.high >= 2f * 1.6f)
+        assertEquals(0f, range.low, 0f)
+    }
+
+    @Test fun liveAxisExpandsImmediatelyWhenTheObservationWouldClip() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val clipped = FourMetricChartProjection.build(listOf(point(0, pressure = 90)), emptyList(),
+            initial, liveFlow = true, allowLiveExpansion = false)
+        val range = clipped.series(ChartMetric.PRESSURE).range
+        assertTrue("must-expand must cover the observed peak: $range", range.high >= 9f)
+        assertTrue(range.low <= 0f)
+    }
+
+    @Test fun allTriggeredAxesExpandTogetherInOneEvaluation() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val points = listOf(point(0, pressure = 18, water = 50, temperature = 9450, weight = 0),
+            point(1000, pressure = 18, water = 50, temperature = 9450, weight = 200))
+        val batch = FourMetricChartProjection.build(points, emptyList(), initial, liveFlow = true)
+        assertTrue("batch pressure=${batch.series(ChartMetric.PRESSURE).range} initial=${initial.getValue(ChartMetric.PRESSURE)}", batch.series(ChartMetric.PRESSURE).range != initial.getValue(ChartMetric.PRESSURE))
+        assertTrue(batch.series(ChartMetric.TEMPERATURE).range != initial.getValue(ChartMetric.TEMPERATURE))
+        assertTrue(batch.series(ChartMetric.FLOW).range != initial.getValue(ChartMetric.FLOW))
+        // Water is still inside its 85% threshold and must not move in that same evaluation.
+        assertEquals(initial.getValue(ChartMetric.WATER),
+            batch.series(ChartMetric.WATER).range)
+    }
+
+    @Test fun historyIgnoresTheRealtimeExpansionThrottle() {
+        val points = listOf(point(0, pressure = 180), point(1000, pressure = 120))
+        val throttled = FourMetricChartProjection.build(points, emptyList(), allowLiveExpansion = false)
+        val free = FourMetricChartProjection.build(points, emptyList(), allowLiveExpansion = true)
+        assertEquals(free.series.map { it.range }, throttled.series.map { it.range })
     }
 
     @Test fun liveReferenceDoesNotPreSizeAxesOrTime() {
