@@ -66,6 +66,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var steamBoilerTarget: TextView
     private lateinit var brewBoilerToggle: Button
     private lateinit var steamBoilerToggle: Button
+    private lateinit var lastCurveRow: LinearLayout
     private lateinit var lastCurveName: TextView
     private lateinit var lastCurvePreview: CurveLibrarySparklineView
     private lateinit var lastCurveDivider: View
@@ -140,6 +141,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setBackgroundColor(productStyle.page)
         }
         val shortHome = resources.configuration.screenHeightDp <= 420
+        val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
         val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(if (shortHome) 1 else 8), dp(16), dp(if (shortHome) 1 else 8)) }
         root.addView(ScrollView(host).apply {
             tag = "product/home/page-scroll"
@@ -221,7 +223,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val machineRow = productStyle.row("product/home/machine-status").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
         }
-        content.addView(machineRow, LinearLayout.LayoutParams(-1, -2))
+        val compactTopRow = if (shortWideHome) productStyle.row("product/home/compact-top").also {
+            it.gravity = android.view.Gravity.CENTER_VERTICAL
+            content.addView(it, LinearLayout.LayoutParams(-1, -2))
+        } else null
+        (compactTopRow ?: content).addView(machineRow, if (compactTopRow != null)
+            LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
         machineRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         machineConnect = button(machineRow, getString(R.string.home_connect)) { showDevicePanel() }.apply {
             tag = "product/home/connect"; layoutParams = LinearLayout.LayoutParams(-2, dp(48))
@@ -283,14 +290,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 0 else 8) })
         if (spaciousHome) quickRow.addView(productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.section, "product/home/quick-title"))
-        val lastCurveRow = productStyle.row("product/home/last-curve").apply {
+        lastCurveRow = productStyle.row("product/home/last-curve").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
             minimumHeight = dp(48)
             setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0),
                 dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0))
             background = productStyle.shape(productStyle.surface, true)
         }
-        quickRow.addView(lastCurveRow, LinearLayout.LayoutParams(-1, -2).apply {
+        if (compactTopRow != null) compactTopRow.addView(lastCurveRow,
+            LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
+        else quickRow.addView(lastCurveRow, LinearLayout.LayoutParams(-1, -2).apply {
             if (spaciousHome) topMargin = dp(8)
         })
         lastCurvePreview = CurveLibrarySparklineView(host, productStyle).apply {
@@ -351,13 +360,19 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val slotLabel = productStyle.text(getString(R.string.home_slot, slot.toString()),
                 TaskProductVisualStyle.Type(if (shortHome) 11 else 14, 400, if (shortHome) 16 else 20),
                 secondary = true).apply { gravity = android.view.Gravity.CENTER }
-            contents.addView(slotLabel, LinearLayout.LayoutParams(-1, -2))
+            val previewHeader = if (shortWideHome) productStyle.row().apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                contents.addView(this, LinearLayout.LayoutParams(-1, -2))
+            } else contents
+            previewHeader.addView(slotLabel, LinearLayout.LayoutParams(if (shortWideHome) -2 else -1, -2))
             val sparkline = CurveLibrarySparklineView(host, productStyle).apply {
                 visibility = View.GONE
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 tag = "product/home/direct-preset/$slot/preview"
             }
-            contents.addView(sparkline, LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 32)))
+            previewHeader.addView(sparkline, if (shortWideHome)
+                LinearLayout.LayoutParams(0, dp(24), 1f).apply { marginStart = dp(4) }
+            else LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 32)))
             val name = productStyle.text("", TaskProductVisualStyle.Type(if (shortHome) 11 else 14,
                 500, if (shortHome) 16 else 20)).apply {
                 gravity = android.view.Gravity.CENTER
@@ -880,6 +895,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
+        lastCurveRow.visibility = quickRow.visibility
         if (!cupActive && (lastCurveDirty || previousCupActive)) {
             showLastCurve(resolveLastCurve())
             lastCurveDirty = false
