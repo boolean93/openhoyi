@@ -19,7 +19,7 @@ internal object LanguageUiLayoutChecks {
         val labels = mapOf(TaskDestination.BREW to R.string.ui_brew, TaskDestination.CURVES to R.string.ui_curves,
             TaskDestination.HISTORY to R.string.ui_history, TaskDestination.BEANS to R.string.ui_beans,
             TaskDestination.SCALE to R.string.scale_title, TaskDestination.SETTINGS to R.string.ui_settings)
-        val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        val expectedDirection = View.LAYOUT_DIRECTION_LTR
         val normalTextSizes = mutableMapOf<String, Float>()
         val heightDp = 640
         for (widthDp in listOf(320, 360, 600, 700, 1000)) for (fontScale in listOf(1f, 1.3f)) {

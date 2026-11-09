@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
-LANGUAGES = ("en", "ru", "th", "ar", "ja", "ko", "es")
+LANGUAGES = ("en",)
 FORMAT = re.compile(r"%[1-9][0-9]*\$(?:[0-9]+)?[sd]")
 CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 ROOT = Path(__file__).resolve().parent.parent

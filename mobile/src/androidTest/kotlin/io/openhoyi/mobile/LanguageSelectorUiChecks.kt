@@ -39,13 +39,13 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
         val originalStorage = prefs.all.toMap()
         val service = requireNotNull(owner(initial))
         val message = service.snapshot.message
-        val alternate = if (originalLanguage == AppLanguage.ENGLISH) AppLanguage.ARABIC else AppLanguage.ENGLISH
+        val alternate = if (originalLanguage == AppLanguage.ENGLISH) AppLanguage.CHINESE else AppLanguage.ENGLISH
         fun open(): android.app.AlertDialog {
             var dialog: android.app.AlertDialog? = null
             onMain {
                 check(card(current).button.performClick())
                 dialog = requireNotNull(card(current).dialog)
-                check(dialog!!.isShowing && dialog!!.listView.adapter.count == 8)
+                check(dialog!!.isShowing && dialog!!.listView.adapter.count == 2)
                 for (index in AppLanguage.entries.indices)
                     check(dialog!!.listView.adapter.getItem(index).toString() == AppLanguage.entries[index].nativeName)
                 check(dialog!!.listView.checkedItemPosition == AppLanguage.entries.indexOf(app.languagePreferences.current))

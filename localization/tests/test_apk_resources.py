@@ -46,26 +46,40 @@ class ApkResourcesTest(unittest.TestCase):
                      '    resource 0x1 string/a\n      () "one"\n      () "two"']:
             with self.assertRaises(ValueError): apk.parse_dump(dump)
 
-    def test_every_language_and_variant_identity_are_verified(self):
+    def test_chinese_english_and_variant_identity_are_verified(self):
         source = {'app_name': 'Alpha', 'message': '中文'}
         catalogs = {tag: {'app_name': 'wrong', 'message': tag} for tag in apk.validator.LANGUAGES}
         table = {'app_name': {'': 'Mock'}, 'message': {'': '中文', **{tag: tag for tag in apk.validator.LANGUAGES}}}
-        self.assertEqual(9, apk.verify(table, source, catalogs, 'Mock'))
+        self.assertEqual(3, apk.verify(table, source, catalogs, 'Mock'))
         table['app_name']['en'] = 'wrong'
         with self.assertRaises(ValueError): apk.verify(table, source, catalogs, 'Mock')
         del table['app_name']['en']
-        table['message']['ar'] = 'incorrect'
+        table['message']['en'] = 'incorrect'
         with self.assertRaises(ValueError): apk.verify(table, source, catalogs, 'Mock')
-        del table['message']['ar']
+        del table['message']['en']
         with self.assertRaises(ValueError): apk.verify(table, source, catalogs, 'Mock')
+
+    def test_packaged_configurations_only_allow_chinese_english_and_non_language_qualifiers(self):
+        apk.verify_configurations(['', 'en', 'en-rGB', 'zh-rCN', 'b+zh+Hans',
+                                   'land-v21', 'car-night', 'mcc310-mnc004-en-rUS'])
+        with self.assertRaisesRegex(ValueError, 'unsupported compiled locale'):
+            apk.verify_configurations(['fr-rFR'])
+        with self.assertRaisesRegex(ValueError, 'unsupported compiled locale'):
+            apk.verify_configurations(['b+fr+Latn'])
+
+    def test_dependency_locales_cannot_bypass_chinese_english_allowlist(self):
+        table = {'app_name': {'': 'Mock'},
+                 'status_bar_notification_info_overflow': {'': '999+', 'fr': '999+'}}
+        with self.assertRaisesRegex(ValueError, 'unsupported compiled locale'):
+            apk.verify(table, {'app_name': 'Alpha'}, {'en': {'app_name': 'unused'}}, 'Mock')
 
     def test_only_known_dependency_strings_may_extend_compiled_keys(self):
         source = {'app_name': 'Alpha', 'message': '中文'}
         catalogs = {tag: {'app_name': 'unused', 'message': tag} for tag in apk.validator.LANGUAGES}
         table = {'app_name': {'': 'Mock'}, 'message': {'': '中文', **{tag: tag for tag in apk.validator.LANGUAGES}},
                  'androidx_startup': {'': 'androidx.startup'},
-                 'status_bar_notification_info_overflow': {'': '999+', 'en': '999+', 'hi': '९९९+'}}
-        self.assertEqual(9, apk.verify(table, source, catalogs, 'Mock'))
+                 'status_bar_notification_info_overflow': {'': '999+', 'en': '999+', 'zh-rCN': '999+'}}
+        self.assertEqual(3, apk.verify(table, source, catalogs, 'Mock'))
         table['unowned_extra'] = {'': 'surprise'}
         with self.assertRaisesRegex(ValueError, 'unowned_extra'):
             apk.verify(table, source, catalogs, 'Mock')

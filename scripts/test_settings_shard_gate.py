@@ -326,9 +326,11 @@ class RestoreContract(unittest.TestCase):
 
 
 class WorkflowContract(unittest.TestCase):
-    def test_workflow_keeps_original_trigger_check_and_budgets_with_fixed_shards(self):
+    def test_manual_workflow_keeps_checks_and_budgets_with_fixed_shards(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/settings-visual-ui.yml').read_text()
-        for text in ('pull_request:\n    branches: [develop]', 'workflow_dispatch:',
+        self.assertNotIn('  pull_request:', workflow)
+        self.assertNotIn('  push:', workflow)
+        for text in ('workflow_dispatch:',
                      'contents: read', 'cancel-in-progress:', 'fail-fast: false',
                      'scope: [light-1.3, light-1.0, dark-1.3, dark-1.0]',
                      '  settings-visual:\n    needs: [settings-build, settings-cell]\n    if: always()',

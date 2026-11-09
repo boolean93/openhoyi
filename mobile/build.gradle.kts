@@ -11,6 +11,8 @@ android {
         applicationId = "io.openhoyi.mobile"
         minSdk = 26
         targetSdk = 35
+        // Filter transitive AndroidX locales as well as application translations.
+        resourceConfigurations += listOf("zh", "en")
         versionCode = extra["hoyiDistributionVersionCode"] as Int
         versionName = extra["hoyiDistributionVersionName"] as String
         testInstrumentationRunner = "io.openhoyi.mobile.BrewAudioInstrumentation"

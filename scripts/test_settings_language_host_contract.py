@@ -216,7 +216,7 @@ class SettingsLanguageHostContract(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     self.functions['validate_language_dialog_target'](accepted, safe, proof)
 
-    def test_old_app_verify_body_is_not_current_contract_evidence(self):
+    def test_old_app_verify_body_rejects_missing_real_mock_service(self):
         source = SOURCE.read_text().split("<<'VERIFY_PY'\n", 1)[1].split('\nVERIFY_PY', 1)[0]
         tree = ast.parse(source)
         start = next(i for i, node in enumerate(tree.body) if isinstance(node, ast.Assign)
@@ -239,11 +239,12 @@ class SettingsLanguageHostContract(unittest.TestCase):
             definitions = ast.Module(body=tree.body[start:stop], type_ignores=[])
             exec(compile(definitions, str(SOURCE), 'exec'), namespace)
             namespace.update(path=path, folder=path.parent, m=json.loads(path.read_text()))
-            # This archive predates the error TextView/resource expectation contract.
-            # Original protocol/four-image checks remain separate above; do not inject new
-            # target fields and claim that the untouched historical app passes today's gate.
-            with self.assertRaisesRegex(AssertionError, 'Language dialog actual text class contract mismatch'):
+            # The archive predates the real Mock service requirement. Keep the full
+            # verifier rejection precise; the separate old-target test above exercises
+            # the actual text-class rejection directly with unchanged dialog evidence.
+            with self.assertRaisesRegex(AssertionError, 'Current settings evidence requires a real Mock service fixture'):
                 exec(compile(ast.Module(body=body, type_ignores=[]), str(SOURCE), 'exec'), namespace)
+
 
 
 if __name__ == '__main__':

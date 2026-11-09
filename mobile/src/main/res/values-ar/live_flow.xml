@@ -1,5 +1,0 @@
-<resources>
-    <string name="task_chart_flow">Flow</string>
-    <string name="task_chart_flow_unavailable">Cup flow estimated from scale weight; waiting for valid samples</string>
-    <string name="task_chart_flow_source">Cup flow estimated from scale weight</string>
-</resources>

@@ -11,7 +11,7 @@ class LanguageDraftTest {
         "shot_safety_unknown_disconnected", "shot_safety_unknown", "shot_safety_active_disconnected",
         "notification_safety_channel", "notification_attention", "notification_check_machine", "device_initial_message")
 
-    @Test fun allLegacyLanguagesHaveTheSameCompleteSafetyDraftSubset() {
+    @Test fun englishHasTheCompleteSafetyDraftSubset() {
         val directory = File("../localization/drafts/safety")
         val languages = AppLanguage.entries.filter { it != AppLanguage.CHINESE }
         assertEquals(languages.map { "${it.tag}.json" }.toSet(),

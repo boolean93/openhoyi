@@ -23,26 +23,26 @@ class AppLanguagePreferenceTest {
             val disk = Disk(language.tag)
             val preference = AppLanguagePreference(disk)
             assertEquals(language, preference.current)
-            disk.value = AppLanguage.ARABIC.tag
+            disk.value = if (language == AppLanguage.CHINESE) AppLanguage.ENGLISH.tag else AppLanguage.CHINESE.tag
             assertEquals(language, preference.current)
             assertEquals(1, disk.reads)
             assertEquals(0, disk.writes)
         }
-        for (value in listOf(null, "", "EN", "ar-EG", "en-US", "unknown"))
+        for (value in listOf(null, "", "EN", "en-US", "unknown", "es"))
             assertEquals(AppLanguage.CHINESE, AppLanguagePreference(Disk(value)).current)
     }
     @Test fun failedCommitOrExceptionNeverChangesCurrentLanguage() {
         for (throws in listOf(false, true)) {
             val disk = Disk(AppLanguage.CHINESE.tag).apply { result = false; throwOnWrite = throws }
             val preference = AppLanguagePreference(disk)
-            assertEquals(AppLanguagePreference.Selection.SAVE_FAILED, preference.select(AppLanguage.ARABIC))
+            assertEquals(AppLanguagePreference.Selection.SAVE_FAILED, preference.select(AppLanguage.ENGLISH))
             assertEquals(AppLanguage.CHINESE, preference.current)
-            assertEquals(AppLanguage.ARABIC.tag, disk.value)
+            assertEquals(AppLanguage.ENGLISH.tag, disk.value)
             assertEquals(1, disk.reads)
             disk.result = true
             disk.throwOnWrite = false
-            assertEquals(AppLanguagePreference.Selection.APPLIED, preference.select(AppLanguage.ARABIC))
-            assertEquals(AppLanguage.ARABIC, preference.current)
+            assertEquals(AppLanguagePreference.Selection.APPLIED, preference.select(AppLanguage.ENGLISH))
+            assertEquals(AppLanguage.ENGLISH, preference.current)
             assertEquals(2, disk.writes)
         }
     }
@@ -76,7 +76,7 @@ class AppLanguagePreferenceTest {
             assertEquals(language, preference.current)
             assertEquals(AppLanguagePreference.Selection.UNCHANGED, preference.select(language))
         }
-        assertEquals(7, disk.writes)
-        assertEquals(AppLanguage.SPANISH, AppLanguagePreference(disk).current)
+        assertEquals(1, disk.writes)
+        assertEquals(AppLanguage.ENGLISH, AppLanguagePreference(disk).current)
     }
 }

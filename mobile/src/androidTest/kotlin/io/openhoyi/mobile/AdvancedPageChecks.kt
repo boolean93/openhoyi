@@ -126,7 +126,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
             page(CurveImportActivity::class.java),
             page(CurveImportPreviewActivity::class.java).putExtra(CurveImportPreviewActivity.DOCUMENT, preview),
         )
-        check(pages.size == 15 && AppLanguage.entries.size == 8)
+        check(pages.size == 15 && AppLanguage.entries.size == 2)
         var currentPage: Activity? = null
         var completed = 0
         var screenshots = 0
@@ -205,7 +205,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                                 "font=${config.fontScale} density=${config.densityDpi}"
                         }
                         check(config.locales[0] == language.locale && HoyiUi.dark(activity) == dark) { "$fixture locale/theme mismatch" }
-                        check(activity.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
+                        check(activity.window.decorView.layoutDirection == View.LAYOUT_DIRECTION_LTR)
                         if (intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, false)) {
                             check(activity is ScaleActivity && service!!.beanDoseCaptureAt(SystemClock.elapsedRealtime()) == null)
                             val labels = descendants(root(activity)).filterIsInstance<TextView>()
@@ -216,7 +216,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                         }
                     }
                     checkPage(activity, fixture)
-                    if (language == AppLanguage.CHINESE || language == AppLanguage.ARABIC) {
+                    if (language == AppLanguage.CHINESE || language == AppLanguage.ENGLISH) {
                         val bitmap = requireNotNull(test.uiAutomation.takeScreenshot()) { "$fixture screenshot missing" }
                         try {
                             File(directory, "${language.tag}-${if (dark) "dark" else "light"}-$name.png").outputStream().use {
@@ -255,7 +255,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                     if (activity is CurveImportPreviewActivity) {
                         verifyImportPreviewTable(activity, fixture, directory,
                             "${language.tag}-${if (dark) "dark" else "light"}-$name",
-                            captureWindow = language == AppLanguage.CHINESE || language == AppLanguage.ARABIC)
+                            captureWindow = language == AppLanguage.CHINESE || language == AppLanguage.ENGLISH)
                     }
                     assertState()
                     completed++
@@ -272,7 +272,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                     assertState()
                 }
             }
-            check(completed == 240 && screenshots == 60) { "Incomplete advanced matrix: pages=$completed screenshots=$screenshots" }
+            check(completed == 60 && screenshots == 60) { "Incomplete advanced matrix: pages=$completed screenshots=$screenshots" }
         } catch (error: Throwable) { failure = error }
         finally {
             fun cleanup(action: () -> Unit) {

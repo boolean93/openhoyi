@@ -365,7 +365,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         }
         }
         // Separate post-matrix checks do not relabel ordinary screenshots or alter
-        // the 336-page matrix. All navigation remains in the isolated Mock package.
+        // the 84-page matrix. All navigation remains in the isolated Mock package.
         main {
             check(app.languagePreferences.select(AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
             check(appearance.edit().putBoolean("dark", false).commit())
@@ -390,10 +390,10 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
             check(app.history.entries == historyBefore)
             check(app.curves.items.associate { it.id to app.curveUsageResult.getOrThrow().stats(it.id) } == usageBefore)
         }
-        File(directory, "result.txt").writeText("checked=$checked pages=21 fixtures=336 legacyDetailFixture=true chineseFormCaptures=$chineseFormCaptures listRestorePages=7 listRestoreFixtures=$listRestoreFixtures syntheticCandidates=true noScan=true noConnect=true\n" + failures.joinToString("\n\n"))
-        check(checked == 336 && failures.isEmpty()) { "Single-screen geometry failed: checked=$checked/336\n${failures.joinToString("\n")}" }
+        File(directory, "result.txt").writeText("checked=$checked pages=21 fixtures=84 legacyDetailFixture=true chineseFormCaptures=$chineseFormCaptures listRestorePages=7 listRestoreFixtures=$listRestoreFixtures syntheticCandidates=true noScan=true noConnect=true\n" + failures.joinToString("\n\n"))
+        check(checked == 84 && failures.isEmpty()) { "Single-screen geometry failed: checked=$checked/84\n${failures.joinToString("\n")}" }
         check(chineseFormCaptures >= 44) { "Chinese form groups/long editor evidence incomplete: $chineseFormCaptures" }
         check(listRestoreFixtures == 14) { "List restore evidence incomplete: $listRestoreFixtures/14" }
-        test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_WINDOW_GEOMETRY_PASSED pages=21 fixtures=336 legacyDetailFixture=true noBle=true\n") })
+        test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_WINDOW_GEOMETRY_PASSED pages=21 fixtures=84 legacyDetailFixture=true noBle=true\n") })
     }
 }
