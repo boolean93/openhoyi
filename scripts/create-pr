@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Run the repository PR checks before optionally creating a GitHub PR."""
+import argparse
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+from urllib.parse import urlsplit
+
+from git_policy import check_branch, check_pr
+from pr_verify_scope import Scope, classify_pr
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def run(*args, capture=True, **kwargs):
+    return subprocess.run(args, cwd=ROOT, text=True, check=True,
+                          stdout=subprocess.PIPE if capture else None,
+                          **kwargs)
+
+
+def git(*args):
+    return run('git', *args).stdout.strip()
+
+
+def clean():
+    if git('status', '--porcelain=v1', '--untracked-files=all'):
+        raise ValueError('Working tree must be clean, including untracked files')
+
+
+def snapshot():
+    clean()
+    return git('symbolic-ref', '--quiet', '--short', 'HEAD'), git('rev-parse', 'HEAD')
+
+
+def remote_sha(branch):
+    result = git('ls-remote', '--exit-code', 'origin', 'refs/heads/' + branch)
+    rows = [line.split() for line in result.splitlines()]
+    if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != 'refs/heads/' + branch:
+        raise ValueError('Cannot determine exact origin branch: ' + branch)
+    return rows[0][0]
+
+
+def origin_repo(url):
+    """Pin gh to the actual origin rather than its configured default repo."""
+    if '://' in url:
+        parsed = urlsplit(url)
+        if parsed.scheme not in ('https', 'http', 'ssh') or not parsed.hostname:
+            raise ValueError('Origin must be a GitHub SSH or HTTP(S) URL')
+        host, path = parsed.hostname, parsed.path.lstrip('/')
+        if parsed.query or parsed.fragment or parsed.port:
+            raise ValueError('Unsupported origin URL')
+    else:
+        match = re.fullmatch(r'(?:[^/@:]+@)?([^/:]+):(.+)', url)
+        if not match:
+            raise ValueError('Origin must be a GitHub SSH or HTTP(S) URL')
+        host, path = match.groups()
+    path = path.removesuffix('.git')
+    if not re.fullmatch(r'[A-Za-z0-9.-]+', host) or not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', path):
+        raise ValueError('Unsupported origin repository')
+    return host + '/' + path
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--base', choices=('develop', 'main'), default='develop')
+    parser.add_argument('--title')
+    parser.add_argument('--body-file', type=Path)
+    parser.add_argument('--draft', action='store_true')
+    parser.add_argument('--check-only', action='store_true')
+    args = parser.parse_args(argv)
+    if not args.check_only and (not args.title or not args.title.strip() or not args.body_file):
+        parser.error('--title and --body-file are required to create a PR')
+    body = args.body_file.read_text(encoding='utf-8') if args.body_file else None
+    if Path(git('rev-parse', '--show-toplevel')).resolve() != ROOT:
+        raise ValueError('Script must belong to the current Git checkout')
+    branch, head = snapshot()
+    check_branch(branch)
+    if args.base == 'main' and not branch.startswith(('release/', 'hotfix/')):
+        raise ValueError('Only release/hotfix PRs may target main')
+    if body is not None:
+        check_pr(branch, args.base, body)
+    origin = git('config', '--get', 'remote.origin.url')
+    repo = origin_repo(origin)
+    # Refresh just the base; no push, merge, or working-tree mutation.
+    run('git', 'fetch', '--no-tags', 'origin',
+        'refs/heads/' + args.base + ':refs/remotes/origin/' + args.base,
+        capture=False)
+    base = git('rev-parse', 'refs/remotes/origin/' + args.base + '^{commit}')
+    if remote_sha(args.base) != base:
+        raise ValueError('Origin base moved during fetch; rerun checks')
+    try:
+        scope = classify_pr(base, head, ROOT)
+    except Exception:
+        scope = Scope('full', reason='classification failed')
+    print('PR checks: ' + scope.mode + ' (' + scope.reason + ')', flush=True)
+    modes = ['full']
+    if scope.mode == 'fast' and (scope.docs or scope.site):
+        modes = ['fast-policy']
+        if scope.docs:
+            modes.append('fast-docs')
+        if scope.site:
+            modes.append('fast-site')
+    env = dict(os.environ, BASE_SHA=base, HEAD_SHA=head)
+    evidence = []
+    for mode in modes:
+        command = ['scripts/verify-pr-checks', mode]
+        display = 'BASE_SHA=' + base + ' HEAD_SHA=' + head + ' ' + shlex.join(command)
+        print('+ ' + display, flush=True)
+        run(*command, env=env, capture=False)
+        evidence.append('- `' + display + '` — PASS (exit 0)')
+    if snapshot() != (branch, head):
+        raise ValueError('Branch or HEAD changed during checks; rerun')
+    if git('config', '--get', 'remote.origin.url') != origin:
+        raise ValueError('Origin changed during checks; rerun')
+    if git('rev-parse', 'refs/remotes/origin/' + args.base + '^{commit}') != base or remote_sha(args.base) != base:
+        raise ValueError('Origin base changed during checks; rerun')
+    if args.check_only:
+        print('PR_LOCAL_CHECKS_PASSED head=' + head + ' base=' + base)
+        return 0
+    if remote_sha(branch) != head:
+        raise ValueError('Push this exact HEAD to origin before creating a PR')
+    # Check the local snapshot again after the final network reads.
+    if snapshot() != (branch, head):
+        raise ValueError('Branch or HEAD changed before PR creation; rerun')
+    final_body = body.rstrip() + '\n\n### Local PR checks\n\n' + '\n'.join([
+        '- Head: `' + head + '`', '- Base: `' + args.base + '` at `' + base + '`',
+        *evidence,
+        '- GitHub required CI and any device-only checks remain pending.',
+    ]) + '\n'
+    check_pr(branch, args.base, final_body)
+    command = ['gh', 'pr', 'create', '--repo', repo, '--base', args.base,
+               '--head', branch, '--title', args.title, '--body-file', '-']
+    if args.draft:
+        command.append('--draft')
+    run(*command, input=final_body, capture=False)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        print('PR creation refused: ' + str(error), file=sys.stderr)
+        sys.exit(1)

@@ -168,12 +168,16 @@ def validate_verify_shape() -> list[str]:
         issues.append("verify.yml must not use workflow-level paths filters")
     if jobs(text).get("verify") != "verify":
         issues.append("verify job context must remain exactly verify")
-    for command in ("scripts/pr_verify_scope.py", "test_git_policy.py",
+    for mode in ("fast-site", "fast-docs", "fast-policy", "full"):
+        if "run: scripts/verify-pr-checks " + mode + "\n" not in text:
+            issues.append("verify.yml lost shared checks: " + mode)
+    shared = (ROOT / "scripts/verify-pr-checks").read_text(encoding="utf-8")
+    for command in ("test_git_policy.py",
                     "localization/validate_catalog.py", "./gradlew",
                     "localization/verify_apk_resources.py",
                     "scripts/check_release_configuration.py"):
-        if command not in text:
-            issues.append("verify.yml lost required command: " + command)
+        if command not in shared:
+            issues.append("shared checks lost required command: " + command)
     if "if: steps.scope.outputs.mode == 'full'" not in text:
         issues.append("verify.yml must gate the complete path on the classifier")
     branches = trigger_branches(text, "push")
