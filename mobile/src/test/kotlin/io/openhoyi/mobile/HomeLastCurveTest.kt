@@ -8,15 +8,49 @@ class HomeLastCurveTest {
     private val item = CurveLibraryItem(profile.id, profile.name, "", "", profile)
     private val use = CurveUsage("shot-2", profile.id, 2000)
 
-    private fun resolve(latest: CurveUsage? = use, manualAt: Long? = null,
+    private fun resolve(latest: CurveUsage? = use,
                         items: List<CurveLibraryItem> = listOf(item), startable: Boolean = true,
                         recentObserved: CurveUsage? = null) =
-        HomeLastCurve.from(latest, manualAt, items, recentObserved) { startable }
+        HomeLastCurve.from(latest, items, recentObserved) { startable }
 
-    @Test fun emptyAndLaterManualCupDoNotClaimARecipe() {
-        assertEquals(HomeLastCurve.Empty, resolve(null))
-        assertEquals(HomeLastCurve.Manual, resolve(manualAt = 3000))
-        assertEquals(HomeLastCurve.Manual, resolve(null, manualAt = 3000))
+    @Test fun manualShotsKeepLatestCurveAcrossRestartAndRemainInHistory() {
+        val uses = object : CurveUsageLedger.Storage {
+            var value = ""
+            override fun read() = value
+            override fun write(value: String) { this.value = value }
+        }
+        val shots = object : ShotHistory.Storage {
+            var value = ""
+            override fun read() = value
+            override fun write(value: String) { this.value = value }
+        }
+        val ledger = CurveUsageLedger(uses)
+        var time = 1000L
+        var id = 0
+        val history = ShotHistory(shots, now = { time }, newId = { "shot-${++id}" },
+            onObservedUse = { ledger.record(it.id, it.curveId, it.startedAtMs) })
+        fun brew(curveId: String) {
+            history.begin(curveId, slot = if (curveId == "manual") 6 else 7)
+            history.observeRunning()
+            history.transition(io.openhoyi.session.ExtractionState.ENDED_OBSERVED, null, null)
+            time += 1000
+        }
+        fun home() = resolve(ledger.latest(), recentObserved = history.entries
+            .firstOrNull { it.curveId != "manual" && it.observedRunning }
+            ?.let { CurveUsage(it.id, it.curveId, it.startedAtMs) })
+
+        brew("manual")
+        assertEquals(HomeLastCurve.Empty, home())
+        brew(profile.id)
+        val ready = home() as HomeLastCurve.Ready
+        brew("manual")
+        brew("manual")
+        assertEquals(ready, home())
+        assertEquals(ready, resolve(CurveUsageLedger(uses).latest()))
+        assertEquals(3, ShotHistory(shots, now = { time }).entries.count { it.curveId == "manual" })
+        brew(profile.id)
+        assertEquals(5000L, ledger.latest()?.startedAtMs)
+        assertEquals(ready, home())
     }
 
     @Test fun actualLatestIdIsUsedWithoutFilteringToAnotherStartableRecipe() {
@@ -29,8 +63,6 @@ class HomeLastCurveTest {
             resolve(startable = false))
         assertEquals(HomeLastCurve.DataUnavailable,
             resolve(recentObserved = CurveUsage("shot-3", profile.id, 3000)))
-        assertEquals(HomeLastCurve.Manual,
-            resolve(manualAt = 4000, recentObserved = CurveUsage("shot-3", profile.id, 3000)))
     }
 
     @Test fun editableDraftNeverMasqueradesAsHistoricalParameters() {
