@@ -269,6 +269,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             field = value
             if (!liveChart) return
             lastYExpansionAt = 0L
+            // A late recipe resolution (profile still loading / selection changed) must still get
+            // the cup's first synchronised expansion.
+            yExpansionStarted = false
             rebuildProjection()
         }
     var unavailableLiveMetrics: Set<ChartMetric> = emptySet()

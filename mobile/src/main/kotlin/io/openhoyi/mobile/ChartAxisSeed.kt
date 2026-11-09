@@ -35,26 +35,33 @@ internal object ChartAxisSeed {
     ): Map<ChartMetric, ChartRange> {
         val targets = linkedMapOf<ChartMetric, ChartRange>()
         peakPressureTenthsBar?.takeIf { it in 1..120 }?.let { peak ->
-            // 9 bar peak -> 9.9 bar headroom, still a 0-10 expected range.
-            targets[ChartMetric.PRESSURE] = ChartRange(0f, maxOf(peak / 10f * 1.1f, 10f))
+            // 9-10 bar peaks stay on the 0-10 target; only a genuinely higher recipe rounds up
+            // to the next 2.5 bar boundary (e.g. 10.5 -> 12.5), never through a 1.1 multiplier.
+            targets[ChartMetric.PRESSURE] = ChartRange(0f,
+                ChartAxisScale.niceCeil(maxOf(peak / 10f, 10f), 2.5f))
         }
         val targetGrams = targetWeightHundredthsGram?.takeIf { it > 0 }?.let { it / 100f }
         targetGrams?.let { grams ->
-            targets[ChartMetric.WEIGHT] = ChartRange(0f, maxOf(grams * 1.05f, 10f))
+            targets[ChartMetric.WEIGHT] = ChartRange(0f,
+                ChartAxisScale.niceCeil(maxOf(grams * 1.05f, 10f), 5f))
         }
-        // Prefer the weight-derived water estimate; the machine maximum-water target is only a
-        // fallback for cups that stop on water volume instead of weight.
-        val waterTarget = targetGrams?.let { it * 1.1f + 10f }
-            ?: maximumWaterMl?.takeIf { it > 0 }?.let { it * 1.05f }
+        // Prefer the machine water target (it is what the cup actually stops on); fall back to
+        // the weight-derived estimate only when no machine water target is available.
+        val waterTarget = maximumWaterMl?.takeIf { it > 0 }?.let { it * 1.05f }
+            ?: targetGrams?.let { it * 1.1f + 10f }
         if (waterTarget != null) {
-            targets[ChartMetric.WATER] = ChartRange(0f, maxOf(waterTarget, 20f))
+            targets[ChartMetric.WATER] = ChartRange(0f,
+                ChartAxisScale.niceCeil(maxOf(waterTarget, 20f), 5f))
         }
         temperatureC?.let { temperature ->
-            targets[ChartMetric.TEMPERATURE] = ChartRange(temperature - 5f, temperature + 5f)
+            // A tight +-2 C target keeps the actual temperature curve readable instead of flat.
+            targets[ChartMetric.TEMPERATURE] = ChartRange((temperature - 2).toFloat(),
+                (temperature + 2).toFloat())
         }
-        // Flow is often unavailable in the recipe; the usual 0-4 scale is still a useful target.
+        // Flow curves are usually well under 2 g/s; a broader target flattens the curve.
+        val flowTarget = flowTargetTenthsMlPerSecond?.let { it / 10f * 1.5f } ?: 0f
         targets[ChartMetric.FLOW] = ChartRange(0f,
-            maxOf(flowTargetTenthsMlPerSecond?.let { it / 10f } ?: 0f, 4f))
+            ChartAxisScale.niceCeil(maxOf(flowTarget, 2f), 0.5f))
         return targets
     }
 }

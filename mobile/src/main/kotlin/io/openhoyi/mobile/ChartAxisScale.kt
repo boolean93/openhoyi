@@ -74,6 +74,37 @@ internal object ChartAxisScale {
     fun yRange(low: Float, high: Float, targetDivisions: Int = 5): ChartRange =
         yAxis(low, high, targetDivisions).range
 
+    /** Smallest multiple of [step] that is >= [value]; keeps recipe targets on nice boundaries. */
+    fun niceCeil(value: Float, step: Float): Float {
+        require(value.isFinite() && step.isFinite() && step > 0f)
+        val rounded = ceil(value / step) * step
+        return if (rounded == 0f) 0f else rounded
+    }
+
+    /** True when [value] is one of {1, 2, 2.5, 5, 10} x 10^k within float tolerance. */
+    fun isNiceStep(value: Float): Boolean {
+        if (!value.isFinite() || value <= 0f) return false
+        val exponent = floor(log10(value.toDouble())).toInt()
+        val scale = 10f.pow(exponent)
+        val mantissa = value / scale
+        return NICE_MANTISSAS.any { kotlin.math.abs(it - mantissa) <= 1e-3f * it }
+    }
+
+    /**
+     * Step for a range whose bounds were already chosen as nice boundaries: prefer the most
+     * divisions (2-6) whose step is still a nice step, so adopting a recipe target never changes
+     * the tick step by a cliff.
+     */
+    fun stepForNiceRange(range: ChartRange, maxDivisions: Int = 6): Float {
+        require(range.high > range.low)
+        val span = range.high - range.low
+        for (divisions in maxDivisions downTo 2) {
+            val candidate = span / divisions
+            if (isNiceStep(candidate)) return candidate
+        }
+        return stepForRange(range, maxDivisions.coerceAtLeast(2))
+    }
+
     /** Step that divides an existing nice range into 2-6 divisions; used when a range is kept. */
     fun stepForRange(range: ChartRange, targetDivisions: Int = 5): Float {
         require(range.low.isFinite() && range.high.isFinite() && range.high > range.low)

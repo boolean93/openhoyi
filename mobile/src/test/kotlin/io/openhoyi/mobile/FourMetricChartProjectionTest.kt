@@ -339,11 +339,83 @@ class FourMetricChartProjectionTest {
             .series.associate { it.metric to it.range }
         val data = FourMetricChartProjection.build(listOf(point(0, temperature = 9450)), emptyList(),
             initial, liveFlow = true,
-            expectedLiveRanges = mapOf(ChartMetric.TEMPERATURE to ChartRange(87f, 97f)))
+            expectedLiveRanges = mapOf(ChartMetric.TEMPERATURE to ChartRange(91f, 95f)))
+        // A +-2 C target plus the 5 C minimum span lands on the readable 90-95 C scale.
+        assertEquals(ChartRange(90f, 95f), data.series(ChartMetric.TEMPERATURE).range)
+    }
+
+    @Test fun temperatureExpansionIsExemptFromTheCurveFillRule() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        // 98 C clips the initial 90-95 scale, so it must expand, but the temperature axis is not
+        // raised to observed/0.92 (which used to produce ~0-105 for a 93 C cup).
+        val data = FourMetricChartProjection.build(listOf(point(0, temperature = 9800)), emptyList(),
+            initial, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.TEMPERATURE to ChartRange(91f, 95f)))
         val range = data.series(ChartMetric.TEMPERATURE).range
-        assertTrue(range.low <= 87f)
-        assertTrue(range.high >= 97f)
-        assertTrue(94.5f / range.high <= 0.92f)
+        assertEquals(ChartRange(90f, 98f), range)
+        assertTrue("temperature must not be raised to observed/0.92", range.high < 99f)
+    }
+
+    @Test fun pressureStillUsesTheCurveFillRuleWithItsRecipeTarget() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val data = FourMetricChartProjection.build(listOf(point(0, pressure = 90)), emptyList(),
+            initial, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f)))
+        assertEquals(ChartRange(0f, 10f), data.series(ChartMetric.PRESSURE).range)
+        assertTrue(9f / data.series(ChartMetric.PRESSURE).range.high <= 0.92f)
+    }
+
+    @Test fun pressureRecipeNineToTenBarStaysOnTheTenBarBoundary() {
+        for (peakTenths in listOf(90, 91, 93, 95, 100)) {
+            val expected = ChartAxisSeed.ranges(peakPressureTenthsBar = peakTenths,
+                targetWeightHundredthsGram = null, temperatureC = null)
+            assertEquals("peak ${peakTenths / 10f} bar must target 0-10",
+                10f, expected.getValue(ChartMetric.PRESSURE).high, 0.001f)
+            val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+                .series.associate { it.metric to it.range }
+            val data = FourMetricChartProjection.build(
+                listOf(point(0, pressure = peakTenths)), emptyList(), initial, liveFlow = true,
+                expectedLiveRanges = expected)
+            assertEquals(ChartRange(0f, 10f), data.series(ChartMetric.PRESSURE).range)
+        }
+    }
+
+    @Test fun pressureOvershootExtendsOnTheNiceGridWithoutAJumpToFifteen() {
+        val previous = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 8f))
+        val data = FourMetricChartProjection.build(listOf(point(0, pressure = 92)), emptyList(),
+            previous, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 8f)))
+        val range = data.series(ChartMetric.PRESSURE).range
+        assertTrue("must cover 9.2 bar: $range", range.high >= 9.2f)
+        assertEquals(12.5f, range.high, 0.001f)
+        assertEquals(2.5f, data.series(ChartMetric.PRESSURE).step, 0.001f)
+    }
+
+    @Test fun expandAllLeavesAxesWithoutCurrentObservationsAlone() {
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        // No scale weight -> no flow observations; the flow axis must not jump to its target.
+        val data = FourMetricChartProjection.build(
+            listOf(point(0, pressure = 90, weight = null)),
+            emptyList(), initial, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f),
+                ChartMetric.FLOW to ChartRange(0f, 2f)),
+            expandAllLiveAxes = true)
+        assertEquals(initial.getValue(ChartMetric.FLOW), data.series(ChartMetric.FLOW).range)
+        assertTrue(data.series(ChartMetric.PRESSURE).range != initial.getValue(ChartMetric.PRESSURE))
+    }
+
+    @Test fun temperatureRecipeTargetLandsOnTheIntegerBoundary() {
+        val expected = ChartAxisSeed.ranges(peakPressureTenthsBar = 90,
+            targetWeightHundredthsGram = null, temperatureC = 93)
+        assertEquals(ChartRange(91f, 95f), expected.getValue(ChartMetric.TEMPERATURE))
+        val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        val data = FourMetricChartProjection.build(listOf(point(0, temperature = 9350)),
+            emptyList(), initial, liveFlow = true, expectedLiveRanges = expected)
+        assertEquals(ChartRange(90f, 95f), data.series(ChartMetric.TEMPERATURE).range)
     }
 
     @Test fun historyIgnoresExpectedLiveRanges() {
@@ -355,7 +427,7 @@ class FourMetricChartProjectionTest {
     @Test fun heldFrameKeepsTheExpandedRangeAndStepUnchanged() {
         val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
             .series.associate { it.metric to it.range }
-        val expected = mapOf(ChartMetric.TEMPERATURE to ChartRange(87f, 97f),
+        val expected = mapOf(ChartMetric.TEMPERATURE to ChartRange(91f, 95f),
             ChartMetric.PRESSURE to ChartRange(0f, 10f))
         val expanded = FourMetricChartProjection.build(listOf(point(0, temperature = 9800,
             pressure = 90)), emptyList(), initial, liveFlow = true, expectedLiveRanges = expected)
@@ -374,7 +446,7 @@ class FourMetricChartProjectionTest {
         val initial = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
             .series.associate { it.metric to it.range }
         val expected = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f),
-            ChartMetric.TEMPERATURE to ChartRange(87f, 97f))
+            ChartMetric.TEMPERATURE to ChartRange(92f, 96f))
         // Temperature 93.8 C is below the 85% trigger of the 90-95 initial range, so without the
         // synchronised expansion only the clipping pressure axis would move.
         val points = listOf(point(0, pressure = 90, water = 50, temperature = 9380, weight = 0),

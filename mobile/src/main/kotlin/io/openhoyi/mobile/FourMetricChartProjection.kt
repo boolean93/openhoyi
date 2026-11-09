@@ -113,7 +113,7 @@ internal object FourMetricChartProjection {
                 allowLiveExpansion = allowLiveExpansion,
                 expected = expectedLiveRanges[metric],
                 previousStep = previousSteps[metric],
-                expandAll = expandAllLiveAxes)
+                expandAll = expandAllLiveAxes && current.isNotEmpty())
             MetricChartSeries(metric, current, historic, axis.range, axis.step)
         }
         val referenceEnd = if (!liveFlow || referenceDrivesLiveAxes)
@@ -236,17 +236,38 @@ internal object FourMetricChartProjection {
         val marginSpan = (high - low).coerceAtLeast(metric.minSpan)
         var newLow = low
         var newHigh = high
-        if (expected != null) {
-            // Recipe target first: one expansion lands on the final scale and the curve fills it.
-            val growthFloorHigh = if (metric.anchorZero) high * 1.15f else high + marginSpan * 0.15f
-            val growthFloorLow = if (metric.anchorZero) low else low - marginSpan * 0.15f
-            if (highTriggered && observedMax != null)
-                newHigh = maxOf(observedMax, growthFloorHigh, expected.high)
-            if (lowTriggered && observedMin != null)
-                newLow = minOf(observedMin, growthFloorLow, expected.low)
-            // Expected bounds are a target, not a clip: also honour the untriggered side.
-            newLow = minOf(newLow, expected.low)
-            newHigh = maxOf(newHigh, expected.high)
+        if (expected != null && metric == ChartMetric.TEMPERATURE) {
+            // Temperature adopts the integer recipe target (+-2 C) directly and is exempt from the
+            // observed/newHigh<=0.92 fill rule (approaching the setpoint bound is normal; a true
+            // overshoot is covered by the integer ceiling below). Minimum span still applies.
+            var targetHigh = expected.high
+            var targetLow = expected.low
+            if (targetHigh - targetLow < metric.minSpan) targetLow = targetHigh - metric.minSpan
+            if (observedMax != null && observedMax > targetHigh)
+                targetHigh = ChartAxisScale.niceCeil(observedMax, 1f)
+            if (observedMin != null && observedMin < targetLow)
+                targetLow = kotlin.math.floor(observedMin)
+            return ChartAxisScale.yAxis(minOf(low, targetLow), maxOf(high, targetHigh),
+                targetDivisions = 5)
+        } else if (expected != null) {
+            // Zero-anchored physical scales adopt the already-nice recipe boundary directly; a
+            // genuine overshoot extends it on the same nice grid instead of re-running a coarse
+            // yAxis() that could jump from 10 to 15.
+            var targetLow = expected.low
+            var targetHigh = expected.high
+            if (observedMax != null && observedMax > targetHigh)
+                targetHigh = ChartAxisScale.niceCeil(maxOf(observedMax * 1.2f, targetHigh * 1.2f),
+                    overshootBoundary(metric))
+            if (observedMin != null && observedMin < targetLow)
+                targetLow = -ChartAxisScale.niceCeil(maxOf(-observedMin * 1.2f, -targetLow * 1.2f),
+                    overshootBoundary(metric))
+            newLow = minOf(low, targetLow)
+            newHigh = maxOf(high, targetHigh)
+            val range = ChartRange(newLow, newHigh)
+            val step = if (newLow == expected.low && newHigh == expected.high)
+                ChartAxisScale.stepForNiceRange(expected)
+            else ChartAxisScale.stepForNiceRange(range)
+            return ChartAxisScale.YAxis(range, step)
         } else if (metric.anchorZero) {
             if (highTriggered && observedMax != null)
                 newHigh = maxOf(observedMax * LIVE_EXPANSION_HEADROOM,
@@ -262,12 +283,21 @@ internal object FourMetricChartProjection {
         }
         newHigh = maxOf(newHigh, observedMax ?: newHigh)
         newLow = minOf(newLow, observedMin ?: newLow)
-        // Never let the peak look flat: raise the axis until observed/newHigh <= 0.92.
+        // Never let a zero-anchored peak look flat: raise until observed/newHigh <= 0.92.
         observedMax?.let { peak ->
-            if (newHigh > 0f && peak / newHigh > LIVE_MAX_OBSERVED_FRACTION)
+            if (metric.anchorZero && newHigh > 0f &&
+                peak / newHigh > LIVE_MAX_OBSERVED_FRACTION)
                 newHigh = peak / LIVE_MAX_OBSERVED_FRACTION
         }
         return ChartAxisScale.yAxis(newLow, newHigh, targetDivisions)
+    }
+
+    /** Nice overshoot grid per metric, so an over-target peak cannot jump a whole tick step. */
+    private fun overshootBoundary(metric: ChartMetric): Float = when (metric) {
+        ChartMetric.PRESSURE -> 2.5f
+        ChartMetric.WATER, ChartMetric.WEIGHT -> 5f
+        ChartMetric.FLOW -> 0.5f
+        ChartMetric.TEMPERATURE -> 1f
     }
 
     private fun validate(samples: List<ShotPoint>) {
