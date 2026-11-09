@@ -104,12 +104,22 @@ class MobileService : Service() {
         private set
     private val passiveShot = PassiveShotDetector()
     private var passiveHistoryId: String? = null
+    /** A started passive observation only owns history/series/navigation after it is committed. */
+    private var passiveCommitted = false
     private val manualPresentation=ManualShotPresentationGate()
     val manualShotPresentationId: String? get()=manualPresentation.activeId
     private var recentReadyCoffeeAddress: String? = null
     private var initialKnownCoffeeChecked=false
     private var passiveMayClearRecovery = false
     private var passiveRecoveryOwner:ShotRecoveryState.Ownership?=null
+    /** True when this passive round wrote the durable shot-recovery guard (not a pre-existing one). */
+    private var passiveArmedRecovery = false
+    /** Wall-clock start backfilled from the first passive frame, used when the cup is committed. */
+    private var passiveStartedWallMs = 0L
+    /** True when this passive round failed to arm its guard and therefore set its own warning. */
+    private var passiveArmFailed = false
+    /** Warning shown before this round armed, restored only when the uncommitted round is dropped. */
+    private var passiveSafetyBeforeArm: Int? = null
     private data class AppRecoveryOwner(val hub:NativeDeviceHub,val address:String,val shot:ShotRecoveryState.Ownership,
         val machine:MachineWriteRecoveryState.Ownership?)
     private var appRecoveryOwner:AppRecoveryOwner?=null
@@ -523,17 +533,27 @@ class MobileService : Service() {
         }
         if (role == DeviceRole.COFFEE && state != DeviceState.READY &&
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
-            manualPresentation.disconnected()
-            passiveHistoryId?.let { id ->
-                runCatching { history?.abandon(id, "连接中断") }
-                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+            val committed = passiveCommitted
+            passiveCommitted = false
+            if (committed) {
+                manualPresentation.disconnected()
+                passiveHistoryId?.let { id ->
+                    runCatching { history?.abandon(id, "连接中断") }
+                        .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+                }
+                passiveHistoryId = null
+                passiveArmedRecovery = false
+                passiveMayClearRecovery = false
+                passiveRecoveryOwner = null
+                saveSeriesCheckpoint(force = true)
+                finishSeries(false)
+                manualSafetyResource = R.string.service_event_manual_disconnect_warning
+                event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
+            } else {
+                // A short passive water release was never a cup: drop its provisional chart and
+                // this round's guard without abandoning history or raising an unknown warning.
+                discardPassiveSeries(requireDeviceMatch = false)
             }
-            passiveHistoryId = null
-            passiveMayClearRecovery = false
-            saveSeriesCheckpoint(force = true)
-            finishSeries(false)
-            manualSafetyResource = R.string.service_event_manual_disconnect_warning
-            event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
         }
         event("${role.name}: ${state.name}")
         if (role == DeviceRole.COFFEE) refreshSafetyNotification()
@@ -595,63 +615,139 @@ class MobileService : Service() {
         val observedAt = snapshot.coffeeAt ?: MobileMonotonicClock.elapsedRealtime()
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
-        val passiveEvent = if (snapshot.coffeeState == DeviceState.READY)
-            passiveShot.observe(frame, observedAt, appShotInProgress) else null
-        when (passiveEvent) {
-            is PassiveShotDetector.Event.Started -> {
-                val previousRecovery = shotRecovery.pending
-                if (!previousRecovery) manualSafetyResource = null
-                val currentAddress = hub?.coffeeAddress
-                val armed = shotRecovery.arm(currentAddress)
-                passiveMayClearRecovery = armed &&
-                    shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
-                passiveRecoveryOwner=if(passiveMayClearRecovery)shotRecovery.captureOwnership() else null
-                if (!armed)
-                    manualSafetyResource = R.string.service_event_shot_record_failed
-                refreshSafetyNotification()
-                passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
-                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
-                val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
-                series.begin(id, passiveEvent.first.atMs, "manual")
-                manualPresentation.started(id)
-                val feedbackSlot = passiveEvent.first.frame.slotOrPhase
-                beginBrewFeedback(id, feedbackSlot, if (feedbackSlot == 6) 0 else null, appShot = false)
-                recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
-                recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
-                passiveHistoryId?.let {
-                    runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
-                        .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+        val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
+            passiveShot.observe(frame, observedAt, appShotInProgress) else emptyList()
+        // Water is flowing now, so the realtime chart and navigation start at Started under a
+        // provisional identity. Only Committed keeps a manual identity and a history entry.
+        passiveEvents.forEach { passiveEvent ->
+            when (passiveEvent) {
+                is PassiveShotDetector.Event.Started -> {
+                    val previousRecovery = shotRecovery.pending
+                    if (!previousRecovery) manualSafetyResource = null
+                    val safetyBeforeArm = manualSafetyResource
+                    val currentAddress = hub?.coffeeAddress
+                    val armed = shotRecovery.arm(currentAddress)
+                    passiveArmedRecovery = armed && !previousRecovery
+                    passiveMayClearRecovery = armed &&
+                        shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
+                    passiveRecoveryOwner=if(passiveMayClearRecovery)shotRecovery.captureOwnership() else null
+                    passiveArmFailed = !armed
+                    passiveSafetyBeforeArm = if (armed) null else safetyBeforeArm
+                    if (!armed)
+                        manualSafetyResource = R.string.service_event_shot_record_failed
+                    passiveCommitted = false
+                    passiveHistoryId = null
+                    // The cup began at the first observed frame; keep durable history aligned.
+                    passiveStartedWallMs = System.currentTimeMillis() -
+                        (observedAt - passiveEvent.first.atMs)
+                    val provisionalId = java.util.UUID.randomUUID().toString()
+                    series.begin(provisionalId, passiveEvent.first.atMs, "manual")
+                    manualPresentation.started(provisionalId)
+                    val feedbackSlot = passiveEvent.first.frame.slotOrPhase
+                    beginBrewFeedback(provisionalId, feedbackSlot, if (feedbackSlot == 6) 0 else null,
+                        appShot = false)
+                    recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
+                    recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
+                    refreshSafetyNotification()
                 }
-                event(ResourceMessage(R.string.service_event_manual_started), "shot.passive_started")
+                PassiveShotDetector.Event.Committed -> {
+                    passiveCommitted = true
+                    val historyId = runCatching {
+                        history?.begin("manual", atMs = passiveStartedWallMs, slot = 6)
+                    }.onFailure {
+                        event(ResourceMessage(R.string.service_event_manual_history_unwritable),
+                            "shot.history_error")
+                    }.getOrNull()
+                    if (historyId != null) {
+                        passiveHistoryId = historyId
+                        series.rebind(historyId)
+                        runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
+                            .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+                        event(ResourceMessage(R.string.service_event_manual_started), "shot.passive_started")
+                    }
+                }
+                is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
+                    passiveEvent.value.atMs)
+                PassiveShotDetector.Event.Ended -> {
+                    val committed = passiveCommitted
+                    if (committed) {
+                        passiveCommitted = false
+                        manualPresentation.ended()
+                        clearPassiveRecovery(requireDeviceMatch = true)
+                        val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
+                            snapshot.scaleState == DeviceState.READY &&
+                                TelemetryFreshness.isFresh(snapshot.weightAt, observedAt)
+                        }
+                        passiveHistoryId?.let {
+                            runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
+                                "机器待机回报", weight) }
+                                .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+                        }
+                        passiveHistoryId = null
+                        finishSeries(true)
+                        if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
+                        event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
+                    } else {
+                        discardPassiveSeries(requireDeviceMatch = true)
+                    }
+                }
+                PassiveShotDetector.Event.Interrupted -> Unit
             }
-            is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
-                passiveEvent.value.atMs)
-            PassiveShotDetector.Event.Ended -> {
-                manualPresentation.ended()
-                if (!passiveMayClearRecovery || !shotRecovery.matchesDevice(hub?.coffeeAddress) ||
-                    !shotRecovery.clear(passiveRecoveryOwner))
-                    manualSafetyResource = R.string.service_event_shot_clear_failed
-                passiveMayClearRecovery = false
-                passiveRecoveryOwner=null
-                val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
-                    snapshot.scaleState == DeviceState.READY &&
-                        TelemetryFreshness.isFresh(snapshot.weightAt, observedAt)
-                }
-                passiveHistoryId?.let {
-                    runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
-                        "机器待机回报", weight) }
-                        .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
-                }
-                passiveHistoryId = null
-                finishSeries(true)
-                if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
-                event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
-            }
-            else -> if (frame is io.openhoyi.protocol.ExtractionTelemetry && !passiveShot.active)
-                recordMachinePoint(frame, observedAt)
         }
+        if (passiveEvents.isEmpty() && frame is io.openhoyi.protocol.ExtractionTelemetry &&
+            !passiveShot.active) recordMachinePoint(frame, observedAt)
         if(frame is io.openhoyi.protocol.IdleTelemetry && !passiveShot.active)
             manualPresentation.observedIdle()
+    }
+
+    /** Releases the guard a committed passive cup armed under the existing evidence rules. */
+    private fun clearPassiveRecovery(requireDeviceMatch: Boolean) {
+        val matched = !requireDeviceMatch || shotRecovery.matchesDevice(hub?.coffeeAddress)
+        if (!passiveMayClearRecovery || !matched || !shotRecovery.clear(passiveRecoveryOwner))
+            manualSafetyResource = R.string.service_event_shot_clear_failed
+        passiveArmedRecovery = false
+        passiveMayClearRecovery = false
+        passiveRecoveryOwner = null
+        passiveArmFailed = false
+        passiveSafetyBeforeArm = null
+    }
+
+    /**
+     * Ends a provisional passive series that never became a cup: no history entry is written and
+     * only this round's recovery guard is cleared. finishSeries(false) clears only the active id,
+     * so the page keeps showing the just-observed realtime curve and its manual identity until the
+     * next series.begin (an App shot or another passive release) replaces them.
+     */
+    private fun discardPassiveSeries(requireDeviceMatch: Boolean) {
+        passiveCommitted = false
+        manualPresentation.ended()
+        finishBrewFeedback(false)
+        finishSeries(false)
+        passiveHistoryId = null
+        passiveStartedWallMs = 0L
+        discardPassiveRecovery(requireDeviceMatch)
+    }
+
+    /**
+     * Drops only the record this round created. A record that was already pending before the
+     * observation belongs to an earlier shot and stays untouched.
+     */
+    private fun discardPassiveRecovery(requireDeviceMatch: Boolean) {
+        if (passiveArmedRecovery) {
+            val matched = !requireDeviceMatch || shotRecovery.matchesDevice(hub?.coffeeAddress)
+            if (!matched || !shotRecovery.clear(passiveRecoveryOwner))
+                manualSafetyResource = R.string.service_event_shot_clear_failed
+        }
+        passiveArmedRecovery = false
+        passiveMayClearRecovery = false
+        passiveRecoveryOwner = null
+        // A dropped short release must not leave the arm-failure warning this round raised.
+        if (passiveArmFailed && manualSafetyResource == R.string.service_event_shot_record_failed) {
+            manualSafetyResource = passiveSafetyBeforeArm
+            refreshSafetyNotification()
+        }
+        passiveArmFailed = false
+        passiveSafetyBeforeArm = null
     }
 
     override fun onCreate() {
@@ -1875,10 +1971,19 @@ class MobileService : Service() {
         appVisibility.unobserve(ownerId)
         finishBrewFeedback(false)
         if (passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
-            manualPresentation.disconnected()
-            passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
-            saveSeriesCheckpoint(force = true)
-            finishSeries(false)
+            val committed = passiveCommitted
+            passiveCommitted = false
+            if (committed) {
+                manualPresentation.disconnected()
+                passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
+                saveSeriesCheckpoint(force = true)
+                finishSeries(false)
+            } else discardPassiveSeries(requireDeviceMatch = false)
+            passiveHistoryId = null
+            passiveStartedWallMs = 0L
+            passiveArmedRecovery = false
+            passiveMayClearRecovery = false
+            passiveRecoveryOwner = null
         }
         handler.removeCallbacks(mockTick)
         cancelSafetyNotification()
