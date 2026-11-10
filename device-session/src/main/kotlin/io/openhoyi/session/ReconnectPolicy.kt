@@ -71,12 +71,14 @@ class ReconnectPolicy {
     }
 }
 
-/** Only the remembered machine is eligible; credential blocks survive foreground events. */
+/** Only the remembered machine is eligible; ordinary activity never overrides user or credential blocks. */
 class CoffeeReconnectPolicy {
     enum class Dispatch { NONE, STARTED, REJECTED, UNAVAILABLE }
     var desiredAddress:String?=null
         private set
     private var next=0L
+    private var fastUntil=0L
+    private var lastAttempt= -2_000L
     private var foreground=false
     private var failed=false
     private var suppressed=false
@@ -87,35 +89,40 @@ class CoffeeReconnectPolicy {
     private var readyBeforeFailure=false
     val recoveryEnabled:Boolean get()=foreground && failed && !suppressed && !credentialBlocked && desiredAddress!=null
 
-    fun foreground(now:Long){foreground=true}
-    fun background(){foreground=false;attempting=false}
-    /** Called only for an explicitly foreground service restored from a saved READY address. */
+    fun foreground(now:Long){foreground=true;requestSoon(now)}
+    fun background(){foreground=false}
+    /** Visibility, user interaction and a newly READY scale can shorten waiting, never reset intent. */
+    fun requestSoon(now:Long):Boolean {
+        if(!recoveryEnabled || environmentPaused || attempting)return false
+        val earlier=minOf(next,maxOf(now,lastAttempt+2_000))
+        val changed=earlier<next;next=earlier;return changed
+    }
     fun ensureKnown(address:String,now:Long){
         if(suppressed||credentialBlocked||desiredAddress!=null)return
         desiredAddress=address;failed=true;readyBeforeFailure=false
-        next=now;failures=0
+        next=now;fastUntil=now+30_000;failures=0
     }
     fun rememberReady(address:String,now:Long){
         desiredAddress=address;failed=false;readyBeforeFailure=true
-        attempting=false;failures=0;next=now+5000
+        attempting=false;failures=0;next=now+5_000
     }
     fun connectionFailed(now:Long){
         if(desiredAddress==null||suppressed)return
         if(readyBeforeFailure){
-            readyBeforeFailure=false;next=now;failures=0
-        }else if(attempting){
-            failures=(failures+1).coerceAtMost(4)
-            next=now+(5000L shl (failures-1)).coerceAtMost(30_000)
-        }
+            readyBeforeFailure=false;next=now;fastUntil=now+30_000;failures=0
+        }else if(attempting)scheduleFailure(now)
         attempting=false;failed=true
     }
-    fun shouldAttempt(now:Long):String? {
-        if(!foreground||!failed||suppressed||credentialBlocked||environmentPaused||
-            attempting||now<next)return null
-        val address=desiredAddress ?: return null
-        attempting=true;return address
+    private fun scheduleFailure(now:Long){
+        failures=(failures+1).coerceAtMost(3)
+        val delay=if(now<fastUntil)when(failures){1->2_000L;2->3_000L;else->5_000L} else 30_000L
+        next=now+delay
     }
-    /** Shared by the Android hub and the deterministic callback tests. */
+    fun shouldAttempt(now:Long):String? {
+        if(!recoveryEnabled||environmentPaused||attempting||now<next)return null
+        val address=desiredAddress ?: return null
+        attempting=true;lastAttempt=now;return address
+    }
     fun dispatch(now:Long,canConnect:Boolean,environmentReady:Boolean,connect:(String)->Boolean):Dispatch {
         if(!canConnect||!recoveryEnabled)return Dispatch.NONE
         if(!environmentReady)return if(environmentUnavailable())Dispatch.UNAVAILABLE else Dispatch.NONE
@@ -125,10 +132,7 @@ class CoffeeReconnectPolicy {
         if(!accepted){rejected(now);return Dispatch.REJECTED}
         return Dispatch.STARTED
     }
-    fun rejected(now:Long){if(attempting){
-        attempting=false;failures=(failures+1).coerceAtMost(4)
-        next=now+(5000L shl (failures-1)).coerceAtMost(30_000)
-    }}
+    fun rejected(now:Long){if(attempting){attempting=false;scheduleFailure(now)}}
     fun environmentUnavailable():Boolean {
         val changed=!environmentPaused;environmentPaused=true;return changed
     }
@@ -139,8 +143,12 @@ class CoffeeReconnectPolicy {
         suppressed=value
     }
     fun manualDisconnect(){suppressed=true;failed=false;attempting=false}
-    fun explicitConnect(address:String){
-        if(desiredAddress!=null && !desiredAddress.equals(address,ignoreCase=true))desiredAddress=null
-        suppressed=false;credentialBlocked=false;failed=false;attempting=false
+    /** Only an already remembered target can recover; new credentials stay with their original owner. */
+    fun explicitConnect(address:String,now:Long=0,remembered:Boolean=false){
+        if(remembered)desiredAddress=address
+        else if(!desiredAddress.equals(address,ignoreCase=true))desiredAddress=null
+        suppressed=false;credentialBlocked=false;environmentPaused=false
+        failed=false;readyBeforeFailure=false;attempting=desiredAddress!=null;failures=0
+        lastAttempt=now;fastUntil=now+30_000;next=now
     }
 }

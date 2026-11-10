@@ -489,7 +489,11 @@ class MobileService : Service() {
         // Consume every notification, not just the last frame at the UI refresh.
         beanDoseCaptureAt(MobileMonotonicClock.elapsedRealtime())
     }
+    private val coffeeRecoveryPresentation=CoffeeRecoveryPresentation()
+    val coffeeConnectionHint: Int? get()=coffeeRecoveryPresentation.hint(snapshot.coffeeState,MobileMonotonicClock.elapsedRealtime())
+    fun requestCoffeeRecoverySoon(){if(appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
+        if(role==DeviceRole.COFFEE)coffeeRecoveryPresentation.observe(state,MobileMonotonicClock.elapsedRealtime())
         if(state==DeviceState.READY)selectingDevice=false
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
@@ -808,7 +812,9 @@ class MobileService : Service() {
                 },
                 onScaleObservation = ::onScaleObservation,
                 diagnostic = { detail ->
-                    if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
+                    if(detail.startsWith("coffee.auto_reconnect.trigger=") || detail.startsWith("coffee.auto_reconnect.blocked="))
+                        logs.record("coffee.auto_reconnect",mapOf("signal" to detail.removePrefix("coffee.auto_reconnect.")))
+                    else if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
                     else if(detail.startsWith("coffee.auto_reconnect."))event(detail,"coffee.auto_reconnect")
                     else event(ResourceMessage(R.string.service_event_communication_error), "ble.diagnostic")
                 },
@@ -902,6 +908,7 @@ class MobileService : Service() {
         hub?.ensureKnownCoffee(address)
     }
     private fun connectRememberedCoffee(address: String,automatic:Boolean): RememberedCoffeeConnection {
+        if(coffeeConnectionInProgress(address))return RememberedCoffeeConnection.STARTED
         val allowed = (!automatic || automaticAllowed(DeviceRole.COFFEE)) && coffeeConnectionAllowed(address, automatic)
         val result = RememberedCoffeeConnection.attempt(allowed, {
             coffeeCredentials.readState(address).also {
@@ -939,13 +946,17 @@ class MobileService : Service() {
         }
         return hub != null
     }
+    private fun coffeeConnectionInProgress(address:String)=TaskShellDeviceStatus.connecting(snapshot.coffeeState) &&
+        pendingCoffeeCredential?.address?.equals(address,ignoreCase=true)==true
     private fun startCoffeeConnection(address: String, password: String, remembered: Boolean, automatic: Boolean): Boolean {
+        if(coffeeConnectionInProgress(address))return true
         val current = hub ?: return false
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
             settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
         event(ResourceMessage(if (remembered) R.string.service_coffee_connect_remembered else R.string.home_connect_coffee_title))
         pendingCoffeeCredential = PendingCoffeeCredential(address, password, remembered)
-        try { current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password),explicit=!automatic) }
+        try { current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password),explicit=!automatic,
+            remembered=recentReadyCoffeeAddress?.equals(address,ignoreCase=true)==true) }
         catch (error: RuntimeException) {
             pendingCoffeeCredential = null
             event(ResourceMessage(R.string.service_coffee_connect_failed, error.javaClass.simpleName), "coffee.connect_failed")
@@ -991,6 +1002,7 @@ class MobileService : Service() {
         }
         event(ResourceMessage(R.string.service_disconnect, role.name))
         if (role == DeviceRole.COFFEE) {
+            coffeeRecoveryPresentation.reset()
             hub?.disconnectCoffee()
             autoConnect.pause(DeviceRole.COFFEE,true)
         } else {

@@ -20,6 +20,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     private lateinit var candidates:LinearLayout
     private val disconnectActions=mutableListOf<Button>()
     private val states=mutableMapOf<DeviceRole,TextView>()
+    private var coffeeRetry:Button?=null
     private var dialog:AlertDialog?=null
     private var localError:String?=null
     private var rendered=""
@@ -36,6 +37,9 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             style.add(words,style.text(host.getString(if(role==DeviceRole.COFFEE)R.string.home_coffee else R.string.scale_title),TaskProductVisualStyle.body))
             states[role]=style.text("—",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(words,it,4)}
             val actions=LinearLayout(host).apply {orientation=LinearLayout.HORIZONTAL;isBaselineAligned=false}
+            if(role==DeviceRole.COFFEE)coffeeRetry=HoyiUi.button(host,actions,host.getString(R.string.coffee_connection_retry)) {
+                host.reconnectCoffee()
+            }.apply {visual.action(this,outline=true);tag="product/devices/coffee/retry"}
             HoyiUi.button(host,actions,host.getString(R.string.home_visual_change)) {
                 owner?.beginDeviceSelection();roleFilter=role;rendered="";render(owner)
                 candidates.post {candidates.requestRectangleOnScreen(android.graphics.Rect(0,0,candidates.width,minOf(candidates.height,style.dp(120))),false)}
@@ -93,11 +97,18 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         if(!::message.isInitialized)return
         disconnectActions.forEach {it.isEnabled=connectedActionAllowed()}
         val snapshot=service?.snapshot
+        val coffeeState=snapshot?.coffeeState ?: io.openhoyi.session.DeviceState.DISCONNECTED
+        coffeeRetry?.apply {
+            visibility=if(coffeeState==io.openhoyi.session.DeviceState.READY)View.GONE else View.VISIBLE
+            isEnabled=allowed() && !TaskShellDeviceStatus.connecting(coffeeState)
+            text=host.getString(if(TaskShellDeviceStatus.connecting(coffeeState))R.string.task_shell_action_connecting else R.string.coffee_connection_retry)
+        }
         val prefs=host.getSharedPreferences("devices",android.content.Context.MODE_PRIVATE)
         states.forEach {(role,text)->
             val state=if(role==DeviceRole.COFFEE)snapshot?.coffeeState else snapshot?.scaleState
             val identity=if(BuildConfig.MOCK_MODE)host.getString(R.string.application_mode_mock) else host.getString(R.string.device_remembered_identity,prefs.getString(if(role==DeviceRole.COFFEE)"coffee" else "scale","—"))
-            val value="$identity · ${state?.let {DeviceStatusText.label(host,it)} ?: "—"}"
+            val value="$identity · ${state?.let {if(role==DeviceRole.COFFEE)DeviceStatusText.coffeeLabel(host,it,snapshot?.coffeeFailure) else DeviceStatusText.label(host,it)} ?: "—"}"+
+                (if(role==DeviceRole.COFFEE)service?.coffeeConnectionHint?.let {" · "+host.getString(it)}.orEmpty() else "")
             if(text.text.toString()!=value)text.text=value
         }
         val display=localError ?: snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()

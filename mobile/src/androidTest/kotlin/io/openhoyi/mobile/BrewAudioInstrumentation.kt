@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var connectionSleepChecks=false
     private var settingsVisualArguments: Bundle? = null
     private var legacyVisualArguments: Bundle? = null
     private var scaleVisualArguments: Bundle? = null
@@ -52,6 +53,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
         settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
         legacyVisualArguments = arguments?.takeIf { it.getString("legacyVisualMigration") == "true" }?.let { Bundle(it) }
         scaleVisualArguments = arguments?.takeIf { it.getString("scaleVisualMigration") == "true" }?.let { Bundle(it) }
@@ -91,6 +93,11 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if(connectionSleepChecks){
+                val count=ConnectionSleepPresentationChecks(this).run()
+                report.putString("stream","CONNECTION_SLEEP_PRESENTATION_PASSED fixtures=$count languages=2 nativeComponents=true actualShellTree=true noBle=true noMachineCommands=true\n")
+                finish(Activity.RESULT_OK,report);return
+            }
             settingsVisualArguments?.let { arguments ->
                 val count=SettingsVisualMigrationChecks(this).run(arguments)
                 report.putString("stream", "SETTINGS_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
