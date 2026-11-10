@@ -22,7 +22,7 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName=="io.openhoyi.mobile.mock")
         val out=File(test.targetContext.getExternalFilesDir(null),"connection-sleep-presentation").apply {mkdirs()}
         var failure:Throwable?=null
-        test.runOnMainSync {try {
+        BoundedInstrumentationMain.run("Connection and sleep native fixtures") {try {
             for(language in listOf("zh","en")) {
                 val config=Configuration(test.targetContext.resources.configuration).apply {setLocale(Locale.forLanguageTag(language))}
                 val context=test.targetContext.createConfigurationContext(config)
@@ -62,13 +62,19 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
             }
         }catch(error:Throwable){failure=error}}
         failure?.let {throw it}
-        val host=MainPageTestHost.launch(test)
-        val deadline=android.os.SystemClock.elapsedRealtime()+5_000
-        while(host.activity.currentService?.running!=true && android.os.SystemClock.elapsedRealtime()<deadline) {
-            test.waitForIdleSync();android.os.SystemClock.sleep(50)
-        }
+        test.sendStatus(0,android.os.Bundle().apply {putString("stream","CONNECTION_SLEEP_STAGE actual-host-launch\n")})
+        val host=MainPageTestHost.launch(test,timeoutMs=5_000)
         try {
-            test.runOnMainSync {try {
+            val deadline=android.os.SystemClock.elapsedRealtime()+5_000
+            var ready=false
+            while(!ready && android.os.SystemClock.elapsedRealtime()<deadline) {
+                val remaining=(deadline-android.os.SystemClock.elapsedRealtime()).coerceAtLeast(1)
+                ready=BoundedInstrumentationMain.run("Mock service readiness",remaining) {host.activity.currentService?.running==true}
+                if(!ready)android.os.SystemClock.sleep(50)
+            }
+            check(ready) {"Mock service did not become ready within 5000ms"}
+            test.sendStatus(0,android.os.Bundle().apply {putString("stream","CONNECTION_SLEEP_STAGE actual-shell-projection\n")})
+            BoundedInstrumentationMain.run("Actual Mock shell projection") {try {
                 val shell=MainActivity::class.java.getDeclaredField("shellStatus").apply {isAccessible=true}.get(host.activity) as TaskShellStatusView
                 val original=TaskShellStatusView::class.java.getDeclaredField("mode").apply {isAccessible=true}.get(shell) as TaskNavigationMode
                 try {
@@ -122,7 +128,7 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                 }
             }catch(error:Throwable){failure=error}}
             failure?.let {throw it}
-        }finally {test.runOnMainSync {host.activity.finish()}}
+        }finally {BoundedInstrumentationMain.run("Connection fixture Activity cleanup") {host.activity.finish()}}
         return 12
     }
 }

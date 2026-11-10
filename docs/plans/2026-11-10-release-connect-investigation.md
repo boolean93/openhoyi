@@ -28,3 +28,10 @@
 - Sol本地验证：device-session 719、定向mobile 9、localization 25项通过；最终Debug/Mock/Mock test三包构建成功。Astra独立审查无代码阻塞；不等于底层通知沉默已修复。
 - 安装：用户明确授权后，同源码同版本Debug/Mock v77原签名覆盖均Success，另安装Mock test APK；无卸载或清数据，未发送真实休眠/唤醒/萃取。定向Mock界面验收和完整PR检查结果将在PR中记录。
 - 最新基线核对：origin/develop新增119b6f50仅产品介绍页/脚本/规划，未与本次Android变更重叠。
+
+## PR前完整检查补充
+
+- 首轮完整检查发现CoffeeCredentialTest仍断言旧退避、资源测试仍固定旧数量；已同步2/3秒时序与981/980资源计数，完整mobile Debug与Mock单测重跑通过。
+- Mock真机生成中英native组件PNG；真实主界面检查在等待期间未完成，协调者仅结束Mock进程，未打断用户其他App。组件图不能冒充实际主界面验收。
+- 新入口补充可选的限时Activity启动与主线程等待，避免持续绘制页面的无界idle等待；仅本入口启用，测试APK重新编译成功，设备重跑待安全空闲窗口。
+- 双包安装后的已知历史文件SHA256与安装前一致；不宣称覆盖验证所有用户数据。
