@@ -392,7 +392,7 @@
     <string name="home_sleep_initial">"Sleep state: unknown"</string>
     <string name="home_sleep_mock">"The Mock version does not send sleep commands"</string>
     <string name="home_sleep_reconciled_suffix">" · Standby confirmed"</string>
-    <string name="home_sleep_send">"Put machine to sleep"</string>
+    <string name="home_sleep_send">"Sleep now"</string>
     <string name="home_sleep_stale">"No fresh state available"</string>
     <string name="home_sleep_summary">"Sleep state: %1$s%2$s"</string>
     <string name="home_sleep_unknown_suffix">" · Sleep state not confirmed; check the coffee machine"</string>
@@ -965,12 +965,18 @@
     <string name="task_shell_scale_unsupported">"Not supported yet"</string>
     <string name="task_shell_sleep_asleep">"Machine\nAsleep"</string>
     <string name="task_shell_sleep_awake">"Machine sleep\nAwake"</string>
+    <string name="task_shell_sleep_check">"Check machine"</string>
     <string name="task_shell_sleep_extraction">"Machine sleep\nDisabled during brew"</string>
+    <string name="task_shell_sleep_history">"Last asleep"</string>
+    <string name="task_shell_sleep_pending">"Pending"</string>
     <string name="task_shell_sleep_preparing_reason">"Brew preparation is still in progress"</string>
+    <string name="task_shell_sleep_sending">"Sending"</string>
     <string name="task_shell_sleep_unavailable">"Machine sleep\nTemporarily unavailable"</string>
     <string name="task_shell_sleep_unconfirmed">"Machine sleep\nStatus unconfirmed"</string>
     <string name="task_shell_sleep_unknown_result">"Machine sleep\nOutcome unconfirmed"</string>
+    <string name="task_shell_sleep_unsent">"Not sent"</string>
     <string name="task_shell_sleep_waiting">"Machine sleep\nAwaiting confirmation"</string>
+    <string name="task_shell_sleep_wake">"Use lever"</string>
     <string name="task_shell_sleep_wake_hint">"Use the coffee machine lever to wake it"</string>
     <string name="theme_dark_mode">"Dark mode"</string>
     <string name="ui_back">"Back"</string>

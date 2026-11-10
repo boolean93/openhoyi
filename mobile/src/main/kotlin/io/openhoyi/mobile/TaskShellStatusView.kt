@@ -83,7 +83,9 @@ internal class TaskShellStatusView(
     }
     private val coffeeHint=statusText("task-shell-coffee-hint")
     private val coffeeRetry=action("task-shell-coffee-retry",onReconnectCoffee)
-    private val sleep = action("task-shell-sleep", onSleep)
+    private val sleep = action("task-shell-sleep", onSleep).apply {
+        setSingleLine(true);maxLines=1
+    }
     private val reconnect = action("task-shell-scale-reconnect") {
         if (host.currentService?.snapshot?.scaleState == DeviceState.UNSUPPORTED) onScale()
         else onReconnectScale()
@@ -276,7 +278,8 @@ internal class TaskShellStatusView(
                 owner.machineControlSafetyMessage != null), owner?.running == true,
             snapshot.coffeeState, idle?.sleepStateRaw, snapshot.coffeeFailure,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw)
         val status = host.getString(statusId)
-        val coffeeLine = "● $status"
+        val compactStatus=host.getString(SleepPresentation.compactStatus(statusId))
+        val coffeeLine = "● $compactStatus"
         if (coffeeStatus.text.toString() != coffeeLine) {
             val colored = SpannableString(coffeeLine)
             colored.setSpan(ForegroundColorSpan(if (statusId == R.string.task_shell_machine_awake)
@@ -284,7 +287,8 @@ internal class TaskShellStatusView(
             coffeeStatus.text = colored
         }
         val sleepHint=SleepPresentation.hint(owner?.sleepNowState,idle?.sleepStateRaw,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw)
-        val hint=owner?.coffeeConnectionHint ?: sleepHint
+        val fullHint=sleepHint ?: owner?.coffeeConnectionHint
+        val hint=if(sleepHint!=null)SleepPresentation.compactHint(sleepHint) else owner?.coffeeConnectionHint
         coffeeHint.visibility=if(hint==null)View.GONE else View.VISIBLE
         if(hint!=null)coffeeHint.text=host.getString(hint)
         coffeeRetry.visibility=if(snapshot.coffeeState==DeviceState.READY)View.GONE else View.VISIBLE
@@ -294,7 +298,7 @@ internal class TaskShellStatusView(
         sleep.visibility=if(snapshot.coffeeState==DeviceState.READY || owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN))View.VISIBLE else View.GONE
         val sleepAction = host.getString(if (asleep) R.string.task_shell_machine_asleep
             else R.string.task_shell_action_sleep)
-        sleep.label(sleepAction); icon(sleep, "moon")
+        sleep.label(sleepAction) // Text alone preserves the full label at the actual 104dp rail width.
         val sleepReason = when {
             asleep -> host.getString(R.string.task_shell_sleep_wake_hint)
             owner?.machineControlSafetyMessage != null -> owner.machineControlSafetyMessage
@@ -325,7 +329,8 @@ internal class TaskShellStatusView(
                 host.getColor(R.color.mobile_success) else style.muted), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             scaleStatus.text = colored
         }
-        coffeeFacts.contentDescription = "${coffeeName.text} · $status · ${host.getString(R.string.home_device_connection)}"
+        coffeeFacts.contentDescription = "${coffeeName.text} · $status" +
+            (fullHint?.let {" · "+host.getString(it)} ?: "") + " · ${host.getString(R.string.home_device_connection)}"
         scaleFacts.contentDescription = "${scaleName.text} · $scaleLabel · ${host.getString(R.string.home_device_connection)}"
         val connected = state == DeviceState.READY
         reconnect.visibility = if (connected) View.GONE else View.VISIBLE

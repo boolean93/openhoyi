@@ -275,7 +275,7 @@ class HomeActivity : ThemedActivity() {
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
         leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
-        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }
+        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
         scaleWeight = text(deviceCard, "— g", 27, true)

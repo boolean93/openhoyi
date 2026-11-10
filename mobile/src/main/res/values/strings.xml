@@ -313,7 +313,7 @@
     <string name="task_shell_machine_setting">"设置处理中"</string>
     <string name="task_shell_machine_unknown">"结果待确认"</string>
     <string name="task_shell_machine_unavailable">"暂不可用"</string>
-    <string name="task_shell_action_sleep">"睡眠"</string>
+    <string name="task_shell_action_sleep">"休眠"</string>
     <string name="task_shell_action_wake_on_machine">"已休眠"</string>
     <string name="task_shell_action_disconnect">"断开"</string>
     <string name="task_shell_action_retry">"重试"</string>
@@ -369,7 +369,7 @@
     <string name="home_sleep_mock">"Mock 版本不发送入睡命令"</string>
     <string name="home_sleep_confirm_title">"让咖啡机休眠？"</string>
     <string name="home_sleep_confirm_message">"唤醒时需要操作咖啡机拨杆"</string>
-    <string name="home_sleep_send">"让机器休眠"</string>
+    <string name="home_sleep_send">"立即休眠"</string>
     <string name="home_manual_shot_status">"机器手动萃取中 · 正在被动记录；请用机器拨杆停止"</string>
     <string name="home_scan_service_hint">"点击扫描启动设备服务"</string>
     <string name="home_start_cancel">"取消启动"</string>
@@ -1008,4 +1008,10 @@
     <string name="coffee_connection_permission_hint">"请在设备连接中点击“扫描设备”，授予蓝牙权限后重试"</string>
     <string name="coffee_connection_bluetooth_hint">"蓝牙尚未开启，请在设备连接中点击“扫描设备”并开启蓝牙后重试"</string>
     <string name="coffee_connection_blocked_hint">"连接暂时受限，请先查看当前机器操作状态"</string>
+    <string name="task_shell_sleep_sending">"发送中"</string>
+    <string name="task_shell_sleep_pending">"待确认"</string>
+    <string name="task_shell_sleep_check">"查看机器"</string>
+    <string name="task_shell_sleep_history">"上次休眠"</string>
+    <string name="task_shell_sleep_unsent">"未发送"</string>
+    <string name="task_shell_sleep_wake">"拨杆唤醒"</string>
 </resources>

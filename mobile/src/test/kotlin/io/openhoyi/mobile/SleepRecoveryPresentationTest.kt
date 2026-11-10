@@ -31,4 +31,20 @@ class SleepRecoveryPresentationTest {
         assertEquals(R.string.coffee_connection_recovery_hint,p.hint(DeviceState.FAILED,10_200))
         p.reset();assertNull(p.hint(DeviceState.DISCONNECTED,10_300))
     }
+    @Test fun compactSleepLabelsAndEverySleepActionStayWithinFourChineseCharacters(){
+        val catalog=org.json.JSONObject(java.io.File("../localization/catalog/source.json").readText()).getJSONObject("strings")
+        val states=listOf(R.string.sleep_status_writing,R.string.sleep_status_waiting,R.string.sleep_status_unknown,
+            R.string.sleep_status_last_confirmed,R.string.sleep_status_failed,R.string.task_shell_machine_unconfirmed,
+            R.string.task_shell_machine_awake,R.string.task_shell_machine_asleep)
+        for(resource in states){
+            val text=DefaultStringResources.template(SleepPresentation.compactStatus(resource))
+            assertTrue(text,text.length<=4);assertFalse(text.contains('\n'))
+        }
+        for(key in listOf("home_sleep_button","home_sleep_send","task_shell_action_sleep","task_shell_machine_asleep","task_shell_action_wake_on_machine","task_shell_sleep_wake")){
+            val text=catalog.getString(key);assertTrue(key,text.length<=4);assertFalse(key,text.contains('\n'))
+        }
+        assertEquals(R.string.task_shell_sleep_wake,SleepPresentation.compactHint(R.string.sleep_status_last_confirmed_hint))
+        assertNull(SleepPresentation.compactHint(R.string.sleep_status_unknown_hint))
+    }
+
 }

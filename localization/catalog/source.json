@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "a4dfd3ed6093526137d480e62d270da1e24ca5ac8767551f4e35bb3fb1aa60c8",
+  "sha256": "2a4ced933ca33ccbcd46cf4a0de60369c816e87c770947aa1b88ad6226c38210",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -316,7 +316,7 @@
     "task_shell_machine_setting": "设置处理中",
     "task_shell_machine_unknown": "结果待确认",
     "task_shell_machine_unavailable": "暂不可用",
-    "task_shell_action_sleep": "睡眠",
+    "task_shell_action_sleep": "休眠",
     "task_shell_action_wake_on_machine": "已休眠",
     "task_shell_action_disconnect": "断开",
     "task_shell_action_retry": "重试",
@@ -372,7 +372,7 @@
     "home_sleep_mock": "Mock 版本不发送入睡命令",
     "home_sleep_confirm_title": "让咖啡机休眠？",
     "home_sleep_confirm_message": "唤醒时需要操作咖啡机拨杆",
-    "home_sleep_send": "让机器休眠",
+    "home_sleep_send": "立即休眠",
     "home_manual_shot_status": "机器手动萃取中 · 正在被动记录；请用机器拨杆停止",
     "home_scan_service_hint": "点击扫描启动设备服务",
     "home_start_cancel": "取消启动",
@@ -982,6 +982,12 @@
     "sleep_status_last_confirmed_hint": "请用咖啡机拨杆唤醒；收到新状态后更新",
     "coffee_connection_permission_hint": "请在设备连接中点击“扫描设备”，授予蓝牙权限后重试",
     "coffee_connection_bluetooth_hint": "蓝牙尚未开启，请在设备连接中点击“扫描设备”并开启蓝牙后重试",
-    "coffee_connection_blocked_hint": "连接暂时受限，请先查看当前机器操作状态"
+    "coffee_connection_blocked_hint": "连接暂时受限，请先查看当前机器操作状态",
+    "task_shell_sleep_sending": "发送中",
+    "task_shell_sleep_pending": "待确认",
+    "task_shell_sleep_check": "查看机器",
+    "task_shell_sleep_history": "上次休眠",
+    "task_shell_sleep_unsent": "未发送",
+    "task_shell_sleep_wake": "拨杆唤醒"
   }
 }
