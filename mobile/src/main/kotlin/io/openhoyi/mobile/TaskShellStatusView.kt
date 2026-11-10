@@ -32,6 +32,7 @@ internal class TaskShellStatusView(
     onScale: () -> Unit,
     onReconnectScale: () -> Unit,
     onDisconnectScale: () -> Unit,
+    onReconnectCoffee: () -> Unit = {},
 ) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
     private val chrome = TaskShellVisualStyle(host)
@@ -80,7 +81,11 @@ internal class TaskShellStatusView(
         chrome.action(this)
         setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
     }
-    private val sleep = action("task-shell-sleep", onSleep)
+    private val coffeeHint=statusText("task-shell-coffee-hint")
+    private val coffeeRetry=action("task-shell-coffee-retry",onReconnectCoffee)
+    private val sleep = action("task-shell-sleep", onSleep).apply {
+        setSingleLine(true);maxLines=1
+    }
     private val reconnect = action("task-shell-scale-reconnect") {
         if (host.currentService?.snapshot?.scaleState == DeviceState.UNSUPPORTED) onScale()
         else onReconnectScale()
@@ -93,6 +98,8 @@ internal class TaskShellStatusView(
     init {
         setBackgroundColor(chrome.surface)
         coffeeGroup.addView(coffeeFacts, LayoutParams(-1, -2))
+        coffeeFacts.addView(coffeeHint,LayoutParams(-1,-2))
+        coffeeGroup.addView(coffeeRetry,actionParams())
         coffeeGroup.addView(sleep, actionParams())
         scaleGroup.addView(scaleFacts, LayoutParams(-1, -2))
         scaleGroup.addView(reconnect, actionParams())
@@ -158,7 +165,7 @@ internal class TaskShellStatusView(
         }
         listOf(coffeeName, scaleName).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
         listOf(coffeeStatus, scaleStatus).forEach { metrics(it, if (rail) 15 else 14, if (rail) 22 else 20) }
-        listOf(sleep, reconnect, disconnect).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
+        listOf(sleep, coffeeRetry, reconnect, disconnect).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
     }
 
     /** Rail eligibility must be independent of the currently attached fallback arrangement. */
@@ -170,12 +177,12 @@ internal class TaskShellStatusView(
             return view.measuredHeight
         }
         fun groupHeight(facts: LinearLayout, name: TextView, status: TextView, vararg actions: Button): Int =
-            style.dp(8) + maxOf(facts.minimumHeight, natural(name, inner) + natural(status, inner)) + style.dp(4) +
-                (actions.filter { it.visibility != GONE }.maxOfOrNull { natural(it, inner - style.dp(8)) } ?: 0)
+            style.dp(8) + maxOf(facts.minimumHeight, natural(facts,inner)) +
+                actions.filter { it.visibility != GONE }.sumOf { style.dp(4)+natural(it,inner-style.dp(8)) }
         val temporaryRailTypography = mode != TaskNavigationMode.RAIL
         if (temporaryRailTypography) typography(true)
         return try {
-            style.dp(29 + 8) + groupHeight(coffeeFacts, coffeeName, coffeeStatus, sleep) +
+            style.dp(29 + 8) + groupHeight(coffeeFacts, coffeeName, coffeeStatus, sleep, coffeeRetry) +
                 groupHeight(scaleFacts, scaleName, scaleStatus, reconnect, disconnect)
         } finally { if (temporaryRailTypography) typography(false) }
     }
@@ -201,7 +208,7 @@ internal class TaskShellStatusView(
     fun renderMode(next: TaskNavigationMode) {
         if (mode == next) return
         mode = next; typography(next == TaskNavigationMode.RAIL); removeAllViews()
-        arrangeGroup(coffeeGroup, coffeeFacts, sleep)
+        arrangeGroup(coffeeGroup, coffeeFacts, sleep, coffeeRetry)
         arrangeGroup(scaleGroup, scaleFacts, reconnect, disconnect)
         orientation = if (next == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -223,7 +230,7 @@ internal class TaskShellStatusView(
             val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
             fun wanted(name: TextView, status: TextView, vararg actions: Button): Int {
                 name.measure(natural, natural); status.measure(natural, natural)
-                val actionWidth = actions.filter { it.visibility != GONE }.maxOfOrNull { button ->
+                val actionWidth = actions.filter { it.visibility != GONE }.sumOf { button ->
                     // A prior fallback width cap must not influence the next presentation decision.
                     val previousMaxWidth = button.maxWidth
                     try {
@@ -233,10 +240,10 @@ internal class TaskShellStatusView(
                     } finally {
                         if (button.maxWidth != previousMaxWidth) button.maxWidth = previousMaxWidth
                     }
-                } ?: 0
+                }
                 return maxOf(name.measuredWidth, status.measuredWidth) + actionWidth + style.dp(20)
             }
-            val stacked = wanted(coffeeName, coffeeStatus, sleep) + wanted(scaleName, scaleStatus, reconnect, disconnect) + style.dp(8) > available
+            val stacked = wanted(coffeeName, coffeeStatus, sleep, coffeeRetry) + wanted(scaleName, scaleStatus, reconnect, disconnect) + style.dp(8) > available
             val next = if (stacked) VERTICAL else HORIZONTAL
             if (orientation != next) orientation = next
             listOf(coffeeGroup, scaleGroup).forEachIndexed { index, group ->
@@ -248,12 +255,12 @@ internal class TaskShellStatusView(
                 if (old.width != width || old.weight != weight || old.marginStart != start || old.topMargin != top)
                     group.layoutParams = LayoutParams(width, -2, weight).apply { marginStart = start; topMargin = top }
                 val actionCap = (if (stacked) available else (available - style.dp(8)) / 2) / 2
-                listOf(sleep, reconnect, disconnect).filter { it.parent === group }.forEach { button ->
+                listOf(sleep, coffeeRetry, reconnect, disconnect).filter { it.parent === group }.forEach { button ->
                     val cap = actionCap.coerceAtLeast(style.dp(48))
                     if (button.maxWidth != cap) button.maxWidth = cap
                 }
             }
-        } else listOf(sleep, reconnect, disconnect).forEach { if (it.maxWidth != Int.MAX_VALUE) it.maxWidth = Int.MAX_VALUE }
+        } else listOf(sleep, coffeeRetry, reconnect, disconnect).forEach { if (it.maxWidth != Int.MAX_VALUE) it.maxWidth = Int.MAX_VALUE }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
@@ -269,19 +276,29 @@ internal class TaskShellStatusView(
             active, owner?.sleepNowState, owner?.settingWriteState,
             owner != null && (owner.brewPreparationState != BrewPreparation.State.IDLE ||
                 owner.machineControlSafetyMessage != null), owner?.running == true,
-            snapshot.coffeeState, idle?.sleepStateRaw, snapshot.coffeeFailure)
+            snapshot.coffeeState, idle?.sleepStateRaw, snapshot.coffeeFailure,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw)
         val status = host.getString(statusId)
-        val coffeeLine = "● $status"
+        val compactStatus=host.getString(SleepPresentation.compactStatus(statusId))
+        val coffeeLine = "● $compactStatus"
         if (coffeeStatus.text.toString() != coffeeLine) {
             val colored = SpannableString(coffeeLine)
             colored.setSpan(ForegroundColorSpan(if (statusId == R.string.task_shell_machine_awake)
                 host.getColor(R.color.mobile_success) else style.muted), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             coffeeStatus.text = colored
         }
-        val asleep = statusId == R.string.task_shell_machine_asleep
-        val sleepAction = host.getString(if (asleep) R.string.task_shell_action_wake_on_machine
+        val sleepHint=SleepPresentation.hint(owner?.sleepNowState,idle?.sleepStateRaw,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw)
+        val fullHint=sleepHint ?: owner?.coffeeConnectionHint
+        val hint=if(sleepHint!=null)SleepPresentation.compactHint(sleepHint) else owner?.coffeeConnectionHint
+        coffeeHint.visibility=if(hint==null)View.GONE else View.VISIBLE
+        if(hint!=null)coffeeHint.text=host.getString(hint)
+        coffeeRetry.visibility=if(snapshot.coffeeState==DeviceState.READY)View.GONE else View.VISIBLE
+        coffeeRetry.label(host.getString(if(TaskShellDeviceStatus.connecting(snapshot.coffeeState))R.string.task_shell_action_connecting else R.string.coffee_connection_retry))
+        coffeeRetry.isEnabled=TaskShellDeviceStatus.canReconnect(snapshot.coffeeState,active)
+        val asleep = statusId in setOf(R.string.task_shell_machine_asleep,R.string.sleep_status_last_confirmed)
+        sleep.visibility=if(snapshot.coffeeState==DeviceState.READY || owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN))View.VISIBLE else View.GONE
+        val sleepAction = host.getString(if (asleep) R.string.task_shell_machine_asleep
             else R.string.task_shell_action_sleep)
-        sleep.label(sleepAction); icon(sleep, "moon")
+        sleep.label(sleepAction) // Text alone preserves the full label at the actual 104dp rail width.
         val sleepReason = when {
             asleep -> host.getString(R.string.task_shell_sleep_wake_hint)
             owner?.machineControlSafetyMessage != null -> owner.machineControlSafetyMessage
@@ -312,7 +329,8 @@ internal class TaskShellStatusView(
                 host.getColor(R.color.mobile_success) else style.muted), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             scaleStatus.text = colored
         }
-        coffeeFacts.contentDescription = "${coffeeName.text} · $status · ${host.getString(R.string.home_device_connection)}"
+        coffeeFacts.contentDescription = "${coffeeName.text} · $status" +
+            (fullHint?.let {" · "+host.getString(it)} ?: "") + " · ${host.getString(R.string.home_device_connection)}"
         scaleFacts.contentDescription = "${scaleName.text} · $scaleLabel · ${host.getString(R.string.home_device_connection)}"
         val connected = state == DeviceState.READY
         reconnect.visibility = if (connected) View.GONE else View.VISIBLE

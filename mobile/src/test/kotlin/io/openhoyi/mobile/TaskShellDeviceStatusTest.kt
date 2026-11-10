@@ -10,7 +10,7 @@ import org.junit.Test
 class TaskShellDeviceStatusTest {
     @Test fun unknownResultCannotBeHiddenByFreshAwakeOrAsleepTelemetry() {
         for (raw in listOf(0, 1)) {
-            assertEquals(R.string.task_shell_machine_unknown, TaskShellDeviceStatus.coffee(
+            assertEquals(R.string.sleep_status_unknown, TaskShellDeviceStatus.coffee(
                 false, SleepNowTracker.State.UNKNOWN, null, false, true, DeviceState.READY, raw))
             assertEquals(R.string.task_shell_machine_unknown, TaskShellDeviceStatus.coffee(
                 false, null, SettingsWriteTracker.State.UNKNOWN, false, true, DeviceState.READY, raw))

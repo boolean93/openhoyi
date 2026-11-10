@@ -17,6 +17,8 @@ internal object DeviceStatusText {
             R.string.device_state_protocol_timeout
         state == DeviceState.FAILED && failure == CoffeeSessionFailure.AUTH ->
             R.string.device_state_auth_failed
+        state == DeviceState.SYNCHRONIZING -> R.string.coffee_connection_reading_state
+        state in setOf(DeviceState.DISCOVERING,DeviceState.SUBSCRIBING,DeviceState.INITIALIZING) -> R.string.device_state_connecting
         state == DeviceState.UNSUPPORTED -> R.string.home_firmware_readonly
         else -> resource(state)
     }

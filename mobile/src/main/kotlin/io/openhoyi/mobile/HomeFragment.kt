@@ -235,7 +235,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         (compactTopRow ?: content).addView(machineRow, if (compactTopRow != null)
             LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
         machineRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
-        machineConnect = button(machineRow, getString(R.string.home_connect)) { showDevicePanel() }.apply {
+        machineConnect = button(machineRow, getString(R.string.home_connect)) {
+            if(service?.snapshot?.coffeeState==DeviceState.READY)showDevicePanel() else host.reconnectCoffee()
+        }.apply {
             tag = "product/home/connect"
             layoutParams = LinearLayout.LayoutParams(-2, dp(48))
             if (shortWideHome) {
@@ -494,7 +496,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
         leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
-        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }
+        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(host, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
         scaleWeight = text(deviceCard, "— g", 27, true)
@@ -870,7 +872,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 getString(R.string.home_live_suffix) else "")
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
         status.visibility = View.VISIBLE
-        machineConnect.show(getString(if (s.coffeeState == DeviceState.READY) R.string.home_visual_change else R.string.home_connect))
+        machineConnect.show(getString(when {
+            s.coffeeState==DeviceState.READY -> R.string.home_visual_change
+            TaskShellDeviceStatus.connecting(s.coffeeState) -> R.string.task_shell_action_connecting
+            else -> R.string.coffee_connection_retry
+        }))
+        machineConnect.isEnabled=TaskShellDeviceStatus.canReconnect(s.coffeeState,owner?.manualShotActive==true || owner?.shotState?.let(ShotGate::active)==true)
+        owner?.coffeeConnectionHint?.let { status.show(status.text.toString()+" · "+getString(it)) }
         scanButton.visibility = if (bothReady && !s.scanning) View.GONE else View.VISIBLE
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
@@ -923,21 +931,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
             owner?.machineControlSafetyMessage == null && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
-        val reportedSleep = if (!coffeeFresh) getString(R.string.home_sleep_stale) else when (idle?.sleepStateRaw) {
-            0 -> getString(R.string.home_sleep_awake)
-            1 -> getString(R.string.home_sleep_asleep)
-            else -> getString(R.string.settings_unknown)
-        }
-        val sleepProgress = when (owner?.sleepNowState) {
-            SleepNowTracker.State.WRITING -> getString(R.string.home_sleep_writing_suffix)
-            SleepNowTracker.State.WAITING_ASLEEP -> getString(R.string.home_sleep_waiting_suffix)
-            SleepNowTracker.State.CONFIRMED -> if (idle?.sleepStateRaw == 1) getString(R.string.home_sleep_confirmed_suffix) else ""
-            SleepNowTracker.State.FAILED -> getString(R.string.home_sleep_failed_suffix)
-            SleepNowTracker.State.UNKNOWN -> getString(R.string.home_sleep_unknown_suffix)
-            SleepNowTracker.State.RECONCILED -> getString(R.string.home_sleep_reconciled_suffix)
-            else -> ""
-        }
-        sleepStatus.show(getString(R.string.home_sleep_summary, reportedSleep, sleepProgress))
+        val sleepLabel=SleepPresentation.status(owner?.sleepNowState,idle?.sleepStateRaw,(s.coffee as? IdleTelemetry)?.sleepStateRaw)
+        val sleepHint=SleepPresentation.hint(owner?.sleepNowState,idle?.sleepStateRaw,(s.coffee as? IdleTelemetry)?.sleepStateRaw)
+        sleepButton.show(getString(if((idle?.sleepStateRaw==1 || sleepLabel==R.string.sleep_status_last_confirmed) && !sleepBusy) R.string.task_shell_machine_asleep else R.string.home_sleep_button))
+        sleepStatus.show(getString(sleepLabel)+(sleepHint?.let { " · "+getString(it) } ?: ""))
         alarmStatus.show(machineAlarms.describe(s.alarmBits, s.alarmAt, now))
         val compactStatus = resources.configuration.screenWidthDp < 400
         coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else DeviceStatusText.coffeeLabel(host,s.coffeeState,s.coffeeFailure))

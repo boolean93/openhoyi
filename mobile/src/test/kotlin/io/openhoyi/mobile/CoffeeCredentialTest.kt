@@ -39,7 +39,7 @@ class CoffeeCredentialTest {
         assertEquals(2, counts[address])
     }
 
-    @Test fun automaticCallbackContinuesExistingBackoffAfterRepeatedFailures() {
+    @Test fun automaticCallbackUsesFastRecoveryAfterRepeatedFailures() {
         val address = "AA:BB:CC:DD:EE:01"
         val credential = CoffeeCredentialRetryGate()
         val reconnect = CoffeeReconnectPolicy()
@@ -52,11 +52,11 @@ class CoffeeCredentialTest {
         }
         assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED, attempt(0))
         credential.connectionState(address, DeviceState.FAILED, true); reconnect.connectionFailed(100)
-        assertEquals(CoffeeReconnectPolicy.Dispatch.NONE, attempt(5099))
-        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED, attempt(5100))
-        credential.connectionState(address, DeviceState.FAILED, true); reconnect.connectionFailed(5200)
-        assertEquals(CoffeeReconnectPolicy.Dispatch.NONE, attempt(15199))
-        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED, attempt(15200))
+        assertEquals(CoffeeReconnectPolicy.Dispatch.NONE, attempt(2099))
+        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED, attempt(2100))
+        credential.connectionState(address, DeviceState.FAILED, true); reconnect.connectionFailed(2200)
+        assertEquals(CoffeeReconnectPolicy.Dispatch.NONE, attempt(5199))
+        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED, attempt(5200))
         assertEquals(3, calls)
     }
 
@@ -118,8 +118,8 @@ class CoffeeCredentialTest {
         }
         assertEquals(CoffeeReconnectPolicy.Dispatch.REJECTED, attempt(0))
         readable = true
-        assertEquals(CoffeeReconnectPolicy.Dispatch.NONE, attempt(4999))
-        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED, attempt(5000))
+        assertEquals(CoffeeReconnectPolicy.Dispatch.NONE, attempt(1999))
+        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED, attempt(2000))
         assertEquals(1, calls)
     }
 

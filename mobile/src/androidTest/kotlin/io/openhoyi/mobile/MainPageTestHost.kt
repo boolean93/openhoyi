@@ -10,14 +10,45 @@ import androidx.lifecycle.Lifecycle
 internal class MainPageTestHost(private val test: Instrumentation, val activity: MainActivity) {
     companion object {
         fun launch(test: Instrumentation, destination: TaskDestination = TaskDestination.BREW,
-            extraction: Boolean = false): MainPageTestHost {
+            extraction: Boolean = false, timeoutMs:Long? = null): MainPageTestHost {
             val intent = Intent(test.targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 .putExtra(MainActivity.EXTRA_INITIAL_DESTINATION, destination.name)
                 .putExtra(MainActivity.EXTRA_OPEN_EXTRACTION, extraction)
-            val activity = test.startActivitySync(intent) as MainActivity
-            test.waitForIdleSync()
-            return MainPageTestHost(test, activity).also { it.active(if (extraction) "extraction" else "root:${destination.name}") }
+            val tag=if(extraction) "extraction" else "root:${destination.name}"
+            if(timeoutMs==null) {
+                val activity = test.startActivitySync(intent) as MainActivity
+                test.waitForIdleSync()
+                return MainPageTestHost(test, activity).also { it.active(tag) }
+            }
+            // startActivitySync/waitForIdleSync can wait forever on a continuously drawing page.
+            // Only callers opting into this bounded fixture route use the monitor instead.
+            check(BuildConfig.MOCK_MODE && test.targetContext.packageName=="io.openhoyi.mobile.mock")
+            val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
+            val activity=try {
+                // MIUI rejects background starts from the instrumented app UID. Use the shell
+                // for this static Mock-only target, without -W; the monitor owns the time limit.
+                val command="am start -n io.openhoyi.mobile.mock/io.openhoyi.mobile.MainActivity -f 0x10008000 " +
+                    "--es io.openhoyi.mobile.initial_destination ${destination.name} " +
+                    "--ez io.openhoyi.mobile.open_extraction $extraction"
+                test.uiAutomation.executeShellCommand(command).use {
+                    monitor.waitForActivityWithTimeout(timeoutMs) as? MainActivity
+                        ?: error("MainActivity launch timed out after ${timeoutMs}ms")
+                }
+            }finally {test.removeMonitor(monitor)}
+            val host=MainPageTestHost(test,activity)
+            val deadline=android.os.SystemClock.elapsedRealtime()+timeoutMs
+            var lastFailure:Throwable?=null
+            while(android.os.SystemClock.elapsedRealtime()<deadline) {
+                val remaining=(deadline-android.os.SystemClock.elapsedRealtime()).coerceAtLeast(1)
+                val ready=BoundedInstrumentationMain.run("MainActivity fragment readiness",remaining) {
+                    runCatching {host.active(tag)}.also {lastFailure=it.exceptionOrNull()}.isSuccess
+                }
+                if(ready)return host
+                android.os.SystemClock.sleep(25)
+            }
+            BoundedInstrumentationMain.run("MainActivity launch cleanup") {activity.finish()}
+            throw AssertionError("MainActivity fragment did not become ready within ${timeoutMs}ms",lastFailure)
         }
     }
 

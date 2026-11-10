@@ -275,7 +275,7 @@ class HomeActivity : ThemedActivity() {
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
         leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
-        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }
+        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
         scaleWeight = text(deviceCard, "— g", 27, true)
@@ -728,21 +728,10 @@ class HomeActivity : ThemedActivity() {
         sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
             owner?.machineControlSafetyMessage == null && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
-        val reportedSleep = if (!coffeeFresh) getString(R.string.home_sleep_stale) else when (idle?.sleepStateRaw) {
-            0 -> getString(R.string.home_sleep_awake)
-            1 -> getString(R.string.home_sleep_asleep)
-            else -> getString(R.string.settings_unknown)
-        }
-        val sleepProgress = when (owner?.sleepNowState) {
-            SleepNowTracker.State.WRITING -> getString(R.string.home_sleep_writing_suffix)
-            SleepNowTracker.State.WAITING_ASLEEP -> getString(R.string.home_sleep_waiting_suffix)
-            SleepNowTracker.State.CONFIRMED -> if (idle?.sleepStateRaw == 1) getString(R.string.home_sleep_confirmed_suffix) else ""
-            SleepNowTracker.State.FAILED -> getString(R.string.home_sleep_failed_suffix)
-            SleepNowTracker.State.UNKNOWN -> getString(R.string.home_sleep_unknown_suffix)
-            SleepNowTracker.State.RECONCILED -> getString(R.string.home_sleep_reconciled_suffix)
-            else -> ""
-        }
-        sleepStatus.show(getString(R.string.home_sleep_summary, reportedSleep, sleepProgress))
+        val sleepLabel=SleepPresentation.status(owner?.sleepNowState,idle?.sleepStateRaw,(s.coffee as? IdleTelemetry)?.sleepStateRaw)
+        val sleepHint=SleepPresentation.hint(owner?.sleepNowState,idle?.sleepStateRaw,(s.coffee as? IdleTelemetry)?.sleepStateRaw)
+        sleepButton.show(getString(if((idle?.sleepStateRaw==1 || sleepLabel==R.string.sleep_status_last_confirmed) && !sleepBusy) R.string.task_shell_machine_asleep else R.string.home_sleep_button))
+        sleepStatus.show(getString(sleepLabel)+(sleepHint?.let { " · "+getString(it) } ?: ""))
         alarmStatus.show(machineAlarms.describe(s.alarmBits, s.alarmAt, now))
         val compactStatus = resources.configuration.screenWidthDp < 400
         coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else DeviceStatusText.coffeeLabel(this,s.coffeeState,s.coffeeFailure))

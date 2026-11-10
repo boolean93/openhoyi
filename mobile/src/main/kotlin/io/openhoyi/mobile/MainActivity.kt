@@ -48,11 +48,16 @@ class MainActivity : ThemedActivity() {
             onReleased = { service = null; publishService() },
             onAvailable = {
                 // Binding can precede onStartCommand. Re-evaluate once the owner really runs.
-                if (service?.running == true) { service?.ensureKnownDevices(); publishService() }
+                if (service?.running == true) {
+                    service?.ensureKnownDevices()
+                    if(reconnectCoffeeAfterBind){reconnectCoffeeAfterBind=false;reconnectCoffee()}
+                    publishService()
+                }
             })
     }
     private var scanAfterBind = false
     private var reconnectScaleAfterBind: Pair<String, String>? = null
+    private var reconnectCoffeeAfterBind=false
     private var lastPresentedManualShotId: String? = null
     private var foreground = false
     private val handler = Handler(Looper.getMainLooper())
@@ -72,6 +77,7 @@ class MainActivity : ThemedActivity() {
             if (!bound) return // Ignore a delivery after the visible binding lease was released.
             service = (binder as MobileService.LocalBinder).service
             service?.ensureKnownDevices()
+            if(reconnectCoffeeAfterBind && service?.running==true){reconnectCoffeeAfterBind=false;reconnectCoffee()}
             reconnectScaleAfterBind?.let { (address, protocol) ->
                 reconnectScaleAfterBind = null
                 service?.connectScale(address, protocol)
@@ -102,6 +108,47 @@ class MainActivity : ThemedActivity() {
         showExtraction()
     }
     internal val currentService get() = service
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        if(foreground)service?.requestCoffeeRecoverySoon()
+    }
+    internal fun reconnectCoffee() {
+        val address=getSharedPreferences("devices",MODE_PRIVATE).getString("coffee",null)
+            ?.takeIf(BluetoothAdapter::checkBluetoothAddress)
+        if(address==null){openSettingsSection("devices");return}
+        if(missingBle().isNotEmpty()){
+            openSettingsSection("devices")
+            Toast.makeText(this,getString(R.string.coffee_connection_permission_hint),Toast.LENGTH_LONG).show();return
+        }
+        val bluetoothReady=runCatching {getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled==true}.getOrDefault(false)
+        if(!bluetoothReady){
+            openSettingsSection("devices")
+            Toast.makeText(this,getString(R.string.coffee_connection_bluetooth_hint),Toast.LENGTH_LONG).show();return
+        }
+        val owner=service
+        if(owner==null || !owner.running){
+            reconnectCoffeeAfterBind=true
+            try {
+                startForegroundService(Intent(this,MobileService::class.java))
+                bindCreated()
+                if(!bound)reconnectCoffeeAfterBind=false
+            }catch(_:RuntimeException){reconnectCoffeeAfterBind=false;openSettingsSection("devices")}
+            return
+        }
+        when(owner.connectRememberedCoffee(address)){
+            RememberedCoffeeConnection.PASSWORD_REQUIRED -> {
+                openSettingsSection("devices")
+                Toast.makeText(this,getString(R.string.coffee_connection_password_hint),Toast.LENGTH_LONG).show()
+            }
+            RememberedCoffeeConnection.BLOCKED -> {
+                val reason=owner.snapshot.messageForDisplay {id,args->getString(id,*args)}
+                    .ifBlank {getString(R.string.coffee_connection_blocked_hint)}
+                Toast.makeText(this,reason,Toast.LENGTH_LONG).show()
+            }
+            RememberedCoffeeConnection.STARTED -> Unit
+        }
+        shellStatus.present(service)
+    }
     private fun sleepNow() {
         val owner = service ?: return
         trackDialog(AppDialog.confirm(this, getString(R.string.home_sleep_confirm_title),
@@ -210,7 +257,7 @@ class MainActivity : ThemedActivity() {
             }
         }
         frame = TaskPageFrame.host(this, style, { destination }, ::select)
-        shellStatus = TaskShellStatusView(this, ::sleepNow, ::openScale, ::reconnectScale, ::disconnectScale)
+        shellStatus = TaskShellStatusView(this, ::sleepNow, ::openScale, ::reconnectScale, ::disconnectScale, ::reconnectCoffee)
         frame.installShellStatus(shellStatus)
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
         val container = FrameLayout(this).apply { id = pageId; tag = "task-tab-content" }

@@ -114,7 +114,7 @@ fun policyChecks():Int {
         r.connectionFailed(200)
         check(r.shouldAttempt(200)=="AA:BB:CC:DD:EE:01")
         r.connectionFailed(300)
-        check(r.shouldAttempt(5299)==null)
+        check(r.shouldAttempt(2299)==null)
         check(r.shouldAttempt(10300)=="AA:BB:CC:DD:EE:01")
         r.manualDisconnect();r.background();r.foreground(6000)
         check(r.shouldAttempt(6000)==null)

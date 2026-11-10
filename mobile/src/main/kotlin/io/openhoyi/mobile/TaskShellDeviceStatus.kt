@@ -9,20 +9,18 @@ import io.openhoyi.session.SleepNowTracker
 internal object TaskShellDeviceStatus {
     fun coffee(active: Boolean, sleep: SleepNowTracker.State?, setting: SettingsWriteTracker.State?,
         unavailable: Boolean, running: Boolean, connection: DeviceState, sleepRaw: Int?,
-        failure: CoffeeSessionFailure? = null): Int = when {
+        failure: CoffeeSessionFailure? = null,lastSleepRaw:Int?=sleepRaw): Int = when {
         active -> R.string.task_shell_machine_extraction
-        sleep == SleepNowTracker.State.UNKNOWN || setting == SettingsWriteTracker.State.UNKNOWN ->
-            R.string.task_shell_machine_unknown
-        sleep == SleepNowTracker.State.WRITING || sleep == SleepNowTracker.State.WAITING_ASLEEP ->
-            R.string.task_shell_machine_sleeping
+        sleep in setOf(SleepNowTracker.State.UNKNOWN,SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ->
+            SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)
+        setting == SettingsWriteTracker.State.UNKNOWN -> R.string.task_shell_machine_unknown
         setting == SettingsWriteTracker.State.WRITING || setting == SettingsWriteTracker.State.WAITING_READBACK ->
             R.string.task_shell_machine_setting
+        sleep == SleepNowTracker.State.CONFIRMED && sleepRaw==null && lastSleepRaw==1 -> R.string.sleep_status_last_confirmed
         unavailable -> R.string.task_shell_machine_unavailable
         !running -> R.string.device_state_disconnected
         connection != DeviceState.READY -> DeviceStatusText.coffeeResource(connection, failure)
-        sleepRaw == 1 -> R.string.task_shell_machine_asleep
-        sleepRaw == 0 -> R.string.task_shell_machine_awake
-        else -> R.string.task_shell_machine_unconfirmed
+        else -> SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)
     }
 
     fun connecting(state: DeviceState): Boolean = state in setOf(DeviceState.CONNECTING,
