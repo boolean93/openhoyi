@@ -26,7 +26,7 @@ slug仅小写字母、数字与单横杠，不嵌套；版本为无前导零的�
 2. 从来源分支建短分支，例如 `git switch -c feature/scale-reconnect origin/develop`。写任务规划，引用本规则及 docs/plans/task-template.md。
 3. 新克隆/新工作树启用本地提前检查：`git config --local core.hooksPath .githooks`。先检查现有hook设置；已有用户hook不得默默替换，改由组合调用本hook。本地hook可以被绕过，不能代替服务端保护。
 4. 执行与改动相关的验证，只提交本任务文件。`git push -u origin feature/scale-reconnect`，不使用force或no-verify。
-5. PR目标默认develop，正文必须有非空的规划与范围、验证证据、协议与设备风险、发布与回退，并链接仓库内实际存在的规划。
+5. PR目标默认develop，正文必须有一行面向用户的中文「本次更新」，并填写非空的规划与范围、验证证据、协议与设备风险、发布与回退，并链接仓库内实际存在的规划。
 6. main/develop合并的PR必需检查只有branch-policy、verify两项，必须由精确头提交产生并通过，基线更新后需重新通过，讨论须解决。lifecycle、upgrade及visual AVD不再作为PR必需项：lifecycle/upgrade只在受保护分支push与手动入口运行，作为合并后及Develop自动预发布的前置证据；visual AVD改为手动。日常PR不运行任何AVD，见下节。单人仓库不要求无法自批的人工review计数，但协议改动必须在PR记录独立代码审查与设备证据。不能将模拟写入等同物理停水。
 7. PR通过后合并；合并完成才清理工作分支。release/hotfix先完成双主干回合。删除远端分支通过GitHub审核清理，本地hook不开放删除推送。
 
@@ -34,6 +34,7 @@ slug仅小写字母、数字与单横杠，不嵌套；版本为无前导零的�
 
 只有用户明确批准发版才开始发布操作。当前设备验收/正式签名缺口仍有效，建分支不取消这些阻塞。
 
+- 发布 APK 时，GitHub Release 正文以「本次更新」开头。按同渠道上一公开 APK 与当前 APK 的源码差异汇总合入 PR 的中文说明；人工 RC 和正式版也按此规则填写。
 - 候选标签 `vX.Y.Z-rc.N`（N从1开始）：目标提交必须属于对应origin/release/X.Y.Z。
 - 正式标签 `vX.Y.Z`：目标提交必须属于origin/main；只有候选验收通过后才建正式标签。
 - 发布前先冻结APK源码提交，执行现有release签名/版本预检和apk_distribution.py，对实际APK验签、包名、versionCode和哈希。版本必须递增，已安装证书必须匹配；不能用临时CI证书替代正式身份。
@@ -76,6 +77,6 @@ GitHub 服务端规则的可审查配置保存在 [integration.json](../.github/
 ./scripts/create-pr --title 'PR 标题' --body-file /tmp/openhoyi-pr.md
 ```
 
-正文沿用 `.github/pull_request_template.md` 的四个小节。默认目标为 develop，其他目标用 `--base main` 明确指定；草稿加 `--draft`。单独运行检查用 `./scripts/create-pr --check-only`。
+正文沿用 `.github/pull_request_template.md` 的五个小节。默认目标为 develop，其他目标用 `--base main` 明确指定；草稿加 `--draft`。单独运行检查用 `./scripts/create-pr --check-only`。
 
 入口按目标分支的完整差异使用与 CI 相同的分类器和检查命令。文档和站点白名单走快速检查，其他改动跑完整 verify（包括 Gradle 单测、构建和 Android lint）。完整检查需要与 verify 工作流匹配的 JDK、Android SDK 及 ANDROID_HOME。失败时修复后重跑，成功后脚本把实际执行的检查写入 PR 正文。网页和直接调用 gh 可以绕开本地入口，合并仍须通过服务端必需检查。

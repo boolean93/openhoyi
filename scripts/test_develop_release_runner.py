@@ -166,7 +166,8 @@ class DevelopReleaseRunnerTests(unittest.TestCase):
                     mock.patch.object(runner, "inspect_apk", return_value=manifest) as inspect, \
                     mock.patch.object(runner, "tools", return_value=("fake-aapt", "fake-apksigner")), \
                     mock.patch.object(runner, "successful_ci", return_value={"verified": True}), \
-                    mock.patch.object(runner, "inventory", return_value=[]) as inventory:
+                    mock.patch.object(runner, "inventory", return_value=[]) as inventory, \
+                    mock.patch.object(runner, "release_body", return_value="## 本次更新\n\n- 测试更新。") :
                 yield api, ledger, item, directory, inspect, inventory
 
     def test_publish_flat_named_and_partial_single_artifact_downloads(self):
