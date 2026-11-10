@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#ffffff">
-  <title>OpenHOYI — HOYI 咖啡机的增强控制器</title>
-  <meta name="description" content="OpenHOYI 是开源的 HOYI 咖啡机增强控制器：用蓝牙连接咖啡机和电子秤，在平板上选萃取曲线、看实时数据、回看每一杯。支持 Android 8.0 及以上，可在 GitHub Releases 下载。">
+  <title>OpenHOYI — 面向 HOYI 咖啡机的开源 Android 应用</title>
+  <meta name="description" content="OpenHOYI 是面向 HOYI 咖啡机的开源 Android 应用：记住常用设备，分享参数配方，把两杯萃取放在一起对照，并接入多种电子秤。需要 Android 8.0 及以上与低功耗蓝牙，可在 GitHub Releases 下载测试版。">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="zh_CN">
-  <meta property="og:title" content="OpenHOYI — HOYI 咖啡机的增强控制器">
-  <meta property="og:description" content="选曲线、看过程、查记录。用平板连接 HOYI 咖啡机，下载安卓版。">
+  <meta property="og:title" content="OpenHOYI — 连上 HOYI，看清这一杯">
+  <meta property="og:description" content="记住常用设备，分享参数配方，把两杯萃取放在一起对照。独立开源、非官方的 Android Alpha 项目。">
   <meta property="og:url" content="https://boolean93.github.io/openhoyi/">
   <meta property="og:image" content="https://boolean93.github.io/openhoyi/assets/screens/home.png?v=58bbd96f">
-  <meta property="og:image:alt" content="OpenHOYI 首页：咖啡机已连接，显示锅炉温度与压力">
+  <meta property="og:image:alt" content="使用模拟数据的平板首页截图：显示设备连接状态、锅炉温度、压力与首页快捷曲线">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="https://boolean93.github.io/openhoyi/">
   <link rel="icon" type="image/png" sizes="32x32" href="./assets/brand/favicon-32.png">
@@ -28,7 +28,7 @@
     <div class="nav-inner">
       <a class="wordmark" href="#top">OpenHOYI</a>
       <nav class="nav-links" aria-label="页面导航">
-        <a href="#features">功能</a>
+        <a href="#features">特色</a>
         <a href="#compatibility">兼容设备</a>
         <a href="#download">下载</a>
         <a href="https://github.com/boolean93/openhoyi" rel="noopener">GitHub</a>
@@ -39,151 +39,423 @@
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-inner">
-        <img class="hero-icon" src="./assets/brand/icon-release-256.png" width="256" height="256" alt="OpenHOYI 应用图标：黑色底、白色 Open HOYI 字标" fetchpriority="high">
-        <p class="eyebrow">开源 · Android</p>
-        <h1 id="hero-title">更懂你的<br>HOYI app</h1>
-        <p class="lede">OpenHOYI 是开源的安卓应用，也是 HOYI 咖啡机的增强控制器。蓝牙连上咖啡机和电子秤，在平板上选曲线、看实时数据、回看每一杯。</p>
+        <img class="hero-icon" src="./assets/brand/icon-release-256.png" width="256" height="256" alt="OpenHOYI 应用图标：深色底、白色 Open HOYI 字标" fetchpriority="high">
+        <p class="eyebrow">独立开源 · Android · 非官方 Alpha 项目</p>
+        <h1 id="hero-title">连上 HOYI，看清这一杯。</h1>
+        <p class="lede">记住常用设备，分享参数配方，把两杯萃取放在一起对照。从开始冲煮到回看记录，让每一次调整都有迹可循。</p>
         <div class="actions">
-          <a class="button" href="#download" data-download-entry>下载</a>
-          <a class="link" href="#features">了解功能<span class="glyph" aria-hidden="true">↓</span></a>
+          <a class="button" href="#download" data-download-entry>下载 Android 版</a>
+          <a class="button button-outline" href="#compatibility">查看兼容情况</a>
         </div>
-        <p class="hero-aside">独立开发 · 非 HOYI 官方应用</p>
+        <p class="hero-aside">需要 Android 8.0 及以上和低功耗蓝牙。功能与设备支持以所下载版本的说明为准。</p>
         <figure class="hero-figure">
-          <a class="shot" href="./assets/screens/originals/home.png?v=58bbd96f" data-view-image data-image-title="App 首页 · 平板演示" data-focus-x="1780" data-focus-y="490">
-            <img src="./assets/screens/home.png?v=58bbd96f" width="2560" height="1504" alt="OpenHOYI 首页：左侧功能导航，咖啡机与冲泡、蒸汽双温度圆环，下方是最近使用曲线和五个带压力、流量缩略图的快捷槽位" fetchpriority="high">
+          <a class="shot" href="./assets/screens/originals/home.png?v=58bbd96f" data-view-image data-image-title="首页 · 平板界面截图" data-focus-x="1780" data-focus-y="490">
+            <img src="./assets/screens/home.png?v=58bbd96f" width="2560" height="1504" alt="OpenHOYI 平板界面截图，使用模拟数据：左侧功能导航，咖啡机与冲泡、蒸汽双温度圆环，下方是最近使用曲线和五个带压力、流量缩略图的快捷槽位" fetchpriority="high">
           </a>
+          <figcaption class="figure-caption">OpenHOYI 平板界面截图，使用模拟数据；功能与兼容范围以所下载版本为准。</figcaption>
         </figure>
-      </div>
-    </section>
-
-    <section class="stats" aria-label="产品概览">
-      <div class="stats-inner">
-        <div><p class="stat-value">100<span class="stat-unit">条</span></p><p class="stat-label">工厂曲线</p></div>
-        <div><p class="stat-value">5<span class="stat-unit">个</span></p><p class="stat-label">首页快捷槽位</p></div>
-        <div><p class="stat-value">30<span class="stat-unit">天</span></p><p class="stat-label">本机记录</p></div>
       </div>
     </section>
 
     <section class="section" id="features" aria-labelledby="features-title">
       <div class="wrap">
-        <p class="eyebrow">功能</p>
-        <h2 id="features-title">从按下开始，到回看这一杯</h2>
+        <p class="eyebrow">为什么选择 OpenHOYI</p>
+        <h2 id="features-title">围绕日常冲煮，多做一步</h2>
+        <p class="section-lede">四个核心特色，以及当前版本里需要留意的边界。</p>
 
-        <article class="feature">
+        <article class="feature" id="connect">
           <div class="feature-copy">
-            <h3>每一秒，都看得见</h3>
-            <p>开始萃取后，压力、温度、流速与累计注水会实时绘成曲线。想停的时候随时手动停止，不必等机器自己判断。</p>
+            <p class="feature-index">01 · 连接</p>
+            <h3>记住设备，少做重复连接</h3>
+            <p>记住常用的咖啡机和电子秤，在 App 前台尝试重新连接。秤晚一点开机，也会继续寻找上次使用的设备。手动断开后，暂停本次使用中的自动重连。</p>
+            <ul class="points">
+              <li>设备分别连接，状态分别看清。</li>
+              <li>成功连接后，按设备加密记住咖啡机密码。</li>
+              <li>常用设备不用每次从头选择。</li>
+            </ul>
+            <p class="adjacent">连接表现受设备、系统权限、距离和蓝牙环境影响，恢复连接不代表自动恢复未确认的机器操作。</p>
           </div>
-          <figure class="feature-figure">
-            <a class="shot" href="./assets/screens/originals/extraction.png?v=58bbd96f" data-view-image data-image-title="萃取过程 · 平板演示" data-focus-x="1450" data-focus-y="790">
-              <img src="./assets/screens/extraction.png?v=58bbd96f" width="2560" height="1504" alt="模拟萃取中的界面：压力、累计注水、流速和温度四条曲线，各曲线末端显示模拟采样的数值与单位，底部有对应读数和立即停止萃取按钮" loading="lazy">
-            </a>
-          </figure>
+          <div class="feature-visual">
+            <div class="flow-card">
+              <p class="visual-tag">流程示意</p>
+              <ol class="flow">
+                <li>
+                  <span class="flow-step" aria-hidden="true">1</span>
+                  <strong>打开 App</strong>
+                  <span>前台尝试恢复连接</span>
+                </li>
+                <li>
+                  <span class="flow-step" aria-hidden="true">2</span>
+                  <strong>寻找记忆设备</strong>
+                  <span>秤晚开机也会继续寻找</span>
+                </li>
+                <li>
+                  <span class="flow-step" aria-hidden="true">3</span>
+                  <strong>分别显示状态</strong>
+                  <span>咖啡机与秤分别连接</span>
+                </li>
+              </ol>
+            </div>
+          </div>
         </article>
 
-        <article class="feature">
+        <article class="feature" id="recipes">
           <div class="feature-copy">
-            <h3>做完一杯，再慢慢看</h3>
-            <p>最近 30 天的萃取都保存在本机，最多 500 条，带着采样曲线。可以写一段复盘，也可以导出历史备份；旧版记录导入后只读保留。</p>
+            <p class="feature-index">02 · 配方</p>
+            <h3>分享参数配方，导入前先看清</h3>
+            <p>把 OpenHOYI 参数配方复制成文本，或通过 JSON 文件分享。收到配方后，粘贴或选择文件，先查看参数，再确认保存。本机压力配方还可以调整温度、目标重量和分段压力、水量。</p>
+            <p class="adjacent">执行资格取决于配方模式、参数校验和设备状态。旧版曲线库导入仍为只读；并非所有导入文件都能直接执行。</p>
           </div>
-          <figure class="feature-figure">
-            <a class="shot" href="./assets/screens/originals/history.png?v=58bbd96f" data-view-image data-image-title="历史记录 · 平板演示" data-focus-x="1870" data-focus-y="955">
-              <img src="./assets/screens/history.png?v=58bbd96f" width="2560" height="1504" alt="历史记录：左侧为本机记录列表，右侧是本次模拟杯的时长、结束时秤读数及压力、累计注水、秤读数和温度采样曲线" loading="lazy">
-            </a>
-          </figure>
+          <div class="feature-visual">
+            <div class="flow-card">
+              <p class="visual-tag">流程示意</p>
+              <ol class="flow">
+                <li>
+                  <span class="flow-step" aria-hidden="true">1</span>
+                  <strong>选中配方</strong>
+                  <span>查看名称、模式和分段参数</span>
+                </li>
+                <li>
+                  <span class="flow-step" aria-hidden="true">2</span>
+                  <strong>分享文本或文件</strong>
+                  <span>传递配方参数，不夹带私人复盘笔记</span>
+                </li>
+                <li>
+                  <span class="flow-step" aria-hidden="true">3</span>
+                  <strong>预览后导入</strong>
+                  <span>参数与版本冲突先看清，再决定保存方式</span>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature feature-wide" id="compare">
+          <div class="feature-copy">
+            <p class="feature-index">03 · 对比</p>
+            <h3>两杯放在一起，看清哪里不同</h3>
+            <p>选出 A、B 两杯，在同一坐标轴上对照压力、累计水量、秤重或温度，每次专注一个指标。再结合时长、结束时秤读数、豆子、曲线和笔记，回看这次调整带来了什么变化。</p>
+            <p class="adjacent">对比用于观察过程差异，不提供自动稳定性评分或口感判断。</p>
+          </div>
+          <div class="compare-demo" data-compare data-active="pressure">
+            <div class="demo-head">
+              <p class="visual-tag">功能示意，非 App 截图 · 示例数据</p>
+              <div class="metric-switch" role="group" aria-label="切换示意指标">
+                <button type="button" data-metric="pressure" aria-pressed="true" hidden>压力</button>
+                <button type="button" data-metric="water" aria-pressed="false" hidden>累计水量</button>
+                <button type="button" data-metric="weight" aria-pressed="false" hidden>秤重</button>
+                <button type="button" data-metric="temperature" aria-pressed="false" hidden>温度</button>
+              </div>
+            </div>
+            <noscript><p class="demo-noscript">脚本未启用时，图表固定显示压力示意曲线，四项指标切换不可用。</p></noscript>
+            <div class="chart-stack">
+            <svg class="demo-chart demo-chart-desktop" viewBox="0 0 720 266" role="img" aria-labelledby="compare-chart-title compare-chart-desc">
+              <title id="compare-chart-title">两杯萃取的示例曲线对照</title>
+              <desc id="compare-chart-desc">A、B 两杯在同一指标下的示例曲线；A 为实线，B 为虚线，可切换压力、累计水量、秤重和温度四项指标。</desc>
+              <g class="chart-grid"><line x1="48" y1="26.0" x2="704" y2="26.0"/><line x1="48" y1="75.5" x2="704" y2="75.5"/><line x1="48" y1="125.0" x2="704" y2="125.0"/><line x1="48" y1="174.5" x2="704" y2="174.5"/><line x1="48" y1="224.0" x2="704" y2="224.0"/><line x1="48.0" y1="26" x2="48.0" y2="224"/><line x1="212.0" y1="26" x2="212.0" y2="224"/><line x1="376.0" y1="26" x2="376.0" y2="224"/><line x1="540.0" y1="26" x2="540.0" y2="224"/><line x1="704.0" y1="26" x2="704.0" y2="224"/></g>
+        <g data-metric-group="pressure">
+          <text class="chart-unit" x="48" y="13">压力 · bar</text>
+          <text class="chart-tick" x="39" y="228.0" text-anchor="end">0</text><text class="chart-tick" x="39" y="178.5" text-anchor="end">2.5</text><text class="chart-tick" x="39" y="129.0" text-anchor="end">5</text><text class="chart-tick" x="39" y="79.5" text-anchor="end">7.5</text><text class="chart-tick" x="39" y="30.0" text-anchor="end">10</text>
+          <path class="chart-line chart-line-a" d="M48.0,224.0 C52.1,223.7 64.4,223.0 72.6,222.0 C80.8,221.0 89.0,220.0 97.2,218.1 C105.4,216.1 113.6,213.8 121.8,210.1 C130.0,206.5 138.2,201.2 146.4,196.3 C154.6,191.3 162.8,186.1 171.0,180.4 C179.2,174.8 187.4,168.6 195.6,162.6 C203.8,156.7 212.0,150.7 220.2,144.8 C228.4,138.9 236.6,132.6 244.8,127.0 C253.0,121.4 261.2,116.1 269.4,111.1 C277.6,106.2 285.8,101.2 294.0,97.3 C302.2,93.3 310.4,90.3 318.6,87.4 C326.8,84.4 335.0,81.8 343.2,79.5 C351.4,77.2 359.6,75.0 367.8,73.5 C376.0,72.0 384.2,71.4 392.4,70.5 C400.6,69.7 408.8,69.1 417.0,68.6 C425.2,68.1 433.4,67.7 441.6,67.6 C449.8,67.4 458.0,67.4 466.2,67.6 C474.4,67.7 482.6,68.2 490.8,68.6 C499.0,68.9 507.2,69.2 515.4,69.6 C523.6,69.9 531.8,70.2 540.0,70.5 C548.2,70.9 558.0,71.2 564.6,71.5 C571.2,71.9 576.9,72.4 579.4,72.5" fill="none" stroke="#176BD1" stroke-width="2.2" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M48.0,224.0 C52.1,223.3 64.4,221.7 72.6,220.0 C80.8,218.4 89.0,216.7 97.2,214.1 C105.4,211.5 113.6,208.5 121.8,204.2 C130.0,199.9 138.2,194.0 146.4,188.4 C154.6,182.8 162.8,176.5 171.0,170.5 C179.2,164.6 187.4,158.7 195.6,152.7 C203.8,146.8 212.0,140.5 220.2,134.9 C228.4,129.3 236.6,124.0 244.8,119.1 C253.0,114.1 261.2,109.5 269.4,105.2 C277.6,100.9 285.8,96.6 294.0,93.3 C302.2,90.0 310.4,87.7 318.6,85.4 C326.8,83.1 335.0,81.1 343.2,79.5 C351.4,77.8 359.6,76.5 367.8,75.5 C376.0,74.5 384.2,74.0 392.4,73.5 C400.6,73.0 408.8,72.5 417.0,72.5 C425.2,72.5 433.4,73.2 441.6,73.5 C449.8,73.9 458.0,74.2 466.2,74.5 C474.4,74.8 482.6,75.2 490.8,75.5 C499.0,75.8 507.2,76.2 515.4,76.5 C523.6,76.8 531.8,77.1 540.0,77.5 C548.2,77.8 558.0,78.1 564.6,78.5 C571.2,78.8 576.9,79.3 579.4,79.5" fill="none" stroke="#176BD1" stroke-width="2.0" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="579.4" cy="72.5" r="3.2" fill="#176BD1"/>
+          <circle cx="579.4" cy="79.5" r="3.2" fill="#176BD1"/>
+        </g>
+        <g data-metric-group="water">
+          <text class="chart-unit" x="48" y="13">累计注水 · mL</text>
+          <text class="chart-tick" x="39" y="228.0" text-anchor="end">0</text><text class="chart-tick" x="39" y="178.5" text-anchor="end">20</text><text class="chart-tick" x="39" y="129.0" text-anchor="end">40</text><text class="chart-tick" x="39" y="79.5" text-anchor="end">60</text><text class="chart-tick" x="39" y="30.0" text-anchor="end">80</text>
+          <path class="chart-line chart-line-a" d="M48.0,224.0 C52.1,223.5 64.4,222.2 72.6,221.0 C80.8,219.9 89.0,218.5 97.2,217.1 C105.4,215.7 113.6,214.3 121.8,212.6 C130.0,211.0 138.2,209.1 146.4,207.2 C154.6,205.3 162.8,203.3 171.0,201.2 C179.2,199.2 187.4,197.0 195.6,194.8 C203.8,192.6 212.0,190.3 220.2,187.9 C228.4,185.5 236.6,182.9 244.8,180.4 C253.0,178.0 261.2,175.5 269.4,173.0 C277.6,170.5 285.8,168.0 294.0,165.6 C302.2,163.2 310.4,161.0 318.6,158.7 C326.8,156.4 335.0,154.0 343.2,151.7 C351.4,149.5 359.6,147.4 367.8,145.3 C376.0,143.2 384.2,140.9 392.4,138.9 C400.6,136.8 408.8,134.8 417.0,132.9 C425.2,131.0 433.4,129.2 441.6,127.5 C449.8,125.7 458.0,124.1 466.2,122.5 C474.4,121.0 482.6,119.4 490.8,118.1 C499.0,116.8 507.2,115.5 515.4,114.6 C523.6,113.7 531.8,113.0 540.0,112.6 C548.2,112.2 558.0,112.2 564.6,112.1 C571.2,112.0 576.9,112.1 579.4,112.1" fill="none" stroke="#C05A13" stroke-width="2.2" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M48.0,224.0 C52.1,223.6 64.4,222.5 72.6,221.5 C80.8,220.5 89.0,219.3 97.2,218.1 C105.4,216.8 113.6,215.6 121.8,214.1 C130.0,212.6 138.2,210.9 146.4,209.2 C154.6,207.4 162.8,205.6 171.0,203.7 C179.2,201.8 187.4,199.8 195.6,197.8 C203.8,195.7 212.0,193.6 220.2,191.3 C228.4,189.1 236.6,186.7 244.8,184.4 C253.0,182.1 261.2,179.8 269.4,177.5 C277.6,175.2 285.8,172.8 294.0,170.5 C302.2,168.3 310.4,166.2 318.6,164.1 C326.8,162.0 335.0,159.7 343.2,157.7 C351.4,155.6 359.6,153.6 367.8,151.7 C376.0,149.8 384.2,148.0 392.4,146.3 C400.6,144.6 408.8,142.9 417.0,141.3 C425.2,139.8 433.4,138.3 441.6,136.9 C449.8,135.5 458.0,134.2 466.2,132.9 C474.4,131.7 482.6,130.5 490.8,129.5 C499.0,128.4 507.2,127.3 515.4,126.5 C523.6,125.7 531.8,125.0 540.0,124.5 C548.2,124.0 558.0,123.8 564.6,123.5 C571.2,123.3 576.9,123.1 579.4,123.0" fill="none" stroke="#C05A13" stroke-width="2.0" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="579.4" cy="112.1" r="3.2" fill="#C05A13"/>
+          <circle cx="579.4" cy="123.0" r="3.2" fill="#C05A13"/>
+        </g>
+        <g data-metric-group="weight">
+          <text class="chart-unit" x="48" y="13">秤重 · g</text>
+          <text class="chart-tick" x="39" y="228.0" text-anchor="end">0</text><text class="chart-tick" x="39" y="178.5" text-anchor="end">7.5</text><text class="chart-tick" x="39" y="129.0" text-anchor="end">15</text><text class="chart-tick" x="39" y="79.5" text-anchor="end">22.5</text><text class="chart-tick" x="39" y="30.0" text-anchor="end">30</text>
+          <path class="chart-line chart-line-a" d="M48.0,224.0 C52.1,223.6 64.4,222.5 72.6,221.4 C80.8,220.3 89.0,218.9 97.2,217.4 C105.4,215.9 113.6,214.1 121.8,212.1 C130.0,210.1 138.2,207.8 146.4,205.5 C154.6,203.2 162.8,200.8 171.0,198.3 C179.2,195.7 187.4,193.1 195.6,190.3 C203.8,187.6 212.0,184.7 220.2,181.8 C228.4,178.8 236.6,175.7 244.8,172.5 C253.0,169.3 261.2,165.9 269.4,162.6 C277.6,159.3 285.8,156.1 294.0,152.7 C302.2,149.3 310.4,145.7 318.6,142.2 C326.8,138.6 335.0,135.1 343.2,131.6 C351.4,128.1 359.6,124.4 367.8,121.0 C376.0,117.6 384.2,114.3 392.4,111.1 C400.6,107.9 408.8,104.8 417.0,101.9 C425.2,99.0 433.4,96.5 441.6,94.0 C449.8,91.5 458.0,88.8 466.2,86.7 C474.4,84.6 482.6,82.9 490.8,81.4 C499.0,80.0 507.2,79.0 515.4,78.1 C523.6,77.3 531.8,76.8 540.0,76.5 C548.2,76.2 558.0,76.2 564.6,76.2 C571.2,76.1 576.9,76.2 579.4,76.2" fill="none" stroke="#168A55" stroke-width="2.2" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M48.0,224.0 C52.1,223.7 64.4,222.9 72.6,222.0 C80.8,221.1 89.0,220.0 97.2,218.7 C105.4,217.4 113.6,215.8 121.8,214.1 C130.0,212.4 138.2,210.7 146.4,208.8 C154.6,206.9 162.8,205.0 171.0,202.9 C179.2,200.8 187.4,198.6 195.6,196.3 C203.8,194.0 212.0,191.6 220.2,189.0 C228.4,186.5 236.6,183.8 244.8,181.1 C253.0,178.3 261.2,175.5 269.4,172.5 C277.6,169.5 285.8,166.4 294.0,163.3 C302.2,160.2 310.4,157.1 318.6,154.0 C326.8,151.0 335.0,147.9 343.2,144.8 C351.4,141.7 359.6,138.5 367.8,135.6 C376.0,132.6 384.2,129.8 392.4,127.0 C400.6,124.1 408.8,121.2 417.0,118.4 C425.2,115.7 433.4,113.0 441.6,110.5 C449.8,107.9 458.0,105.4 466.2,103.2 C474.4,101.0 482.6,99.2 490.8,97.3 C499.0,95.4 507.2,93.6 515.4,92.0 C523.6,90.4 531.8,88.7 540.0,87.4 C548.2,86.1 558.0,84.9 564.6,84.1 C571.2,83.3 576.9,83.0 579.4,82.8" fill="none" stroke="#168A55" stroke-width="2.0" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="579.4" cy="76.2" r="3.2" fill="#168A55"/>
+          <circle cx="579.4" cy="82.8" r="3.2" fill="#168A55"/>
+        </g>
+        <g data-metric-group="temperature">
+          <text class="chart-unit" x="48" y="13">温度 · °C</text>
+          <text class="chart-tick" x="39" y="228.0" text-anchor="end">90</text><text class="chart-tick" x="39" y="178.5" text-anchor="end">91.5</text><text class="chart-tick" x="39" y="129.0" text-anchor="end">93</text><text class="chart-tick" x="39" y="79.5" text-anchor="end">94.5</text><text class="chart-tick" x="39" y="30.0" text-anchor="end">96</text>
+          <path class="chart-line chart-line-a" d="M48.0,128.3 C52.1,128.8 64.4,131.6 72.6,131.6 C80.8,131.6 89.0,129.4 97.2,128.3 C105.4,127.2 113.6,125.5 121.8,125.0 C130.0,124.5 138.2,125.5 146.4,125.0 C154.6,124.5 162.8,122.3 171.0,121.7 C179.2,121.2 187.4,121.2 195.6,121.7 C203.8,122.3 212.0,124.5 220.2,125.0 C228.4,125.5 236.6,125.5 244.8,125.0 C253.0,124.5 261.2,121.7 269.4,121.7 C277.6,121.7 285.8,124.5 294.0,125.0 C302.2,125.5 310.4,124.5 318.6,125.0 C326.8,125.5 335.0,128.3 343.2,128.3 C351.4,128.3 359.6,126.1 367.8,125.0 C376.0,123.9 384.2,121.7 392.4,121.7 C400.6,121.7 408.8,124.5 417.0,125.0 C425.2,125.5 433.4,124.5 441.6,125.0 C449.8,125.5 458.0,127.7 466.2,128.3 C474.4,128.8 482.6,128.8 490.8,128.3 C499.0,127.7 507.2,125.5 515.4,125.0 C523.6,124.5 531.8,125.0 540.0,125.0 C548.2,125.0 558.0,125.0 564.6,125.0 C571.2,125.0 576.9,125.0 579.4,125.0" fill="none" stroke="#654ACC" stroke-width="2.2" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M48.0,138.2 C52.1,138.2 64.4,138.8 72.6,138.2 C80.8,137.7 89.0,135.4 97.2,134.9 C105.4,134.3 113.6,135.4 121.8,134.9 C130.0,134.3 138.2,132.2 146.4,131.6 C154.6,131.1 162.8,132.2 171.0,131.6 C179.2,131.1 187.4,128.8 195.6,128.3 C203.8,127.7 212.0,128.3 220.2,128.3 C228.4,128.3 236.6,128.8 244.8,128.3 C253.0,127.7 261.2,125.5 269.4,125.0 C277.6,124.5 285.8,125.0 294.0,125.0 C302.2,125.0 310.4,124.5 318.6,125.0 C326.8,125.5 335.0,127.7 343.2,128.3 C351.4,128.8 359.6,128.3 367.8,128.3 C376.0,128.3 384.2,127.7 392.4,128.3 C400.6,128.8 408.8,131.1 417.0,131.6 C425.2,132.2 433.4,131.6 441.6,131.6 C449.8,131.6 458.0,131.1 466.2,131.6 C474.4,132.2 482.6,134.3 490.8,134.9 C499.0,135.4 507.2,134.9 515.4,134.9 C523.6,134.9 531.8,134.9 540.0,134.9 C548.2,134.9 558.0,134.9 564.6,134.9 C571.2,134.9 576.9,134.9 579.4,134.9" fill="none" stroke="#654ACC" stroke-width="2.0" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="579.4" cy="125.0" r="3.2" fill="#654ACC"/>
+          <circle cx="579.4" cy="134.9" r="3.2" fill="#654ACC"/>
+        </g>
+              <g class="chart-axis-x"><text class="chart-tick" x="48.0" y="242" text-anchor="middle">0</text><text class="chart-tick" x="212.0" y="242" text-anchor="middle">10</text><text class="chart-tick" x="376.0" y="242" text-anchor="middle">20</text><text class="chart-tick" x="540.0" y="242" text-anchor="middle">30</text><text class="chart-tick" x="704.0" y="242" text-anchor="middle">40</text><text class="chart-tick" x="704" y="262" text-anchor="end">时间 · s</text></g>
+            </svg>
+            <svg class="demo-chart demo-chart-mobile" viewBox="0 0 360 252" role="img" aria-labelledby="compare-chart-title-m compare-chart-desc-m">
+              <title id="compare-chart-title-m">两杯萃取的示例曲线对照</title>
+              <desc id="compare-chart-desc-m">A、B 两杯在同一指标下的示例曲线；A 为实线，B 为虚线，可切换压力、累计水量、秤重和温度四项指标。</desc>
+              <g class="chart-grid"><line x1="44" y1="24.0" x2="350" y2="24.0"/><line x1="44" y1="111.0" x2="350" y2="111.0"/><line x1="44" y1="198.0" x2="350" y2="198.0"/><line x1="44.0" y1="24" x2="44.0" y2="198"/><line x1="120.5" y1="24" x2="120.5" y2="198"/><line x1="197.0" y1="24" x2="197.0" y2="198"/><line x1="273.5" y1="24" x2="273.5" y2="198"/><line x1="350.0" y1="24" x2="350.0" y2="198"/></g>
+        <g data-metric-group="pressure">
+          <text class="chart-unit" x="44" y="14">压力 · bar</text>
+          <text class="chart-tick" x="35" y="202.0" text-anchor="end">0</text><text class="chart-tick" x="35" y="115.0" text-anchor="end">5</text><text class="chart-tick" x="35" y="28.0" text-anchor="end">10</text>
+          <path class="chart-line chart-line-a" d="M44.0,198.0 C45.9,197.7 51.6,197.1 55.5,196.3 C59.3,195.4 63.1,194.5 67.0,192.8 C70.8,191.0 74.6,189.0 78.4,185.8 C82.3,182.6 86.1,178.0 89.9,173.6 C93.7,169.3 97.5,164.7 101.4,159.7 C105.2,154.8 109.0,149.3 112.9,144.1 C116.7,138.8 120.5,133.6 124.3,128.4 C128.2,123.2 132.0,117.7 135.8,112.7 C139.6,107.8 143.5,103.2 147.3,98.8 C151.1,94.5 154.9,90.1 158.8,86.6 C162.6,83.2 166.4,80.5 170.2,77.9 C174.1,75.3 177.9,73.0 181.7,71.0 C185.5,69.0 189.3,67.1 193.2,65.8 C197.0,64.5 200.8,63.9 204.7,63.2 C208.5,62.4 212.3,61.8 216.1,61.4 C219.9,61.0 223.8,60.7 227.6,60.5 C231.4,60.4 235.2,60.4 239.1,60.5 C242.9,60.7 246.7,61.1 250.6,61.4 C254.4,61.7 258.2,62.0 262.0,62.3 C265.8,62.6 269.7,62.9 273.5,63.2 C277.3,63.4 281.9,63.7 285.0,64.0 C288.0,64.3 290.7,64.7 291.9,64.9" fill="none" stroke="#176BD1" stroke-width="2.6" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M44.0,198.0 C45.9,197.4 51.6,196.0 55.5,194.5 C59.3,193.1 63.1,191.6 67.0,189.3 C70.8,187.0 74.6,184.4 78.4,180.6 C82.3,176.8 86.1,171.6 89.9,166.7 C93.7,161.8 97.5,156.2 101.4,151.0 C105.2,145.8 109.0,140.6 112.9,135.4 C116.7,130.1 120.5,124.6 124.3,119.7 C128.2,114.8 132.0,110.1 135.8,105.8 C139.6,101.4 143.5,97.4 147.3,93.6 C151.1,89.8 154.9,86.1 158.8,83.2 C162.6,80.3 166.4,78.2 170.2,76.2 C174.1,74.2 177.9,72.4 181.7,71.0 C185.5,69.5 189.3,68.4 193.2,67.5 C197.0,66.6 200.8,66.2 204.7,65.8 C208.5,65.3 212.3,64.9 216.1,64.9 C219.9,64.9 223.8,65.5 227.6,65.8 C231.4,66.0 235.2,66.3 239.1,66.6 C242.9,66.9 246.7,67.2 250.6,67.5 C254.4,67.8 258.2,68.1 262.0,68.4 C265.8,68.7 269.7,69.0 273.5,69.2 C277.3,69.5 281.9,69.8 285.0,70.1 C288.0,70.4 290.7,70.8 291.9,71.0" fill="none" stroke="#176BD1" stroke-width="2.4" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="291.9" cy="64.9" r="3.2" fill="#176BD1"/>
+          <circle cx="291.9" cy="71.0" r="3.2" fill="#176BD1"/>
+        </g>
+        <g data-metric-group="water">
+          <text class="chart-unit" x="44" y="14">累计注水 · mL</text>
+          <text class="chart-tick" x="35" y="202.0" text-anchor="end">0</text><text class="chart-tick" x="35" y="115.0" text-anchor="end">40</text><text class="chart-tick" x="35" y="28.0" text-anchor="end">80</text>
+          <path class="chart-line chart-line-a" d="M44.0,198.0 C45.9,197.6 51.6,196.4 55.5,195.4 C59.3,194.4 63.1,193.1 67.0,191.9 C70.8,190.7 74.6,189.4 78.4,188.0 C82.3,186.5 86.1,184.9 89.9,183.2 C93.7,181.5 97.5,179.8 101.4,178.0 C105.2,176.2 109.0,174.3 112.9,172.3 C116.7,170.4 120.5,168.3 124.3,166.2 C128.2,164.1 132.0,161.9 135.8,159.7 C139.6,157.5 143.5,155.4 147.3,153.2 C151.1,151.0 154.9,148.8 158.8,146.7 C162.6,144.6 166.4,142.6 170.2,140.6 C174.1,138.6 177.9,136.4 181.7,134.5 C185.5,132.5 189.3,130.7 193.2,128.8 C197.0,126.9 200.8,125.0 204.7,123.2 C208.5,121.4 212.3,119.6 216.1,118.0 C219.9,116.3 223.8,114.7 227.6,113.2 C231.4,111.7 235.2,110.2 239.1,108.8 C242.9,107.4 246.7,106.1 250.6,104.9 C254.4,103.8 258.2,102.7 262.0,101.9 C265.8,101.1 269.7,100.5 273.5,100.1 C277.3,99.8 281.9,99.8 285.0,99.7 C288.0,99.6 290.7,99.7 291.9,99.7" fill="none" stroke="#C05A13" stroke-width="2.6" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M44.0,198.0 C45.9,197.6 51.6,196.7 55.5,195.8 C59.3,195.0 63.1,193.9 67.0,192.8 C70.8,191.7 74.6,190.6 78.4,189.3 C82.3,188.0 86.1,186.5 89.9,184.9 C93.7,183.4 97.5,181.8 101.4,180.2 C105.2,178.5 109.0,176.8 112.9,174.9 C116.7,173.1 120.5,171.2 124.3,169.3 C128.2,167.3 132.0,165.2 135.8,163.2 C139.6,161.2 143.5,159.1 147.3,157.1 C151.1,155.1 154.9,153.0 158.8,151.0 C162.6,149.1 166.4,147.2 170.2,145.4 C174.1,143.5 177.9,141.5 181.7,139.7 C185.5,137.9 189.3,136.2 193.2,134.5 C197.0,132.8 200.8,131.2 204.7,129.7 C208.5,128.2 212.3,126.7 216.1,125.4 C219.9,124.0 223.8,122.7 227.6,121.4 C231.4,120.2 235.2,119.0 239.1,118.0 C242.9,116.9 246.7,115.9 250.6,114.9 C254.4,114.0 258.2,113.0 262.0,112.3 C265.8,111.6 269.7,111.0 273.5,110.6 C277.3,110.1 281.9,109.9 285.0,109.7 C288.0,109.5 290.7,109.3 291.9,109.3" fill="none" stroke="#C05A13" stroke-width="2.4" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="291.9" cy="99.7" r="3.2" fill="#C05A13"/>
+          <circle cx="291.9" cy="109.3" r="3.2" fill="#C05A13"/>
+        </g>
+        <g data-metric-group="weight">
+          <text class="chart-unit" x="44" y="14">秤重 · g</text>
+          <text class="chart-tick" x="35" y="202.0" text-anchor="end">0</text><text class="chart-tick" x="35" y="115.0" text-anchor="end">15</text><text class="chart-tick" x="35" y="28.0" text-anchor="end">30</text>
+          <path class="chart-line chart-line-a" d="M44.0,198.0 C45.9,197.6 51.6,196.6 55.5,195.7 C59.3,194.7 63.1,193.6 67.0,192.2 C70.8,190.8 74.6,189.3 78.4,187.6 C82.3,185.8 86.1,183.8 89.9,181.8 C93.7,179.7 97.5,177.6 101.4,175.4 C105.2,173.2 109.0,170.8 112.9,168.4 C116.7,166.0 120.5,163.5 124.3,160.9 C128.2,158.3 132.0,155.6 135.8,152.8 C139.6,150.0 143.5,147.0 147.3,144.1 C151.1,141.2 154.9,138.4 158.8,135.4 C162.6,132.4 166.4,129.2 170.2,126.1 C174.1,123.0 177.9,119.9 181.7,116.8 C185.5,113.7 189.3,110.5 193.2,107.5 C197.0,104.5 200.8,101.6 204.7,98.8 C208.5,96.0 212.3,93.2 216.1,90.7 C219.9,88.2 223.8,86.0 227.6,83.7 C231.4,81.5 235.2,79.2 239.1,77.4 C242.9,75.5 246.7,74.0 250.6,72.7 C254.4,71.5 258.2,70.5 262.0,69.8 C265.8,69.1 269.7,68.7 273.5,68.4 C277.3,68.1 281.9,68.1 285.0,68.1 C288.0,68.0 290.7,68.1 291.9,68.1" fill="none" stroke="#168A55" stroke-width="2.6" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M44.0,198.0 C45.9,197.7 51.6,197.0 55.5,196.3 C59.3,195.5 63.1,194.5 67.0,193.4 C70.8,192.2 74.6,190.8 78.4,189.3 C82.3,187.9 86.1,186.3 89.9,184.7 C93.7,183.0 97.5,181.3 101.4,179.4 C105.2,177.6 109.0,175.7 112.9,173.6 C116.7,171.6 120.5,169.5 124.3,167.3 C128.2,165.0 132.0,162.7 135.8,160.3 C139.6,157.9 143.5,155.4 147.3,152.8 C151.1,150.1 154.9,147.3 158.8,144.6 C162.6,141.9 166.4,139.2 170.2,136.5 C174.1,133.8 177.9,131.1 181.7,128.4 C185.5,125.7 189.3,122.9 193.2,120.3 C197.0,117.7 200.8,115.3 204.7,112.7 C208.5,110.2 212.3,107.6 216.1,105.2 C219.9,102.8 223.8,100.5 227.6,98.2 C231.4,96.0 235.2,93.8 239.1,91.9 C242.9,89.9 246.7,88.3 250.6,86.6 C254.4,85.0 258.2,83.5 262.0,82.0 C265.8,80.5 269.7,79.1 273.5,77.9 C277.3,76.8 281.9,75.7 285.0,75.0 C288.0,74.4 290.7,74.1 291.9,73.9" fill="none" stroke="#168A55" stroke-width="2.4" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="291.9" cy="68.1" r="3.2" fill="#168A55"/>
+          <circle cx="291.9" cy="73.9" r="3.2" fill="#168A55"/>
+        </g>
+        <g data-metric-group="temperature">
+          <text class="chart-unit" x="44" y="14">温度 · °C</text>
+          <text class="chart-tick" x="35" y="202.0" text-anchor="end">90</text><text class="chart-tick" x="35" y="115.0" text-anchor="end">93</text><text class="chart-tick" x="35" y="28.0" text-anchor="end">96</text>
+          <path class="chart-line chart-line-a" d="M44.0,113.9 C45.9,114.4 51.6,116.8 55.5,116.8 C59.3,116.8 63.1,114.9 67.0,113.9 C70.8,112.9 74.6,111.5 78.4,111.0 C82.3,110.5 86.1,111.5 89.9,111.0 C93.7,110.5 97.5,108.6 101.4,108.1 C105.2,107.6 109.0,107.6 112.9,108.1 C116.7,108.6 120.5,110.5 124.3,111.0 C128.2,111.5 132.0,111.5 135.8,111.0 C139.6,110.5 143.5,108.1 147.3,108.1 C151.1,108.1 154.9,110.5 158.8,111.0 C162.6,111.5 166.4,110.5 170.2,111.0 C174.1,111.5 177.9,113.9 181.7,113.9 C185.5,113.9 189.3,112.0 193.2,111.0 C197.0,110.0 200.8,108.1 204.7,108.1 C208.5,108.1 212.3,110.5 216.1,111.0 C219.9,111.5 223.8,110.5 227.6,111.0 C231.4,111.5 235.2,113.4 239.1,113.9 C242.9,114.4 246.7,114.4 250.6,113.9 C254.4,113.4 258.2,111.5 262.0,111.0 C265.8,110.5 269.7,111.0 273.5,111.0 C277.3,111.0 281.9,111.0 285.0,111.0 C288.0,111.0 290.7,111.0 291.9,111.0" fill="none" stroke="#654ACC" stroke-width="2.6" stroke-linecap="round"/>
+          <path class="chart-line chart-line-b" d="M44.0,122.6 C45.9,122.6 51.6,123.1 55.5,122.6 C59.3,122.1 63.1,120.2 67.0,119.7 C70.8,119.2 74.6,120.2 78.4,119.7 C82.3,119.2 86.1,117.3 89.9,116.8 C93.7,116.3 97.5,117.3 101.4,116.8 C105.2,116.3 109.0,114.4 112.9,113.9 C116.7,113.4 120.5,113.9 124.3,113.9 C128.2,113.9 132.0,114.4 135.8,113.9 C139.6,113.4 143.5,111.5 147.3,111.0 C151.1,110.5 154.9,111.0 158.8,111.0 C162.6,111.0 166.4,110.5 170.2,111.0 C174.1,111.5 177.9,113.4 181.7,113.9 C185.5,114.4 189.3,113.9 193.2,113.9 C197.0,113.9 200.8,113.4 204.7,113.9 C208.5,114.4 212.3,116.3 216.1,116.8 C219.9,117.3 223.8,116.8 227.6,116.8 C231.4,116.8 235.2,116.3 239.1,116.8 C242.9,117.3 246.7,119.2 250.6,119.7 C254.4,120.2 258.2,119.7 262.0,119.7 C265.8,119.7 269.7,119.7 273.5,119.7 C277.3,119.7 281.9,119.7 285.0,119.7 C288.0,119.7 290.7,119.7 291.9,119.7" fill="none" stroke="#654ACC" stroke-width="2.4" stroke-dasharray="6 4" stroke-linecap="round"/>
+          <circle cx="291.9" cy="111.0" r="3.2" fill="#654ACC"/>
+          <circle cx="291.9" cy="119.7" r="3.2" fill="#654ACC"/>
+        </g>
+              <g class="chart-axis-x"><text class="chart-tick" x="44.0" y="216" text-anchor="middle">0</text><text class="chart-tick" x="197.0" y="216" text-anchor="middle">20</text><text class="chart-tick" x="350.0" y="216" text-anchor="middle">40</text><text class="chart-tick" x="350" y="232" text-anchor="end">时间 · s</text></g>
+            </svg>
+            </div>
+            <div class="demo-legend" aria-hidden="true">
+              <span class="legend-item legend-a"><span class="legend-line"></span>A · 实线</span>
+              <span class="legend-item legend-b"><span class="legend-line"></span>B · 虚线</span>
+            </div>
+            <div class="demo-summary">
+              <dl class="demo-figures">
+                <div><dt>A · 时长</dt><dd>32.1 s</dd></div>
+                <div><dt>A · 结束时秤读数</dt><dd>22.40 g</dd></div>
+                <div><dt>B · 时长</dt><dd>32.8 s</dd></div>
+                <div><dt>B · 结束时秤读数</dt><dd>21.90 g</dd></div>
+              </dl>
+              <ul class="demo-chips">
+                <li>同豆</li>
+                <li>同曲线</li>
+                <li>示例笔记 1 条</li>
+              </ul>
+            </div>
+            <p class="demo-note">同豆、同曲线更便于对照；缺测、未知结果和不同时间起点会明确提示。A/B 两条曲线均为示例数据，不是真实萃取记录；结束时秤读数不一定等于最终出杯量。</p>
+          </div>
+        </article>
+
+        <article class="feature" id="scales">
+          <div class="feature-copy">
+            <p class="feature-index">04 · 电子秤</p>
+            <h3>更多电子秤选择，更多过程信息</h3>
+            <p>已接入 BOOKOO、Felicita、TIMEMORE、Acaia 和 DiFluid 的指定型号与协议。萃取时查看重量，也可以打开独立秤工具，观察重量趋势、使用软件计时。</p>
+            <p class="adjacent">去皮、电量和自动动作因型号而异。先查看<a class="link" href="#compatibility">完整兼容列表</a>，再确认你的电子秤能做什么。</p>
+          </div>
+          <div class="feature-visual">
+            <div class="brand-card">
+              <p class="visual-tag">指定型号与协议</p>
+              <dl class="brand-list">
+                <div><dt>BOOKOO</dt><dd>已采集协议 · 有有限实机连接与归零记录</dd></div>
+                <div><dt>Felicita</dt><dd>指定 ASCII 通知协议</dd></div>
+                <div><dt>TIMEMORE</dt><dd>DOT · TES017 / Basic3 Link · TES016</dd></div>
+                <div><dt>Acaia</dt><dd>A · PROCHBT / ACAIA；AP · LUNAR / PEARL / PYXIS</dd></div>
+                <div><dt>DiFluid</dt><dd>Microbalance / difluid / Mb Ti</dd></div>
+              </dl>
+              <p class="brand-note">不代表品牌所有型号兼容。BOOKOO 之外已接入的型号仍待对应实机验证；自动动作能力以型号和协议为准。</p>
+            </div>
+          </div>
         </article>
       </div>
     </section>
 
-    <section class="section section-soft" id="capabilities" aria-labelledby="capabilities-title">
+    <section class="section section-soft" id="more" aria-labelledby="more-title">
       <div class="wrap">
-        <p class="eyebrow">能做什么</p>
-        <h2 id="capabilities-title">日常冲煮要用的，都在里面</h2>
-        <ul class="capabilities">
-          <li>
-            <h3>连接设备</h3>
-            <p>扫描并连接咖啡机，输入六位设备密码；电子秤单独连接，状态一眼可见。</p>
-          </li>
-          <li>
-            <h3>选萃取曲线</h3>
-            <p>内置 100 条工厂曲线，可搜索、分类，常喝的放进首页五个快捷槽位。</p>
-          </li>
-          <li>
-            <h3>观察萃取</h3>
-            <p>压力、温度、水流、秤流速与重量实时更新，需要时可手动请求停止。</p>
-          </li>
-          <li>
-            <h3>调整机器</h3>
-            <p>温度、加热、照明、运行模式、拨杆模式与睡眠计划，改完等待机器回报结果。</p>
-          </li>
-          <li>
-            <h3>回看与导出</h3>
-            <p>最近 30 天的历史保存在本机（最多 500 条），可以查看采样曲线、写复盘或导出备份。</p>
-          </li>
-          <li>
-            <h3>导入旧数据</h3>
-            <p>导入旧版的历史与曲线，旧记录只读保留，不影响现在正在用的数据。</p>
-          </li>
-        </ul>
+        <p class="eyebrow">日常冲煮</p>
+        <h2 id="more-title">从选配方，到下一次调整</h2>
+        <div class="more-grid">
+          <article>
+            <h3>常用配方，放在顺手的位置</h3>
+            <p>100 条工厂曲线，5 个首页快捷槽位。看缩略图选配方，也能再次使用上杯曲线，按最近使用或常用程度查找。</p>
+          </article>
+          <article>
+            <h3>萃取过程，边做边看</h3>
+            <p>压力、温度、累计注水与秤重推导的 g/s 流速实时显示。读数缺失时明确留空，不把过期数据当作当前状态。</p>
+          </article>
+          <article>
+            <h3>这一杯，留下你的判断</h3>
+            <p>记录豆子、粉量、研磨、品尝笔记和下次调整。长期复盘与近期采样分开保存，让你的经验不只停留在一张曲线上。</p>
+          </article>
+          <article>
+            <h3>豆子用了多少，也记得清楚</h3>
+            <p>按批次记录豆子、日期和余量。确认投粉后记录消耗，调整库存时保留流水。</p>
+          </article>
+        </div>
+        <div class="extras">
+          <h3>还有这些</h3>
+          <dl class="extras-list">
+            <div><dt>独立秤工具</dt><dd>查看重量与趋势，按能力显示电量，并提供 App 软件计时。</dd></div>
+            <div><dt>数据导出</dt><dd>导出近期历史 ZIP 与长期复盘 JSON；历史 ZIP 目前只有导出，没有回导入口。</dd></div>
+            <div><dt>旧数据迁移</dt><dd>通过指定 JSON 显式导入旧曲线与旧历史，只读保留，不会自动读取旧 App 私有数据。</dd></div>
+            <div><dt>布局与偏好</dt><dd>手机竖屏、平板横屏，支持深浅主题与中英文界面。</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="boundaries" aria-labelledby="boundaries-title">
+      <div class="wrap">
+        <p class="eyebrow">数据与边界</p>
+        <h2 id="boundaries-title">先把这几件事分清</h2>
+        <div class="boundary-list">
+          <article>
+            <h3>配方与记录不同</h3>
+            <p>配方分享的是名称、温度、目标重量和分段控制参数，不含萃取遥测或私人笔记。旧版曲线库是独立的只读导入路径。</p>
+          </article>
+          <article>
+            <h3>两杯对比不等于自动评分</h3>
+            <p>当前支持 A/B 两杯、一次一个指标。没有多杯批量分析、稳定性评分或自动口感判断。</p>
+          </article>
+          <article>
+            <h3>长期复盘不等于永久保存采样</h3>
+            <p>近期历史保留最近 30 天、最多 500 条。长期复盘的元数据和笔记独立保存，原始采样仍受缓存保留范围影响。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-soft" id="screens" aria-labelledby="screens-title">
+      <div class="wrap">
+        <p class="eyebrow">界面</p>
+        <h2 id="screens-title">在手机或平板上，按自己的节奏冲煮</h2>
+        <p class="section-lede">平板横屏展开设备状态和曲线，手机竖屏把日常入口放在底部。支持深浅主题与中英文界面。</p>
+        <p class="note">以下为在平板上运行模拟演示包的实际界面截图，数据为模拟数据；不代表真实设备萃取或所有场景已完成验收。下载版本的界面可能有所不同。</p>
+        <div class="gallery">
+          <figure class="gallery-item">
+            <a class="shot" href="./assets/screens/originals/home.png?v=58bbd96f" data-view-image data-image-title="首页 · 平板界面截图" data-focus-x="1780" data-focus-y="490">
+              <img src="./assets/screens/home.png?v=58bbd96f" width="2560" height="1504" alt="平板界面截图，使用模拟数据：首页左侧功能导航与设备状态，中间为咖啡机与双温度圆环，下方是快捷曲线槽位" loading="lazy">
+            </a>
+            <figcaption><span class="gallery-label">首页</span>：设备状态与快捷曲线</figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <a class="shot" href="./assets/screens/originals/extraction.png?v=58bbd96f" data-view-image data-image-title="萃取过程 · 平板界面截图" data-focus-x="1450" data-focus-y="790">
+              <img src="./assets/screens/extraction.png?v=58bbd96f" width="2560" height="1504" alt="平板界面截图，使用模拟数据：萃取过程压力、累计注水、流速和温度四条曲线，末端显示模拟采样数值与单位，底部有读数和停止按钮" loading="lazy">
+            </a>
+            <figcaption><span class="gallery-label">萃取</span>：实时曲线与读数</figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <a class="shot" href="./assets/screens/originals/history.png?v=58bbd96f" data-view-image data-image-title="历史记录 · 平板界面截图" data-focus-x="1870" data-focus-y="955">
+              <img src="./assets/screens/history.png?v=58bbd96f" width="2560" height="1504" alt="平板界面截图，使用模拟数据：历史记录左侧为本机记录列表，右侧是模拟杯的时长、结束时秤读数及压力、累计注水、秤读数和温度采样曲线" loading="lazy">
+            </a>
+            <figcaption><span class="gallery-label">历史</span>：回看记录与采样</figcaption>
+          </figure>
+        </div>
       </div>
     </section>
 
     <section class="section" id="compatibility" aria-labelledby="compatibility-title">
       <div class="wrap">
-        <p class="eyebrow">兼容</p>
-        <h2 id="compatibility-title">先看看你的设备能不能用</h2>
-
+        <p class="eyebrow">兼容设备</p>
+        <h2 id="compatibility-title">下载前，先核对设备</h2>
         <dl class="specs">
           <div>
-            <dt>平板 / 手机</dt>
-            <dd>为平板横屏设计，安卓手机同样可用。需要 Android 8.0 及以上，支持低功耗蓝牙。<span class="muted">目前没有 iPhone / iPad 版本。</span></dd>
+            <dt>手机 / 平板</dt>
+            <dd>支持 Android 8.0 及以上、具备低功耗蓝牙的手机和平板。目前没有 iPhone 或 iPad 版本。</dd>
           </div>
           <div>
             <dt>HOYI 咖啡机</dt>
-            <dd>可以连接查看状态；控制功能对已实机验收的固件 1.1.3 开放，1.1.4 协议证据支持放开、待实机启停/设置验收；其他固件只读并提示“暂不支持新版固件”。</dd>
-          </div>
-          <div>
-            <dt>电子秤</dt>
-            <dd>开发版已接入 8 款品牌与型号，其中 BOOKOO 有实机连接与归零记录。不同版本包含的型号不同，以你下载版本的说明为准。</dd>
+            <dd>面向 HOYI 咖啡机。固件 1.1.3 有有限实机连接与萃取启停记录；1.1.4 已根据协议证据开放控制，启停与设置仍待实机验收。其他固件不开放控制。</dd>
           </div>
         </dl>
 
-        <details class="disclosure">
-          <summary>电子秤型号与功能</summary>
-          <div class="disclosure-body">
-            <dl class="scales">
-              <div><dt>BOOKOO</dt><dd>重量、设备流速、去皮</dd><dd class="status">已实机连接</dd></div>
-              <div><dt>Felicita</dt><dd>重量、手动去皮</dd><dd class="status">待实机验证</dd></div>
-              <div><dt>TIMEMORE DOT（TES017）</dt><dd>重量、设备流速、电量、手动去皮</dd><dd class="status">待实机验证</dd></div>
-              <div><dt>TIMEMORE Basic3 Link（TES016）</dt><dd>重量、设备流速、电量、手动去皮</dd><dd class="status">待实机验证</dd></div>
-              <div><dt>旧款 TIMEMORE</dt><dd>实验性只读重量</dd><dd class="status">待实机验证</dd></div>
-              <div><dt>Acaia A（PROCHBT / ACAIA）</dt><dd>确认克单位后的重量、手动去皮</dd><dd class="status">待实机验证</dd></div>
-              <div><dt>Acaia AP（LUNAR / PEARL / PYXIS）</dt><dd>确认克单位后的重量，暂不提供去皮</dd><dd class="status">待实机验证</dd></div>
-              <div><dt>DiFluid（Microbalance / difluid / Mb Ti）</dt><dd>重量、手动去皮；最低固件 V300 / V010</dd><dd class="status">待实机验证</dd></div>
-            </dl>
-            <p class="note">以上是开发分支的接入范围。不同发布版本包含的型号可能不同；请以下载版本的发布说明为准，并以实际型号、协议与固件为准。</p>
-          </div>
-        </details>
+        <h3 class="subsection-title">电子秤型号与验证状态</h3>
+        <p class="section-lede">以下为当前开发分支的接入范围。不同发布版本包含的型号可能不同，请以下载版本的发布说明为准，并以实际型号、协议与固件为准。</p>
+        <table class="scale-table">
+          <caption class="visually-hidden">已接入的电子秤型号、能力与验证状态</caption>
+          <thead>
+            <tr><th scope="col">型号或协议范围</th><th scope="col">已接入能力</th><th scope="col">验证状态</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">BOOKOO，已采集协议</th>
+              <td data-label="已接入能力" aria-label="已接入能力：重量、设备流速、手动去皮">
+              <td data-label="验证状态" aria-label="验证状态：有实机连接与归零通知记录；自动停水未完成实机验收">
+            </tr>
+            <tr>
+              <th scope="row">Felicita，指定 ASCII 协议</th>
+              <td data-label="已接入能力" aria-label="已接入能力：确认为克单位的重量、手动去皮">
+              <td data-label="验证状态" aria-label="验证状态：待实机验证；旧只读绑定需重新扫描选择">
+            </tr>
+            <tr>
+              <th scope="row">TIMEMORE DOT，TES017</th>
+              <td data-label="已接入能力" aria-label="已接入能力：重量、设备流速、电量、手动去皮">
+              <td data-label="验证状态" aria-label="验证状态：待实机验证">
+            </tr>
+            <tr>
+              <th scope="row">TIMEMORE Basic3 Link，TES016</th>
+              <td data-label="已接入能力" aria-label="已接入能力：重量、设备流速、电量、手动去皮">
+              <td data-label="验证状态" aria-label="验证状态：待实机验证">
+            </tr>
+            <tr>
+              <th scope="row">旧款 TIMEMORE，广播名 timemore scale</th>
+              <td data-label="已接入能力" aria-label="已接入能力：指定协议的重量读数，实验性只读">
+              <td data-label="验证状态" aria-label="验证状态：待实机验证">
+            </tr>
+            <tr>
+              <th scope="row">Acaia A，PROCHBT / ACAIA</th>
+              <td data-label="已接入能力" aria-label="已接入能力：确认为克单位的重量、手动去皮">
+              <td data-label="验证状态" aria-label="验证状态：待实机验证">
+            </tr>
+            <tr>
+              <th scope="row">Acaia AP，LUNAR / PEARL / PYXIS</th>
+              <td data-label="已接入能力" aria-label="已接入能力：确认为克单位的重量，不提供去皮">
+              <td data-label="验证状态" aria-label="验证状态：待实机验证">
+            </tr>
+            <tr>
+              <th scope="row">DiFluid，Microbalance / difluid / Mb Ti</th>
+              <td data-label="已接入能力" aria-label="已接入能力：帧内克单位重量、手动去皮">
+              <td data-label="验证状态" aria-label="验证状态：待实机验证；协议最低固件 V300 / V010">
+            </tr>
+          </tbody>
+        </table>
+        <p class="note">以上不代表品牌全系列兼容。只广播为 ULTRA 的 BOOKOO 旧档案使用另一协议路径，不具备自动去皮或目标重量控制资格。当前只有已采集 BOOKOO 协议具备相关自动动作的代码准入，仍不能把它当作已验证的无人看守自动停水能力。</p>
       </div>
     </section>
 
-    <section class="section" id="download" aria-labelledby="download-title">
+    <section class="section section-soft" id="download" aria-labelledby="download-title">
       <div class="wrap">
         <div class="download">
           <p class="eyebrow">下载</p>
-          <h2 id="download-title">Android 版</h2>
-          <p class="note">连接真实设备，不是稳定版。</p>
-          <a class="button" href="https://github.com/boolean93/openhoyi/releases" data-download-entry rel="noopener">前往 GitHub Releases</a>
-          <p class="note">在 Releases 里选择最新版本，APK 仅适用于安卓设备</p>
+          <h2 id="download-title">下载 Android 测试版</h2>
+          <p class="download-lede">到 GitHub Releases 查看版本说明、适配范围与 APK。OpenHOYI 仍处于 Alpha 阶段，请先了解限制，再决定是否试用。</p>
+          <p class="download-note">Alpha 阶段，不是稳定版。</p>
+          <a class="button button-large" href="https://github.com/boolean93/openhoyi/releases" data-download-entry rel="noopener">前往 GitHub Releases</a>
 
-          <ul class="caveats">
-            <li>电子秤与固件支持范围会随版本变化，以你下载版本的说明为准。</li>
-            <li>试用时留在机器旁，保留机器本身的停水方式；结果不明时先核对，不要反复发送指令。</li>
-            <li>页面截图来自平板演示包，与下载版本的界面可能不同。</li>
-          </ul>
+          <ol class="steps">
+            <li>
+              <h3>核对版本</h3>
+              <p>查看包名、版本说明、签名与 APK 校验信息。</p>
+            </li>
+            <li>
+              <h3>连接设备</h3>
+              <p>确认机器空闲，开启蓝牙与必要权限。咖啡机和电子秤分别连接，同一设备不要同时交给多个 App 连接。</p>
+            </li>
+            <li>
+              <h3>确认状态，再开始</h3>
+              <p>等设备就绪、读数更新后操作。首次试用时留在机器旁，保留机器本身的停水方式。</p>
+            </li>
+          </ol>
+
+          <aside class="risk" id="risk" aria-labelledby="risk-title">
+            <h3 id="risk-title">使用风险</h3>
+            <p>OpenHOYI 是独立开发的实验项目，与咖啡机制造商无关联，也未获其认证。控制功能仍存在兼容性与验证缺口。不要无人看守使用，也不要依赖目标重量自动停水；结果不明时先核对机器状态，不要反复发送指令。</p>
+            <p>遇到签名冲突、降级或安装失败提示时，不要通过卸载、清数据绕过问题。旧版数据不会自动迁移。</p>
+          </aside>
 
           <div class="download-details">
-            <details class="disclosure">
+            <details class="disclosure" id="package">
               <summary>下载前核对</summary>
               <div class="disclosure-body">
                 <dl class="package">
@@ -195,7 +467,7 @@
               </div>
             </details>
             <details class="disclosure" id="alpha">
-              <summary>使用风险与免责声明</summary>
+              <summary>完整风险与免责声明</summary>
               <div class="disclosure-body">
                 <p>OpenHOYI 是个人实验项目，与咖啡机制造商无关联，也未获其认证。应用会向机器发送蓝牙控制指令，软件缺陷或兼容问题可能导致控制异常、数据丢失、设备不可用或损坏。目标重量自动停止、设置写入、异常恢复与覆盖升级仍待完整验收，不适合无人看守使用；不要依赖按目标重量自动停水。</p>
                 <p>已有旧版时，遇到安装冲突、签名不一致或降级提示就先停下，不要卸载旧版或清除数据。旧版记录不会自动迁移，需要手动导出再导入。</p>
@@ -203,51 +475,21 @@
               </div>
             </details>
           </div>
-
-          <p><a class="link" href="https://github.com/boolean93/openhoyi/releases" rel="noopener">查看全部版本与说明<span class="glyph" aria-hidden="true">↗</span></a></p>
+          <p class="download-more"><a class="link" href="https://github.com/boolean93/openhoyi/releases" rel="noopener">查看全部版本与说明<span class="glyph" aria-hidden="true">↗</span></a></p>
         </div>
       </div>
     </section>
 
-    <section class="section" id="start" aria-labelledby="start-title">
-      <div class="wrap">
-        <p class="eyebrow">开始</p>
-        <h2 id="start-title">三步开始</h2>
-        <ol class="steps">
-          <li>
-            <h3>安装应用</h3>
-            <p>下载后按系统提示安装。需要“安装未知应用”权限时，只授权本次打开安装包的浏览器或文件管理器。</p>
-          </li>
-          <li>
-            <h3>连接设备</h3>
-            <p>确认咖啡机空闲、蓝牙已打开，选择咖啡机并输入六位设备密码；电子秤需要单独连接。</p>
-          </li>
-          <li>
-            <h3>确认读数再开始</h3>
-            <p>等设备就绪、读数更新后再选曲线。出现异常时，使用机器本身的停止方式。</p>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section class="section section-soft" id="faq" aria-labelledby="faq-title">
+    <section class="section" id="faq" aria-labelledby="faq-title">
       <div class="wrap">
         <p class="eyebrow">常见问题</p>
         <h2 id="faq-title">可能还想知道</h2>
         <div class="faq">
-          <details class="disclosure">
-            <summary>搜不到设备怎么办？</summary>
-            <div class="disclosure-body"><p>检查蓝牙与应用权限，断开其他应用的连接，让电子秤进入可发现状态，再核对型号与固件是否在支持范围。结果不明确时先核对设备实际状态，不要反复发送控制指令。</p></div>
-          </details>
-          <details class="disclosure">
-            <summary>能和旧版 HOYI 应用一起装吗？</summary>
-            <div class="disclosure-body"><p>可以并存，但同一台设备不能同时被两个应用连接。旧版记录不会自动迁移，需要手动导出再导入；遇到安装或升级冲突时，不要卸载旧版或清除数据。</p></div>
-          </details>
           <details class="disclosure" id="image-source">
             <summary>页面截图是怎么来的？</summary>
             <div class="disclosure-body">
-              <p>本页是 M2105K81AC 平板实际截图，采自合入后的演示包 0.2.0-preview.76（76），展示横屏布局，不是网站实时数据；截图使用模拟数据，不保证与下载版本一致。</p>
-              <p>原图保留未修改，展示图仅连续裁去系统栏，没有重绘界面。源码提交映射已核验为 58bbd96f，已安装包与该提交的本地构建哈希一致；这不代表可重现构建、所有合入后检查通过或硬件验收。</p>
+              <p>本页截图来自 M2105K81AC 平板，采自合入后的模拟演示包 0.2.0-preview.76（76），展示横屏布局，不是网站实时数据；截图使用模拟数据，不保证与下载版本一致。连接、配方与两杯对比区的流程和图表为功能示意。</p>
+              <p>原图保留未修改，展示图仅连续裁去系统栏，没有重绘界面。源码提交映射已核验为 58bbd96f；这不代表可重现构建、所有合入后检查通过或硬件验收。</p>
               <p><a class="link" href="./assets/screens/provenance.json">原始截图来源记录</a></p>
             </div>
           </details>
@@ -255,25 +497,39 @@
             <summary>这是 HOYI 官方应用吗？</summary>
             <div class="disclosure-body"><p>不是。OpenHOYI 由个人独立开发，与制造商无关联，也未获其认证。源码公开在 GitHub，欢迎提交问题和改进。</p></div>
           </details>
+          <details class="disclosure">
+            <summary>能和旧版 HOYI 应用一起装吗？</summary>
+            <div class="disclosure-body"><p>可以并存，但同一台设备不能同时被两个应用连接。旧版记录不会自动迁移，需要手动导出再导入；遇到安装或升级冲突时，不要卸载旧版或清除数据。</p></div>
+          </details>
+          <details class="disclosure">
+            <summary>搜不到设备怎么办？</summary>
+            <div class="disclosure-body"><p>检查蓝牙与应用权限，断开其他应用的连接，让电子秤进入可发现状态，再核对型号与固件是否在支持范围。结果不明确时先核对设备实际状态，不要反复发送控制指令。</p></div>
+          </details>
         </div>
       </div>
     </section>
-    <section class="section" id="support" aria-labelledby="support-title">
+
+    <section class="section section-soft" id="support" aria-labelledby="support-title">
       <div class="wrap">
         <p class="eyebrow">支持与交流</p>
-        <h2 id="support-title">赞助，或者进群聊聊</h2>
+        <h2 id="support-title">一起把 OpenHOYI 做得更好</h2>
+        <p class="section-lede">欢迎反馈使用体验、报告问题，或提供明确型号的设备验证记录。提交问题时，请附上应用版本、Android 版本、设备型号与固件、复现步骤和脱敏日志。</p>
+        <div class="actions actions-left">
+          <a class="button button-outline" href="https://github.com/boolean93/openhoyi/issues" rel="noopener">反馈问题</a>
+          <a class="button button-outline" href="https://github.com/boolean93/openhoyi" rel="noopener">查看源码</a>
+        </div>
         <div class="support-grid">
           <article class="support-card">
             <img src="./assets/sponsor/wechat-pay.png" width="1180" height="1607" alt="微信支付收款码" loading="lazy">
             <h3>请我喝杯咖啡</h3>
-            <p>OpenHOYI 是个人独立维护的开源项目。如果它帮到了你，可以请我喝杯咖啡。</p>
+            <p>如果 OpenHOYI 帮到了你，可以请作者喝杯咖啡。赞助完全自愿，不影响功能与支持。</p>
             <p class="support-note">微信扫码 · 金额随意 · 自愿赞助</p>
           </article>
           <article class="support-card">
             <img src="./assets/community/wechat-group.png" width="1090" height="1523" alt="OpenHOYI 微信交流群二维码" loading="lazy">
             <h3>OpenHOYI 交流群</h3>
-            <p>遇到问题，或者想聊 HOYI 的用法，可以进群。</p>
-            <p class="support-note">群二维码会过期；失效后请到 GitHub issues 留言。</p>
+            <p>扫码加入交流群。二维码失效时，请到 GitHub Issues 留言。</p>
+            <p class="support-note">群二维码会过期。</p>
           </article>
         </div>
       </div>
@@ -282,11 +538,14 @@
 
   <footer class="footer">
     <div class="wrap footer-inner">
-      <p class="footer-note">OpenHOYI · 独立开发，非 HOYI 官方应用</p>
+      <p class="footer-note">OpenHOYI · 独立开发，非 HOYI 官方应用 · GPL v2</p>
       <nav class="footer-links" aria-label="页脚链接">
         <a href="https://github.com/boolean93/openhoyi" rel="noopener">GitHub</a>
-        <a href="https://github.com/boolean93/openhoyi/blob/develop/docs/native-feature-status.md" rel="noopener">功能状态</a>
-        <a href="#alpha">使用风险</a>
+        <a href="https://github.com/boolean93/openhoyi/issues" rel="noopener">问题反馈</a>
+        <a href="https://github.com/boolean93/openhoyi/blob/develop/docs/alpha-acceptance.md" rel="noopener">实机验收记录</a>
+        <a href="https://github.com/boolean93/openhoyi/blob/develop/docs/architecture.md" rel="noopener">架构说明</a>
+        <a href="https://github.com/boolean93/openhoyi/blob/develop/LICENSE" rel="noopener">GPL v2 许可证</a>
+        <a href="#risk">使用风险</a>
         <a href="#image-source">截图来源</a>
       </nav>
     </div>
@@ -294,7 +553,7 @@
 
   <dialog class="viewer" id="image-viewer" aria-labelledby="viewer-title">
     <div class="viewer-toolbar">
-      <h2 id="viewer-title" data-viewer-title>平板演示截图</h2>
+      <h2 id="viewer-title" data-viewer-title>平板界面截图</h2>
       <button type="button" data-viewer-close aria-label="关闭截图">关闭</button>
     </div>
     <div class="viewer-actions">
@@ -302,9 +561,9 @@
       <a class="link" href="./assets/screens/originals/extraction.png?v=58bbd96f" data-viewer-original target="_blank" rel="noopener">打开原图 ↗</a>
     </div>
     <div class="viewer-scroll">
-      <img src="./assets/screens/originals/extraction.png?v=58bbd96f" width="2560" height="1600" alt="完整平板演示截图，使用模拟数据" loading="lazy" data-viewer-image>
+      <img src="./assets/screens/originals/extraction.png?v=58bbd96f" width="2560" height="1600" alt="完整平板界面截图，使用模拟数据" loading="lazy" data-viewer-image>
     </div>
-    <p class="viewer-note">平板模拟演示，非手机截图。放大后可拖动查看，也可打开原图用浏览器缩放。</p>
+    <p class="viewer-note">平板模拟演示截图，非手机截图。放大后可拖动查看，也可打开原图用浏览器缩放。</p>
   </dialog>
 </body>
 </html>
