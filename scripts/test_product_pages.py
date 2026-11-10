@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 RELEASES = "https://github.com/boolean93/openhoyi/releases"
 PAGES = "https://boolean93.github.io/openhoyi/"
+APP_SOURCE_SHA = "58bbd96ff12f6f72d47130ac6f7bade4e788eef4"
+SCREEN_REVISION = APP_SOURCE_SHA[:8]
 
 
 class Page(HTMLParser):
@@ -112,7 +114,7 @@ class ProductPagesTest(unittest.TestCase):
         # One unframed screenshot per screen: no art-directed crops that hide UI on phones.
         for name in ("home.png", "extraction.png", "history.png"):
             with self.subTest(image=name):
-                self.assertIn(f'<img src="./assets/screens/{name}" width="2560" height="1504"', self.html)
+                self.assertIn(f'<img src="./assets/screens/{name}?v={SCREEN_REVISION}" width="2560" height="1504"', self.html)
         self.assertNotIn("<picture>", self.html)
         self.assertNotIn('-detail.png', self.html)
         self.assertTrue(self.page.metas("name", "viewport"))
@@ -123,10 +125,11 @@ class ProductPagesTest(unittest.TestCase):
         self.assertEqual(len(shots), 3)
         screens = {s["original"].split("/")[-1]: s for s in self.provenance["screens"]}
         for href, x, y in shots:
-            name = href.rsplit("/", 1)[-1]
+            name = urlsplit(href).path.rsplit("/", 1)[-1]
             with self.subTest(image=name):
                 screen = screens[name]
-                self.assertIn(f"./assets/screens/originals/{name}", self.page.links)
+                self.assertIn(f"./assets/screens/originals/{name}?v={SCREEN_REVISION}", self.page.links)
+                self.assertEqual(urlsplit(href).query, f"v={SCREEN_REVISION}")
                 self.assertTrue(0 <= x <= screen["width"] and 0 <= y <= screen["height"])
 
     def test_download_entry_points_at_releases(self):
@@ -187,18 +190,28 @@ class ProductPagesTest(unittest.TestCase):
         screens = SITE / "assets/screens"
         self.assertEqual(self.provenance["schema"], 3)
         self.assertEqual(self.provenance["kind"], "actual-tablet-screenshots")
-        self.assertIsNone(self.provenance["sourceSha"])
-        self.assertIs(self.provenance["sourceCommitVerified"], False)
+        self.assertEqual(self.provenance["sourceSha"], APP_SOURCE_SHA)
+        self.assertIs(self.provenance["sourceCommitVerified"], True)
+        verification = self.provenance["sourceVerification"]
+        self.assertEqual(verification["gitTreeSha"], "35afc54399a8a4edcd69466de73318d20a432d52")
+        self.assertIs(verification["installedApkMatchesBuild"], True)
+        self.assertIn("not a reproducible-build claim", verification["scope"])
+        self.assertEqual(self.provenance["installedApp"]["versionCode"], 76)
+        self.assertEqual(self.provenance["installedApp"]["versionName"], "0.2.0-preview.76")
+        self.assertEqual(self.provenance["installedApp"]["apkSha256"],
+                         "ec64c35acbf549b960e0ed7d0b518b261bd3ddedba60bab388f89c08c67506ce")
+        self.assertEqual(self.provenance["installedApp"]["signerSha256"],
+                         "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54")
         self.assertEqual(self.provenance["captureMethod"], "adb exec-out screencap -p")
         self.assertEqual(self.provenance["device"]["model"], "M2105K81AC")
         self.assertEqual(self.provenance["installedApp"]["package"], "io.openhoyi.mobile.mock")
-        for text in ("平板实际截图", "源码提交映射未核验", "0.1.0（53）", "并非手机端布局",
+        for text in ("平板实际截图", "源码提交映射已核验", "0.2.0-preview.76（76）", "展示横屏布局",
                      "使用模拟数据", "不保证与下载版本一致"):
             self.assertIn(text, self.html)
         self.assertEqual({s["name"] for s in self.provenance["screens"]}, {"extraction", "home", "history"})
         for screen in self.provenance["screens"]:
             self.assertEqual(screen["displayCropPx"], [0, 60, 2560, 1564])
-            self.assertRegex(screen["capturedAt"], r"^2026-11-06T")
+            self.assertRegex(screen["capturedAt"], r"^2026-11-10T")
             for file_key, hash_key, size in (
                 ("original", "sha256", (screen["width"], screen["height"])),
                 ("display", "displaySha256", (2560, 1504)),
@@ -211,9 +224,10 @@ class ProductPagesTest(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(data).hexdigest(), screen[hash_key])
         for tag, attrs in self.page.tags:
             if tag == "img" and "/screens/" in attrs.get("src", ""):
-                data = (SITE / attrs["src"]).read_bytes()
+                data = (SITE / urlsplit(attrs["src"]).path).read_bytes()
                 self.assertEqual((int(attrs["width"]), int(attrs["height"])),
                                  struct.unpack(">II", data[16:24]))
+                self.assertEqual(urlsplit(attrs["src"]).query, f"v={SCREEN_REVISION}")
 
     def test_no_unused_page_assets(self):
         screens = SITE / "assets/screens"
