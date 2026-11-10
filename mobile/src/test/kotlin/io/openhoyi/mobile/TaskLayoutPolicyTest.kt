@@ -67,6 +67,15 @@ class TaskLayoutPolicyTest {
         assertEquals(TaskNavigationMode.BOTTOM,TaskLayoutPolicy.decide(599,320).navigation)
     }
 
+    @Test
+    fun compactHomeUsesOnlyShortLandscapeWindows() {
+        assertTrue(TaskLayoutPolicy.compactHome(284, portrait = false))
+        assertTrue(TaskLayoutPolicy.compactHome(420, portrait = false))
+        assertFalse(TaskLayoutPolicy.compactHome(421, portrait = false))
+        assertFalse(TaskLayoutPolicy.compactHome(240, portrait = true))
+        assertFalse(TaskLayoutPolicy.compactHome(1138, portrait = true))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun negativeDimensionsAreNotValidLayoutEvidence() {
         TaskLayoutPolicy.decide(-1, 600)

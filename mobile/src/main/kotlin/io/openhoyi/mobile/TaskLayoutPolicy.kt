@@ -66,6 +66,9 @@ internal object TaskLayoutPolicy {
         )
     }
 
+    fun compactHome(availableHeightDp: Int, portrait: Boolean): Boolean =
+        !portrait && availableHeightDp <= 420
+
     fun chartAxes(availableWidthDp: Int, measuredAxisGuttersDp: Int): TaskChartAxisMode {
         require(availableWidthDp >= 0) { "availableWidthDp must be non-negative" }
         require(measuredAxisGuttersDp >= 0) { "measuredAxisGuttersDp must be non-negative" }
