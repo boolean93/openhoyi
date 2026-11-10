@@ -23,11 +23,18 @@ internal class MainPageTestHost(private val test: Instrumentation, val activity:
             }
             // startActivitySync/waitForIdleSync can wait forever on a continuously drawing page.
             // Only callers opting into this bounded fixture route use the monitor instead.
+            check(BuildConfig.MOCK_MODE && test.targetContext.packageName=="io.openhoyi.mobile.mock")
             val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
             val activity=try {
-                test.targetContext.startActivity(intent)
-                monitor.waitForActivityWithTimeout(timeoutMs) as? MainActivity
-                    ?: error("MainActivity launch timed out after ${timeoutMs}ms")
+                // MIUI rejects background starts from the instrumented app UID. Use the shell
+                // for this static Mock-only target, without -W; the monitor owns the time limit.
+                val command="am start -n io.openhoyi.mobile.mock/io.openhoyi.mobile.MainActivity -f 0x10008000 " +
+                    "--es io.openhoyi.mobile.initial_destination ${destination.name} " +
+                    "--ez io.openhoyi.mobile.open_extraction $extraction"
+                test.uiAutomation.executeShellCommand(command).use {
+                    monitor.waitForActivityWithTimeout(timeoutMs) as? MainActivity
+                        ?: error("MainActivity launch timed out after ${timeoutMs}ms")
+                }
             }finally {test.removeMonitor(monitor)}
             val host=MainPageTestHost(test,activity)
             val deadline=android.os.SystemClock.elapsedRealtime()+timeoutMs

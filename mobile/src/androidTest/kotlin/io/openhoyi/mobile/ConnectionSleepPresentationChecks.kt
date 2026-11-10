@@ -74,7 +74,7 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
             }
             check(ready) {"Mock service did not become ready within 5000ms"}
             test.sendStatus(0,android.os.Bundle().apply {putString("stream","CONNECTION_SLEEP_STAGE actual-shell-projection\n")})
-            BoundedInstrumentationMain.run("Actual Mock shell projection") {try {
+            BoundedInstrumentationMain.run("Actual Mock shell projection",10_000) {try {
                 val shell=MainActivity::class.java.getDeclaredField("shellStatus").apply {isAccessible=true}.get(host.activity) as TaskShellStatusView
                 val original=TaskShellStatusView::class.java.getDeclaredField("mode").apply {isAccessible=true}.get(shell) as TaskNavigationMode
                 try {
@@ -85,7 +85,7 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                         check(hint.isAttachedToWindow && retry.isAttachedToWindow)
                         hint.setText(R.string.coffee_connection_recovery_hint);hint.visibility=View.VISIBLE
                         retry.visibility=View.VISIBLE
-                        val needed=shell.requiredRailHeight((180*host.activity.resources.displayMetrics.density).toInt())
+                        val needed=shell.requiredRailHeight(HoyiUi.dp(host.activity,104))
                         check(needed>hint.minimumHeight)
                     }
                 }finally {shell.renderMode(original);shell.present(host.activity.currentService)}
@@ -115,12 +115,44 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                     capture("failed-help")
                     check(shell.findViewWithTag<Button>("task-shell-coffee-retry").isShown)
                     check(shell.findViewWithTag<TextView>("task-shell-coffee-hint").isShown)
-                    val idle=IdleTelemetry(9300,12000,0,0,1,0,0,0,ByteFrame(byteArrayOf()))
-                    stateField.set(tracker,State.CONFIRMED)
-                    snapshotField.set(owner,savedSnapshot.copy(coffeeState=DeviceState.READY,coffee=idle,coffeeAt=android.os.SystemClock.elapsedRealtime()-2_000))
-                    capture("sleep-last-confirmed")
-                    check(shell.findViewWithTag<TextView>("task-shell-coffee-status").text.toString().contains(host.activity.getString(R.string.sleep_status_last_confirmed)))
-                    check(shell.findViewWithTag<TextView>("task-shell-coffee-hint").isShown)
+                    val checks=org.json.JSONArray()
+                    val cases=listOf(Triple("sending",State.WRITING,0),Triple("waiting",State.WAITING_ASLEEP,0),
+                        Triple("unknown",State.UNKNOWN,0),Triple("asleep",State.CONFIRMED,1),
+                        Triple("last-confirmed",State.CONFIRMED,1),Triple("standby",State.IDLE,0))
+                    val mock=MobileService::class.java.getDeclaredField("mock").apply {isAccessible=true}.get(owner)
+                    val mockSleep=mock.javaClass.getDeclaredField("sleeping").apply {isAccessible=true}
+                    val savedMockSleep=mockSleep.get(mock)
+                    try {
+                        mockSleep.set(mock,false)
+                        for((name,state,raw) in cases){
+                            val idle=IdleTelemetry(9300,12000,0,0,raw,0,0,0,ByteFrame(byteArrayOf()))
+                            stateField.set(tracker,state)
+                            snapshotField.set(owner,savedSnapshot.copy(coffeeState=DeviceState.READY,coffee=idle,
+                                coffeeAt=android.os.SystemClock.elapsedRealtime()-if(name=="last-confirmed")2_000 else 0))
+                            capture("sleep-$name")
+                            val button=shell.findViewWithTag<Button>("task-shell-sleep")
+                            val label=button.text.toString()
+                            val status=shell.findViewWithTag<TextView>("task-shell-coffee-status").text.toString().removePrefix("● ")
+                            val hint=shell.findViewWithTag<TextView>("task-shell-coffee-hint")
+                            val expectedWidth=HoyiUi.dp(host.activity,104)
+                            check(kotlin.math.abs(shell.width-expectedWidth)<=1) {"Expected actual 104dp rail, got ${shell.width}px"}
+                            check(button.isAttachedToWindow && button.isShown)
+                            check(!label.contains('\uFFFC')) {"Sleep button retained an icon span"}
+                            check(button.layout.lineCount==1 && button.layout.getEllipsisCount(0)==0) {"Sleep button wrapped or truncated: $label"}
+                            check(button.layout.getLineWidth(0)<=button.width-button.compoundPaddingLeft-button.compoundPaddingRight+1) {"Sleep label does not fit its actual button"}
+                            if(host.activity.resources.configuration.locales[0].language=="zh") {
+                                check(label.length<=4 && status.length<=4) {"Sleep rail text exceeded four characters: $label / $status"}
+                                if(hint.isShown)check(hint.text.length<=4) {"Sleep hint exceeded four characters"}
+                            }
+                            if(name=="last-confirmed")check(status==host.activity.getString(R.string.task_shell_sleep_history))
+                            checks.put(org.json.JSONObject().put("case",name).put("label",label).put("status",status)
+                                .put("hint",if(hint.isShown)hint.text.toString() else "").put("lines",button.layout.lineCount)
+                                .put("buttonWidthPx",button.width).put("railWidthPx",shell.width))
+                        }
+                    }finally {mockSleep.set(mock,savedMockSleep)}
+                    File(out,"compact-sleep-evidence.json").writeText(org.json.JSONObject()
+                        .put("fontScale",host.activity.resources.configuration.fontScale)
+                        .put("railWidthDp",104).put("cases",checks).toString(2))
                 }finally {
                     snapshotField.set(owner,savedSnapshot);stateField.set(tracker,savedState)
                     helpStart.set(help,savedStart);helpFailures.set(help,savedFailures)
