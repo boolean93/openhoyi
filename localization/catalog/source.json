@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "7664a45b329eed55ba2bdd868c0ac7c37cb981284a0da0c9387cdf840b85ac06",
+  "sha256": "32a3c113481b086ccbdabc3cca5e0d1734b9224334bbfe82944a2fd700b54912",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -967,7 +967,7 @@
     "settings_section_feedback": "萃取反馈",
     "settings_section_maintenance": "维护与诊断",
     "settings_section_about": "关于",
-    "coffee_connection_retry": "立即重试",
+    "coffee_connection_retry": "重试",
     "coffee_connection_password_hint": "请在设备连接中选择咖啡机并输入连接密码",
     "sleep_status_writing": "正在发送休眠请求",
     "sleep_status_waiting": "等待咖啡机确认休眠",

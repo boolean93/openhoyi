@@ -992,7 +992,7 @@
     <string name="settings_section_feedback">萃取反馈</string>
     <string name="settings_section_maintenance">维护与诊断</string>
     <string name="settings_section_about">关于</string>
-    <string name="coffee_connection_retry">"立即重试"</string>
+    <string name="coffee_connection_retry">"重试"</string>
     <string name="coffee_connection_password_hint">"请在设备连接中选择咖啡机并输入连接密码"</string>
     <string name="sleep_status_writing">"正在发送休眠请求"</string>
     <string name="sleep_status_waiting">"等待咖啡机确认休眠"</string>

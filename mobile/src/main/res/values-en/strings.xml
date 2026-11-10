@@ -51,7 +51,7 @@
     <string name="coffee_connection_bluetooth_hint">"Bluetooth is off. In device connections, tap Scan devices, turn Bluetooth on, then retry."</string>
     <string name="coffee_connection_password_hint">"Select the coffee machine in device connections and enter its connection password."</string>
     <string name="coffee_connection_permission_hint">"In device connections, tap Scan devices, grant Bluetooth permission, then retry."</string>
-    <string name="coffee_connection_retry">"Retry now"</string>
+    <string name="coffee_connection_retry">"Retry"</string>
     <string name="curve_assign_slot">"Assign to quick slot"</string>
     <string name="curve_back">"Back to curve list"</string>
     <string name="curve_browse_only">"Browse only"</string>

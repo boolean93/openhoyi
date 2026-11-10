@@ -964,7 +964,7 @@
   "settings_section_about": "About",
   "home_connect_with_password": "Connect with password",
   "service_coffee_credential_unavailable": "The saved password is temporarily unavailable. Please try again later.",
-  "coffee_connection_retry": "Retry now",
+  "coffee_connection_retry": "Retry",
   "coffee_connection_password_hint": "Select the coffee machine in device connections and enter its connection password.",
   "sleep_status_writing": "Sending sleep request",
   "sleep_status_waiting": "Waiting for the coffee machine to confirm sleep",

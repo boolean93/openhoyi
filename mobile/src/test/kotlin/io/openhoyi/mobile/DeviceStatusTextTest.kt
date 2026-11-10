@@ -28,4 +28,11 @@ class DeviceStatusTextTest {
             DeviceStatusText.coffeeResource(DeviceState.UNSUPPORTED, null))
         assertEquals(R.string.device_state_ready, DeviceStatusText.coffeeResource(DeviceState.READY, null))
     }
+    @Test fun coffeeAndScaleRetryLabelsMatchInBothLanguages(){
+        assertEquals(DefaultStringResources.template(R.string.task_shell_action_retry),
+            DefaultStringResources.template(R.string.coffee_connection_retry))
+        val english=org.json.JSONObject(java.io.File("../localization/catalog/en.json").readText())
+        assertEquals(english.getString("task_shell_action_retry"),english.getString("coffee_connection_retry"))
+    }
+
 }
