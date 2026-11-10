@@ -12,6 +12,19 @@
   window.addEventListener('hashchange', () => revealDetails(window.location.hash));
   revealDetails(window.location.hash);
 
+  const compare = document.querySelector('[data-compare]');
+  if (compare) {
+    const buttons = Array.from(compare.querySelectorAll('[data-metric]'));
+    buttons.forEach((button) => { button.hidden = false; });
+    const select = (metric) => {
+      compare.dataset.active = metric;
+      buttons.forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.metric === metric));
+      });
+    };
+    buttons.forEach((button) => button.addEventListener('click', () => select(button.dataset.metric)));
+  }
+
   const viewer = document.querySelector('#image-viewer');
   if (!viewer || typeof viewer.showModal !== 'function') return;
 
