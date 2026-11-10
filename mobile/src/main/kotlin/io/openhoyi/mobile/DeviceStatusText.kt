@@ -17,18 +17,13 @@ internal object DeviceStatusText {
             R.string.device_state_protocol_timeout
         state == DeviceState.FAILED && failure == CoffeeSessionFailure.AUTH ->
             R.string.device_state_auth_failed
-        state == DeviceState.SYNCHRONIZING -> R.string.coffee_connection_reading_state
-        state in setOf(DeviceState.DISCOVERING,DeviceState.SUBSCRIBING,DeviceState.INITIALIZING) -> R.string.device_state_connecting
-        state == DeviceState.UNSUPPORTED -> R.string.home_firmware_readonly
         else -> resource(state)
     }
 
     fun resource(state: DeviceState): Int = when (state) {
         DeviceState.DISCONNECTED -> R.string.device_state_disconnected
         DeviceState.CONNECTING -> R.string.device_state_connecting
-        DeviceState.DISCOVERING -> R.string.device_state_discovering
-        DeviceState.SUBSCRIBING -> R.string.device_state_subscribing
-        DeviceState.INITIALIZING -> R.string.device_state_initializing
+        DeviceState.DISCOVERING, DeviceState.SUBSCRIBING, DeviceState.INITIALIZING -> R.string.device_state_connecting
         DeviceState.SYNCHRONIZING -> R.string.device_state_synchronizing
         DeviceState.READY -> R.string.device_state_ready
         DeviceState.UNSUPPORTED -> R.string.device_state_unsupported

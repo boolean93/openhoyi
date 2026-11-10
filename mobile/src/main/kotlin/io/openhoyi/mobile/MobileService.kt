@@ -489,11 +489,8 @@ class MobileService : Service() {
         // Consume every notification, not just the last frame at the UI refresh.
         beanDoseCaptureAt(MobileMonotonicClock.elapsedRealtime())
     }
-    private val coffeeRecoveryPresentation=CoffeeRecoveryPresentation()
-    val coffeeConnectionHint: Int? get()=coffeeRecoveryPresentation.hint(snapshot.coffeeState,MobileMonotonicClock.elapsedRealtime())
     fun requestCoffeeRecoverySoon(){if(appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
-        if(role==DeviceRole.COFFEE)coffeeRecoveryPresentation.observe(state,MobileMonotonicClock.elapsedRealtime())
         if(state==DeviceState.READY)selectingDevice=false
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
@@ -1002,7 +999,6 @@ class MobileService : Service() {
         }
         event(ResourceMessage(R.string.service_disconnect, role.name))
         if (role == DeviceRole.COFFEE) {
-            coffeeRecoveryPresentation.reset()
             hub?.disconnectCoffee()
             autoConnect.pause(DeviceRole.COFFEE,true)
         } else {

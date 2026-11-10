@@ -91,6 +91,7 @@ internal class TaskShellStatusView(
         else onReconnectScale()
     }
     private val disconnect = action("task-shell-scale-disconnect", onDisconnectScale)
+    private var coffeeRetryIcon = ""
     private var sleepIcon = ""
     private var reconnectIcon = ""
     private var disconnectIcon = ""
@@ -130,7 +131,7 @@ internal class TaskShellStatusView(
     }
 
     private fun icon(button: Button, kind: String) {
-        if (button === sleep && sleepIcon == kind || button === reconnect && reconnectIcon == kind ||
+        if (button === coffeeRetry && coffeeRetryIcon == kind || button === sleep && sleepIcon == kind || button === reconnect && reconnectIcon == kind ||
             button === disconnect && disconnectIcon == kind) return
         val drawable = HomeVisualIcon.drawable(host, kind, button.currentTextColor,
             currentTint = { button.currentTextColor }, strokeDp = chrome.iconStrokeDp, solidAccents = chrome.solidIcons).apply { setBounds(0, 0, style.dp(20), style.dp(20)) }
@@ -138,9 +139,16 @@ internal class TaskShellStatusView(
         button.text = SpannableString("\uFFFC$label").apply {
             setSpan(ActionIconSpan(button, drawable), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
+        if (button === coffeeRetry) coffeeRetryIcon = kind
         if (button === sleep) sleepIcon = kind
         if (button === reconnect) reconnectIcon = kind
         if (button === disconnect) disconnectIcon = kind
+    }
+    private fun clearRetryIcon(button:Button) {
+        val cached=if(button===coffeeRetry)coffeeRetryIcon else reconnectIcon
+        if(cached.isEmpty())return
+        button.text=button.text.toString().removePrefix("\uFFFC")
+        if(button===coffeeRetry)coffeeRetryIcon="" else reconnectIcon=""
     }
     private fun Button.label(value: String) {
         if (text.toString().removePrefix("\uFFFC") == value) return
@@ -287,13 +295,18 @@ internal class TaskShellStatusView(
             coffeeStatus.text = colored
         }
         val sleepHint=SleepPresentation.hint(owner?.sleepNowState,idle?.sleepStateRaw,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw)
-        val fullHint=sleepHint ?: owner?.coffeeConnectionHint
-        val hint=if(sleepHint!=null)SleepPresentation.compactHint(sleepHint) else owner?.coffeeConnectionHint
+        val fullHint=sleepHint
+        val hint=SleepPresentation.compactHint(sleepHint)
         coffeeHint.visibility=if(hint==null)View.GONE else View.VISIBLE
         if(hint!=null)coffeeHint.text=host.getString(hint)
         coffeeRetry.visibility=if(snapshot.coffeeState==DeviceState.READY)View.GONE else View.VISIBLE
-        coffeeRetry.label(host.getString(if(TaskShellDeviceStatus.connecting(snapshot.coffeeState))R.string.task_shell_action_connecting else R.string.coffee_connection_retry))
+        val coffeeConnecting=TaskShellDeviceStatus.connecting(snapshot.coffeeState)
+        val coffeeAction=host.getString(if(coffeeConnecting)R.string.task_shell_action_connecting else R.string.coffee_connection_retry)
+        coffeeRetry.label(coffeeAction)
+        if(snapshot.coffeeState!=DeviceState.READY && !coffeeConnecting)icon(coffeeRetry,"retry")
+        else clearRetryIcon(coffeeRetry)
         coffeeRetry.isEnabled=TaskShellDeviceStatus.canReconnect(snapshot.coffeeState,active)
+        coffeeRetry.describe(coffeeName.text.toString()+" · "+status+" · "+coffeeAction)
         val asleep = statusId in setOf(R.string.task_shell_machine_asleep,R.string.sleep_status_last_confirmed)
         sleep.visibility=if(snapshot.coffeeState==DeviceState.READY || owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN))View.VISIBLE else View.GONE
         val sleepAction = host.getString(if (asleep) R.string.task_shell_machine_asleep
@@ -343,9 +356,8 @@ internal class TaskShellStatusView(
         }
         val action = host.getString(actionId)
         reconnect.label(action)
-        icon(reconnect, when {
+        if(connecting)clearRetryIcon(reconnect) else icon(reconnect, when {
             state == DeviceState.UNSUPPORTED -> "select"
-            connecting -> "progress"
             actionId == R.string.task_shell_action_connect -> "new"
             else -> "retry"
         })

@@ -78,6 +78,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var quickLaunch: Button
     private lateinit var quickRow: LinearLayout
     private lateinit var machineConnect: Button
+    private var machineRetryIconShown=false
     private lateinit var brewPressure: TextView
     private lateinit var steamTemperature: TextView
     private lateinit var steamPressure: TextView
@@ -235,10 +236,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         (compactTopRow ?: content).addView(machineRow, if (compactTopRow != null)
             LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
         machineRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+        machineRetryIconShown=false // A rebuilt View must establish its own drawable.
         machineConnect = button(machineRow, getString(R.string.home_connect)) {
             if(service?.snapshot?.coffeeState==DeviceState.READY)showDevicePanel() else host.reconnectCoffee()
         }.apply {
             tag = "product/home/connect"
+            setSingleLine(true);maxLines=1
             layoutParams = LinearLayout.LayoutParams(-2, dp(48))
             if (shortWideHome) {
                 minWidth = dp(64); minimumWidth = dp(64)
@@ -877,8 +880,23 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             TaskShellDeviceStatus.connecting(s.coffeeState) -> R.string.task_shell_action_connecting
             else -> R.string.coffee_connection_retry
         }))
+        val showRetry=s.coffeeState!=DeviceState.READY && !TaskShellDeviceStatus.connecting(s.coffeeState)
+        if(machineRetryIconShown!=showRetry || showRetry && machineConnect.compoundDrawablesRelative[0]==null) {
+            if(showRetry) {
+                val chrome=TaskShellVisualStyle(host)
+                val retry=HomeVisualIcon.drawable(host,"retry",machineConnect.currentTextColor,
+                    currentTint={machineConnect.currentTextColor},strokeDp=chrome.iconStrokeDp,solidAccents=chrome.solidIcons)
+                    .apply {setBounds(0,0,dp(20),dp(20))}
+                machineConnect.compoundDrawablePadding=dp(8)
+                machineConnect.setCompoundDrawablesRelative(retry,null,null,null)
+            } else {
+                machineConnect.setCompoundDrawablesRelative(null,null,null,null)
+                machineConnect.compoundDrawablePadding=0
+            }
+            machineRetryIconShown=showRetry
+        }
+        machineConnect.contentDescription=getString(R.string.home_coffee)+" · "+DeviceStatusText.coffeeLabel(host,s.coffeeState,s.coffeeFailure)+" · "+machineConnect.text
         machineConnect.isEnabled=TaskShellDeviceStatus.canReconnect(s.coffeeState,owner?.manualShotActive==true || owner?.shotState?.let(ShotGate::active)==true)
-        owner?.coffeeConnectionHint?.let { status.show(status.text.toString()+" · "+getString(it)) }
         scanButton.visibility = if (bothReady && !s.scanning) View.GONE else View.VISIBLE
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
