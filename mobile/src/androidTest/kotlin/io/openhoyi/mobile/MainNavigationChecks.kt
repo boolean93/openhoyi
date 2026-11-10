@@ -27,7 +27,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         val widthDp = real.x / density
         val heightDp = real.y / density
         val state = if (activeCup) "running" else "idle"
-        val geometry = "state=$state displayPx=${real.x}x${real.y} density=$density dp=${widthDp}x${heightDp} lastCurveRecorded=$lastCurveRecorded"
+        val geometry = "state=$state displayPx=${real.x}x${real.y} density=$density dp=${widthDp}x${heightDp} lastCurveRecorded=$lastCurveRecorded fontScale=${activity.resources.configuration.fontScale}"
         if (kotlin.math.abs(widthDp - 720f) > 1f ||
             kotlin.math.abs(heightDp - 360f) > 1f) {
             test.sendStatus(0, Bundle().apply { putString("stream", "MAIN_HOME_720_GEOMETRY_SKIP $geometry\n") })
@@ -108,6 +108,27 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         } catch (failure: Throwable) { geometryFailure = failure } }
         geometryFailure?.let { throw it }
         test.sendStatus(0, Bundle().apply { putString("stream", "MAIN_HOME_720_GEOMETRY_PASS $geometry\n") })
+    }
+
+    /** Read-only compact viewport check against existing user presets; never seeds or starts a cup. */
+    fun runHomeOnly() {
+        check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
+        val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
+        var activity: MainActivity? = null
+        try {
+            test.runOnMainSync {
+                test.targetContext.startActivity(android.content.Intent(test.targetContext, MainActivity::class.java)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    .putExtra(MainActivity.EXTRA_INITIAL_DESTINATION, TaskDestination.BREW.name))
+            }
+            activity = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
+                ?: error("Home Activity launch timed out after 10s")
+            test.waitForIdleSync()
+            compactHomeGeometry(MainPageTestHost(test, requireNotNull(activity)), activeCup = false)
+        } finally {
+            test.removeMonitor(monitor)
+            activity?.let { page -> test.runOnMainSync { page.finish() } }
+        }
     }
 
     private fun awaitPage(activity: MainActivity, tag: String) {

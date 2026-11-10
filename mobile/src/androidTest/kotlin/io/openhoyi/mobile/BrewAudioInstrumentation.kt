@@ -35,6 +35,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var fourMetricChartChecks = false
     private var liveStatusChromeChecks = false
     private var taskFrameChecks = false
+    private var homeNavigationOnly = false
     private var mainNavigationChecks = false
     private var settingsNavigationOnly = false
     private var inlineNavigationOnly = false
@@ -68,7 +69,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
         liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
-        mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings", "inline")
+        mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings", "inline", "home")
+        homeNavigationOnly = arguments?.getString("mainNavigationChecks") == "home"
         settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
         inlineNavigationOnly = arguments?.getString("mainNavigationChecks") == "inline"
         singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
@@ -189,6 +191,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (mainNavigationChecks) {
                 when {
+                    homeNavigationOnly -> MainNavigationChecks(this).runHomeOnly()
                     inlineNavigationOnly -> MainNavigationChecks(this).runInlineOnly()
                     settingsNavigationOnly -> MainNavigationChecks(this).runSettingsOnly()
                     else -> MainNavigationChecks(this).run()
