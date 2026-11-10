@@ -878,7 +878,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             else -> R.string.coffee_connection_retry
         }))
         machineConnect.isEnabled=TaskShellDeviceStatus.canReconnect(s.coffeeState,owner?.manualShotActive==true || owner?.shotState?.let(ShotGate::active)==true)
-        owner?.coffeeConnectionHint?.let { status.show(status.text.toString()+" · "+getString(it)) }
         scanButton.visibility = if (bothReady && !s.scanning) View.GONE else View.VISIBLE
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true

@@ -6,11 +6,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class DeviceStatusTextTest {
-    @Test fun everyDeviceStateHasADistinctLabelResource() {
-        val labels = DeviceState.entries.map(DeviceStatusText::resource)
-        assertEquals(DeviceState.entries.size, labels.distinct().size)
-        assertEquals(R.string.device_state_ready, DeviceStatusText.resource(DeviceState.READY))
-        assertEquals(R.string.device_state_failed, DeviceStatusText.resource(DeviceState.FAILED))
+    @Test fun connectionPhasesShareShortLabelsAndEveryDisplayedStateFitsFourCharacters() {
+        for(state in listOf(DeviceState.CONNECTING,DeviceState.DISCOVERING,DeviceState.SUBSCRIBING,DeviceState.INITIALIZING))
+            assertEquals(R.string.device_state_connecting,DeviceStatusText.resource(state))
+        for(state in DeviceState.entries)for(failure in listOf(null)+CoffeeSessionFailure.entries){
+            val text=DefaultStringResources.template(DeviceStatusText.coffeeResource(state,failure))
+            org.junit.Assert.assertTrue("$state/$failure: $text",text.length<=4)
+            org.junit.Assert.assertFalse(text.contains('\n'))
+        }
     }
 
     @Test fun coffeeStatusLineExplainsFailureOnlyForDisplay() {
@@ -21,7 +24,7 @@ class DeviceStatusTextTest {
         assertEquals(R.string.device_state_failed,
             DeviceStatusText.coffeeResource(DeviceState.FAILED, CoffeeSessionFailure.CONNECT))
         assertEquals(R.string.device_state_failed, DeviceStatusText.coffeeResource(DeviceState.FAILED, null))
-        assertEquals(R.string.home_firmware_readonly,
+        assertEquals(R.string.device_state_unsupported,
             DeviceStatusText.coffeeResource(DeviceState.UNSUPPORTED, null))
         assertEquals(R.string.device_state_ready, DeviceStatusText.coffeeResource(DeviceState.READY, null))
     }

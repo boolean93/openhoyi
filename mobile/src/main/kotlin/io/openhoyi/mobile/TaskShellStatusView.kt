@@ -287,8 +287,8 @@ internal class TaskShellStatusView(
             coffeeStatus.text = colored
         }
         val sleepHint=SleepPresentation.hint(owner?.sleepNowState,idle?.sleepStateRaw,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw)
-        val fullHint=sleepHint ?: owner?.coffeeConnectionHint
-        val hint=if(sleepHint!=null)SleepPresentation.compactHint(sleepHint) else owner?.coffeeConnectionHint
+        val fullHint=sleepHint
+        val hint=SleepPresentation.compactHint(sleepHint)
         coffeeHint.visibility=if(hint==null)View.GONE else View.VISIBLE
         if(hint!=null)coffeeHint.text=host.getString(hint)
         coffeeRetry.visibility=if(snapshot.coffeeState==DeviceState.READY)View.GONE else View.VISIBLE

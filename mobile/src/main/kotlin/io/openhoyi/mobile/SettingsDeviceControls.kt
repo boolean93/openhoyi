@@ -107,8 +107,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         states.forEach {(role,text)->
             val state=if(role==DeviceRole.COFFEE)snapshot?.coffeeState else snapshot?.scaleState
             val identity=if(BuildConfig.MOCK_MODE)host.getString(R.string.application_mode_mock) else host.getString(R.string.device_remembered_identity,prefs.getString(if(role==DeviceRole.COFFEE)"coffee" else "scale","—"))
-            val value="$identity · ${state?.let {if(role==DeviceRole.COFFEE)DeviceStatusText.coffeeLabel(host,it,snapshot?.coffeeFailure) else DeviceStatusText.label(host,it)} ?: "—"}"+
-                (if(role==DeviceRole.COFFEE)service?.coffeeConnectionHint?.let {" · "+host.getString(it)}.orEmpty() else "")
+            val value="$identity · ${state?.let {if(role==DeviceRole.COFFEE)DeviceStatusText.coffeeLabel(host,it,snapshot?.coffeeFailure) else DeviceStatusText.label(host,it)} ?: "—"}"
             if(text.text.toString()!=value)text.text=value
         }
         val display=localError ?: snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()
