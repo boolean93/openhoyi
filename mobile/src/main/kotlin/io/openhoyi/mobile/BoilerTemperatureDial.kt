@@ -33,6 +33,13 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private var lastSmallDiameter=0
     private var currentTemperature: Float? = null
     private var targetTemperature: Float? = null
+    private fun TextView.setCompatibleLineHeight(heightPx: Int) {
+        if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(heightPx)
+        else {
+            val metrics = this.paint.fontMetricsInt
+            setLineSpacing((heightPx - metrics.descent + metrics.ascent).coerceAtLeast(0).toFloat(), 1f)
+        }
+    }
     fun present(current: Float?, goal: Float?) {
         if (currentTemperature == current && targetTemperature == goal) return
         currentTemperature = current; targetTemperature = goal; invalidate()
@@ -56,7 +63,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         targetBand=TextView(context).apply {
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,target.textSize)
             typeface=target.typeface; includeFontPadding=false; gravity=Gravity.CENTER
-            setTextColor(ink); setLineHeight(target.lineHeight)
+            setTextColor(ink); setCompatibleLineHeight(target.lineHeight)
         }
         addView(targetBand,LayoutParams(-1,-2,Gravity.BOTTOM).apply {
             leftMargin=(24*density).toInt(); rightMargin=leftMargin; bottomMargin=(30*density).toInt()
@@ -85,12 +92,12 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             } else {
                 heading.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
                 heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,headingSize)
-                heading.setLineHeight(headingLine)
+                heading.setCompatibleLineHeight(headingLine)
             }
             value.setAutoSizeTextTypeUniformWithConfiguration(if(small) 14 else 16,if(small) 30 else valueMaxSp.coerceAtLeast(16),1,android.util.TypedValue.COMPLEX_UNIT_SP)
             value.minimumHeight=if(small) 0 else valueMin
             value.minHeight=if(small) 0 else valueMin
-            if(small) value.setLineSpacing(0f,1f) else value.setLineHeight(valueLine)
+            if(small) value.setLineSpacing(0f,1f) else value.setCompatibleLineHeight(valueLine)
             val diameter=MeasureSpec.getSize(widthMeasureSpec)
             heading.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*.145f).toInt() else -2)
             value.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*.26f).toInt() else -2)
@@ -107,7 +114,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             } else {
                 targetBand.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
                 targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,targetSize)
-                targetBand.setLineHeight(targetLine)
+                targetBand.setCompatibleLineHeight(targetLine)
             }
             targetBand.layoutParams=LayoutParams(-1,if(small) (diameter*.16f).toInt() else -2,Gravity.BOTTOM).apply {
                 leftMargin=((if(small) 12 else 24)*density).toInt();rightMargin=leftMargin
