@@ -11,7 +11,9 @@ import android.widget.ScrollView
 internal class TaskWorkspaceLayout(context: Context,
     private val supportingWidthFraction: Float = .30f,
     private val supportingMaxWidthDp: Int = 320,
-    private val boundedSecondaryViewport: Boolean = false) : LinearLayout(context) {
+    private val boundedSecondaryViewport: Boolean = false,
+    unifiedPortrait: Boolean = false) : LinearLayout(context) {
+    val portraitScroll = unifiedPortrait && resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     val primaryBody = LinearLayout(context).apply { orientation = VERTICAL }
     val secondaryBody = LinearLayout(context).apply { orientation = VERTICAL }
     private val supportingScroll = object : ScrollView(context) {
@@ -59,10 +61,16 @@ internal class TaskWorkspaceLayout(context: Context,
     init {
         require(supportingWidthFraction > 0f && supportingWidthFraction <= .5f)
         require(supportingMaxWidthDp >= 280)
-        tag = "task-workspace"; addView(primaryBody); addView(supportingScroll)
+        tag = "task-workspace"
+        if(portraitScroll) {
+            supportingScroll.removeView(secondaryBody)
+            val stack=LinearLayout(context).apply {orientation=VERTICAL;addView(primaryBody,LayoutParams(-1,-2));addView(secondaryBody,LayoutParams(-1,-2))}
+            addView(ScrollView(context).apply {tag="product/share/page-scroll";addView(stack)},LayoutParams(-1,-1))
+        } else {addView(primaryBody);addView(supportingScroll)}
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if(portraitScroll) {super.onMeasure(widthMeasureSpec,heightMeasureSpec);return}
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
         val width = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight

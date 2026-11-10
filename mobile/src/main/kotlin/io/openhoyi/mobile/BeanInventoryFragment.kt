@@ -138,6 +138,7 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         pendingListRestore = true
         listScroll?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> restoreListWhenReady() }
         listScroll?.post { restoreListWhenReady() }
+        val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
         val back = productStyle.button(HoyiUi.button(host, panes.detailBody, getString(R.string.beans_back_to_list)) { showList() })
         val metadata = host.beanList(panes.detailBody).apply { tag = "inventory-batch-metadata" }
         val actionRegion = object : LinearLayout(host) {
@@ -216,20 +217,20 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             })
             productStyle.add(metadata, progress)
             productStyle.divider(metadata, 2, 2)
-            val dates = productStyle.row("product/inventory/dates")
+            val dates = productStyle.row("product/inventory/dates").apply { if (portrait) orientation = LinearLayout.VERTICAL }
             listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
                 R.string.beans_opened to item.batch.openedOn).forEachIndexed { index, (label, date) ->
                 val cell = productStyle.column("product/inventory/dates/$index").apply {
-                    setPaddingRelative(if (index == 0) 0 else productStyle.dp(16), 0, productStyle.dp(16), 0)
+                    setPaddingRelative(if (portrait || index == 0) 0 else productStyle.dp(16), 0, productStyle.dp(16), 0)
                 }
                 productStyle.add(cell, productStyle.text(getString(label), TaskProductVisualStyle.auxiliary,
                     "product/inventory/dates/$index/label", true))
                 productStyle.add(cell, productStyle.text(date?.toString() ?: getString(R.string.beans_not_set), TaskProductVisualStyle.body,
                     "product/inventory/dates/$index/value"), 8)
-                dates.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+                dates.addView(cell, if (portrait) LinearLayout.LayoutParams(-1, -2).apply { topMargin = if (index == 0) 0 else productStyle.dp(12) } else LinearLayout.LayoutParams(0, -2, 1f))
             }
             dates.foreground = inventoryRules(vertical = {
-                (1 until dates.childCount).map { index -> dates.getChildAt(index).let {
+                if (portrait) emptyList() else (1 until dates.childCount).map { index -> dates.getChildAt(index).let {
                     if (dates.layoutDirection == View.LAYOUT_DIRECTION_RTL) it.right.toFloat() else it.left.toFloat()
                 } }
             })
@@ -283,10 +284,10 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             productStyle.action(actionRegion, getString(R.string.dose_title), "product/inventory/use", primary = true, top = 0) {
                 startActivity(Intent(host, BeanPreparationActivity::class.java).putExtra(BeanPreparationActivity.EXTRA_BATCH_ID, item.batch.id))
             }.also { HomeVisualIcon.buttonIcon(it, "coffee") }
-            productStyle.action(actionRegion, getString(R.string.beans_batch_title), "product/inventory/batch-details", outline = true, top = 0) {
+            productStyle.action(if (portrait) metadata else actionRegion, getString(R.string.beans_batch_title), "product/inventory/batch-details", outline = true, top = 0) {
                 startActivity(Intent(host, BeanBatchActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
             }.also { HomeVisualIcon.buttonIcon(it, "chevron") }
-            productStyle.action(actionRegion, getString(R.string.beans_batch_ledger), "product/inventory/batch-ledger", top = 0) {
+            productStyle.action(if (portrait) metadata else actionRegion, getString(R.string.beans_batch_ledger), "product/inventory/batch-ledger", top = 0) {
                 startActivity(Intent(host, BeanLedgerActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
             }.also { HomeVisualIcon.buttonIcon(it, "history") }
             rowButtons.forEach { (id, button) ->

@@ -8,7 +8,8 @@ import android.widget.ScrollView
 internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: CustomCurveDocument) {
     val style = TaskProductVisualStyle(this)
     val preview = style.column("product/share/preview-body")
-    workspace.primaryBody.addView(ScrollView(this).apply {
+    if(workspace.portraitScroll) workspace.primaryBody.addView(preview,LinearLayout.LayoutParams(-1,-2))
+    else workspace.primaryBody.addView(ScrollView(this).apply {
         tag = "product/share/preview-scroll"; isFillViewport = true; addView(preview)
     }, LinearLayout.LayoutParams(-1, -1))
     val name = style.text(doc.name, TaskProductVisualStyle.title, "full-text-details").apply {
@@ -109,7 +110,8 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
         val line = style.row(if (heading) "product/share/table/header" else "product/share/table/row${requireNotNull(stageIndex) + 1}")
         table.addView(line, LinearLayout.LayoutParams(-1, -2))
         values.forEachIndexed { column, value ->
-            val label = style.text(value, TaskProductVisualStyle.auxiliary.copy(weight = if (heading) 500 else 400), secondary = false)
+            val portraitHeader = heading && resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            val label = style.text(if (portraitHeader) value.replace(" · ", "\n") else value, TaskProductVisualStyle.auxiliary.copy(weight = if (heading) 500 else 400), secondary = false)
             val cell: View = if (column == 0 && stageIndex != null) {
                 style.row().apply {
                     gravity = android.view.Gravity.CENTER_VERTICAL
@@ -124,7 +126,7 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
             } else label
             cell.setPaddingRelative(style.dp(8), 0, style.dp(8), 0)
             cell.background = style.shape(if (heading) style.disabled else style.surface, true, 0)
-            line.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+            line.addView(cell, LinearLayout.LayoutParams(0, if (portraitHeader) -1 else -2, 1f))
         }
     }
     // Raw flow values are kept raw and labelled; they never become pressure targets.
@@ -135,7 +137,7 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
             if (chart != null) CurveDraftNumber.format(stage.target, 1) else stage.target.toString(),
             CurveDraftNumber.format(stage.waterTenthsMl, 1)), false, index)
     }
-    workspace.onPrimarySpaceAvailable = { width, height ->
+    if(!workspace.portraitScroll) workspace.onPrimarySpaceAvailable = { width, height ->
         val contentWidth = (width - workspace.primaryBody.paddingLeft - workspace.primaryBody.paddingRight).coerceAtLeast(0)
         val exactWidth = View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY)
         val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)

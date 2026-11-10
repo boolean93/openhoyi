@@ -419,12 +419,43 @@ private class PreparationWorkspace(context: android.content.Context, private val
     var actionRowButtons: Pair<Button, Button>? = null
     private var originalActionGravity: Int? = null
     private var originalActionBaselineAligned: Boolean? = null
-    init { isBaselineAligned = false; tag = "task-workspace"; addView(primaryBody); addView(secondaryBody) }
+    private val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    private val portraitStack = style.column("product/preparation/continuous-content")
+    private val portraitScroll = ScrollView(context).apply { tag = "product/preparation/continuous-scroll"; addView(portraitStack) }
+    init {
+        isBaselineAligned = false; tag = "task-workspace"
+        if (portrait) {
+            orientation = VERTICAL
+            addView(portraitScroll, LayoutParams(-1, 0, 1f))
+            portraitStack.addView(primaryBody, LayoutParams(-1, -2))
+            portraitStack.addView(secondaryBody, LayoutParams(-1, -2))
+        } else { addView(primaryBody); addView(secondaryBody) }
+    }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (portrait) {
+            // Keep the original fields and guards. Inner hosts take natural height,
+            // so only this single continuous viewport scrolls in portrait.
+            listOf(primaryBody, secondaryBody).forEach { pane ->
+                for (i in 0 until pane.childCount) {
+                    val child = pane.getChildAt(i)
+                    if (child is ScrollView) {
+                        val lp = child.layoutParams as LayoutParams
+                        if (lp.height != -2 || lp.weight != 0f) { lp.height = -2; lp.weight = 0f; child.layoutParams = lp }
+                    }
+                }
+            }
+            actions?.takeIf { it.parent === secondaryBody }?.let { dock ->
+                secondaryBody.removeView(dock)
+                addView(dock, LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
+            }
+            evidence.put("portraitContinuousScroll", true)
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            return
+        }
         val width = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
         val height = (View.MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
         val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        val split = width >= style.dp(320 + 280 + 24)
+        val split = resources.configuration.orientation!=android.content.res.Configuration.ORIENTATION_PORTRAIT && width >= style.dp(320 + 280 + 24)
         val secondaryWidth = if (split) minOf((width * .5f).toInt().coerceIn(style.dp(280), style.dp(680)), width - style.dp(320 + 24)) else width
         val innerWidth = (secondaryWidth - secondaryBody.paddingLeft - secondaryBody.paddingRight).coerceAtLeast(0)
         val exact = View.MeasureSpec.makeMeasureSpec(innerWidth, View.MeasureSpec.EXACTLY)

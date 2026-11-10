@@ -110,6 +110,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var pageHeader: LinearLayout
     private lateinit var pageBody: LinearLayout
     private lateinit var compactClock: TextView
+    private lateinit var compactElapsed: TextView
+    private lateinit var compactMode: TextView
     private lateinit var compactGuidance: TextView
     private lateinit var compactIdentity: TextView
     private lateinit var headerWords: LinearLayout
@@ -134,7 +136,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         }
         val content = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setPadding(dp(10), dp(4), dp(10), dp(4))
         }
         pageBody = content
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -142,22 +144,41 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else null)
         style.styleHeader(pageHeader)
         pageHeader.removeViewAt(0)
-        compactIdentity = style.text("", TaskProductVisualStyle.Type(14, 500, 20), "product/extraction/identity").apply {
+        compactIdentity = style.text("", TaskProductVisualStyle.Type(if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 18 else 20, 500, if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 26 else 28), "product/extraction/identity").apply {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        compactClock = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/clock")
+        compactClock = style.text("", TaskProductVisualStyle.Type(17,400,24), "product/extraction/clock")
+        compactElapsed = style.text("", TaskProductVisualStyle.Type(17,400,24), "product/extraction/elapsed")
+        compactMode = style.text(if(BuildConfig.MOCK_MODE) "Mock" else "",TaskProductVisualStyle.Type(15,400,22),"product/extraction/mode",true).apply { visibility=if(BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE }
+        listOf(compactClock,compactElapsed,compactMode).forEach { field ->
+            val divider=android.graphics.drawable.GradientDrawable().apply {setColor(0xffdfe5e1.toInt());setBounds(0,0,dp(1),dp(18))}
+            field.setCompoundDrawablesRelative(divider,null,null,null);field.compoundDrawablePadding=dp(12)
+        }
         compactGuidance = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/inline-guidance", true)
-        headerWords = object : LinearLayout(host) {
+        val portraitHeader=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val portraitIdentityRow=if(portraitHeader) style.row().apply {gravity=android.view.Gravity.CENTER_VERTICAL} else null
+        headerWords = if(portraitHeader) style.column().apply {
+            portraitIdentityRow!!.addView(compactIdentity,LinearLayout.LayoutParams(0,-2,1f))
+            addView(portraitIdentityRow,LinearLayout.LayoutParams(-1,-2))
+            compactClock.setCompoundDrawablesRelative(null,null,null,null)
+            val metadata=style.row().apply {gravity=android.view.Gravity.CENTER_VERTICAL}
+            listOf(compactClock,compactElapsed,compactMode).forEachIndexed {i,field ->
+                metadata.addView(field,LinearLayout.LayoutParams(-2,-2).apply {if(i>0) marginStart=dp(8)})
+            }
+            addView(metadata,LinearLayout.LayoutParams(-1,-2))
+            addView(compactGuidance,LinearLayout.LayoutParams(-1,-2))
+        } else object : LinearLayout(host) {
             init { gravity = android.view.Gravity.CENTER_VERTICAL; isBaselineAligned = false }
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                compactClock.measure(natural, natural); compactGuidance.measure(natural, natural)
+                listOf(compactIdentity,compactClock,compactElapsed,compactMode,compactGuidance).forEach {it.measure(natural,natural)}
                 val available = View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
-                val stacked = available < dp(112) + compactClock.measuredWidth + compactGuidance.measuredWidth + dp(16)
+                val stacked = available < dp(112) + compactClock.measuredWidth + compactElapsed.measuredWidth + compactMode.measuredWidth + compactGuidance.measuredWidth + dp(16)
+                val naturalFits=compactIdentity.measuredWidth+compactClock.measuredWidth+compactElapsed.measuredWidth+compactMode.measuredWidth+compactGuidance.measuredWidth+dp(24)<=available
                 orientation = if (stacked) VERTICAL else HORIZONTAL
-                listOf(compactIdentity, compactClock, compactGuidance).forEachIndexed { index, child ->
-                    val width = if (stacked) -1 else if (index == 0) 0 else -2
-                    val weight = if (!stacked && index == 0) 1f else 0f
+                listOf(compactIdentity, compactClock, compactElapsed, compactMode, compactGuidance).forEachIndexed { index, child ->
+                    val width = if (stacked) -1 else if (index == 0 && !naturalFits) 0 else -2
+                    val weight = if (!stacked && index == 0 && !naturalFits) 1f else 0f
                     val gap = if (!stacked && index > 0) dp(8) else 0
                     val current = child.layoutParams as LayoutParams
                     if (current.width != width || current.weight != weight || current.marginStart != gap)
@@ -166,9 +187,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        listOf(compactIdentity, compactClock, compactGuidance).forEach { headerWords.addView(it) }
+        if(!portraitHeader) listOf(compactIdentity, compactClock, compactElapsed, compactMode, compactGuidance).forEach { headerWords.addView(it) }
         pageHeader.addView(headerWords, 0, LinearLayout.LayoutParams(0, -2, 1f))
-        pageHeader.minimumHeight = dp(48)
+        pageHeader.minimumHeight = dp(56)
         pageHeader.tag = "product/extraction/header"
         // Secondary prose remains available in a details dialog, not in the plot's height budget.
         val details = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
@@ -188,7 +209,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 0 })
         val plotColumn = workspace.primaryBody
         val sidePanel = workspace.secondaryBody.apply {
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setPadding(dp(10), dp(4), dp(10), dp(4))
         }
         style.add(sidePanel, style.text(getString(R.string.task_extraction_supporting), TaskProductVisualStyle.auxiliary, secondary = true))
         curveSummary = text(sidePanel, getString(R.string.extraction_curve_initial), 16, true).apply {
@@ -232,13 +253,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         flowValue = text(details, "", 14)
         chartHost = FrameLayout(host).apply { tag = "product/extraction/chart-host" }
         chart = ExtractionOverlayView(host, visual).apply {
-            tag = "product/extraction/chart"; background = style.shape(style.surface)
+            tag = "product/extraction/chart"; setBackgroundColor(android.graphics.Color.WHITE)
             liveCompactChrome = true
         }
         chartHost.addView(chart, FrameLayout.LayoutParams(-1, -1))
-        // One shared 96dp budget: identity above metrics, pressure dial on their right.
+        // One natural identity row (at least 56dp); live metrics share the footer actions.
         content.removeView(pageHeader)
-        chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = dp(128) })
+        chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = 0 })
         pageHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> chart.liveHeaderHeightPx = pageHeader.height }
         val chartTools = object : Button(host) {
             private val badge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
@@ -256,15 +277,20 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         }.apply {
             text = getString(R.string.task_tools); contentDescription = text
             tag = "product/extraction/chart-tools"
-            style.button(this, outline = true)
+            style.button(this)
+            setTextColor(style.ink)
+            setCompoundDrawablesRelativeWithIntrinsicBounds(ExtractionToolsDrawable(resources.displayMetrics.density,style.ink),null,null,null)
+            compoundDrawablePadding=dp(8)
             minimumWidth = dp(48); minimumHeight = dp(48)
             setOnClickListener { showTools() }
         }
         chartToolsButton=chartTools
-        pageHeader.addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+        (portraitIdentityRow ?: pageHeader).addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
         plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f))
-        workspace.onPrimarySpaceAvailable = { _, height ->
-            maxOf((dp(260) * resources.configuration.fontScale).toInt(), (height * .70f).toInt())
+        workspace.onPrimarySpaceAvailable = { width, height ->
+            if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                chart.liveHeightForPlotAspect(width,if(width<dp(480)) 1.4f else 1.6f)
+            else maxOf((dp(260) * resources.configuration.fontScale).toInt(), (height * .70f).toInt())
         }
         val toolbar = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         sidePanel.addView(toolbar)
@@ -311,11 +337,20 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             content.removeView(status)
             content.addView(status, content.indexOfChild(workspace))
         }
-        val actionDock = TaskActionDock(host, edgeInsetDp = 0, fullWidthContent = true)
+        val portraitLive=resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val actionDock = LinearLayout(host).apply {
+            orientation = if(portraitLive) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            minimumHeight = dp(64)
+            setBackgroundColor(android.graphics.Color.WHITE)
+        }
+        chart.attachLiveReadouts(if(portraitLive) plotColumn else actionDock)
+        val actionButtons = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+        actionDock.addView(actionButtons, LinearLayout.LayoutParams(if(portraitLive) -1 else dp(190), -2).apply { if(portraitLive) topMargin=dp(12) else marginStart=dp(12) })
         workspace.setFooter(actionDock)
-        start = HoyiUi.button(host, actionDock, getString(R.string.extraction_start), primary = true) { confirmStart() }
+        start = HoyiUi.button(host, actionButtons, getString(R.string.extraction_start), primary = true) { confirmStart() }
         (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
-        stop = HoyiUi.button(host, actionDock, getString(R.string.extraction_stop), danger = true) {
+        stop = HoyiUi.button(host, actionButtons, getString(R.string.extraction_stop), danger = true) {
             service?.stopShot(); render()
         }.apply {
             setTextColor(getColor(android.R.color.white))
@@ -331,9 +366,12 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             style.apply(it, TaskProductVisualStyle.auxiliary)
             it.setPadding(dp(8), dp(8), dp(8), dp(8))
         }
-        style.button(start, primary = true); start.tag = "product/extraction/start"
-        visual.stopButton(stop); stop.tag = "product/extraction/stop"
-        actionDock.tag = "product/extraction/actions"; actionDock.setPadding(dp(16), dp(8), dp(16), 0)
+        style.button(start, primary = true)
+        start.backgroundTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),intArrayOf(style.disabled,0xff009e48.toInt()))
+        start.tag = "product/extraction/start"
+        listOf(start,stop).forEach { it.layoutParams=LinearLayout.LayoutParams(-1,-2); it.minHeight=dp(54); it.minimumHeight=dp(54) }
+        visual.stopButton(stop); listOf(start,stop).forEach { it.textSize=if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 18f else 21f }; stop.tag = "product/extraction/stop"
+        actionDock.tag = "product/extraction/actions"; actionDock.setPadding(dp(8), dp(4), dp(8), dp(4))
         render()
         return root
     }
@@ -479,8 +517,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         chart.compactRunningExplanation = active
         pageHeader.visibility = View.VISIBLE
-        val edge = dp(if (active) 8 else 16)
-        if (pageBody.paddingTop != edge) pageBody.setPadding(dp(16), edge, dp(16), edge)
+        val edge = dp(4)
+        if (pageBody.paddingTop != edge) pageBody.setPadding(dp(4), edge, dp(4), edge)
         supportReadings.visibility = if (active) View.GONE else View.VISIBLE
         modeBadge.visibility = if (active && compactChrome && BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE
         liveHeading.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
@@ -558,10 +596,11 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
         compactIdentity.show(displayCurveName)
         compactIdentity.contentDescription = displayCurveName
-        compactClock.show((if (inlineGuidance) "" else shotLabel(state) + " · ") + elapsedText +
-            if (BuildConfig.MOCK_MODE) " · Mock" else "")
-        compactClock.contentDescription = compactClock.text.toString() +
-            if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
+        compactClock.show(shotLabel(state))
+        compactClock.setTextColor(getColor(if(state==ExtractionState.RUNNING) R.color.mobile_success else if(state==ExtractionState.OUTCOME_UNKNOWN) R.color.mobile_danger else R.color.mobile_text))
+        compactElapsed.show(elapsedText)
+        compactElapsed.contentDescription=elapsedText + if(BuildConfig.MOCK_MODE) " · Mock · " + getString(R.string.extraction_mock_subtitle) else ""
+        compactMode.contentDescription=if(BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else ""
         compactGuidance.show("")
         compactGuidance.visibility = View.GONE
         compactIdentity.setOnLongClickListener { detailsButton.performClick(); true }

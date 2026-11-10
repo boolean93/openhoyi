@@ -32,6 +32,7 @@ internal object TaskLayoutPolicy {
         primaryMinimumWidthDp: Int = 320,
         secondaryMinimumWidthDp: Int = 280,
         twoPaneMinimumHeightDp: Int = TWO_PANE_MINIMUM_HEIGHT_DP,
+        portrait: Boolean = false,
     ): TaskLayoutDecision {
         require(windowWidthDp > 0) { "windowWidthDp must be positive" }
         require(availableHeightDp >= 0) { "availableHeightDp must be non-negative" }
@@ -39,7 +40,7 @@ internal object TaskLayoutPolicy {
         require(secondaryMinimumWidthDp >= 0) { "secondaryMinimumWidthDp must be non-negative" }
         require(twoPaneMinimumHeightDp >= 0) { "twoPaneMinimumHeightDp must be non-negative" }
 
-        val navigation = if (windowWidthDp >= RAIL_NAVIGATION_WIDTH_DP) {
+        val navigation = if (!portrait && windowWidthDp >= RAIL_NAVIGATION_WIDTH_DP) {
             TaskNavigationMode.RAIL
         } else {
             TaskNavigationMode.BOTTOM
@@ -53,7 +54,7 @@ internal object TaskLayoutPolicy {
             secondaryMinimumWidthDp.toLong() +
             PANE_GAP_DP +
             CONTENT_HORIZONTAL_PADDING_DP
-        val twoPaneAllowed = windowWidthDp >= TWO_PANE_WINDOW_WIDTH_DP &&
+        val twoPaneAllowed = !portrait && windowWidthDp >= TWO_PANE_WINDOW_WIDTH_DP &&
             contentWidthDp.toLong() >= requiredContentWidthDp &&
             availableHeightDp >= twoPaneMinimumHeightDp
 

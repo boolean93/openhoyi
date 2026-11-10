@@ -14,6 +14,7 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
         R.string.curve_preview_stages)
     private val values:List<TextView>
     private val units = mutableListOf<TextView>()
+    private var portraitMeasureKey = ""
     init {
         setWillNotDraw(false)
         orientation=HORIZONTAL
@@ -46,6 +47,55 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
             }
         }
     }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val style = productVisualStyle
+        if (style != null && waterSummary && resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            val width = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+            val free = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+            val columns = (0 until childCount).map { getChildAt(it) as LinearLayout }
+            val cellWidth = width / columns.size.coerceAtLeast(1)
+            val naturalWidths = columns.map { column ->
+                column.getChildAt(1).measure(free, free)
+                column.getChildAt(1).measuredWidth
+            }
+            val horizontal = naturalWidths.withIndex().all { (index, natural) ->
+                val caption = columns[index].getChildAt(0)
+                caption.measure(free, free)
+                val inner = cellWidth - style.dp(if (index == 1) 32 else 16)
+                natural <= inner && caption.measuredWidth <= inner
+            }
+            val key = "$width/${resources.configuration.fontScale}/$horizontal/" + values.joinToString { it.text }
+            if (key != portraitMeasureKey) {
+                portraitMeasureKey = key
+                orientation = if (horizontal) HORIZONTAL else VERTICAL
+                var labelBand = 0
+                columns.forEachIndexed { index, column ->
+                    column.orientation = if (horizontal) VERTICAL else HORIZONTAL
+                    column.gravity = Gravity.CENTER_VERTICAL
+                    column.setPaddingRelative(if (horizontal && index > 0) style.dp(16) else 0, 0,
+                        if (horizontal && index < 2) style.dp(16) else 0, 0)
+                    column.layoutParams = LayoutParams(if (horizontal) 0 else -1, -2, if (horizontal) 1f else 0f).apply {
+                        topMargin = if (!horizontal && index > 0) style.dp(8) else 0
+                    }
+                    val caption = column.getChildAt(0) as TextView
+                    caption.minHeight = style.sp(22).toInt()
+                    caption.layoutParams = LayoutParams(if (horizontal) -1 else 0, -2, if (horizontal) 0f else 1f)
+                    val quantity = column.getChildAt(1)
+                    quantity.layoutParams = LayoutParams(if (horizontal) -1 else -2, -2).apply {
+                        topMargin = if (horizontal) style.dp(8) else 0
+                        marginStart = if (horizontal) 0 else style.dp(16)
+                    }
+                    if (horizontal) {
+                        caption.measure(android.view.View.MeasureSpec.makeMeasureSpec(
+                            (cellWidth - column.paddingLeft - column.paddingRight).coerceAtLeast(0), android.view.View.MeasureSpec.EXACTLY), free)
+                        labelBand = maxOf(labelBand, caption.measuredHeight)
+                    }
+                }
+                if (horizontal) columns.forEach { (it.getChildAt(0) as TextView).minHeight = labelBand }
+            }
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
     override fun onDraw(canvas: android.graphics.Canvas) {
         super.onDraw(canvas)
         val paint = android.graphics.Paint().apply {
@@ -55,7 +105,7 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
         val inset = paint.strokeWidth / 2
         canvas.drawLine(0f, inset, width.toFloat(), inset, paint)
         canvas.drawLine(0f, height - inset, width.toFloat(), height - inset, paint)
-        if (productVisualStyle != null) for (index in 1..2) {
+        if (productVisualStyle != null && orientation == HORIZONTAL) for (index in 1..2) {
             val column = getChildAt(index)
             val x = if (layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL) column.right.toFloat() else column.left.toFloat()
             val verticalInset = if (waterSummary) 8 else 16

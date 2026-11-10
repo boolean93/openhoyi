@@ -48,6 +48,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailContent: LinearLayout
     private val selectedIds = mutableMapOf<Boolean, String>()
+    private var portraitDetailBack: Button? = null
     private var restoreDetail = false
     private var compact = true
     private var backCallback: android.window.OnBackInvokedCallback? = null
@@ -165,8 +166,8 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
                         typeface = TaskTypography.face(host, 500)
                         includeFontPadding = false
                         setTextColor(getColor(R.color.mobile_text))
-                        maxLines = 2
-                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        maxLines = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) Int.MAX_VALUE else 2
+                        ellipsize = if (maxLines == 2) android.text.TextUtils.TruncateAt.END else null
                     }
                     val identity = style.column()
                     header.addView(identity, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) })
@@ -235,10 +236,11 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         // Source tabs belong to the browser; count stays in the compact page tools row.
         body.removeView(sources)
         collection.browserBody.addView(sources, LinearLayout.LayoutParams(-1, -2))
-        val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() })
+        val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }).also { portraitDetailBack = it }
         collection.onPresentationChanged = { split, visible ->
             compact = !split
             back.visibility = if (compact) View.VISIBLE else View.GONE
+            header.visibility = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT && compact && visible) View.GONE else View.VISIBLE
             updateBack(compact && visible)
         }
         collection.detailRequested = restoreDetail
@@ -353,6 +355,16 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         host.renderHistoryDetail(detailContent, selected.id, openFullPage = {
             startActivity(Intent(host, HistoryDetailActivity::class.java).putExtra("shotId", selected.id))
         }, visual = visual)
+        if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            val title = detailContent.findViewWithTag<LinearLayout>("product/history/title-row")
+            val back = portraitDetailBack
+            if (title != null && back != null) {
+                (back.parent as? android.view.ViewGroup)?.removeView(back)
+                back.text = ""; back.contentDescription = getString(R.string.history_back_to_list)
+                HomeVisualIcon.buttonIcon(back, "back")
+                title.addView(back, 0, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(8) })
+            }
+        }
     }
     private fun rememberList() {
         if (::historyList.isInitialized && historyList.isShown && !historyList.isLayoutRequested && historyList.childCount > 0)

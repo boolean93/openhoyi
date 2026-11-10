@@ -62,7 +62,8 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
         val height = MeasureSpec.getSize(heightMeasureSpec)
         val widthDp = if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED)
             resources.configuration.screenWidthDp else (MeasureSpec.getSize(widthMeasureSpec) / density).toInt()
-        val policy = TaskLayoutPolicy.decide(widthDp.coerceAtLeast(1), (height / density).toInt())
+        val policy = TaskLayoutPolicy.decide(widthDp.coerceAtLeast(1), (height / density).toInt(),
+            portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
         // Measure actual labels at the rail width; font scaling can require the compact tool menu.
         if (fullRailHeight < 0 || measuredFontScale != resources.configuration.fontScale) {
             navigation.render(TaskNavigationMode.RAIL, true)

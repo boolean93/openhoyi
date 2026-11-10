@@ -44,6 +44,7 @@ class BeanBatchActivity : ThemedActivity() {
     val productLayoutEvidence = org.json.JSONObject()
     private fun render() {
         val formStyle = TaskProductFormStyle(this)
+        val phone = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT && resources.configuration.screenWidthDp <= 480
         val body = style.page(this, getString(R.string.beans_batch_title))
         val inventory = beanInventory(body) ?: return
         val id = intent.getStringExtra(BATCH_ID)
@@ -57,7 +58,7 @@ class BeanBatchActivity : ThemedActivity() {
                 first.measure(free, free); second.measure(free, free)
                 val naturalWidth = first.measuredWidth + second.measuredWidth + style.dp(16)
                 val available = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
-                val inline = naturalWidth <= available
+                val inline = !(phone && key == "date-layout") && naturalWidth <= available
                 orientation = if (inline) HORIZONTAL else VERTICAL
                 (first.layoutParams as LayoutParams).apply {
                     width = if (!inline) -1 else if (expandFirst) 0 else -2
@@ -106,7 +107,10 @@ class BeanBatchActivity : ThemedActivity() {
             beanDetails(getString(R.string.beans_batch_title), item.batch.bean.name + "\n" + details)
         }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(16) }
             HomeVisualIcon.buttonIcon(this, "chevron", atEnd = true) }
-        val summary = style.row("product/batch/summary").apply { foreground = rules(true) }
+        val summary = style.row("product/batch/summary").apply {
+            orientation = if (phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            if (!phone) foreground = rules(true)
+        }
         class MetricCell(label: String, val value: android.view.View, val index: Int) : LinearLayout(this@BeanBatchActivity) {
             var inline = false
             val caption = style.text(label, TaskProductVisualStyle.auxiliary, secondary = true)
@@ -141,12 +145,21 @@ class BeanBatchActivity : ThemedActivity() {
             MetricCell(getString(R.string.beans_balance_label), style.quantity(BeanQuantity.formatGrams(item.balanceMg), "g", TaskProductVisualStyle.largeValue, "product/batch/balance"), 0),
             MetricCell(getString(R.string.batch_initial_weight), style.quantity(BeanQuantity.formatGrams(item.batch.initialMg), "g", TaskProductVisualStyle.title.copy(weight = 400), "product/batch/initial"), 1),
             MetricCell(getString(R.string.batch_remaining_ratio), ratioLine, 2))
-        metrics.forEachIndexed { index, cell -> summary.addView(cell, LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f)) }
-        val dates = style.row("product/batch/dates").apply { foreground = rules(true) }
+        if (phone) {
+            val weights = style.row().apply { foreground = rules(true) }
+            metrics.take(2).forEach { weights.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
+            summary.addView(weights, LinearLayout.LayoutParams(-1, -2))
+            metrics[2].setPadding(0, 0, 0, 0)
+            summary.addView(metrics[2], LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(12) })
+        } else metrics.forEachIndexed { index, cell -> summary.addView(cell, LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f)) }
+        val dates = style.row("product/batch/dates").apply {
+            orientation = if (phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            if (!phone) foreground = rules(true)
+        }
         listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
             R.string.beans_opened to item.batch.openedOn).forEachIndexed { index, (label, date) ->
-            val cell = style.column().apply { setPaddingRelative(if (index == 0) 0 else style.dp(16), 0, style.dp(16), 0) }
-            dates.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+            val cell = style.column().apply { setPaddingRelative(if (phone || index == 0) 0 else style.dp(16), 0, style.dp(16), 0) }
+            dates.addView(cell, if (phone) LinearLayout.LayoutParams(-1, -2).apply { topMargin = if (index == 0) 0 else style.dp(12) } else LinearLayout.LayoutParams(0, -2, 1f))
             style.add(cell, style.text(getString(label), TaskProductVisualStyle.auxiliary, "product/batch/date/$index/label", true))
             style.add(cell, style.text(date?.toString() ?: getString(R.string.beans_not_set), TaskProductVisualStyle.body, "product/batch/date/$index/value"), 8)
         }
@@ -213,7 +226,7 @@ class BeanBatchActivity : ThemedActivity() {
                 }
                 val firstTwo = eventHeights.take(2).sum()
                 val fits = metrics.mapIndexed { index, cell -> cell.fits(width * (if (index == 2) 2 else 1) / 4) }
-                val inline = verticalSummary + other + firstTwo > height && fits.all { it }
+                val inline = !phone && verticalSummary + other + firstTwo > height && fits.all { it }
                 metrics.forEach { it.inline = inline }; val resolvedSummary = natural(summary)
                 val minimum = resolvedSummary + other + (eventHeights.firstOrNull() ?: 0)
                 naturalContent = minimum > height

@@ -59,15 +59,17 @@ internal class TaskProductVisualStyle(val context: Context) {
         if (outline) setStroke(dp(1), border)
     }
     fun apply(view: TextView, type: Type, secondary: Boolean = false) = view.apply {
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, type.sizeSp.toFloat())
+        val (sizeSp, lineSp) = PortraitTypography.resolve(type.sizeSp, type.lineSp, type.weight,
+            resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT, resources.configuration.screenWidthDp <= 480)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat())
         typeface = TaskTypography.face(context, type.weight)
         includeFontPadding = false; letterSpacing = 0f
         paint.isFakeBoldText = false
         setTextColor(if (secondary) muted else ink)
-        val line = sp(type.lineSp).toInt()
+        val line = sp(lineSp).toInt()
         if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(line)
         else setLineSpacing((line - paint.fontMetricsInt.descent + paint.fontMetricsInt.ascent).coerceAtLeast(0).toFloat(), 1f)
-        minHeight = sp(type.lineSp).toInt()
+        minHeight = sp(lineSp).toInt()
         gravity = Gravity.CENTER_VERTICAL
     }
     fun text(value: CharSequence, type: Type = body, id: String? = null, secondary: Boolean = false) =

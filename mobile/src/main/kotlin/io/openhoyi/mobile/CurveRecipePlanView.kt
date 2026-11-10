@@ -58,16 +58,28 @@ internal class CurveRecipePlanView(context: Context, private val style: TaskProd
                     marginStart = dp(6)
                 })
                 val water = plan.stageWaterTenthsMl.getOrNull(index)
-                card.addView(label(context.getString(R.string.curve_plan_stage_water) + "  " +
-                    (water?.let(::amount) ?: "—"), TaskProductVisualStyle.auxiliary, color),
-                    LayoutParams(-1, -2).apply { topMargin = dp(8) })
+                if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    card.addView(label(context.getString(R.string.curve_plan_stage_water), TaskProductVisualStyle.auxiliary, color),
+                        LayoutParams(-1, -2).apply { topMargin = dp(8) })
+                    card.addView(label((water?.let(::amount) ?: "—").replace(' ', '\u00a0'), TaskProductVisualStyle.auxiliary, color).apply {
+                        setSingleLine(true)
+                    }, LayoutParams(-1, -2))
+                } else {
+                    card.addView(label(context.getString(R.string.curve_plan_stage_water) + "  " +
+                        (water?.let(::amount) ?: "—"), TaskProductVisualStyle.auxiliary, color),
+                        LayoutParams(-1, -2).apply { topMargin = dp(8) })
+                }
             }
         }
         val assigned = plan.assignedWaterTenthsMl
         addView(label(context.getString(R.string.curve_plan_water_allocation), TaskProductVisualStyle.section),
             LayoutParams(-1, -2).apply { topMargin = dp(16) })
         val limit = plan.totalWaterLimitMl?.let { context.getString(R.string.curve_plan_total_limit, it) } ?: "—"
-        addView(label(context.getString(R.string.curve_plan_assigned_total, amount(assigned), limit)), LayoutParams(-1, -2))
+        val portrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        val allocation = context.getString(R.string.curve_plan_assigned_total,
+            if (portrait) amount(assigned).replace(' ', '\u00a0') else amount(assigned),
+            if (portrait) limit.replace(" mL", "\u00a0mL").replace(" ml", "\u00a0ml") else limit)
+        addView(label(if (portrait) allocation.replace(" · ", "\n") else allocation), LayoutParams(-1, -2))
         if (assigned > 0 && plan.stageWaterTenthsMl.size == stages.size) {
             plan.stageWaterTenthsMl.chunked(2).forEachIndexed { rowIndex, pair ->
                 val labels = LinearLayout(context).apply { orientation = HORIZONTAL }
@@ -80,7 +92,7 @@ internal class CurveRecipePlanView(context: Context, private val style: TaskProd
                         CurveStageParameters.Unit.RAW_UNKNOWN -> style.muted
                     }
                     labels.addView(label(context.getString(R.string.curve_plan_stage_water_label,
-                        index + 1, amount(water), String.format(Locale.ROOT, "%.1f", water * 100.0 / assigned)), color = color),
+                        index + 1, if (portrait) amount(water).replace(' ', '\u00a0') else amount(water), String.format(Locale.ROOT, "%.1f", water * 100.0 / assigned)), color = color),
                         LayoutParams(0, -2, 1f))
                 }
             }
