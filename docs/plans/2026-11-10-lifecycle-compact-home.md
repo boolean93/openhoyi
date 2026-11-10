@@ -15,7 +15,7 @@
 
 - `:mobile:assembleMock :mobile:assembleDebug :mobile:assembleMockAndroidTest :mobile:testMockUnitTest --tests io.openhoyi.mobile.TaskLayoutPolicyTest -PhoyiVersionCode=76 -PhoyiVersionName=0.2.0-preview.76 --offline` 成功；布局策略9项、零失败。`git diff --check`与分支规则检查通过。
 - 真机 `M2105K81AC` 仅跑 `mainNavigationChecks=home`，复用原720×360完整可见与48dp触控断言；默认字体与1.3字体均输出 `MAIN_HOME_720_GEOMETRY_PASS`，记录真实fontScale。MIUI对instrumentation自身启动Activity有限制，使用shell显式启动同一Mock Home辅助有界monitor；未改权限或系统启动策略。
-- 两轮发现并修正1.3下上杯辅助标题撑高、真实预设名省略。最终五槽完整显示 `Espresso深烘`、`SOE浅烘`、`HOYI Turbo Short`、`HOYI Limit Extraction`、`Hyper Ex 超萃手冲`，短横屏真实名称不限行、自然高度，超长自定义名称可以正常滚动，不承诺所有任意内容均挤入首屏。
+- 两轮发现并修正1.3下上杯辅助标题撑高、真实预设名省略。最终五槽完整显示 `Espresso深烘`、`SOE浅烘`、`HOYI Turbo Shot`、`HOYI Limit Extraction`、`Hyper Ex 超萃手冲`，短横屏真实名称不限行、自然高度，超长自定义名称可以正常滚动，不承诺所有任意内容均挤入首屏。
 - 本地证据保存在本任务目录 `evidence/lifecycle-compact/`：`final-default.txt`、`final-font130.txt`、对应 `final-*/idle.txt`、两张 `final-*-foreground.png`、`final-apk.json`、业务hash与恢复配置回读。默认图有泛灰现象，不把原因归于未经证实的因素；1.3前台图清晰。
 - 原签名指纹 `c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54`；同76双包覆盖后，Debug的64个及Mock的57个业务偏好/样本文件SHA-256逐项一致。未清数据、未造杯、未运行完整lifecycle脚本、未操作真实机器。
 - 结束回读：physical size1600×2560、physical density360，无override；font1.0、accelerometer_rotation0、user_rotation3；恢复Mock Home。未运行本地模拟器。
