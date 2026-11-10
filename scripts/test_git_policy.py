@@ -6,7 +6,9 @@ SPEC = importlib.util.spec_from_file_location('git_policy', pathlib.Path(__file_
 policy = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(policy)
 
-BODY = '''## 规划与范围
+BODY = '''## 本次更新
+发布页可查看本版改动。
+## 规划与范围
 Plan: docs/superpowers/plans/2026-10-09-git-governance.md
 ## 验证证据
 Python tests passed
@@ -33,6 +35,12 @@ class GitPolicyTests(unittest.TestCase):
         for body in ['', BODY.replace('## 验证证据','## Evidence'), BODY.replace('2026-10-09-git-governance.md','missing.md')]:
             with self.assertRaises(ValueError): policy.check_pr('chore/ci','develop',body)
         policy.check_pr('chore/ci','develop',BODY)
+
+    def test_release_note_requires_one_visible_chinese_line(self):
+        for note in ('', '<!-- 中文提示 -->', 'English only', '一行\n另一行', '字' * 241):
+            with self.subTest(note=note), self.assertRaises(ValueError):
+                policy.check_pr('chore/ci', 'develop', BODY.replace('发布页可查看本版改动。', note))
+        self.assertEqual('更新说明', policy.pr_release_note('## 本次更新\r\n- 更新说明\r\n### Local PR checks\r\nCI'))
 
     def test_release_tags_and_commit_membership(self):
         policy.check_tag('v1.2.3', True, False)

@@ -19,11 +19,25 @@ def check_branch(name):
         raise ValueError('Use feature|fix|chore|docs/<lowercase-slug> or release|hotfix/<X.Y.Z>')
 
 
+def pr_release_note(body):
+    """Return the single plain-text Chinese release note from a PR body."""
+    visible = re.sub(r'<!--.*?(?:-->|\Z)', '', body or '', flags=re.S)
+    sections = re.findall(r'^## 本次更新[ \t]*\r?\n(.*?)(?=^#{1,6}[ \t]+|\Z)', visible, re.M | re.S)
+    if len(sections) != 1:
+        return ''
+    note = re.sub(r'^[-*] +', '', sections[0].strip())
+    if len(note.splitlines()) != 1 or len(note) > 240 or not re.search(r'[\u3400-\u9fff]', note):
+        return ''
+    return note
+
+
 def check_pr(head, base, body):
     check_branch(head)
     kind = head.split('/', 1)[0]
     if base not in ('main', 'develop') or (base == 'main' and kind not in ('release', 'hotfix')):
         raise ValueError('Work PRs target develop; only release/hotfix PRs may target main')
+    if not pr_release_note(body):
+        raise ValueError('PR 的「本次更新」须填写一行中文，最多 240 字')
     for section in ('规划与范围', '验证证据', '协议与设备风险', '发布与回退'):
         match = re.search(r'^## ' + section + r'\s*\n(.*?)(?=^## |\Z)', body, re.M | re.S)
         if not match or not re.sub(r'<!--.*?-->', '', match[1], flags=re.S).strip():

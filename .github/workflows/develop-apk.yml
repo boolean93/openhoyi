@@ -123,6 +123,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      pull-requests: read
     # No signing secrets are made available to this job.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

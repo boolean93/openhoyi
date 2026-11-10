@@ -3,6 +3,7 @@
 import argparse
 import base64
 import json
+import html
 import os
 from pathlib import Path
 import re
@@ -10,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 
+from git_policy import pr_release_note
 from apk_distribution import inspect_apk, compare_upgrade
 from develop_release_policy import (REQUIRED_WORKFLOWS, allocate_version, select_successful_runs,
                                     validate_jobs, validate_manifest, validate_reservation)
@@ -312,6 +314,56 @@ def tag_record(api, tag):
     return json.loads(obj["message"]), obj["object"]["sha"]
 
 
+def safe_note(value):
+    text = html.escape(" ".join(value.split()), quote=False).replace("@", "@\u200b")
+    text = re.sub(r"([\\`*_{}\[\]()#!|~])", r"\\\1", text)
+    return text.replace(":", "&#58;").replace("www.", "www\u200b.")
+
+
+def release_body(api, source, records, body):
+    """Use actual public channel history, never the plan's upgrade baseline."""
+    public = [r for r in records if r.get("channel") == "develop-test"
+              and not r["_release"]["draft"]]
+    baseline = (max(public, key=lambda r: r["versionCode"])["declaredSourceCommit"]
+                if public else configuration()["startAfterCommit"])
+    history = git("rev-list", "--first-parent", source).splitlines()
+    reverse = False
+    if baseline in history:
+        commits = list(reversed(history[:history.index(baseline)]))
+    else:
+        previous_history = git("rev-list", "--first-parent", baseline).splitlines()
+        if source not in previous_history:
+            raise PublisherError("Release summary sources are not on one first-parent history")
+        reverse = True
+        commits = list(reversed(previous_history[:previous_history.index(source)]))
+    notes = (["- 此版使用较早源码；相对上一版不含以下变更，请按源码差异选择测试版本。"]
+             if reverse else [])
+    seen = set()
+    for commit in commits:
+        pulls = [pr for pr in api.pages(f"commits/{commit}/pulls")
+                 if pr.get("merged_at") and pr.get("merge_commit_sha") == commit
+                 and pr.get("base", {}).get("ref") == "develop"
+                 and pr.get("base", {}).get("repo", {}).get("full_name") == REPO]
+        if not pulls:
+            subject = git("show", "-s", "--format=%s", commit)
+            prefix = "此版不含：" if reverse else ""
+            notes.append(f"- {prefix}{safe_note(subject)}（{commit[:12]}）")
+        for pr in sorted(pulls, key=lambda pr: pr["number"]):
+            if pr["number"] in seen:
+                continue
+            seen.add(pr["number"])
+            note = pr_release_note(pr.get("body") or "") or pr["title"].strip()
+            prefix = "此版不含：" if reverse else ""
+            notes.append(f"- {prefix}{safe_note(note)}（#{pr['number']}）")
+    if not notes:
+        notes = ["- 源码与上一版相同，本次重新构建测试包。"]
+    if reverse:
+        notes.append(f"- [查看源码差异](https://github.com/{REPO}/compare/{source}...{baseline})")
+    # Replace our existing opening section while preserving build/safety evidence.
+    remainder = re.sub(r"\A## 本次更新[ \t]*\n\n(?:- [^\n]*\n)+\n", "", body or "", count=1, flags=re.M | re.S).lstrip()
+    return "## 本次更新\n\n" + "\n".join(notes) + "\n\n" + remainder
+
+
 def publish_one(api, ledger, item, directory):
     code, source = item["code"], item["source"]
     tag = f"dev-{code}"
@@ -388,12 +440,13 @@ def publish_one(api, ledger, item, directory):
             raise PublisherError("Another channel overtook this version; allocate/build a newer package")
         if successful_ci(api, source) is None:
             raise PublisherError("Required source checks changed before public release")
+        body = release_body(api, source, public, release.get("body", ""))
         def prepared(s):
             s["allocations"][str(code)].update(status="prepared", manifestSha256=hashes["distribution.json"], assetHashes=hashes)
         ledger.update(prepared)
         # Single visibility transition, only after read-back AND durable hashes.
         # If the response is lost, the next controller reconciles this exact set.
-        api.request(f"releases/{release['id']}", "PATCH", {"draft": False, "prerelease": True, "make_latest": "false"})
+        api.request(f"releases/{release['id']}", "PATCH", {"draft": False, "prerelease": True, "make_latest": "false", "body": body})
     confirmed = api.request(f"releases/{release['id']}")
     if confirmed["draft"] or confirmed["prerelease"] is not True:
         raise PublisherError("Publication outcome not confirmed")

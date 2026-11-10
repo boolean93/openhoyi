@@ -20,7 +20,7 @@ class CreatePRTests(unittest.TestCase):
         self.calls = root / "calls"
         self.body = root / "body"
         self.body.write_text(
-            "## 规划与范围\ndocs/plans/example.md\n## 验证证据\n本地预检\n"
+            "## 本次更新\n更新发布说明。\n## 规划与范围\ndocs/plans/example.md\n## 验证证据\n本地预检\n"
             "## 协议与设备风险\n无\n## 发布与回退\n不发版\n"
         )
         self.env = dict(os.environ, HOME=str(root), GIT_CONFIG_NOSYSTEM="1",
