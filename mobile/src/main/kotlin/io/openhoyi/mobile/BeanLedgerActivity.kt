@@ -94,7 +94,9 @@ class BeanLedgerActivity : ThemedActivity() {
             ledgerRow(list, values, false).apply {
                 tag = "product/ledger/row/${event.eventId}"
                 if (event.kind == InventoryEventKind.ADD) listOf(0, 1).forEach { index ->
-                    (getChildAt(index) as android.widget.TextView).setTextColor(style.accent)
+                    val cell = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                        (getChildAt(0) as LinearLayout).getChildAt(index) else getChildAt(index)
+                    (cell as android.widget.TextView).setTextColor(style.accent)
                 }
                 isClickable = true
                 isFocusable = true
@@ -131,12 +133,37 @@ class BeanLedgerActivity : ThemedActivity() {
                 HoyiUi.dp(this@BeanLedgerActivity, if (heading) 8 else 16))
         }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2))
+        if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            row.orientation = LinearLayout.VERTICAL
+            val numbers = style.row("product/ledger/event-quantities")
+            row.addView(numbers, LinearLayout.LayoutParams(-1, -2))
+            values.take(3).forEach { value ->
+                numbers.addView(style.text(if (heading) value else value.replace(' ', '\u00a0'),
+                    if (heading) TaskProductVisualStyle.auxiliary.copy(weight = 500) else TaskProductVisualStyle.body,
+                    secondary = heading).apply {
+                    setPadding(style.dp(8), 0, style.dp(8), 0)
+                    if (!heading) setSingleLine(true)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+            }
+            if (!heading) {
+                row.addView(style.text(values[3], TaskProductVisualStyle.body).apply {
+                    setPadding(style.dp(8), 0, style.dp(8), 0)
+                }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
+                row.addView(style.text(getString(R.string.beans_reason) + ": " + values[4], TaskProductVisualStyle.body).apply {
+                    setPadding(style.dp(8), 0, style.dp(8), 0)
+                }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
+            }
+            return row
+        }
         values.forEachIndexed { index, value ->
             style.text(value, if (heading) TaskProductVisualStyle.auxiliary.copy(weight = 500) else TaskProductVisualStyle.body, secondary = heading).apply {
                 row.addView(this)
                 layoutParams = LinearLayout.LayoutParams(0, -2, if (index < 3) 1f else 1.6f)
                 setPadding(HoyiUi.dp(this@BeanLedgerActivity, 8), 0, HoyiUi.dp(this@BeanLedgerActivity, 8), 0)
-                if (!heading) { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details" }
+                if (!heading) {
+                    maxLines = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) Int.MAX_VALUE else 2
+                    ellipsize = if (maxLines == 2) android.text.TextUtils.TruncateAt.END else null; tag = "full-text-details"
+                }
             }
         }
         return row

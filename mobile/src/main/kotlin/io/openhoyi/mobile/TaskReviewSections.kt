@@ -10,6 +10,8 @@ import android.widget.ScrollView
 /** Stable inline parameter/notes regions; resize never reparents a field or changes a draft. */
 internal class TaskReviewSections(private val activity: ThemedActivity, body: LinearLayout,
     labels: List<String>, selected: Int, private val style: TaskProductFormStyle, private val changed: (Int) -> Unit) {
+    private val portrait = activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    private val pageScroll=ScrollView(activity).apply {tag="product/form/review/page-scroll"}
     private var selectedIndex = selected.coerceIn(labels.indices)
     private val parameters = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val notes = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -103,7 +105,13 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             })
         }
     }
-    init { host.addView(regions, LinearLayout.LayoutParams(-1, 0, 1f)) }
+    init {
+        if(portrait) {
+            parameterScroll.removeView(parameters);noteScroll.removeView(notes)
+            val stack=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;addView(parameters,LinearLayout.LayoutParams(-1,-2));addView(notes,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(20)})}
+            pageScroll.addView(stack);host.addView(pageScroll,LinearLayout.LayoutParams(-1,0,1f))
+        } else host.addView(regions, LinearLayout.LayoutParams(-1, 0, 1f))
+    }
 
     private fun sectionHeading(parent: LinearLayout, label: Int) =
         HoyiUi.label(activity, parent, activity.getString(label), 20, true).apply {
@@ -122,19 +130,26 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
 
     private fun dp(value: Int) = HoyiUi.dp(activity, value)
     private fun reveal(index: Int) {
-        val scroll = if (index < 2) parameterScroll else noteScroll
-        panels[index].post { scroll.scrollTo(0, panels[index].top) }
+        val scroll = if(portrait) pageScroll else if (index < 2) parameterScroll else noteScroll
+        panels[index].post {
+            if(portrait) panels[index].requestRectangleOnScreen(android.graphics.Rect(0,0,panels[index].width,panels[index].height),false)
+            else scroll.scrollTo(0,panels[index].top)
+        }
     }
     fun jumpTo(index: Int) {
         selectedIndex = index.coerceIn(panels.indices)
         changed(selectedIndex)
         reveal(selectedIndex)
     }
-    fun fitMultiline(fields: List<EditText>) { multilineFields = fields; noteScroll.post { fitEditors() } }
+    fun fitMultiline(fields: List<EditText>) { multilineFields = fields; (if(portrait) pageScroll else noteScroll).post { fitEditors() } }
     private fun fitEditors() {
         // Every multiline box keeps its actual two-line font/padding minimum,
         // even when the surrounding region must scroll under the IME.
         fun minimum(field: EditText) = style.twoLineMinimum(field)
+        if(portrait) {
+            multilineFields.forEach {field -> field.layoutParams=(field.layoutParams as LinearLayout.LayoutParams).apply {height=maxOf(minimum(field),dp(96));weight=0f}}
+            return
+        }
         multilineFields.filter { it.parent === panels[1] }.forEach { field ->
             val height = minimum(field)
             if (field.layoutParams.height != height) field.layoutParams = (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
@@ -170,11 +185,13 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
                 field.requestFocus()
                 field.setSelection(state.getInt("review-start").coerceIn(0, field.length()), state.getInt("review-end").coerceIn(0, field.length()))
             }
+            pageScroll.scrollTo(0,state.getInt("review-page-scroll",state.getInt("review-parameters-scroll")))
             parameterScroll.scrollTo(0, state.getInt("review-parameters-scroll"))
             noteScroll.scrollTo(0, state.getInt("review-notes-scroll"))
         }
     }
     fun save(state: Bundle, fields: Map<String, EditText>) {
+        state.putInt("review-page-scroll",pageScroll.scrollY)
         state.putInt("review-parameters-scroll", parameterScroll.scrollY)
         state.putInt("review-notes-scroll", noteScroll.scrollY)
         fields.entries.firstOrNull { it.value.hasFocus() }?.let { (key, field) ->

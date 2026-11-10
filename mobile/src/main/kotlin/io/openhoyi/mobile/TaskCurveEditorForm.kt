@@ -43,6 +43,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private val stageContent = cell()
     private val metadataContent = style.visual.row()
     private val stagePane = cell()
+    private val portrait=activity.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT
     private var compact = false
     private val stages = ScrollView(activity).apply { tag = "product/form/curve-editor/stage-scroll"; addView(stageContent) }
     private val metadataScroll = ScrollView(activity).apply { tag = "product/form/curve-editor/metadata-scroll"; addView(metadataContent) }
@@ -74,6 +75,22 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = MeasureSpec.getSize(widthMeasureSpec)
             val height = MeasureSpec.getSize(heightMeasureSpec)
+            if(portrait) {
+                compact=true
+                metadataContent.orientation=VERTICAL
+                metadata.forEachIndexed {index,panel ->
+                    (panel as MetadataCell).inline=false
+                    panel.layoutParams=LayoutParams(-1,-2).apply {if(index>0) topMargin=dp(12)}
+                }
+                metadataScroll.layoutParams=LayoutParams(-1,-2)
+                lower.orientation=VERTICAL
+                lower.layoutParams=LayoutParams(-1,-2).apply {topMargin=dp(16)}
+                stagePane.layoutParams=LayoutParams(-1,-2)
+                stages.layoutParams=LayoutParams(-1,-2)
+                previewScroll.layoutParams=LayoutParams(-1,-2).apply {topMargin=dp(20)}
+                super.onMeasure(widthMeasureSpec,heightMeasureSpec)
+                return
+            }
             val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
             fun forceMetadataLayout(view: View) {
                 if (view is ViewGroup) for (index in 0 until view.childCount) forceMetadataLayout(view.getChildAt(index))

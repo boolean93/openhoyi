@@ -16,10 +16,10 @@ class TaskLayoutPolicyTest {
     }
 
     @Test
-    fun userTabletPortraitKeepsRailButNotTwoPanes() {
-        val decision = TaskLayoutPolicy.decide(windowWidthDp = 711, availableHeightDp = 1138)
+    fun userTabletPortraitUsesBottomAndNotTwoPanes() {
+        val decision = TaskLayoutPolicy.decide(windowWidthDp = 711, availableHeightDp = 1138, portrait = true)
 
-        assertEquals(TaskNavigationMode.RAIL, decision.navigation)
+        assertEquals(TaskNavigationMode.BOTTOM, decision.navigation)
         assertFalse(decision.twoPaneAllowed)
     }
 
@@ -56,6 +56,15 @@ class TaskLayoutPolicyTest {
         assertEquals(TaskChartAxisMode.ALL_SCALES, TaskLayoutPolicy.chartAxes(528, 208))
         assertEquals(TaskChartAxisMode.FOCUSED_SCALE, TaskLayoutPolicy.chartAxes(527, 208))
         assertEquals(TaskChartAxisMode.FOCUSED_SCALE, TaskLayoutPolicy.chartAxes(240, 208))
+    }
+
+    @Test
+    fun portraitStaysBottomWhenKeyboardReducesHeight() {
+        val keyboard=TaskLayoutPolicy.decide(711,240,portrait=true)
+        assertEquals(TaskNavigationMode.BOTTOM,keyboard.navigation)
+        assertFalse(keyboard.twoPaneAllowed)
+        assertFalse(TaskLayoutPolicy.decide(1000,600,portrait=true).twoPaneAllowed)
+        assertEquals(TaskNavigationMode.BOTTOM,TaskLayoutPolicy.decide(599,320).navigation)
     }
 
     @Test(expected = IllegalArgumentException::class)

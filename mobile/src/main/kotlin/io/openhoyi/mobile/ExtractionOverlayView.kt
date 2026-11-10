@@ -122,6 +122,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var selected: ChartMetric? = null
     private val focusMetric get() = selected ?: ChartMetric.PRESSURE
     private val buttons = linkedMapOf<ChartMetric, Button>()
+    private val focusIndicators=linkedMapOf<ChartMetric,Drawable>()
     private val liveTiles = linkedMapOf<ChartMetric, android.widget.FrameLayout>()
     private val liveValues = linkedMapOf<ChartMetric, Pair<TextView, TextView>>()
     private val liveRanges = linkedMapOf<ChartMetric, TextView>()
@@ -338,28 +339,43 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             configureLiveChrome()
             requestLayout()
         }
+    /** Presentation budget only: query unchanged renderer gutters, never alter an axis or range. */
+    fun liveHeightForPlotAspect(width:Int,ratio:Float):Int {
+        val probeHeight=dp(1000f).toInt()
+        val box=productRenderer?.bounds(width,probeHeight,data,focusMetric,false) ?: return dp(320f).toInt()
+        return kotlin.math.ceil(liveHeaderHeightPx+probeHeight-box.height()+box.width()*ratio).toInt().coerceAtLeast(dp(260f).toInt())
+    }
+    /** Reparents the same interactive metric controls, preserving telemetry and accessibility. */
+    fun attachLiveReadouts(parent: LinearLayout) {
+        check(liveCompactChrome)
+        (legend.parent as? ViewGroup)?.removeView(legend)
+        parent.addView(legend, if(parent.orientation==VERTICAL) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(0,-2,1f))
+    }
+
     private fun configureLiveChrome() {
         if (!liveCompactChrome) return
         removeView(header)
-        headerContent.setPadding(0,liveHeaderHeightPx,0,0)
-        compactTop.addView(header, android.widget.FrameLayout.LayoutParams(-1,-1).apply { marginEnd = dp(128f).toInt() })
-        val pressure = requireNotNull(liveValues[ChartMetric.PRESSURE])
-        gauge = LivePressureGauge(context,requireNotNull(visual),pressure.first,pressure.second).also {
-            compactTop.addView(it,android.widget.FrameLayout.LayoutParams(dp(112f).toInt(),dp(96f).toInt(),android.view.Gravity.TOP or android.view.Gravity.END))
-        }
-        addView(compactTop,0,LayoutParams(-1,dp(96f).toInt()))
+        addView(compactTop,0,LayoutParams(-1,liveHeaderHeightPx))
         liveTiles.forEach { (metric,tile) ->
+            tile.background = null
             val body = tile.getChildAt(0) as LinearLayout
             body.orientation = HORIZONTAL; body.gravity = android.view.Gravity.CENTER_VERTICAL
-            body.setPadding(dp(4f).toInt(),0,dp(4f).toInt(),0)
+            body.setPadding(dp(2f).toInt(),0,dp(2f).toInt(),0)
             body.layoutParams = android.widget.FrameLayout.LayoutParams(-1,-2,android.view.Gravity.CENTER_VERTICAL)
             val name = body.getChildAt(0) as TextView
             // Vertical LinearLayout gave this label MATCH_PARENT width; it must not consume a horizontal row.
             name.layoutParams = LayoutParams(-2,-2)
             name.compoundDrawablePadding = dp(3f).toInt()
+            requireNotNull(visual).palette.apply(name, TaskProductVisualStyle.Type(15,400,22))
+            liveValues[metric]?.let { (number, unit) ->
+                requireNotNull(visual).palette.apply(number, TaskProductVisualStyle.Type(18,500,26))
+                requireNotNull(visual).palette.apply(unit, TaskProductVisualStyle.Type(15,400,22))
+                number.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric)); unit.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric))
+            }
+            name.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric))
             val quantity = body.getChildAt(1) as LinearLayout
             quantity.layoutParams = LayoutParams(-2,-2).apply { marginStart = dp(6f).toInt() }
-            quantity.visibility = if (metric == ChartMetric.PRESSURE) GONE else VISIBLE
+            quantity.visibility = VISIBLE
             liveRanges[metric]?.visibility = GONE
         }
         rebuildProjection()
@@ -384,32 +400,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
         if (liveCompactChrome) {
-            val available = MeasureSpec.getSize(widthMeasureSpec)
-            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-            val requiredColumn = liveTiles.values.maxOf { tile ->
-                val body = tile.getChildAt(0) as LinearLayout
-                val name = body.getChildAt(0)
-                val quantity = body.getChildAt(1)
-                name.measure(natural,natural); quantity.measure(natural,natural)
-                name.measuredWidth + (if (quantity.visibility == GONE) 0 else quantity.measuredWidth + dp(6f).toInt()) + dp(8f).toInt()
-            }
-            val narrow = available - dp(128f) < requiredColumn * 2 + dp(8f)
-            val topInset = if (narrow) maxOf(liveHeaderHeightPx,dp(96f).toInt()) else liveHeaderHeightPx
-            if (headerContent.paddingTop != topInset) headerContent.setPadding(0,topInset,0,0)
-            liveTiles.values.forEach { tile ->
-                val body = tile.getChildAt(0) as LinearLayout
-                body.orientation = if (narrow) VERTICAL else HORIZONTAL
-                body.gravity = if (narrow) android.view.Gravity.START else android.view.Gravity.CENTER_VERTICAL
-                (body.getChildAt(1).layoutParams as LayoutParams).marginStart = if (narrow) 0 else dp(6f).toInt()
-            }
-            val innerWidth = (available - if (narrow) 0 else dp(128f).toInt()).coerceAtLeast(0)
-            // Use the same explicit width in the natural-content pass and FrameLayout's final
-            // pass. Relative end margins can retain a resolved physical margin after rotation.
-            headerContent.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY), natural)
-            val chromeHeight = maxOf(dp(96f).toInt(),headerContent.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())
-            header.layoutParams = android.widget.FrameLayout.LayoutParams(innerWidth,chromeHeight,
-                android.view.Gravity.TOP or android.view.Gravity.START)
-            if (compactTop.layoutParams.height != chromeHeight) compactTop.layoutParams.height = chromeHeight
+            if (compactTop.layoutParams.height != liveHeaderHeightPx) compactTop.layoutParams.height = liveHeaderHeightPx
             super.onMeasure(widthMeasureSpec,heightMeasureSpec)
             return
         }
@@ -544,14 +535,14 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
         val name = palette.text(if (metric == ChartMetric.WEIGHT) context.getString(R.string.task_extraction_scale)
             else metricName(metric), TaskProductVisualStyle.Type(14, 400, 20), "product/extraction/metric/$metric/name")
-        name.setTextColor(metricColor(metric)); name.setCompoundDrawablesRelative(MetricSwatch(metric), null, null, null)
+        name.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric)); name.setCompoundDrawablesRelative(MetricSwatch(metric), null, null, null)
         name.compoundDrawablePadding = dp(4f).toInt()
         body.addView(name)
         val quantity = LinearLayout(context).apply { orientation = HORIZONTAL; isBaselineAligned = true }
         val number = palette.text("—", TaskProductVisualStyle.Type(24, 500, 32), "product/extraction/metric/$metric/number")
         val unit = palette.text(displayUnit(metric), TaskProductVisualStyle.Type(14, 400, 20), "product/extraction/metric/$metric/unit")
         number.setSingleLine(true); unit.setSingleLine(true)
-        number.setTextColor(metricColor(metric)); unit.setTextColor(metricColor(metric))
+        number.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric)); unit.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric))
         quantity.addView(number); quantity.addView(unit, LayoutParams(-2, -2).apply { marginStart = dp(4f).toInt() })
         body.addView(quantity)
         val range = palette.text("", TaskProductVisualStyle.Type(12, 400, 18), "chart-range:$metric", true)
@@ -623,10 +614,17 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         buttons.forEach { (metric, button) ->
             // The initial pressure axis is focused without dimming other current curves.
             val focused = focusMetric == metric
+            if(liveCompactChrome) liveTiles[metric]?.let { tile ->
+                val name=(tile.getChildAt(0) as LinearLayout).getChildAt(0) as TextView
+                val face=TaskTypography.face(context,if(focused) 500 else 400)
+                if(name.typeface!==face) name.typeface=face
+                val marker=if(focused) focusIndicators.getOrPut(metric) {MetricFocusIndicator(metric)} else null
+                if(tile.foreground!==marker) tile.foreground=marker
+            }
             if (button.isSelected != focused) {
                 button.isSelected = focused
                 liveTiles[metric]?.background = requireNotNull(visual).palette.shape(
-                    if (focused) requireNotNull(visual).palette.selected else android.graphics.Color.TRANSPARENT,
+                    if (focused && !liveCompactChrome) requireNotNull(visual).palette.selected else android.graphics.Color.TRANSPARENT,
                     radius = 8)
                 button.typeface = TaskTypography.face(context, if (visual != null) 400 else if (focused) 700 else 400)
             }
@@ -772,6 +770,17 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         })
     }
 
+    private inner class MetricFocusIndicator(private val metric: ChartMetric):Drawable() {
+        private val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply {strokeWidth=dp(1.5f);strokeCap=Paint.Cap.ROUND}
+        override fun draw(canvas:Canvas) {
+            paint.color=metricColor(metric)
+            canvas.drawLine(dp(2f),bounds.bottom-dp(3f),dp(30f),bounds.bottom-dp(3f),paint)
+        }
+        override fun setAlpha(alpha:Int) {paint.alpha=alpha}
+        override fun setColorFilter(filter:android.graphics.ColorFilter?) {paint.colorFilter=filter}
+        @Deprecated("Deprecated in Android") override fun getOpacity()=android.graphics.PixelFormat.TRANSLUCENT
+    }
+
     private inner class MetricSwatch(private val metric: ChartMetric) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2f) }
         init { setBounds(0, 0, dp(18f).toInt(), dp(12f).toInt()) }
@@ -792,10 +801,39 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     /** Four readouts stay whole; actual text measurement decides one or two rows. */
     private inner class LegendLayout(context: Context) : ViewGroup(context) {
+        private val separatorPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=0xffdfe5e1.toInt();strokeWidth=dp(1f) }
+        override fun dispatchDraw(canvas: Canvas) {
+            super.dispatchDraw(canvas)
+            if(liveCompactChrome && naturalRow) for(i in 1 until childCount) {
+                val x=getChildAt(i).left-dp(3f)
+                canvas.drawLine(x,height/2f-dp(8f),x,height/2f+dp(8f),separatorPaint)
+            }
+        }
         private val gap get() = dp(4f).toInt()
         private var columns = 4
+        private var naturalRow = false
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val available = MeasureSpec.getSize(widthMeasureSpec)
+            naturalRow=false
+            if(liveCompactChrome && resources.configuration.orientation!=android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+                val unspecified=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
+                val widths=(0 until childCount).map { i ->
+                    val body=(getChildAt(i) as android.widget.FrameLayout).getChildAt(0)
+                    body.measure(unspecified,unspecified)
+                    body.measuredWidth+dp(16f).toInt()
+                }
+                if(widths.sum()<=available) {
+                    var wantedHeight=dp(48f).toInt()
+                    widths.forEachIndexed { i,w ->
+                        val body=(getChildAt(i) as android.widget.FrameLayout).getChildAt(0)
+                        wantedHeight=maxOf(wantedHeight,body.measuredHeight)
+                    }
+                    widths.forEachIndexed { i,w -> getChildAt(i).measure(MeasureSpec.makeMeasureSpec(w,MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(wantedHeight,MeasureSpec.EXACTLY)) }
+                    naturalRow=true
+                    setMeasuredDimension(available,wantedHeight)
+                    return
+                }
+            }
             val wide = ((available - gap * 3) / 4).coerceAtLeast(1)
             var singleRowFits = true
             fun wholeSingleLine(view: View): Boolean = if (view.visibility == GONE) true else when (view) {
@@ -820,7 +858,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     if ((child as Button).lineCount > 2 || child.measuredHeight > dp(64f)) singleRowFits = false
                 }
             }
-            columns = if (singleRowFits) 4 else 2
+            columns = if (liveCompactChrome && resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) 2 else if (singleRowFits) 4 else 2
             val childWidth = ((available - gap * (columns - 1)) / columns).coerceAtLeast(1)
             var rowHeight = 0
             var totalHeight = 0
@@ -846,6 +884,16 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             setMeasuredDimension(available, totalHeight)
         }
         override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+            if(naturalRow) {
+                var x=0
+                for(i in 0 until childCount) {
+                    val child=getChildAt(i)
+                    val start=if(layoutDirection==View.LAYOUT_DIRECTION_RTL) width-x-child.measuredWidth else x
+                    child.layout(start,0,start+child.measuredWidth,child.measuredHeight)
+                    x+=child.measuredWidth
+                }
+                return
+            }
             var y = 0
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
@@ -863,6 +911,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
 
     private inner class MetricPlot(context: Context) : View(context) {
+        private val endpointLabels=LiveEndpointLabelLayer(context,::metricColor)
         private val plotBounds = RectF()
         init {
             isFocusable = true
@@ -915,6 +964,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
                     if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))
+                if(liveChart && liveCompactChrome && endpointLabels.draw(canvas,plotBounds,rendered,revealThroughMs,unavailableLiveMetrics,traceIdentity)) postInvalidateOnAnimation()
                 return
             }
             val fm = labels.fontMetrics

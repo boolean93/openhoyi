@@ -27,7 +27,7 @@ class CurveShareActivity : ThemedActivity() {
         if (doc == null) { HoyiUi.label(this, body, getString(R.string.profiles_missing), 17); return }
         document = doc
         exportedUri = savedInstanceState?.getString("exportedUri")?.let(Uri::parse)
-        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .38f, supportingMaxWidthDp = 440, boundedSecondaryViewport = true).apply {
+        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .38f, supportingMaxWidthDp = 440, boundedSecondaryViewport = true, unifiedPortrait = true).apply {
             fillSecondaryViewport = true
             listOf(primaryBody, secondaryBody).forEach { pane ->
                 pane.setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
@@ -69,10 +69,11 @@ class CurveShareActivity : ThemedActivity() {
         style.action(support, getString(R.string.ui_full_details), "product/share/details") {
             beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
         }
-        support.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
+        if(!workspace.portraitScroll) support.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
         style.add(support, style.text(getString(R.string.profiles_text_hint), TaskProductVisualStyle.auxiliary,
             "product/share/privacy", true), 16)
-        actions.addView(android.widget.ScrollView(this).apply {
+        if(workspace.portraitScroll) actions.addView(support,LinearLayout.LayoutParams(-1,-2))
+        else actions.addView(android.widget.ScrollView(this).apply {
             tag = "product/share/support-scroll"; isFillViewport = true; addView(support)
         }, LinearLayout.LayoutParams(-1, 0, 1f))
 

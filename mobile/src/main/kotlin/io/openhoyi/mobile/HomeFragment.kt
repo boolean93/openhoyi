@@ -58,10 +58,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var coffee: TextView
     private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
+    private val boilerDials = mutableListOf<BoilerTemperatureDial>()
     private lateinit var brewBoilerTemperature: TextView
     private lateinit var brewBoilerPressure: TextView
     private lateinit var steamBoilerTemperature: TextView
     private lateinit var steamBoilerPressure: TextView
+    private lateinit var boilerWriteStatus: TextView
     private lateinit var brewBoilerTarget: TextView
     private lateinit var steamBoilerTarget: TextView
     private lateinit var brewBoilerToggle: Button
@@ -125,6 +127,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var doseStateSummary: TextView
     private lateinit var doseQuantity: TextView
     private lateinit var doseUnit: TextView
+    private val homeAccent = android.graphics.Color.rgb(0, 158, 72)
     private val productStyle by lazy { TaskProductVisualStyle(host) }
     private lateinit var temperatureSummary: TextView
     private lateinit var usageSummary: TextView
@@ -135,14 +138,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         override fun run() { render(); if (visible) handler.postDelayed(this, 250) }
     }
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
+        boilerDials.clear()
         feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(productStyle.page)
+            setBackgroundColor(android.graphics.Color.rgb(250,252,250))
         }
-        val shortHome = resources.configuration.screenHeightDp <= 420
+        val phoneHome = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val shortHome = !phoneHome && resources.configuration.screenHeightDp <= 420
         val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
-        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(if (shortHome) 1 else 8), dp(16), dp(if (shortHome) 1 else 8)) }
+        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4)) }
         root.addView(ScrollView(host).apply {
             tag = "product/home/page-scroll"
             isFillViewport = false
@@ -218,10 +223,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         button(deviceCard, getString(R.string.extraction_title)) {
             host.showExtraction()
         }
-        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { tag = "product/home/service-status" }
+        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(18,500,26)); tag = "product/home/service-status" }
         content.removeView(status)
         val machineRow = productStyle.row("product/home/machine-status").apply {
-            gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
+            gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(42)
         }
         val compactTopRow = if (shortWideHome) productStyle.row("product/home/compact-top").also {
             it.gravity = android.view.Gravity.CENTER_VERTICAL
@@ -238,49 +243,51 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 setPadding(dp(8), paddingTop, dp(8), paddingBottom)
             }
         }
-        val spaciousHome = resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
+        val spaciousHome = !phoneHome && resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
-        content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 0 else 8) })
+        content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { if(spaciousHome) topMargin=dp(8) })
+        boilerWriteStatus=productStyle.text("",TaskProductVisualStyle.Type(14,400,22),"product/home/boiler-write-status").apply {
+            visibility=View.GONE; setPadding(0,dp(8),0,dp(8))
+        }
+        content.addView(boilerWriteStatus,LinearLayout.LayoutParams(-1,-2))
         fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {
-                setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 0 else 4),
-                    dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 0 else 4))
+                setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4),
+                    dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4))
                 background = productStyle.shape(productStyle.surface, true)
             }
             boilerRow.addBoiler(card)
-            val heading = productStyle.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true)
+            val heading = productStyle.text(getString(label), TaskProductVisualStyle.Type(14, 500, 20))
             heading.text = getString(if (tagName == "brew-boiler") R.string.home_brew_boiler else R.string.home_steam_boiler)
-            val value = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 40 else 19, 700,
-                if (spaciousHome) 48 else 25), "product/home/$tagName/temperature")
-            val pressure = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 40 else 19, 700,
-                if (spaciousHome) 48 else 25), "product/home/$tagName/pressure")
-            val target = productStyle.text("—", TaskProductVisualStyle.auxiliary, "product/home/$tagName/target", true)
+            val value = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 48 else if (phoneHome) 36 else 19, 700,
+                if (spaciousHome) 58 else if (phoneHome) 44 else 25), "product/home/$tagName/temperature")
+            value.setSingleLine(true)
+            value.setHorizontallyScrolling(false)
+            value.setAutoSizeTextTypeUniformWithConfiguration(16, if (spaciousHome) 48 else if (phoneHome) 36 else 19, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+            val pressure = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 48 else if (phoneHome) 36 else 19, 700,
+                if (spaciousHome) 58 else if (phoneHome) 44 else 25), "product/home/$tagName/pressure")
+            val target = productStyle.text("—", TaskProductVisualStyle.Type(16, 400, 24), "product/home/$tagName/target", true)
             val toggle = button(card, getString(R.string.setting_on)) { confirmBoilerChange(change()) }.apply {
                 tag = "product/home/$tagName/toggle"; minimumHeight = dp(48)
             }
-            val controls = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-            controls.addView(heading, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
+            val dial = BoilerTemperatureDial(host, heading, value, target)
+            boilerDials += dial
+            card.background = null
+            card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
+            card.addView(target, LinearLayout.LayoutParams(-1,-2))
+            productStyle.apply(pressure, TaskProductVisualStyle.Type(if (phoneHome) 16 else 18, 400, if (phoneHome) 24 else 26))
+            pressure.gravity = android.view.Gravity.CENTER
+            card.addView(pressure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
             (toggle.parent as? android.view.ViewGroup)?.removeView(toggle)
-            controls.addView(toggle, LinearLayout.LayoutParams(-2, dp(48)))
-            card.addView(controls)
-            val readings = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-            fun reading(labelId: Int, field: TextView) {
-                val column = if (shortHome) productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-                    else productStyle.column()
-                val label = productStyle.text(getString(labelId), TaskProductVisualStyle.auxiliary, secondary = true)
-                if (shortHome) {
-                    field.id = View.generateViewId(); label.labelFor = field.id
-                    column.addView(label, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
-                    column.addView(field, LinearLayout.LayoutParams(-2, -2))
-                } else { column.addView(label); column.addView(field) }
-                readings.addView(column, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                    if (readings.childCount > 0) marginStart = dp(if (spaciousHome) 16 else 4)
-                })
-            }
-            reading(R.string.home_brew_temperature.takeIf { tagName == "brew-boiler" } ?: R.string.home_steam_temperature, value)
-            reading(R.string.home_brew_pressure.takeIf { tagName == "brew-boiler" } ?: R.string.home_steam_pressure, pressure)
-            card.addView(readings, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (spaciousHome) 4 else 0) })
-            productStyle.add(card, target)
+            productStyle.apply(toggle, TaskProductVisualStyle.Type(if (phoneHome) 16 else 20,400,if (phoneHome) 24 else 28))
+            toggle.setTextColor(android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),intArrayOf(productStyle.onDisabled,productStyle.ink)))
+            toggle.background = null
+            toggle.setCompoundDrawablesRelative(HomePowerDrawable(resources.displayMetrics.density, homeAccent), null, null, null)
+            toggle.compoundDrawablePadding = dp(8)
+            card.addView(toggle, LinearLayout.LayoutParams(-2, -2).apply {
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                topMargin = 0
+            })
             return listOf(value, pressure, target, toggle)
         }
         boiler(R.string.home_brew_temperature, "brew-boiler") {
@@ -291,21 +298,65 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             MachineSettingChange.SteamHeating(!(service?.snapshot?.settings?.steamHeating ?: false))
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as Button }
+        if (spaciousHome || phoneHome) {
+            val scroll=root.findViewWithTag<ScrollView>("product/home/page-scroll")
+            val updateBudget=View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                val available=scroll.height
+                if(available>0) {
+                    boilerDials.forEach { dial ->
+                        val parent=dial.parent as View
+                        val diameter=minOf(dp(216),(parent.width-parent.paddingLeft-parent.paddingRight-dp(4)).coerceAtLeast(dp(112)))
+                        if(dial.layoutParams.width!=diameter) dial.layoutParams=(dial.layoutParams as LinearLayout.LayoutParams).apply {width=diameter;height=diameter}
+                    }
+                }
+            }
+            scroll.addOnLayoutChangeListener(updateBudget)
+            content.addOnLayoutChangeListener(updateBudget)
+        }
         quickRow = productStyle.column("product/home/quick-extraction")
-        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 0 else 8) })
-        if (spaciousHome) quickRow.addView(productStyle.text(getString(R.string.home_quick_curves),
-            TaskProductVisualStyle.section, "product/home/quick-title"))
+        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2))
+        val previewLegend=productStyle.text("",TaskProductVisualStyle.Type(12,400,20),"product/home/preview-legend").apply {
+            val pressure="━ " + getString(R.string.curve_control_mode_pressure)
+            val flow="━ " + getString(R.string.curve_control_mode_flow)
+            text=android.text.SpannableString("$pressure    $flow").apply {
+                setSpan(android.text.style.ForegroundColorSpan(productStyle.pressure),0,pressure.length,0)
+                setSpan(android.text.style.ForegroundColorSpan(productStyle.accent),pressure.length+4,length,0)
+            }
+            contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
+        }
+        if(spaciousHome || phoneHome) {
+            val quickTitle=productStyle.text(getString(R.string.home_quick_curves),TaskProductVisualStyle.Type(22,500,32),"product/home/quick-title")
+            val previewHeading=object:LinearLayout(host) {
+                init {gravity=android.view.Gravity.CENTER_VERTICAL;addView(quickTitle);addView(previewLegend)}
+                override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
+                    val natural=View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED)
+                    quickTitle.measure(natural,natural);previewLegend.measure(natural,natural)
+                    val stacked=quickTitle.measuredWidth+previewLegend.measuredWidth+dp(16)>View.MeasureSpec.getSize(widthMeasureSpec)
+                    orientation=if(stacked) VERTICAL else HORIZONTAL
+                    val titleWidth=if(stacked) -1 else 0
+                    val titleWeight=if(stacked) 0f else 1f
+                    val titleParams=quickTitle.layoutParams as LayoutParams
+                    if(titleParams.width!=titleWidth || titleParams.weight!=titleWeight) quickTitle.layoutParams=LayoutParams(titleWidth,-2,titleWeight)
+                    val legendWidth=if(stacked) -1 else -2
+                    if(previewLegend.layoutParams.width!=legendWidth) previewLegend.layoutParams=LayoutParams(legendWidth,-2)
+                    previewLegend.gravity=if(stacked) android.view.Gravity.START else android.view.Gravity.END
+                    super.onMeasure(widthMeasureSpec,heightMeasureSpec)
+                }
+            }
+            quickRow.addView(previewHeading,LinearLayout.LayoutParams(-1,-2))
+        } else quickRow.addView(previewLegend,LinearLayout.LayoutParams(-1,-2))
         lastCurveRow = productStyle.row("product/home/last-curve").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
-            minimumHeight = dp(48)
+            minimumHeight = dp(if(spaciousHome) 76 else 48)
             setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0),
                 dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0))
             background = productStyle.shape(productStyle.surface, true)
+            elevation=resources.displayMetrics.density
         }
         if (compactTopRow != null) compactTopRow.addView(lastCurveRow,
             LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
         else quickRow.addView(lastCurveRow, LinearLayout.LayoutParams(-1, -2).apply {
-            if (spaciousHome) topMargin = dp(8)
+            if (spaciousHome) topMargin = dp(6)
         })
         lastCurvePreview = CurveLibrarySparklineView(host, productStyle).apply {
             visibility = View.GONE
@@ -323,31 +374,50 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             marginEnd = dp(if (shortHome) 8 else 16)
         })
         val lastWords = productStyle.column()
-        lastCurveRow.addView(lastWords, LinearLayout.LayoutParams(0, -2, 1f))
+        lastCurveRow.addView(lastWords, if(phoneHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(0, -2, 1f))
         val lastHeading = productStyle.text(getString(R.string.home_last_heading),
-            TaskProductVisualStyle.Type(if (shortHome) 11 else 14, 400, if (shortHome) 16 else 20),
+            TaskProductVisualStyle.Type(17, 400, 24),
             secondary = true)
         lastWords.addView(lastHeading)
         lastCurveName = productStyle.text(getString(R.string.history_no_local),
-            TaskProductVisualStyle.Type(if (shortHome) 13 else 18, 500, if (shortHome) 18 else 26),
+            TaskProductVisualStyle.Type(20, 500, 28),
             "product/home/quick-recipe").apply {
-            maxLines = 1
+            maxLines = if(phoneHome) 3 else 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         lastWords.addView(lastCurveName)
         quickLaunch = button(lastCurveRow, getString(R.string.home_curve_select), primary = true) {
             useLastCurve()
         }.apply {
+            textSize=21f
+            setSingleLine(true)
             tag = "product/home/quick-launch"
-            layoutParams = LinearLayout.LayoutParams(-2, dp(48)).apply { marginStart = dp(8) }
+            minimumHeight=dp(48); minHeight=dp(48)
+            layoutParams = LinearLayout.LayoutParams((dp(124)*resources.configuration.fontScale.coerceAtLeast(1f)).toInt(), -2).apply { marginStart = dp(8) }
         }
-        val presetRow = productStyle.row("product/home/direct-presets")
+        if(phoneHome) {
+            lastCurveRow.orientation=LinearLayout.VERTICAL
+            lastCurveDivider.visibility=View.GONE
+            (lastCurvePreview.layoutParams as LinearLayout.LayoutParams).apply { width=-1; height=dp(44) }
+            (quickLaunch.layoutParams as LinearLayout.LayoutParams).apply { width=-1; marginStart=0; topMargin=dp(8) }
+        }
+        val presetRow = productStyle.column("product/home/direct-presets").apply {
+            orientation=if(phoneHome) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        }
+        var phonePresetRow:LinearLayout?=null
         quickRow.addView(presetRow, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(if (shortHome) 0 else 8)
+            topMargin = dp(if (shortHome) 0 else 6)
         })
         directPresets = (1..5).map { slot ->
-            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 80 else 48) }
-            presetRow.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
+            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else 80) }
+            if(phoneHome) {
+                if(slot%2==1) {
+                    phonePresetRow=productStyle.row()
+                    presetRow.addView(phonePresetRow,LinearLayout.LayoutParams(-1,-2).apply {if(slot>1) topMargin=dp(10)})
+                }
+                phonePresetRow!!.addView(tile,LinearLayout.LayoutParams(0,-2,1f).apply {if(slot%2==0) marginStart=dp(10)})
+                if(slot==5) phonePresetRow!!.addView(View(host),LinearLayout.LayoutParams(0,1,1f).apply {marginStart=dp(10)})
+            } else presetRow.addView(tile, LinearLayout.LayoutParams(0, (dp(if (spaciousHome) 120 else 96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt(), 1f).apply {
                 if (slot > 1) marginStart = dp(if (spaciousHome) 8 else 4)
             })
             val button = productStyle.button(Button(host), outline = spaciousHome).apply {
@@ -357,14 +427,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
             val contents = LinearLayout(host).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = android.view.Gravity.CENTER
-                setPadding(dp(4), dp(if (shortHome) 1 else 6), dp(4), dp(if (shortHome) 1 else 6))
+                gravity = android.view.Gravity.TOP
+                setPadding(dp(10), dp(if (shortHome) 1 else 6), dp(10), dp(if (shortHome) 1 else 6))
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             }
-            tile.addView(contents, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.CENTER))
+            tile.addView(contents, FrameLayout.LayoutParams(-1, if(phoneHome) -2 else -1))
             val slotLabel = productStyle.text(getString(R.string.home_slot, slot.toString()),
-                TaskProductVisualStyle.Type(if (shortHome) 11 else 14, 400, if (shortHome) 16 else 20),
-                secondary = true).apply { gravity = android.view.Gravity.CENTER }
+                TaskProductVisualStyle.Type(14, 400, 20),
+                secondary = true).apply { gravity = android.view.Gravity.START }
             val previewHeader = if (shortWideHome) productStyle.row().apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 contents.addView(this, LinearLayout.LayoutParams(-1, -2))
@@ -377,14 +447,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
             previewHeader.addView(sparkline, if (shortWideHome)
                 LinearLayout.LayoutParams(0, dp(24), 1f).apply { marginStart = dp(4) }
-            else LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 32)))
-            val name = productStyle.text("", TaskProductVisualStyle.Type(if (shortHome) 11 else 14,
-                500, if (shortHome) 16 else 20)).apply {
+            else LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 40)))
+            val name = productStyle.text("", TaskProductVisualStyle.Type(17, 500, 24)).apply {
                 gravity = android.view.Gravity.CENTER
-                maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
+                maxLines = if(phoneHome) Int.MAX_VALUE else 2
+                ellipsize = if(phoneHome) null else android.text.TextUtils.TruncateAt.END
+                if(phoneHome) minimumHeight=dp(48)
             }
-            contents.addView(name, LinearLayout.LayoutParams(-1, -2))
+            contents.addView(name, if(phoneHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(-1, 0, 1f))
             DirectPresetVisual(button, name, sparkline)
         }
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
@@ -855,21 +925,30 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             else -> R.color.mobile_muted
         })
         val readings = MachineHomeReadings.from(liveMachine)
+        val brewCurrent = when (liveMachine) {
+            is IdleTelemetry -> liveMachine.brewTemperatureHundredthsC / 100f
+            is ExtractionTelemetry -> liveMachine.brewTemperatureHundredthsC / 100f
+            else -> null
+        }
+        boilerDials.getOrNull(0)?.present(brewCurrent, s.settings?.brewTemperatureC?.toFloat())
+        boilerDials.getOrNull(1)?.present(idle?.steamTemperatureHundredthsC?.div(100f), s.settings?.steamTemperatureC?.toFloat())
         brewTemperature.show(readings.brewTemperature)
-        brewBoilerTemperature.showMetric(readings.brewTemperature)
+        brewBoilerTemperature.showMetric(readings.brewTemperature.compactTemperature())
         brewPressure.show(readings.brewPressure)
-        brewBoilerPressure.showMetric(readings.brewPressure)
+        brewBoilerPressure.show(getString(R.string.task_chart_pressure) + " " + readings.brewPressure)
         steamTemperature.show(readings.steamTemperature)
-        steamBoilerTemperature.showMetric(readings.steamTemperature)
+        steamBoilerTemperature.showMetric(readings.steamTemperature.compactTemperature())
         steamPressure.show(readings.steamPressure)
-        steamBoilerPressure.showMetric(readings.steamPressure)
+        steamBoilerPressure.show(getString(R.string.task_chart_pressure) + " " + readings.steamPressure)
         brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.brewTemperatureC?.let { "${it} °C" } ?: "—"))
         steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.steamTemperatureC?.let { "${it} °C" } ?: "—"))
         val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
         brewBoilerToggle.isEnabled = boilerEditable
         steamBoilerToggle.isEnabled = boilerEditable
+        listOf(brewBoilerToggle,steamBoilerToggle).forEach { it.compoundDrawablesRelative.firstOrNull()?.alpha=if(boilerEditable) 255 else 85 }
         brewBoilerToggle.show(getString(if (s.settings?.brewHeating == true) R.string.setting_off else R.string.setting_on))
         steamBoilerToggle.show(getString(if (s.settings?.steamHeating == true) R.string.setting_off else R.string.setting_on))
+        boilerWriteStatus.visibility=View.GONE
         val writeState = owner?.settingWriteState
         if (writeState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
                 SettingsWriteTracker.State.UNKNOWN)) {
@@ -878,8 +957,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 SettingsWriteTracker.State.WAITING_READBACK -> R.string.machine_settings_setting_waiting
                 else -> R.string.machine_settings_setting_unknown
             })
-            brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.brewTemperatureC?.let { "${it} °C" } ?: "—") + " · " + message)
-            steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.steamTemperatureC?.let { "${it} °C" } ?: "—") + " · " + message)
+            boilerWriteStatus.show(message)
+            boilerWriteStatus.visibility=View.VISIBLE
+            boilerWriteStatus.setTextColor(if(writeState==SettingsWriteTracker.State.UNKNOWN) getColor(R.color.mobile_danger) else productStyle.muted)
         }
         val liveScale = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.hundredthsGram
             ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.weightHundredthsGram
@@ -983,9 +1063,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 if (button.text.toString() != label) button.text = label
                 val visual = directPresets[index]
                 visual.button.contentDescription = label
+                visual.button.background = productStyle.shape(if (item != null && item.id == selected?.id) android.graphics.Color.rgb(231,247,234) else android.graphics.Color.WHITE, true)
                 visual.button.isEnabled = item?.let(library::canStart) == true
                 visual.name.show(item?.name ?: getString(R.string.home_slot_unconfigured))
-                visual.name.setTextColor(if (visual.button.isEnabled) productStyle.accent else productStyle.onDisabled)
+                visual.name.setTextColor(if (visual.button.isEnabled) 0xff087647.toInt() else productStyle.onDisabled)
                 val thumbnail = HomePresetPreview.from(item, presetScale)
                 visual.sparkline.visibility = if (thumbnail == null) View.GONE else View.VISIBLE
                 if (thumbnail != null) {
@@ -1036,7 +1117,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         lastCurveName.setTextColor(if (ready == null) productStyle.muted else productStyle.ink)
         val preview = ready?.preview
         lastCurvePreview.visibility = if (preview == null) View.GONE else View.VISIBLE
-        lastCurveDivider.visibility = lastCurvePreview.visibility
+        lastCurveDivider.visibility = if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) View.GONE else lastCurvePreview.visibility
         if (preview != null) {
             lastCurvePreview.preview = preview
             lastCurvePreview.scale = CurveStageParameters.SharedScale.from((application as MobileApplication).curves.items)
@@ -1061,11 +1142,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         host.showExtraction(slot = 7, confirmStart = true)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+    private fun String.compactTemperature() = substringBefore(' ').toFloatOrNull()?.let { String.format(Locale.ROOT, "%.1f °C", it) } ?: this
     private fun TextView.showMetric(value: String) {
         if (text.toString() == value) return
         val unitStart = value.indexOf(' ')
         text = if (unitStart < 0) value else SpannableString(value).apply {
-            setSpan(RelativeSizeSpan(0.48f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(RelativeSizeSpan(0.36f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
     private fun number(hundredths: Int) = String.format(Locale.ROOT, "%.2f", hundredths / 100.0)
@@ -1073,10 +1155,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun dotShape(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
-        setColor(when (color) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
+        setColor(when (color) { R.color.mobile_success -> homeAccent; R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
     }
     private fun View.showDot(colorResource: Int) {
-        val color = when (colorResource) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
+        val color = when (colorResource) { R.color.mobile_success -> homeAccent; R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
         val dot = background as? GradientDrawable
         // Replacing an unchanged background emits native accessibility subtree events.
         if (dot == null) background = dotShape(colorResource)
@@ -1115,7 +1197,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(host, parent, title)
     private fun button(parent: LinearLayout, value: String, primary: Boolean = false, action: () -> Unit) =
-        productStyle.button(HoyiUi.button(host, parent, value, primary = primary, action = action), primary)
+        productStyle.button(HoyiUi.button(host, parent, value, primary = primary, action = action), primary).apply {
+            if (primary) background = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(-android.R.attr.state_enabled), productStyle.shape(productStyle.disabled))
+                addState(intArrayOf(), productStyle.shape(homeAccent))
+            } else setTextColor(android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()), intArrayOf(productStyle.onDisabled, homeAccent)))
+        }
     private fun workbenchLink(parent: LinearLayout, value: String, action: () -> Unit) =
         productStyle.button(HoyiUi.button(host, parent, value, action = action)).apply {
             gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL

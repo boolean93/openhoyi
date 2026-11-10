@@ -8,26 +8,38 @@ import android.widget.LinearLayout
 
 /** Pure home layout: the machine image never contains telemetry or controls. */
 internal class MachineHomeView(context: Context, private val spacious: Boolean) : LinearLayout(context) {
+    private var machineImage: ImageView? = null
     private val density = resources.displayMetrics.density
     private fun dp(value: Int) = (value * density).toInt()
+    private val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     private val boilers = LinearLayout(context).apply {
-        orientation = if (spacious) VERTICAL else HORIZONTAL
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
     }
 
     init {
-        orientation = HORIZONTAL
+        orientation = if(portrait) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        if(portrait) {
+            addView(ImageView(context).apply {
+                tag="product/home/machine-hero"; setImageResource(R.drawable.hoyi_machine)
+                scaleType=ImageView.ScaleType.FIT_CENTER
+                contentDescription=context.getString(R.string.home_machine_description)
+            },LayoutParams(-1,dp(156)).apply {bottomMargin=dp(12)})
+        }
+        if (spacious) setPadding(dp(40),0,dp(40),0)
         if (spacious) {
             addView(ImageView(context).apply {
+                machineImage=this
                 tag = "product/home/machine-hero"
                 setImageResource(R.drawable.hoyi_machine)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 adjustViewBounds = true
                 contentDescription = context.getString(R.string.home_machine_description)
-            }, LayoutParams(0, -1, 45f).apply { marginEnd = dp(16) })
+            }, LayoutParams(0, -1, 39f).apply { marginEnd = dp(16) })
         }
         addView(boilers, LayoutParams(if (spacious) 0 else -1, if (spacious) -1 else -2,
-            if (spacious) 55f else 0f))
+            if (spacious) 61f else 0f))
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -35,11 +47,11 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             return
         }
-        // The image keeps its normal 360dp presence, while real boiler text may
+        // The machine fits the real content viewport without scaling past its bounds; boiler text may
         // need more space at large font scales. Both equal-height cards must fit
         // the taller card's natural content before the weighted layout runs.
         val availableWidth = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight - dp(16)).coerceAtLeast(0)
-        val cardWidth = availableWidth * 55 / 100
+        val cardWidth = availableWidth * 61 / 100 / 2
         var naturalCardHeight = 0
         var verticalMargins = 0
         for (index in 0 until boilers.childCount) {
@@ -50,16 +62,20 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
             naturalCardHeight = maxOf(naturalCardHeight, card.measuredHeight)
             verticalMargins += params.topMargin + params.bottomMargin
         }
-        val desiredHeight = maxOf(dp(360), naturalCardHeight * boilers.childCount + verticalMargins + paddingTop + paddingBottom)
+        val desiredHeight = maxOf(dp(340), naturalCardHeight + verticalMargins + paddingTop + paddingBottom)
         val measuredHeight = resolveSize(desiredHeight, heightMeasureSpec)
+        machineImage?.apply {
+            layoutParams.height=(minOf(measuredHeight,dp(340))*.99f).toInt()
+            scaleX=1f
+            scaleY=1f
+            translationY=0f
+        }
         super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
     }
 
     fun addBoiler(card: View) {
-        boilers.addView(card, if (spacious) LayoutParams(-1, 0, 1f).apply {
-            if (boilers.childCount > 0) topMargin = dp(8)
-        } else LayoutParams(0, -2, 1f).apply {
-            if (boilers.childCount > 0) marginStart = dp(8)
+        boilers.addView(card, LayoutParams(0, -2, 1f).apply {
+            if (boilers.childCount > 0) marginStart = dp(if (spacious) 24 else 8)
         })
     }
 }

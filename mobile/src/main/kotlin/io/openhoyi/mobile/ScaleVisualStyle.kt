@@ -112,7 +112,7 @@ internal class ScaleVisualWorkspace(context: Context, private val style: ScaleVi
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val height = MeasureSpec.getSize(heightMeasureSpec)
         val gap = style.palette.dp(24)
-        split = width >= style.palette.dp(240 + 280 + 24)
+        split = resources.configuration.orientation!=android.content.res.Configuration.ORIENTATION_PORTRAIT && width >= style.palette.dp(240 + 280 + 24)
         val secondaryWidth = if (split) (width * .3f).toInt().coerceIn(style.palette.dp(280), style.palette.dp(320)) else width
         primaryWidth = if (split) width - gap - secondaryWidth else width
         secondary.measure(MeasureSpec.makeMeasureSpec(secondaryWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))

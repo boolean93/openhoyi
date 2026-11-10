@@ -275,8 +275,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                     addView(words, LinearLayout.LayoutParams(0, -2, 1f))
                     val title = HoyiUi.label(host, words, "", 16, true).apply {
                         productStyle.apply(this, TaskProductVisualStyle.action)
-                        maxLines = 2
-                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        maxLines = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) Int.MAX_VALUE else 2
+                        ellipsize = if (maxLines == 2) android.text.TextUtils.TruncateAt.END else null
                     }
                     val subtitle = HoyiUi.label(host, words, "", 14, muted = true).apply {
                         productStyle.apply(this, TaskProductVisualStyle.auxiliary, true)
@@ -329,11 +329,13 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
         // The continuous list and genuinely short preview fallback scroll locally, never the whole page.
-        detailTitle = HoyiUi.label(host, detailToolbar, getString(R.string.curve_detail_initial), TaskVisualTokens.TITLE_SP, true).apply {
+        val portraitDetail = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        detailTitle = HoyiUi.label(host, if (portraitDetail) detailPane else detailToolbar, getString(R.string.curve_detail_initial), TaskVisualTokens.TITLE_SP, true).apply {
             productStyle.apply(this, TaskProductVisualStyle.title)
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) }
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = if (portraitDetail) LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
+                else LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) }
+            maxLines = if (portraitDetail) Int.MAX_VALUE else 2
+            ellipsize = if (portraitDetail) null else android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
         }
         val identityFacts = LinearLayout(host).apply { isBaselineAligned = false }
@@ -489,6 +491,18 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             tag = "product/curve-library/use"
             isEnabled = false; visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        if (portraitDetail) {
+            val continuous = detailScroll.getChildAt(0) as LinearLayout
+            continuous.setPadding(dp(8), dp(16), dp(8), dp(16))
+            listOf(detailTitle, detailIdentity, previewMetrics).forEachIndexed { index, view ->
+                (view.parent as android.view.ViewGroup).removeView(view)
+                continuous.addView(view, index, LinearLayout.LayoutParams(-1, -2).apply { if (index > 0) topMargin = dp(8) })
+            }
+            previewFallbackScroll.removeView(previewFallback)
+            continuous.addView(previewFallback, 3, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+            (parameterShortcut.parent as android.view.ViewGroup).removeView(parameterShortcut)
+            continuous.addView(parameterShortcut, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
         }
         collection.onDetailSpaceAvailable = { width, height -> updatePreviewSpace(width, height) }
         search.addTextChangedListener(object : TextWatcher {
@@ -655,7 +669,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         val preview = CurveStageParameters.preview(item)
         val hasPressure = preview.stages.isNotEmpty()
         val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        val normalToolbar = listOf(detailTitle, directEdit, directShare, detailActions) + if (compact) listOf(detailBack) else emptyList()
+        val portraitDetail = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val normalToolbar = (if (portraitDetail) listOf(directEdit, directShare, detailActions) else listOf(detailTitle, directEdit, directShare, detailActions)) + if (compact) listOf(detailBack) else emptyList()
         val directWidth = normalToolbar.sumOf { child ->
             child.measure(natural, natural)
             val params = child.layoutParams as LinearLayout.LayoutParams
@@ -664,6 +679,21 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         val direct = directWidth <= width
         directEdit.visibility = if (direct) View.VISIBLE else View.GONE
         directShare.visibility = if (direct) View.VISIBLE else View.GONE
+        if (portraitDetail) {
+            shortPreview = false
+            detailTitle.visibility = View.VISIBLE
+            detailIdentity.visibility = View.VISIBLE
+            previewMetrics.visibility = View.VISIBLE
+            detailScroll.visibility = View.VISIBLE
+            recipePlan.visibility = if (hasPressure) View.VISIBLE else View.GONE
+            previewFallback.visibility = if (hasPressure) View.GONE else View.VISIBLE
+            previewFallback.text = previewFallbackText(preview)
+            previewFallbackScroll.visibility = View.GONE
+            previewSpacer.visibility = View.GONE
+            stageCaption.visibility = View.GONE; stageHeading.visibility = View.GONE
+            productLayoutEvidence.put("portraitContinuousDetail",true).put("shortPreview",false)
+            return
+        }
         val exactWidth = View.MeasureSpec.makeMeasureSpec(width.coerceAtLeast(0), View.MeasureSpec.EXACTLY)
         val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         fun naturalHeightOf(child: View): Int {
@@ -674,7 +704,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         // Measure the full normal presentation, even when its metadata is currently in fallback.
         // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
         val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(selectionDock)
-        val metadataHeight = listOf(detailIdentity, previewMetrics).sumOf(::naturalHeightOf)
+        val metadataHeight = listOf(detailIdentity, previewMetrics).sumOf(::naturalHeightOf) + if (portraitDetail) naturalHeightOf(detailTitle) else 0
         val contentMinimum = if (hasPressure) dp(160) + dp(8)
             else {
                 rawReasonMeasure.measure(exactWidth, naturalHeight)

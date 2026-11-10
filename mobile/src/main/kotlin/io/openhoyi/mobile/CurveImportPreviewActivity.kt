@@ -73,7 +73,8 @@ class CurveImportPreviewActivity : ThemedActivity() {
         decisions.addView(ScrollView(this).apply { tag = "product/import-preview/information-scroll"; addView(information) },
             LinearLayout.LayoutParams(-1, 0, 1f))
         val name = style.text(doc.name, TaskProductVisualStyle.title, "full-text-details").apply {
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+            maxLines = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) Int.MAX_VALUE else 2
+            ellipsize = if (maxLines == 2) android.text.TextUtils.TruncateAt.END else null
         }
         val mode = style.text(getString(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
             R.string.task_chart_pressure else R.string.home_lever_flow), TaskProductVisualStyle.auxiliary, "product/import-preview/mode").apply {
@@ -208,6 +209,25 @@ class CurveImportPreviewActivity : ThemedActivity() {
         }
         style.add(information, style.text(getString(R.string.curve_visual_library_scope), TaskProductVisualStyle.auxiliary,
             "product/import-preview/scope", true), 16)
+        if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            // Same document, actions and validation; only a single natural document viewport.
+            workspace.onPrimarySpaceAvailable = null
+            val index = body.indexOfChild(workspace)
+            body.removeView(workspace)
+            previewScroll.removeView(preview)
+            (information.parent as android.view.ViewGroup).removeView(information)
+            (dock.parent as android.view.ViewGroup).removeView(dock)
+            val continuous = style.column("product/import-preview/continuous-content").apply {
+                setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
+                addView(preview, LinearLayout.LayoutParams(-1, -2))
+                addView(information, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(16) })
+            }
+            body.addView(ScrollView(this).apply {
+                tag = "product/import-preview/continuous-scroll"; addView(continuous)
+            }, index, LinearLayout.LayoutParams(-1, 0, 1f))
+            body.addView(dock, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
+            productLayoutEvidence.put("portraitContinuousScroll",true)
+        }
     }
     private fun stageTable(doc: CustomCurveDocument) = LinearLayout(this).apply {
         val style = TaskProductVisualStyle(this@CurveImportPreviewActivity)
@@ -216,7 +236,8 @@ class CurveImportPreviewActivity : ThemedActivity() {
             val line = style.row(if (heading) "product/import-preview/table/header" else "product/import-preview/table/row${requireNotNull(stageIndex) + 1}")
             addView(line, LinearLayout.LayoutParams(-1, -2))
             values.forEachIndexed { column, value ->
-                val label = style.text(value, TaskProductVisualStyle.auxiliary.copy(weight = if (heading) 500 else 400))
+                val portraitHeader = heading && resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                val label = style.text(if (portraitHeader) value.replace(" · ", "\n") else value, TaskProductVisualStyle.auxiliary.copy(weight = if (heading) 500 else 400))
                 val cell: android.view.View = if (column == 0 && stageIndex != null) style.row().apply {
                     gravity = android.view.Gravity.CENTER_VERTICAL
                     addView(android.view.View(this@CurveImportPreviewActivity).apply {
@@ -228,7 +249,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
                 cell.setPaddingRelative(style.dp(8), style.dp(4), style.dp(8), style.dp(4))
                 cell.minimumHeight = style.sp(22).toInt() + style.dp(8)
                 cell.background = style.shape(if (heading) style.disabled else style.surface, true, 0)
-                line.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+                line.addView(cell, LinearLayout.LayoutParams(0, if (portraitHeader) -1 else -2, 1f))
             }
         }
         row(listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).map(::getString), true)
