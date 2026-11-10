@@ -316,8 +316,8 @@ def tag_record(api, tag):
 
 def safe_note(value):
     text = html.escape(" ".join(value.split()), quote=False).replace("@", "@\u200b")
-    text = text.replace(":", "&#58;").replace("www.", "www\u200b.")
-    return re.sub(r"([\\`*_{}\[\]()#!|~])", r"\\\1", text)
+    text = re.sub(r"([\\`*_{}\[\]()#!|~])", r"\\\1", text)
+    return text.replace(":", "&#58;").replace("www.", "www\u200b.")
 
 
 def release_body(api, source, records, body):
