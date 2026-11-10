@@ -11,36 +11,33 @@
   },
   "installedApp": {
     "package": "io.openhoyi.mobile.mock",
-    "versionName": "0.1.0",
-    "versionCode": 53,
-    "apkSha256": "43e54777818586ddfffbec39704eba070d0c0b0a3a916a63e34b34b6823d4a3b"
+    "versionName": "0.2.0-preview.76",
+    "versionCode": 76,
+    "apkSha256": "ec64c35acbf549b960e0ed7d0b518b261bd3ddedba60bab388f89c08c67506ce",
+    "signerSha256": "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54"
   },
-  "sourceSha": null,
-  "sourceCommitVerified": false,
-  "notice": "Already-installed development APK; exact source commit not verified. Originals are unmodified adb screenshots. Published images remove only the system bars and are never composited or redrawn; they are not phone layouts.",
+  "sourceSha": "58bbd96ff12f6f72d47130ac6f7bade4e788eef4",
+  "sourceCommitVerified": true,
+  "sourceVerification": {
+    "method": "Local paired build from the merged commit with no app-source changes, then SHA-256 comparison against the installed APK pulled from the tablet",
+    "gitTreeSha": "35afc54399a8a4edcd69466de73318d20a432d52",
+    "buildArguments": [
+      ":mobile:assembleDebug",
+      ":mobile:assembleMock",
+      "-PhoyiVersionCode=76",
+      "-PhoyiVersionName=0.2.0-preview.76"
+    ],
+    "installedApkMatchesBuild": true,
+    "scope": "Source and installed binary identity only; not a reproducible-build claim, release certification, or hardware acceptance"
+  },
+  "notice": "Screenshots are a static landscape snapshot of the merged app source. Originals are unmodified adb screenshots. Display images remove only system bars with a verified contiguous crop; no UI is composited or redrawn. This does not mean every post-merge check or hardware scenario passed.",
   "screens": [
-    {
-      "name": "extraction",
-      "original": "originals/extraction.png",
-      "width": 2560,
-      "height": 1600,
-      "capturedAt": "2026-11-06T00:56:55.462641+00:00",
-      "display": "extraction.png",
-      "displayCropPx": [
-        0,
-        60,
-        2560,
-        1564
-      ],
-      "sha256": "f8c6b8090dcdd568af20ee6f1ebf25d14b58e0b1c1a1eb7c5c3ac6c8e4a4e610",
-      "displaySha256": "8d45d8bc83a9bc0712852c2dab7cec91ba0df8b26e965541294d1e65ba744819"
-    },
     {
       "name": "home",
       "original": "originals/home.png",
       "width": 2560,
       "height": 1600,
-      "capturedAt": "2026-11-06T00:55:16.018213+00:00",
+      "capturedAt": "2026-11-10T12:30:41.336884+00:00",
       "display": "home.png",
       "displayCropPx": [
         0,
@@ -48,15 +45,31 @@
         2560,
         1564
       ],
-      "sha256": "1dbe92d655d5ff0e5ca28e0eda8e1d8053da63abde3121b15756d161bbf5110f",
-      "displaySha256": "55b642929b60552b71b67b6d09c595c8b3c415653e89f039155cb742f3270fa3"
+      "sha256": "efe488ca4bf861b9c9f7a4b6af3b642985521419476c47908519aefd4a747785",
+      "displaySha256": "1cf82c6a5a96f9344445455d4cf2ab555f7d0aaf190eb0d0e8816704054d9892"
+    },
+    {
+      "name": "extraction",
+      "original": "originals/extraction.png",
+      "width": 2560,
+      "height": 1600,
+      "capturedAt": "2026-11-10T12:33:53.897795+00:00",
+      "display": "extraction.png",
+      "displayCropPx": [
+        0,
+        60,
+        2560,
+        1564
+      ],
+      "sha256": "807396099ba131a2505badb3721ce176edf06b72a2da0944e62165c2b0995bea",
+      "displaySha256": "c689047962e7c6a7669fa0ea6e319d4a35b4439271f020048fa2db20bd432ea6"
     },
     {
       "name": "history",
       "original": "originals/history.png",
       "width": 2560,
       "height": 1600,
-      "capturedAt": "2026-11-06T00:54:29.044395+00:00",
+      "capturedAt": "2026-11-10T12:36:37.405126+00:00",
       "display": "history.png",
       "displayCropPx": [
         0,
@@ -64,8 +77,8 @@
         2560,
         1564
       ],
-      "sha256": "b26ad4de1d0e30b149d5a5a302c019f73bef9fe88a5bc9af5afabb797d1f1f24",
-      "displaySha256": "3d5b09e153e5637ad8a37ce3c2f4309dfcba4d27660c8cc0b62a5eccb64e04c3"
+      "sha256": "e4d173dff075336dc862a5a0868ccbfcf5c3f7c1c44ebb9298d9ae5ddecbedf6",
+      "displaySha256": "c5549d402f79e4d59f15fd2b70bfdc04ca26dd4195b4312ec767ea79ac64d538"
     }
   ]
 }
