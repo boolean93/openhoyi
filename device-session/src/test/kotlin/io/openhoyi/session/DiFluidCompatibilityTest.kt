@@ -127,10 +127,77 @@ class DiFluidCompatibilityTest {
             println("Confirmed ${adapter.id}: expected AA02/AA01 profile + official frame -> READY, 76g, no weight-control eligibility")
         }
     }
-    @Test fun unitlessSensorFrameIsRejectedRatherThanGuessed() {
+    @Test fun unitlessSensorFrameIsRawRatherThanGuessed() {
         val sample = "DFDF03000C000002F800000000000A27B0A8".chunked(2).map { it.toInt(16).toByte() }.toByteArray()
         val result = DiFluidCodec.decode(sample)
-        assertTrue(result is DecodeResult.Invalid)
-        println("Confirmed unitless 12-byte payload -> $result")
+        assertTrue(result is DecodeResult.Valid && result.value is DiFluidUnitlessWeight)
     }
+    @Test fun unitlessSessionRevokesRecoversAndResetsOnReconnect() {
+        val adapter=DiFluidScaleProtocolAdapter
+        val f=Fixture(adapter)
+        val endpoint=adapter.notifyEndpoint
+        fun initialize() {
+            f.discover(listOf(CharacteristicInfo(endpoint,true,false,true,false)))
+            f.complete()
+            val start=f.now
+            for(command in adapter.initializationCommands) {
+                f.now=start+command.delayMs;f.session.tick();f.complete()
+            }
+        }
+        fun bytes(hex:String)=hex.chunked(2).map {it.toInt(16).toByte()}.toByteArray()
+        val raw=bytes("DFDF03000C000002F800000000000A27B0A8")
+        val unit=DiFluidCodec.setGrams().frame.toByteArray()
+        val full=bytes("DFDF03000D000002F800000000000A27B000A9")
+        fun notify(b:ByteArray)=f.session.onNotification(f.session.generation,endpoint,b)
+        initialize();notify(full)
+        assertEquals(DeviceState.READY,f.session.state)
+        notify(full.copyOf().apply {this[lastIndex]=0})
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        notify(unit+raw)
+        assertEquals(DeviceState.READY,f.session.state)
+        val nonGram=full.copyOf().apply {
+            this[17]=1
+            this[lastIndex]=(dropLast(1).sumOf {it.toInt() and 255} and 255).toByte()
+        }
+        notify(nonGram)
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        notify(unit+raw)
+        assertEquals(DeviceState.READY,f.session.state)
+        f.session.disconnect();initialize();notify(raw)
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        notify(unit+raw)
+        assertEquals(DeviceState.READY,f.session.state)
+    }
+    @Test fun unitlessRequiresConnectionUnitAndOrderedRevocation() {
+        fun frame(function:Int,command:Int,payload:ByteArray):ByteArray {
+            val body=byteArrayOf(0xDF.toByte(),0xDF.toByte(),function.toByte(),command.toByte(),payload.size.toByte())+payload
+            return body+byteArrayOf((body.sumOf {it.toInt() and 255} and 255).toByte())
+        }
+        val raw=frame(3,0,ByteArray(12).apply {this[3]=10})
+        val negative=frame(3,0,ByteArray(12).apply {for(i in 0..3)this[i]=0xFF.toByte()})
+        val unit=frame(1,4,byteArrayOf(0))
+        val ounces=frame(1,4,byteArrayOf(1))
+        val full=frame(3,0,ByteArray(13).apply {this[3]=10})
+        val adapter=DiFluidScaleProtocolAdapter
+        val events=mutableListOf<ScaleProtocolEvent>()
+        val fresh=adapter.newDecoder {events+=it}
+        assertFalse(fresh(full+raw,0) is DecodeResult.Valid)
+        assertTrue(events.contains(ScaleProtocolEvent.ReadingInvalidated))
+        val decode=adapter.newDecoder {}
+        assertFalse(decode(raw,1) is DecodeResult.Valid)
+        assertTrue(decode(unit+raw,2) is DecodeResult.Valid)
+        val neg=decode(negative,3) as DecodeResult.Valid
+        assertEquals(-10,neg.value.hundredthsGram)
+        assertFalse(decode(raw+ounces,4) is DecodeResult.Valid)
+        assertFalse(decode(unit+raw+raw.copyOf().apply {this[lastIndex]=0},5) is DecodeResult.Valid)
+        assertFalse(decode(raw,6) is DecodeResult.Valid)
+        assertTrue(decode(full,7) is DecodeResult.Valid)
+        assertFalse(decode(raw,8) is DecodeResult.Valid)
+        assertTrue(decode(unit+raw,9) is DecodeResult.Valid)
+        assertFalse(adapter.newDecoder {}(raw,10) is DecodeResult.Valid)
+        assertFalse(decode(frame(3,2,byteArrayOf(1)),11) is DecodeResult.Valid)
+        assertFalse(decode(frame(3,0,ByteArray(11)),12) is DecodeResult.Valid)
+        assertFalse(decode(raw,13) is DecodeResult.Valid)
+    }
+
 }

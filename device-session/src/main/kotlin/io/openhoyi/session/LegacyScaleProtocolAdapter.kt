@@ -101,7 +101,8 @@ object AcaiaLegacyScaleProtocolAdapter:AcaiaScaleProtocolAdapter(AcaiaVariant.A,
 object AcaiaPearlScaleProtocolAdapter:AcaiaScaleProtocolAdapter(AcaiaVariant.AP,"acaia-ap-legacy")
 
 /** Official v1.0 sensor payload has a unit in each full 13-byte payload (g=0).
- * Minimum documented firmware: Microbalance V300 / Ti V010. Older shapes remain unknown. */
+ * Exact 12-byte payloads require a connection-local protocol gram-unit response.
+ * No heuristic offsets or implicit unit from successful writes. */
 abstract class DiFluidProtocolAdapter(service:String,final override val id:String):LegacyDocumentedScaleAdapter() {
     override val capabilities=ScaleCapabilities(tare=true)
     override val writeEndpoint=Endpoint(service,"0000aa02-0000-1000-8000-00805f9b34fb")
@@ -111,18 +112,28 @@ abstract class DiFluidProtocolAdapter(service:String,final override val id:Strin
     override val tareCommand get()=DiFluidCodec.tare()
     override fun newDecoder(onEvent:(ScaleProtocolEvent)->Unit):(ByteArray,Long)->DecodeResult<ScaleObservation> {
         val stream=DiFluidStreamDecoder()
+        var gramsConfirmed=false
         return {bytes,at->
             var observation:DecodeResult<ScaleObservation> = DecodeResult.Unknown(ByteFrame(bytes))
+            fun invalidate(raw:ByteFrame) {
+                observation=DecodeResult.Unknown(raw)
+                onEvent(ScaleProtocolEvent.ReadingInvalidated)
+            }
+            fun weight(value:Int,raw:ByteFrame) {
+                observation=DecodeResult.Valid(ScaleObservation(value,at,
+                    capabilities,ScaleEvidence.DOCUMENTED_TRANSPORT,raw=raw))
+            }
             for(result in stream.feed(bytes))when(result) {
                 is DecodeResult.Valid->when(val message=result.value) {
-                    is DiFluidWeight->observation=DecodeResult.Valid(ScaleObservation(message.hundredths,at,
-                        capabilities,ScaleEvidence.DOCUMENTED_TRANSPORT,raw=message.raw))
-                    is DiFluidUnit->if(message.unit!=0) {
-                        observation=DecodeResult.Unknown(message.raw)
-                        onEvent(ScaleProtocolEvent.ReadingInvalidated)
+                    is DiFluidWeight->weight(message.hundredths,message.raw)
+                    is DiFluidUnitlessWeight->if(gramsConfirmed)weight(message.hundredths,message.raw)
+                        else invalidate(message.raw)
+                    is DiFluidUnit->{
+                        gramsConfirmed=message.unit==0
+                        if(!gramsConfirmed)invalidate(message.raw)
                     }
                 }
-                is DecodeResult.Invalid->{observation=result;onEvent(ScaleProtocolEvent.ReadingInvalidated)}
+                is DecodeResult.Invalid->{gramsConfirmed=false;observation=result;onEvent(ScaleProtocolEvent.ReadingInvalidated)}
                 is DecodeResult.Unknown->Unit
             }
             observation

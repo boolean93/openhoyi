@@ -87,7 +87,9 @@ sealed interface DiFluidMessage { val raw: ByteFrame }
  * ounces/grains/unknown units emit DiFluidUnit instead, revoking gram readiness without guessing.
  */
 data class DiFluidWeight(val rawTenths: Int, val hundredths: Int, override val raw: ByteFrame) : DiFluidMessage
-/** Raw unit: 0 grams, 1 ounces, 2 grains. Unknown values are preserved to revoke trust. */
+/** Raw fixed-field weight without a unit; never inherently a gram reading. */
+data class DiFluidUnitlessWeight(val rawTenths:Int,val hundredths:Int,override val raw:ByteFrame):DiFluidMessage
+/** Raw unit: 0 grams, 1 ounces, 2 grains. Unknown values revoke trust. */
 data class DiFluidUnit(val unit: Int, override val raw: ByteFrame) : DiFluidMessage
 object DiFluidCodec {
     fun subscribe(): EncodedCommand = command(1, 0, byteArrayOf(1))
@@ -110,13 +112,14 @@ object DiFluidCodec {
             return DecodeResult.Valid(DiFluidUnit(b.liveU(5), raw))
         }
         if (b.liveU(2) != 3 || b.liveU(3) != 0) return DecodeResult.Unknown(raw)
-        if (length != 13) return invalid("DiFluid sensor data must have thirteen bytes")
-        if (b.liveU(17) != 0) return DecodeResult.Valid(DiFluidUnit(b.liveU(17), raw))
+        if (length !in 12..13) return invalid("DiFluid sensor data must have twelve or thirteen bytes")
+        if (length == 13 && b.liveU(17) != 0) return DecodeResult.Valid(DiFluidUnit(b.liveU(17), raw))
         val value = (b.liveU(5) shl 24) or (b.liveU(6) shl 16) or (b.liveU(7) shl 8) or b.liveU(8)
         val scaled = value.toLong() * 10
         if (scaled !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong())
             return invalid("DiFluid sensor value overflows hundredths")
-        return DecodeResult.Valid(DiFluidWeight(value, scaled.toInt(), raw))
+        return if(length==12) DecodeResult.Valid(DiFluidUnitlessWeight(value,scaled.toInt(),raw))
+        else DecodeResult.Valid(DiFluidWeight(value, scaled.toInt(), raw))
     }
 
     private fun command(function: Int, command: Int, payload: ByteArray): EncodedCommand {
