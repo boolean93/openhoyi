@@ -116,7 +116,7 @@ internal class ServiceWriteRegistrationChecks(private val test: Instrumentation)
                         val now = SystemClock.elapsedRealtime()
                         val idle = IdleTelemetry(8000, 12000, 0, 0, 0, 0, settings.cupCount, 0, ByteFrame(byteArrayOf()))
                         field(instance, "snapshot").set(instance, MobileSnapshot(coffeeState = DeviceState.READY,
-                            scaleState = DeviceState.READY, coffee = idle, coffeeAt = now, weightAt = now,
+                            scaleState = DeviceState.READY, coffee = idle, coffeeAt = now, scaleObservation = scaleTestObservation(now),
                             settings = settings, settingsAt = now, sleepFirst = first, sleepSecond = second,
                             sleepFirstAt = now, sleepSecondAt = now))
                         tracker = requireNotNull(field(instance, when (kind) {
@@ -141,7 +141,7 @@ internal class ServiceWriteRegistrationChecks(private val test: Instrumentation)
                         repeat(2) { retry ->
                             val stamp = SystemClock.elapsedRealtime()
                             field(instance, "snapshot").set(instance, instance.snapshot.copy(coffeeAt = stamp,
-                                weightAt = stamp, settingsAt = stamp, sleepFirstAt = stamp, sleepSecondAt = stamp))
+                                scaleObservation = scaleTestObservation(stamp), settingsAt = stamp, sleepFirstAt = stamp, sleepSecondAt = stamp))
                             val snapshotBefore = instance.snapshot
                             check(!recovery.pending && instance.machineControlSafetyMessage == null)
                             val result = when (kind) {

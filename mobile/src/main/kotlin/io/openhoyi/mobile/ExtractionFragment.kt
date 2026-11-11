@@ -650,7 +650,6 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             else -> "—"
         }))
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
-            ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
         chart.unavailableLiveMetrics = buildSet {
             if (frame == null) addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
             if (scale == null) add(ChartMetric.FLOW)
@@ -746,7 +745,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             settingBusy || sleepBusy,owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN || owner?.sleepNowState==SleepNowTracker.State.UNKNOWN,
             notificationStatus.text.isNotBlank(),frame!=null,
             (profile?.targetHundredthsGram ?: 0)>0 || rawPoints.any { it.weightHundredthsGram!=null } || snapshot.scaleState==DeviceState.READY,
-            LiveTelemetry.scale(snapshot.scaleObservation,snapshot.scaleState,now)!=null || LiveTelemetry.scale(snapshot.weight,snapshot.scaleState,snapshot.weightAt,now)!=null)
+            LiveTelemetry.scale(snapshot.scaleObservation,snapshot.scaleState,now)!=null)
         val notices=ExtractionStatusPresentation.signals(facts).map { signal ->
             val detail=when(signal.kind) {
                 ExtractionStatusPresentation.Kind.GUIDANCE -> readiness.text.toString()

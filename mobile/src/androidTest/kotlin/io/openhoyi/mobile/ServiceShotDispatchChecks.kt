@@ -131,14 +131,13 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         field(sessions[0],"lastIdle").set(sessions[0],idle)
                         field(sessions[0],"lastIdleAtMs").set(sessions[0],now)
                         field(instance,"snapshot").set(instance,MobileSnapshot(coffeeState=DeviceState.READY,
-                            scaleState=DeviceState.READY,coffee=idle,coffeeAt=now,weightAt=now,settings=settings,settingsAt=now))
+                            scaleState=DeviceState.READY,coffee=idle,coffeeAt=now,settings=settings,settingsAt=now))
                         fun zero() {
                             // New decoded BOOKOO sample uses the live monotonic clock; this is not physical tare proof.
                             SystemClock.sleep(2)
                             val bytes="030B000000012B0000002D00024600C803010081".chunked(2).map { it.toInt(16).toByte() }.toByteArray()
                             sessions[1].onNotification(sessions[1].generation,KnownGatt.bookooNotify,bytes)
                             now=SystemClock.elapsedRealtime()
-                            field(instance,"snapshot").set(instance,instance.snapshot.copy(weightAt=now))
                             val observation = requireNotNull(instance.snapshot.scaleObservation)
                             val trend = instance.scaleTrendAt(now)
                             check(trend.isNotEmpty()) { "Decoded scale notification did not reach trend history" }
@@ -164,9 +163,9 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         val index=if(window=="TARE")1 else 0
                         queues[index].enqueue(GattOperation.Discover,5000) { }
                         val blocker=calls[index].last();check(blocker.third==GattOperation.Discover);fakeBarriers++
-                        now=SystemClock.elapsedRealtime()
+                        zero() // Refresh through a decoded notification, not a fabricated timestamp.
                         field(sessions[0],"lastIdleAtMs").set(sessions[0],now)
-                        field(instance,"snapshot").set(instance,instance.snapshot.copy(coffeeAt=now,weightAt=now))
+                        field(instance,"snapshot").set(instance,instance.snapshot.copy(coffeeAt=now))
                         check(instance.startShot(selected.id,selected.scaleMode,7)==null) { "$window/$mode initial request rejected" }
                         check(owner.extraction.state==ExtractionState.STARTING)
                         val recipe = requireNotNull(instance.activeShotRecipe?.forTrace(instance.chartTraceIdentity))

@@ -12,6 +12,7 @@
     <string name="scale_battery_unavailable">Battery unavailable with this protocol</string>
     <string name="scale_tare">Tare</string>
     <string name="scale_tare_requested">Tare request accepted; zeroing is not yet confirmed</string>
+    <string name="scale_tare_unsupported">Tare is unavailable on this scale</string>
     <string name="scale_tare_idle">Tare: not requested</string>
     <string name="scale_tare_waiting">Tare: waiting for a zero reading</string>
     <string name="scale_tare_confirmed">Tare: zero reading observed</string>
@@ -57,8 +58,9 @@
     <string name="scale_dose_help">Confirm that the scale holds the beans to be ground for this shot, then capture the reading. Liquid weight in the cup is never automatically treated as a dose. Wait for at least 1 second of stable readings, varying by no more than 0.1 g.</string>
     <string name="scale_dose_capture">Use current bean weight as this shot’s dose</string>
     <string name="scale_dose_not_ready">Only a stable, fresh, positive reading of real bean weight can be captured, with no extraction in progress</string>
-    <string name="scale_read_only_live">Experimental read-only protocol: not hardware-validated; no tare or automatic stop</string>
+    <string name="scale_read_only_live">Experimental read-only protocol: not hardware-validated; no tare, automatic stop, or bean capture</string>
     <string name="scale_capability_read_only">Reported by read-only protocol</string>
+    <string name="scale_connection_close_uncertain">Scale disconnect is unconfirmed. Restart the app before reconnecting</string>
     <string name="scale_memory_failed">Scale and protocol could not be saved; automatic reconnect may be unavailable next launch</string>
     <string name="scale_protocol_unsupported">Unsupported scale protocol</string>
     <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>

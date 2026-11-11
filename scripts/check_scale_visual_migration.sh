@@ -202,7 +202,7 @@ def referenced_file(page, ref, expected):
     return target
 
 SNAPSHOT_KEYS={'coffeeState','scaleState','coffee','coffeeAt','alarmBits','alarmAt','settings','settingsAt',
-    'sleepFirst','sleepSecond','sleepFirstAt','sleepSecondAt','weight','weightAt','scaleObservation',
+    'sleepFirst','sleepSecond','sleepFirstAt','sleepSecondAt','scaleObservation',
     'scaleCapabilities','candidates','scanning','message'}
 CAPABILITY_KEYS={'weight','tare','deviceFlow','battery','deviceTimer','validatedWeightControl','protocolSupportedWeightControl'}
 MESSAGE_KEYS={
@@ -240,13 +240,10 @@ def require_resource(value):
             if item['type']=='ResourceText':require_resource(item['value'])
             elif item['type']=='null':assert item['value'] is None
 def require_snapshot(state):
-    assert state['serviceSnapshotSchemaVersion']==1
+    assert state['serviceSnapshotSchemaVersion']==2
     value=state['serviceSnapshot'];assert isinstance(value,dict) and set(value)==SNAPSHOT_KEYS
     for key in ('coffee','settings','sleepFirst','sleepSecond'):
         if value[key] is not None:require_message(value[key])
-    if value['weight'] is not None:
-        weight=value['weight'];assert set(weight)=={'weightHundredthsGram','deviceFlowHundredths',
-            'weightSignRaw','flowSignRaw','raw'};require_frame(weight['raw'])
     if value['scaleCapabilities'] is not None:assert set(value['scaleCapabilities'])==CAPABILITY_KEYS
     if value['scaleObservation'] is not None:
         observation=value['scaleObservation']
@@ -289,7 +286,7 @@ for path in manifests:
     negative_folders=[]
     if m['page']=='scale':
         contract=json.loads((folder/'snapshot-contract.json').read_text())
-        assert contract['schemaVersion']==1 and contract['completed'] and contract['sameValueNewInstancesEqual']
+        assert contract['schemaVersion']==2 and contract['completed'] and contract['sameValueNewInstancesEqual']
         assert set(contract['topLevelKeys'])==SNAPSHOT_KEYS
         assert set(contract['changedValueCases'])=={'sleepDay','sleepEnabledBits','sleepRaw','sleepTimestamp',
             'capability','candidateOrder','messageResourceId','messageArgument','nullVersusZero',

@@ -20,8 +20,8 @@ interface CoffeeControl {
 interface ScaleControl {
     val ready:Boolean
     val startAllowed:Boolean
-    // Compatibility default for existing control implementations; live session overrides with evidence.
-    val capabilities:ScaleCapabilities get()=ScaleCapabilities(tare=true,validatedWeightControl=true,automaticTare=true)
+    // Missing evidence never grants tare, target control, or automatic tare.
+    val capabilities:ScaleCapabilities get()=ScaleCapabilities(weight=false)
     fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit)
 }
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {

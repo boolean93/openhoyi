@@ -16,6 +16,7 @@ internal class QueuedExtractionFixture(val target:Int=3400) {
     class Scale:ScaleControl {
         override var ready=true
         override var startAllowed=true
+        override val capabilities=io.openhoyi.protocol.ScaleObservationDecoder.bookooCapabilities
         var tares=0
         override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
             if(beforeDispatch()){tares++;done(OperationResult.Success())} else done(OperationResult.Failed("tare guard"))

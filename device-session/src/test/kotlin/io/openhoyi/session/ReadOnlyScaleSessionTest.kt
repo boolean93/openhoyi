@@ -15,10 +15,9 @@ class ReadOnlyScaleSessionTest {
         var now=100L
         val driver=Driver()
         val seen=mutableListOf<ScaleObservation>()
-        var bookooCallbacks=0
         val endpoint=requireNotNull(FelicitaReadOnlyScaleProtocolAdapter.notifyEndpoint)
         val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},scaleAdapter=FelicitaReadOnlyScaleProtocolAdapter,
-            scaleObservation={seen+=it},weightFrame={_,_->bookooCallbacks++})
+            scaleObservation={seen+=it})
         fun complete(result:OperationResult=OperationResult.Success()) {
             val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)
         }
@@ -28,7 +27,7 @@ class ReadOnlyScaleSessionTest {
             assertEquals(GattOperation.Subscribe(endpoint,indicate),driver.operations.last().third)
         }
         fun synchronized() {subscribe();complete();assertEquals(DeviceState.SYNCHRONIZING,session.state)}
-        fun noWrites() {assertTrue(driver.operations.none {it.third is GattOperation.Write});assertEquals(0,bookooCallbacks)}
+        fun noWrites() {assertTrue(driver.operations.none {it.third is GattOperation.Write})}
     }
     private fun frame(unit:String=" g")=byteArrayOf(1,2,43)+"001800".toByteArray()+unit.toByteArray()+byteArrayOf(83,79,48,34,137.toByte(),13,10)
     @Test fun subscriptionFailureAndTimeoutCannotPromoteEarlyOrLateNotification() {
@@ -56,6 +55,16 @@ class ReadOnlyScaleSessionTest {
             assertEquals(DeviceState.FAILED,f.session.state)
             assertFalse(f.driver.operations.any {it.third is GattOperation.Subscribe});f.noWrites()
         }
+    }
+    @Test fun duplicateUuidWithOneNonNotifyingInstanceIsAmbiguousBeforePropertyFiltering() {
+        val endpoint=requireNotNull(FelicitaReadOnlyScaleProtocolAdapter.notifyEndpoint)
+        val f=Fixture();f.session.connect("fixture");f.complete()
+        f.complete(OperationResult.Success(listOf(
+            CharacteristicInfo(endpoint,false,false,false,false),
+            CharacteristicInfo(endpoint,false,false,true,false))))
+        assertEquals(DeviceState.FAILED,f.session.state)
+        assertFalse(f.driver.operations.any {it.third is GattOperation.Subscribe})
+        f.noWrites()
     }
     @Test fun indicationSubscriptionAlsoRequiresCompleteGramObservation() {
         val f=Fixture();f.subscribe(indicate=true);f.complete()

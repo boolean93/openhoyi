@@ -12,6 +12,7 @@
     <string name="scale_battery_unavailable">当前协议未提供电量</string>
     <string name="scale_tare">去皮</string>
     <string name="scale_tare_requested">已接受去皮请求，尚未确认归零</string>
+    <string name="scale_tare_unsupported">当前电子秤不支持去皮</string>
     <string name="scale_tare_idle">去皮：尚未请求</string>
     <string name="scale_tare_waiting">去皮：等待归零回报</string>
     <string name="scale_tare_confirmed">去皮：已观察到归零</string>
@@ -56,8 +57,9 @@
     <string name="scale_dose_help">确认秤上是本次要研磨的豆子，再取此读数。不会把杯中液重自动当粉量。 等待读数稳定至少 1 秒，波动不超过 0.1 g。</string>
     <string name="scale_dose_capture">用当前豆重作为本次粉量</string>
     <string name="scale_dose_not_ready">只能取用稳定、新鲜、正值且非萃取中的真实豆重</string>
-    <string name="scale_read_only_live">实验性只读协议：尚未实机验收；不支持去皮或自动停水</string>
+    <string name="scale_read_only_live">实验性只读协议：尚未实机验收；不支持去皮、自动停水或称豆采集</string>
     <string name="scale_capability_read_only">只读协议回报</string>
+    <string name="scale_connection_close_uncertain">电子秤断开未确认，请重启应用后重连</string>
     <string name="scale_memory_failed">未能保存秤和协议；下次启动可能无法自动重连</string>
     <string name="scale_protocol_unsupported">不支持此秤协议</string>
     <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>

@@ -1,5 +1,6 @@
 package io.openhoyi.session
 import io.openhoyi.protocol.StartParameters
+import io.openhoyi.protocol.ScaleObservationDecoder
 private class CoffeeFake:CoffeeControl {
     override var ready=true;var starts=0;var stops=0;var permitValid=true
     override fun prepareStart(parameters:StartParameters)=ready
@@ -11,6 +12,7 @@ starts++;done(OperationResult.Success())}
 }
 private class ScaleFake:ScaleControl {
     override var ready=true;override var startAllowed=true;var tares=0
+    override val capabilities=ScaleObservationDecoder.bookooCapabilities
     override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){if(beforeDispatch()){tares++;done(OperationResult.Success())}else done(OperationResult.Failed("guard rejected"))}
 }
 private class UnknownStartCoffee:CoffeeControl {
@@ -84,6 +86,7 @@ fun extractionChecks():Int {
         val scale=object:ScaleControl {
             override val ready=true
             override val startAllowed=true
+            override val capabilities=ScaleObservationDecoder.bookooCapabilities
             override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){if(beforeDispatch())callback=done else done(OperationResult.Failed("guard rejected"))}
         }
         val c=ExtractionController(coffee,scale,{now})

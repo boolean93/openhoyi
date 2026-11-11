@@ -154,7 +154,7 @@ class LabActivity : Activity() {
         }
     }
     private fun choose(device: DiscoveredDevice) {
-        if (device.candidateRole == DeviceRole.BOOKOO) { service?.connect(device.candidateRole, device.address); return }
+        if (device.candidateRole == DeviceRole.BOOKOO) { device.scaleProtocolId?.let { service?.connect(device.candidateRole, device.address, protocolId = it) }; return }
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
             filters = arrayOf(InputFilter.LengthFilter(6)); hint = "六位设备密码"
@@ -167,7 +167,7 @@ class LabActivity : Activity() {
         dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val password = input.text.toString()
             if (!password.matches(Regex("[0-9]{6}"))) input.error = "请输入六位数字"
-            else { service?.connect(DeviceRole.COFFEE, device.address, password); input.text.clear(); dialog.dismiss() }
+            else { service?.connect(DeviceRole.COFFEE, device.address, password = password); input.text.clear(); dialog.dismiss() }
         } }
         dialog.setOnDismissListener { input.text.clear(); passwordDialog = null }
         passwordDialog = dialog; dialog.show()
@@ -191,7 +191,7 @@ class LabActivity : Activity() {
         }
         val firmware = s.settings?.let { "固件 ${it.firmwareMajor}.${it.firmwareMinor}.${it.firmwarePatch}" } ?: "固件未知"
         machine.showText("${s.coffeeState.label()} · ${freshness(s.coffeeAt, now, machineConnected)}\n$coffeeText\n$firmware")
-        scale.showText("${s.scaleState.label()} · ${freshness(s.weightAt, now, s.scaleState == DeviceState.READY)}\n${s.weight?.let { hundredths(it.weightHundredthsGram) } ?: "—"} g")
+        scale.showText("${s.scaleState.label()} · ${freshness(s.scaleObservation?.receivedAtMs, now, s.scaleState == DeviceState.READY)}\n${s.scaleObservation?.takeIf { it.capabilities.weight && s.scaleState == DeviceState.READY && io.openhoyi.session.ScaleReadingPolicy.isFresh(it.hundredthsGram,it.receivedAtMs,now) }?.let { hundredths(it.hundredthsGram) } ?: "—"} g")
         logs.showText((owner?.logStatus ?: "尚未记录") + "\n" + s.events.takeLast(8).joinToString("\n"))
         val keys = s.devices.map { "${it.address}:${it.advertisedName}" }
         if (keys != deviceKeys) {

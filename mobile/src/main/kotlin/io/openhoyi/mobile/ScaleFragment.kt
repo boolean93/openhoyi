@@ -187,6 +187,7 @@ class ScaleFragment : Fragment() {
         freshness.setIfChanged(getString(when {
             snapshot?.scaleState!=DeviceState.READY->R.string.scale_disconnected
             live==null->R.string.scale_stale
+            BuildConfig.MOCK_MODE->R.string.scale_mock_notice
             live.evidence==ScaleEvidence.OFFLINE_CANDIDATE->R.string.scale_offline_evidence
             live.evidence==ScaleEvidence.LIVE_READ_ONLY->R.string.scale_read_only_live
             live.evidence==ScaleEvidence.DOCUMENTED_TRANSPORT && live.eligibleForTargetWeight->R.string.scale_documented_target_live
@@ -204,12 +205,13 @@ class ScaleFragment : Fragment() {
         guard.visibility=if(guard.text.isEmpty())android.view.View.GONE else android.view.View.VISIBLE
         tare.isEnabled=!BuildConfig.MOCK_MODE && allowed && snapshot?.scaleState==DeviceState.READY && snapshot.scaleCapabilities?.tare==true &&
             service?.tareState !in setOf(StandaloneTare.State.WRITING,StandaloneTare.State.WAITING_ZERO)
-        tareStatus.setIfChanged(getString(when(service?.tareState) {
-            StandaloneTare.State.WRITING,StandaloneTare.State.WAITING_ZERO->R.string.scale_tare_waiting
-            StandaloneTare.State.CONFIRMED->R.string.scale_tare_confirmed
-            StandaloneTare.State.FAILED->R.string.scale_tare_failed
-            StandaloneTare.State.UNKNOWN->R.string.scale_tare_unknown
-            else->R.string.scale_tare_idle
+        tareStatus.setIfChanged(getString(when {
+            service?.tareState == StandaloneTare.State.WRITING || service?.tareState == StandaloneTare.State.WAITING_ZERO -> R.string.scale_tare_waiting
+            service?.tareState == StandaloneTare.State.CONFIRMED -> R.string.scale_tare_confirmed
+            service?.tareState == StandaloneTare.State.FAILED -> R.string.scale_tare_failed
+            service?.tareState == StandaloneTare.State.UNKNOWN -> R.string.scale_tare_unknown
+            snapshot?.scaleState == DeviceState.READY && snapshot.scaleCapabilities?.tare == false -> R.string.scale_tare_unsupported
+            else -> R.string.scale_tare_idle
         }))
         val tenths=timer.elapsedMs(now)/100
         timerValue.setIfChanged(getString(R.string.scale_timer_format,tenths/600,(tenths/10)%60,tenths%10))

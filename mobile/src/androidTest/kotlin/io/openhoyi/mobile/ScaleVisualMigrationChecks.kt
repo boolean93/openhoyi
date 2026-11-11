@@ -27,7 +27,6 @@ import android.widget.TextView
 import io.openhoyi.bean.BeanInventory
 import io.openhoyi.bean.InventoryStorage
 import io.openhoyi.bluetooth.DiscoveredDevice
-import io.openhoyi.protocol.BookooSample
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.HoyiMessage
@@ -378,12 +377,14 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             main {serviceBound=context.bindService(Intent(context,MobileService::class.java),serviceConnection,Context.BIND_AUTO_CREATE);check(serviceBound)}
             await("unique actual service callback and isolated unopened recovery stores") {serviceCallbackFailure?.let {throw it};service!=null && scopedServiceLazy.size==2}
             main {verifyServiceLazyIsolation(ownerService);check(context.startService(Intent(context,MobileService::class.java))!=null);serviceStarted=true}
-            await("actual default Mock tick before readonly input") {ownerService.running && ownerService.snapshot.coffeeAt==initialMonotonicMs && ownerService.snapshot.weightAt==initialMonotonicMs}
+            await("actual default Mock tick before readonly input") {ownerService.running && ownerService.snapshot.coffeeAt==initialMonotonicMs && ownerService.snapshot.scaleObservation?.receivedAtMs==initialMonotonicMs}
             main {
-                check(ownerService.snapshot.scaleObservation==null && ownerService.snapshot.scaleCapabilities==null)
-                check(ownerService.snapshot.weight!=null && field(ownerService,"hub")==null && serial(ownerService)==0L)
+                check(ownerService.snapshot.scaleObservation!=null &&
+                    ownerService.snapshot.scaleCapabilities==ownerService.snapshot.scaleObservation?.capabilities)
+                check(ownerService.scaleTrendAt(initialMonotonicMs).isNotEmpty())
+                check(ownerService.snapshot.scaleObservation!=null && field(ownerService,"hub")==null && serial(ownerService)==0L)
                 ownerService.installScaleVisualInput(clockOwner);bridgeInstalled=true
-                check(ownerService.snapshot.weight==null && ownerService.snapshot.weightAt==null)
+                check(ownerService.snapshot.scaleObservation==null && ownerService.snapshot.scaleObservation?.receivedAtMs==null)
                 fixture.put("defaultUninstalledRuntimeObserved",true).put("singleServiceOwnerIdentity",System.identityHashCode(ownerService))
             }
         }
@@ -807,12 +808,6 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         .put("sleepSecond",nullableValue(value.sleepSecond,::sleepValue))
         .put("sleepFirstAt",nullableValue(value.sleepFirstAt) {it})
         .put("sleepSecondAt",nullableValue(value.sleepSecondAt) {it})
-        .put("weight",nullableValue(value.weight) {sample:BookooSample->JSONObject()
-            .put("weightHundredthsGram",sample.weightHundredthsGram)
-            .put("deviceFlowHundredths",sample.deviceFlowHundredths)
-            .put("weightSignRaw",sample.weightSignRaw).put("flowSignRaw",sample.flowSignRaw)
-            .put("raw",frameValue(sample.raw)) })
-        .put("weightAt",nullableValue(value.weightAt) {it})
         .put("scaleObservation",nullableValue(value.scaleObservation) {observation:ScaleObservation->JSONObject()
             .put("hundredthsGram",observation.hundredthsGram)
             .put("receivedAtMs",observation.receivedAtMs)
@@ -846,7 +841,6 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             coffee=idle,coffeeAt=101L,alarmBits=0,alarmAt=102L,settings=settings,settingsAt=103L,
             sleepFirst=sleep(),sleepSecond=sleep(SleepDay(5,6,7,8),null,frame(0x83,2)),
             sleepFirstAt=104L,sleepSecondAt=105L,
-            weight=BookooSample(1234,56,1,0,frame(0xAA,0xBB)),weightAt=106L,
             scaleObservation=ScaleObservation(1234,107L,capabilities,ScaleEvidence.VERIFIED_TRANSPORT,
                 deviceFlowHundredths=56,batteryPercent=80,raw=frame(0xCC)),
             scaleCapabilities=capabilities,candidates=listOf(candidate1,candidate2),scanning=true,
@@ -891,9 +885,9 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             messageValue(settings).getString("kind")=="Settings")
         val expected=setOf("coffeeState","scaleState","coffee","coffeeAt","alarmBits","alarmAt",
             "settings","settingsAt","sleepFirst","sleepSecond","sleepFirstAt","sleepSecondAt",
-            "weight","weightAt","scaleObservation","scaleCapabilities","candidates","scanning","message")
+            "scaleObservation","scaleCapabilities","candidates","scanning","message")
         check(snapshotValue(base,activity).keys().asSequence().toSet()==expected)
-        File(folder,"snapshot-contract.json").writeText(JSONObject().put("schemaVersion",1)
+        File(folder,"snapshot-contract.json").writeText(JSONObject().put("schemaVersion",2)
             .put("topLevelKeys",JSONArray(expected.sorted())).put("sameValueNewInstancesEqual",true)
             .put("changedValueCases",JSONArray(negative.keys.toList())).put("completed",true).toString(2))
     }
@@ -918,7 +912,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("trendInline",trendInline).put("fallbackIdentity",System.identityHashCode(fallback))
             .put("fallbackVisibility",fallback.visibility).put("fallbackShown",fallback.isShown)
             .put("trendBufferTimerAndAllScrolls",trendReturnState(activity))
-            .put("serviceSnapshotSchemaVersion",1).put("serviceSnapshot",snapshotValue(snapshot,activity))
+            .put("serviceSnapshotSchemaVersion",2).put("serviceSnapshot",snapshotValue(snapshot,activity))
             .put("serviceObservationSerial",serial(service))
             .put("weight",(field(activity,"weight") as TextView).text.toString())
             .put("freshness",(field(activity,"freshness") as TextView).text.toString())
@@ -1015,7 +1009,15 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         rejected("disconnected-observation") {scope.offer(DeviceState.DISCONNECTED,sample(100000))}
         var before=0L;main {check(field(service,"hub")==null && field(service,"mock")!=null);before=serial(service)}
         scope.offer(DeviceState.READY,sample(100000))
-        var pointCount=0;main {check(serial(service)==before+1);pointCount=service.scaleTrendAt(100000).size}
+        var pointCount=0;main {
+            check(serial(service)==before+1)
+            val points=service.scaleTrendAt(100000)
+            check(points.size==1 && points.single().atMs==100000L &&
+                points.single().hundredthsGram==sample(100000).hundredthsGram) {
+                "First explicit observation after same-timestamp Mock takeover must start a fresh trend"
+            }
+            pointCount=points.size
+        }
         scope.offer(DeviceState.READY,sample(100000))
         main {check(serial(service)==before+2 && service.scaleTrendAt(100000).size==pointCount)}
         File(folder,"service-guards.json").writeText(JSONObject().put("cases",cases).put("positiveMockMainClockOwnerHubNull",true)

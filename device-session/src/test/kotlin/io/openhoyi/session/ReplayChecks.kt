@@ -26,6 +26,7 @@ fun replayChecks():Int {
         }
         val scale=object:ScaleControl {
             override val startAllowed=true;override val ready=true
+            override val capabilities=ScaleObservationDecoder.bookooCapabilities
             override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
                 if(beforeDispatch()){tares++;done(OperationResult.Success())}
                 else done(OperationResult.Failed("guard rejected"))

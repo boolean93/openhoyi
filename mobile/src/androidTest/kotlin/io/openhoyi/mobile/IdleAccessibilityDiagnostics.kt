@@ -37,7 +37,7 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
     private data class Event(val window:String,val atMs:Long,val type:Int,val contentChanges:Int,
         val sourceClass:String?,val text:String,val viewId:String?,val bounds:String,val sourceError:String?)
     private data class TextChange(val window:String,val atMs:Long,val node:String,val before:String,val after:String)
-    private data class OwnerState(val identity:Int,val running:Boolean,val coffeeAt:Long?,val weightAt:Long?)
+    private data class OwnerState(val identity:Int,val running:Boolean,val coffeeAt:Long?,val scaleAt:Long?)
     private data class Window(val name:String,val fromMs:Long,val toMs:Long,val before:OwnerState,val after:OwnerState)
     private data class ReadyObservation(val atMs:Long,val homeIdentity:Int?,val lifecyclePhase:String,
         val destroyed:Boolean?,val focus:Boolean?,val decorAttached:Boolean?,val decorLaidOut:Boolean?,
@@ -87,7 +87,7 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
     private fun owner(home:MainActivity):MobileService?=home.currentService
     private fun ownerState(home:MainActivity):OwnerState {
         val service=requireNotNull(owner(home)) {"Home lost its existing MobileService owner"}
-        return OwnerState(System.identityHashCode(service),service.running,service.snapshot.coffeeAt,service.snapshot.weightAt)
+        return OwnerState(System.identityHashCode(service),service.running,service.snapshot.coffeeAt,service.snapshot.scaleObservation?.receivedAtMs)
     }
     private fun views(root:View,path:String="0"):List<Pair<String,View>> = listOf(path to root)+
         if(root is ViewGroup)(0 until root.childCount).flatMap {views(root.getChildAt(it),"$path/$it")} else emptyList()

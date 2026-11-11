@@ -79,7 +79,7 @@ internal class LiveMotionReplayChecks(private val test: Instrumentation) {
                             val frame=snapshot.coffee as io.openhoyi.protocol.ExtractionTelemetry
                             wireSeconds=frame.elapsedSeconds
                             ShotPoint(now-base,frame.pressureTenthsBar,frame.flowTenthsMlPerSecond,frame.totalWaterTenthsMl,
-                                frame.brewTemperatureHundredthsC,snapshot.weight?.weightHundredthsGram,brewing=frame.valveOpen&&!frame.brewWait,statusBits=frame.statusBits)
+                                frame.brewTemperatureHundredthsC,snapshot.scaleObservation?.hundredthsGram,brewing=frame.valveOpen&&!frame.brewWait,statusBits=frame.statusBits)
                         }
                         inputs.put(JSONObject().put("sourceElapsedMs",point.elapsedMs).put("deliveredAtNs",deliveredNs)
                             .put("scheduledDelayMs",delay).put("wireElapsedSeconds",wireSeconds ?: JSONObject.NULL)

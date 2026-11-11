@@ -482,7 +482,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 serviceStarted=true
             }
             await("real Mock started with current machine and scale observation") {
-                owner.running && owner.snapshot.coffeeAt==initialMonotonicMs && owner.snapshot.weightAt==initialMonotonicMs &&
+                owner.running && owner.snapshot.coffeeAt==initialMonotonicMs && owner.snapshot.scaleObservation?.receivedAtMs==initialMonotonicMs &&
                     owner.snapshot.coffeeState==DeviceState.READY && owner.snapshot.scaleState==DeviceState.READY
             }
             main { verifyServiceLazyIsolation(owner) }
@@ -505,7 +505,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 main { MobileMonotonicClock.advanceForMock(clockOwner,now); logicalInputTimes.add(now) }
                 await("legal Mock tick/ShotSeries sample at elapsed=$elapsed") {
                     val frame=owner.snapshot.coffee as? ExtractionTelemetry
-                    owner.snapshot.coffeeAt==now && owner.snapshot.weightAt==now && frame!=null &&
+                    owner.snapshot.coffeeAt==now && owner.snapshot.scaleObservation?.receivedAtMs==now && frame!=null &&
                         owner.shotState==ExtractionState.RUNNING && owner.chartPoints.lastOrNull()?.elapsedMs==elapsed
                 }
             }
@@ -518,7 +518,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("liveShotId",owner.chartTraceIdentity).put("clockInputMonotonicMs",JSONArray(logicalInputTimes))
                     .put("clockInitialMs",initialMonotonicMs).put("clockFrozenForFrameOnly",true)
                     .put("liveSamples",pointRecords(owner.chartPoints)).put("machineObservation",owner.snapshot.coffee.toString())
-                    .put("scaleObservation",owner.snapshot.weight.toString()).put("scaleSemantics","scale_reading_no_tare_context_no_effective_cup_claim")
+                    .put("scaleObservation",owner.snapshot.scaleObservation.toString()).put("scaleSemantics","scale_reading_no_tare_context_no_effective_cup_claim")
                     .put("serviceOwnerId",serviceOwnerId).put("recoveryOriginalUninitialized",true)
             }
         }

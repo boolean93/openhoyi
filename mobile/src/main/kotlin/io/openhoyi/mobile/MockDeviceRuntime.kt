@@ -1,7 +1,9 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.session.BrewPreparation
-import io.openhoyi.protocol.BookooSample
+import io.openhoyi.protocol.ScaleObservation
+import io.openhoyi.protocol.ScaleCapabilities
+import io.openhoyi.protocol.ScaleEvidence
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
@@ -183,9 +185,10 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
                 bits or if (day.enabled) (0x80 shr index) else 0
             }, schedule.days.take(4).map(WeeklySleepDay::time), emptyFrame),
             sleepSecond = SleepPart(4, null, schedule.days.drop(4).map(WeeklySleepDay::time), emptyFrame),
-            weight = if (scaleConnected) BookooSample(if (extracting) (elapsedMs * 70 / 1000).toInt() else idleWeightHundredths,
-                if (extracting) 70 else 0,
-                43, 43, emptyFrame) else null, weightAt = now.takeIf { scaleConnected },
+            scaleObservation = if (scaleConnected) ScaleObservation(
+                if (extracting) (elapsedMs * 70 / 1000).toInt() else idleWeightHundredths,
+                now, ScaleCapabilities(weight = true, deviceFlow = true),
+                ScaleEvidence.OFFLINE_CANDIDATE, if (extracting) 70 else 0, raw = emptyFrame) else null,
             message = SnapshotMessage.resource(ResourceMessage(R.string.mock_runtime_sample_notice)) { id, _ -> text(id) },
         )
     }

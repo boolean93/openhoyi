@@ -12,7 +12,7 @@ import io.openhoyi.session.*
 class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?=null,
     private val onScaleRemembered:(String)->Unit={},
     private val onState:(DeviceRole,DeviceState)->Unit={_,_->},
-    private val onCoffee:(HoyiMessage)->Unit={},private val onWeight:(BookooSample)->Unit={},
+    private val onCoffee:(HoyiMessage)->Unit={},
     private val diagnostic:(String)->Unit={},
     private val trace:(DeviceRole,WireTrace)->Unit={_,_->},
     legacyVerifiedStartFrames:Set<String> = emptySet(),
@@ -98,8 +98,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                     }
                     if(ownsScale(ticket,request))onState(DeviceRole.BOOKOO,state)
                 }
-            },weightFrame={sample,_->if(ownsScale(ticket))onWeight(sample)},
-            scaleObservation={sample->
+            },scaleObservation={sample->
                 val request=scaleRequest
                 if(ownsScale(ticket,request)) {
                     if(sample.evidence in setOf(ScaleEvidence.VERIFIED_TRANSPORT,ScaleEvidence.DOCUMENTED_TRANSPORT) &&
@@ -112,6 +111,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         return ScaleOwner(device,ScaleSessionControl(device.session,standaloneTare,{scaleSampleSerial}))
     }
     val scaleCapabilities:ScaleCapabilities get()=scaleControl.capabilities
+    val scaleConnectionBlocked:Boolean get()=scaleSlot.blocked
     val scaleProtocolId:String? get()=scaleSlot.current?.selection?.protocolId
     val scaleAddress:String? get()=scaleSlot.current?.owner?.device?.session?.let { it.address.takeIf { _->it.state==DeviceState.READY } }
     val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
@@ -195,7 +195,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         if(explicit)coffeeReconnect.explicitConnect(address,SystemClock.elapsedRealtime(),remembered)
         coffee.session.connect(address,authentication)
     }
-    fun connectScale(address:String,protocolId:String=BookooScaleProtocolAdapter.id,explicit:Boolean=true):Boolean {
+    fun connectScale(address:String,protocolId:String,explicit:Boolean=true):Boolean {
         usable()
         check(DeviceConnectionGate.mayChangeScale(extraction.state)){"unsettled extraction: scale connection change blocked"}
         require(android.bluetooth.BluetoothAdapter.checkBluetoothAddress(address)){"Invalid Bluetooth address"}
