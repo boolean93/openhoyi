@@ -289,6 +289,13 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         }
         coffee.session.writeSetting(change,beforeDispatch,done)
     }
+    /** Authenticated time-sync/settings request, not a boiler control retry or pure read. */
+    fun refreshBoilerSettings(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+        usable()
+        coffee.session.refreshBoilerSettings({beforeDispatch() && !boilerRefreshExtractionBlocked()},done)
+    }
+    private fun boilerRefreshExtractionBlocked()=extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
+        ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)
     fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,done:(OperationResult)->Unit)=writeSleepSchedule(schedule,expected,{true},done)
     fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()

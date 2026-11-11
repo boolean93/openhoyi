@@ -7,7 +7,8 @@ private const val PROTOCOL_TIMEOUT_REASON = "protocol initialization timeout"
 enum class DeviceRole { COFFEE, BOOKOO }
 enum class DeviceState { DISCONNECTED, CONNECTING, DISCOVERING, SUBSCRIBING, INITIALIZING, SYNCHRONIZING, READY, UNSUPPORTED, FAILED }
 class CoffeeAuthentication(val time:LocalDateTime,private val password:String) {
-    fun encode()=CoffeeCommands.authenticate(time,password)
+    fun encode()=encodeAt(time)
+    internal fun encodeAt(currentTime:LocalDateTime)=CoffeeCommands.authenticate(currentTime,password)
     override fun toString()="CoffeeAuthentication([REDACTED])"
 }
 object KnownGatt {
@@ -24,7 +25,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     val scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
     private val scaleObservation:(ScaleObservation)->Unit = {},
     private val customPressureStartPermit:(StartParameters)->Boolean = {false},
-    private val customCurveStartPermit:(StartParameters)->Boolean = {false}) {
+    private val customCurveStartPermit:(StartParameters)->Boolean = {false},
+    private val wallClock:()->LocalDateTime = LocalDateTime::now) {
     init {
         if(role!=DeviceRole.COFFEE) {
             if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified && !scaleAdapter.documentedTransport &&
@@ -68,6 +70,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     /** Classification of the most recent FAILED; display-only, never a control permit. */
     var lastFailure:CoffeeSessionFailure?=null;private set
     private var activeAddress:String?=null
+    private var coffeeAuthentication:CoffeeAuthentication?=null
+    private var boilerRefreshAvailable=false
     val address:String? get()=activeAddress
     val observedFirmware:CoffeeFirmware? get()=lastSettings?.let {
         CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch)
@@ -166,6 +170,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             fail("transport close uncertain")
             return
         }
+        coffeeAuthentication=authentication
         scaleDecoder=scaleAdapter.newDecoder {event->scaleEvent(expected,event)} ?: scaleAdapter::decode
         if(!initializationState(expected,DeviceState.CONNECTING,22_000))return
         step(expected,GattOperation.Connect(address),22_000) {
@@ -461,16 +466,40 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
     fun writeSetting(change:MachineSettingChange,callback:(OperationResult)->Unit)=writeSetting(change,{true},callback)
     fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
+        boilerRefreshAvailable=false
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else if (!canWriteSetting(change)) callback(OperationResult.Failed("fresh settings with unchanged companion value required"))
         else {
             val enablingPlan = if(change is MachineSettingChange.SleepScheduleEnabled && change.enabled)
                 WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days else null
+            val expected=generation
             send(CoffeeCommands.setting(change),DeviceRole.COFFEE,
                 beforeDispatch={beforeDispatch() && canWriteSetting(change) &&
-                    (enablingPlan == null || WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == enablingPlan)},
-                callback=callback)
+                    (enablingPlan == null || WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == enablingPlan)}) {result->
+                // Arm before the host callback: it must enter WAITING_READBACK before requesting refresh.
+                if(result is OperationResult.Success && ownsInitialization(expected) && state==DeviceState.READY &&
+                    (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating))
+                    boilerRefreshAvailable=true
+                callback(result)
+            }
         }
+    }
+    /** One-shot settings refresh after a successful boiler write. This also synchronizes the
+     * machine clock using the existing authenticated 0x01 frame; it is NOT a pure read.
+     * Transport completion never confirms the setting; the host still requires a newer 0x83. */
+    fun refreshBoilerSettings(beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
+        val available=boilerRefreshAvailable
+        boilerRefreshAvailable=false // Rejection/failure/reentry must never schedule a retry.
+        val authentication=coffeeAuthentication
+        if(!available || authentication==null || !canControlWithFreshSettings() || sleepWrite!=null) {
+            callback(OperationResult.Failed("no eligible boiler settings refresh"));return
+        }
+        val expected=generation
+        val expectedAddress=address
+        send(authentication.encodeAt(wallClock()),DeviceRole.COFFEE,beforeDispatch={
+            ownsInitialization(expected) && address==expectedAddress && coffeeAuthentication===authentication &&
+                sleepWrite==null && canControlWithFreshSettings() && beforeDispatch()
+        },callback=callback)
     }
     private fun canBeginSleepWrite(expected:WeeklySleepSchedule):Boolean = canControlFromIdle() &&
         SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock()) &&
@@ -547,6 +576,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
         heartbeatDue=null;heartbeatBusy=false
         val detachedTare=scaleTare;scaleTare=null
+        coffeeAuthentication=null;boilerRefreshAvailable=false
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
         try { setState(terminal) }
         finally {

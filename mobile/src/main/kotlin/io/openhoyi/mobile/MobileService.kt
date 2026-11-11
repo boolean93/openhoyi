@@ -1103,6 +1103,13 @@ class MobileService : Service() {
                         recoveryAfterSettingsSerial = serials.settings
                         event(ResourceMessage(R.string.service_write_setting_no_readback), "settings.unknown")
                     }
+                    if(change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating) {
+                        // First arm WAITING/watchdog, then request one fresh 0x83 via authenticated
+                        // time sync. Its GATT success is not evidence that the setting was applied.
+                        current.refreshBoilerSettings({machineWriteRecovery.owns(recoveryOwner) &&
+                            permitsOrdinaryWrite(current,coffeeAddress,token,
+                                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))}) { }
+                    }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear(recoveryOwner))

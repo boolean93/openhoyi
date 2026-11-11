@@ -24,6 +24,10 @@ class SettingsWriteTracker {
     /** Only the original operation in WRITING owns dispatch permission. */
     fun permitsWrite(token:Long):Boolean = token == serial && state == State.WRITING
 
+    /** Only the original successful boiler write can request its one-shot settings refresh. */
+    fun permitsBoilerRefresh(token:Long):Boolean = token == serial && state == State.WAITING_READBACK &&
+        (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating)
+
     fun written(token: Long, result: OperationResult, sampleSerial: Long): Boolean {
         if (token != serial || state != State.WRITING) return false
         state = when (result) {
