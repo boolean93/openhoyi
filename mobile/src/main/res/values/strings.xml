@@ -15,6 +15,13 @@
     <string name="setting_light">照明</string>
     <string name="setting_on">开启</string>
     <string name="setting_off">关闭</string>
+    <string name="home_boiler_turning_on">开启中</string>
+    <string name="home_boiler_turning_off">关闭中</string>
+    <string name="home_boiler_syncing">同步中</string>
+    <string name="home_boiler_reconnecting">重连中</string>
+    <string name="home_boiler_refresh">刷新状态</string>
+    <string name="home_boiler_retry_on">重试开启</string>
+    <string name="home_boiler_retry_off">重试关闭</string>
     <string name="setting_sleep_schedule_on">睡眠计划总开关 · 已开启，点击关闭</string>
     <string name="setting_sleep_schedule_off">睡眠计划总开关 · 已关闭，点击开启</string>
     <string name="setting_sleep_schedule_unknown">睡眠计划总开关 · 未知</string>
@@ -313,6 +320,9 @@
     <string name="task_shell_machine_setting">"设置中"</string>
     <string name="task_shell_machine_unknown">"结果未知"</string>
     <string name="task_shell_machine_unavailable">"暂不可用"</string>
+    <string name="task_shell_machine_preheating">预热中</string>
+    <string name="task_shell_machine_preheat_ready">预热就绪</string>
+    <string name="home_boiler_preheat_occupied">预热占用</string>
     <string name="task_shell_action_sleep">"休眠"</string>
     <string name="task_shell_action_wake_on_machine">"已休眠"</string>
     <string name="task_shell_action_disconnect">"断开"</string>

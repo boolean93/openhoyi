@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "74b220a4e30781085692cba4e2208ecc772e4644a1d384a5614370c67d1e97a2",
+  "sha256": "ca3f5622e886253c18f5ba24fb5b31039103b758800d62700cabb957aa5986a4",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -984,6 +984,16 @@
     "task_shell_sleep_check": "查看机器",
     "task_shell_sleep_history": "上次休眠",
     "task_shell_sleep_unsent": "未发送",
-    "task_shell_sleep_wake": "拨杆唤醒"
+    "task_shell_sleep_wake": "拨杆唤醒",
+    "home_boiler_turning_on": "开启中",
+    "home_boiler_turning_off": "关闭中",
+    "home_boiler_syncing": "同步中",
+    "home_boiler_reconnecting": "重连中",
+    "home_boiler_refresh": "刷新状态",
+    "home_boiler_retry_on": "重试开启",
+    "home_boiler_retry_off": "重试关闭",
+    "task_shell_machine_preheating": "预热中",
+    "task_shell_machine_preheat_ready": "预热就绪",
+    "home_boiler_preheat_occupied": "预热占用"
   }
 }

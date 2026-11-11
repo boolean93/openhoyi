@@ -8,6 +8,12 @@ private fun verify(value: Boolean) { checks++; check(value) { "Protocol check $c
 private fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 private fun rejected(block: () -> Unit) { verify(runCatching(block).exceptionOrNull() is IllegalArgumentException) }
 fun main() {
+    // 1.1.5 retains the 13-byte main Settings layout, including >=1.1.4 filter flags.
+    val firmware115=(HoyiCodec.decode(hex("830115FD5C007D0F350019026A")) as DecodeResult.Valid).value as Settings
+    verify(firmware115.firmwareInteger==0x115 && firmware115.firmwarePatch==5)
+    verify(firmware115.brewTemperatureC==92 && firmware115.steamTemperatureC==125)
+    verify(firmware115.cupCount==25 && firmware115.filterInstalled==true)
+    verify(firmware115.brewHeating && firmware115.steamHeating)
     timemoreChecks()
     runFelicitaNotificationChecks()
     legacyLiveScaleChecks()

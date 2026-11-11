@@ -26,7 +26,7 @@
     <string name="flow_editor_pressure_error">Pressure target must be 0–12 bar.</string>
     <string name="flow_editor_water_positive_error">Stage water must be greater than 0.</string>
     <string name="flow_editor_exit_error">The first stage needs a time or water exit.</string>
-    <string name="flow_editor_firmware_required">This mode requires firmware 1.1.4.</string>
+    <string name="flow_editor_firmware_required">This mode requires firmware 1.1.4 or 1.1.5.</string>
     <string name="flow_editor_subtitle">Recipes stay on this device. Saving does not start the machine.</string>
     <string name="flow_editor_complete_stage_error">Complete recipes require 2–4 stages.</string>
     <string name="flow_editor_complete_first_pressure">First-stage pressure must be 0.5–12 bar.</string>

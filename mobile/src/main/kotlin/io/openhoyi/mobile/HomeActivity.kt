@@ -275,7 +275,7 @@ class HomeActivity : ThemedActivity() {
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
         leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
-        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }.apply {setSingleLine(true);maxLines=1}
+        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { sleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
         scaleWeight = text(deviceCard, "— g", 27, true)
@@ -639,12 +639,10 @@ class HomeActivity : ThemedActivity() {
                     .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
             }.show()
     }
-    private fun confirmSleepNow() {
+    private fun sleepNow() {
         if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_sleep_mock)); return }
-        AlertDialog.Builder(this).setTitle(getString(R.string.home_sleep_confirm_title))
-            .setMessage(getString(R.string.home_sleep_confirm_message))
-            .setPositiveButton(getString(R.string.home_sleep_send)) { _, _ -> service?.enterSleepNow()?.let(::toast); render() }
-            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
+        service?.enterSleepNow()?.let(::toast)
+        render()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         if (redirectedRoot) { super.onSaveInstanceState(outState); return }

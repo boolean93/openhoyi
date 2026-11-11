@@ -193,6 +193,9 @@ class MobileService : Service() {
     private val sleepNowUnresolvedMessage: String get() = getString(R.string.machine_recovery_sleep_unresolved)
     val sleepNowState: SleepNowTracker.State get() = if (mock?.isSleeping == true)
         SleepNowTracker.State.CONFIRMED else sleepNow.state
+    private class BoilerFallback(val hub:NativeDeviceHub,val token:Long,val address:String,val generation:Long,
+        val owner:MachineWriteRecoveryState.Ownership,val startedAt:Long) { var used=false }
+    private var boilerFallback:BoilerFallback?=null
     private var settingsSampleSerial = 0L
     private val settingWriteUnresolved: Boolean get() = settingsWrite.state == SettingsWriteTracker.State.UNKNOWN
     private val settingWriteUnresolvedMessage: String get() = getString(R.string.service_setting_unresolved)
@@ -569,14 +572,24 @@ class MobileService : Service() {
         snapshot = when (frame) {
             is Settings -> {
                 observeCupCount(true, frame.cupCount)
-                if (OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,++settingsSampleSerial,frame,{ machineWriteRecovery.clear(settingRecoveryOwner) }) { feedback ->
+                if (OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,++settingsSampleSerial,frame,{ machineWriteRecovery.clear(settingRecoveryOwner) },
+                    machineWriteRecovery.owns(settingRecoveryOwner) && hub?.boilerReconciliationReady==true &&
+                        hub?.coffeeAddress?.equals(machineWriteRecovery.address,ignoreCase=true)==true) { feedback ->
                     when(feedback) {
                         OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
                         OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
                         OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                     }
                 }) refreshSafetyNotification()
-                snapshot.copy(settings = frame, settingsAt = MobileMonotonicClock.elapsedRealtime())
+                if(settingsWrite.state in setOf(SettingsWriteTracker.State.CONFIRMED,SettingsWriteTracker.State.RECONCILED) &&
+                    !machineWriteRecovery.pending) {
+                    boilerFallback=null
+                    hub?.completeBoilerReadbackRecovery()
+                }
+                // Authentication may adopt an earlier received frame after GATT completion.
+                // Preserve its receipt time; an absent native observation is not fresh evidence.
+                snapshot.copy(settings = frame, settingsAt = if(mock!=null) MobileMonotonicClock.elapsedRealtime()
+                    else hub?.coffeeSettingsObservedAtMs)
             }
             is SleepPart -> {
                 if (frame.firstDaySundayIndex == 0) {
@@ -701,6 +714,7 @@ class MobileService : Service() {
             !passiveShot.active) recordMachinePoint(frame, observedAt)
         if(frame is io.openhoyi.protocol.IdleTelemetry && !passiveShot.active)
             manualPresentation.observedIdle()
+        if(frame is IdleTelemetry)attemptBoilerFallback()
     }
 
     /** Releases the guard a committed passive cup armed under the existing evidence rules. */
@@ -943,6 +957,7 @@ class MobileService : Service() {
     private fun coffeeConnectionInProgress(address:String)=TaskShellDeviceStatus.connecting(snapshot.coffeeState) &&
         pendingCoffeeCredential?.address?.equals(address,ignoreCase=true)==true
     private fun startCoffeeConnection(address: String, password: String, remembered: Boolean, automatic: Boolean): Boolean {
+        if(!automatic)boilerFallback=null
         if(coffeeConnectionInProgress(address))return true
         val current = hub ?: return false
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
@@ -1045,6 +1060,61 @@ class MobileService : Service() {
         MachineWriteDispatchPermit.allows(token,request,MachineWriteDispatchPermit.Context(machineWriteRecovery,
             address,current.coffeeAddress,manualShotActive,shotRecovery.pending,ShotGate.active(shotState),brewPreparation.active))
 
+    private fun boilerRecoveryProductSafe():Boolean = !manualShotActive && !shotRecovery.pending &&
+        !io.openhoyi.session.DeviceConnectionGate.unsettled(shotState) && !brewPreparation.active && !cupResetBusy && !scheduleBusy &&
+        sleepNow.state !in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN)
+    private fun attemptBoilerFallback() {
+        val pending=boilerFallback ?: return
+        val current=hub ?: return
+        val now=MobileMonotonicClock.elapsedRealtime()
+        if(pending.used || now<pending.startedAt+3000 || now>=pending.startedAt+6000 ||
+            current!==pending.hub || current.coffeeGeneration!=pending.generation ||
+            !machineWriteRecovery.owns(pending.owner) || !boilerRecoveryProductSafe() ||
+            !permitsOrdinaryWrite(current,pending.address,pending.token,
+                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite)) || !current.canReconnectBoilerSettings)return
+        pending.used=true // connect synchronously publishes DISCONNECTED; consume before any observer.
+        val started=current.reconnectBoilerSettings({hub===current && machineWriteRecovery.owns(pending.owner) &&
+            boilerRecoveryProductSafe() && current.coffeeGeneration==pending.generation &&
+            permitsOrdinaryWrite(current,pending.address,pending.token,
+                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))},
+            {hub===current && machineWriteRecovery.owns(pending.owner) && boilerRecoveryProductSafe()})
+        logs.record("settings.reconnect",mapOf("ownerId" to ownerId,"outcome" to if(started)"started" else "rejected"))
+    }
+    val boilerReadbackRecoveryActive:Boolean get()=HomeBoilerSwitchPresentation.localProgress(
+        machineWriteRecovery.owns(settingRecoveryOwner),settingsWrite.change,settingsWrite.state,
+        boilerReadbackReconnecting,boilerSettingsRecoveryBusy)
+    val boilerReadbackReconnecting:Boolean get()=hub?.boilerReadbackReconnecting==true
+    private fun recordBoilerRefresh(manual:Boolean,attempt:Int,result:OperationResult) {
+        logs.record("settings.refresh",mapOf("ownerId" to ownerId,"manual" to manual.toString(),
+            "attempt" to attempt.toString(),"outcome" to when(result) {
+                is OperationResult.Success->"transport_success"
+                is OperationResult.Failed->"failed"
+                is OperationResult.Cancelled->"cancelled"
+                is OperationResult.Unknown->"unknown"
+            }))
+    }
+    val boilerSettingsRecoveryBusy:Boolean get()=hub?.boilerSettingsRecoveryBusy==true
+    val canRefreshUnknownBoilerSettings:Boolean get() {
+        val token=settingsWrite.boilerRecoveryToken() ?: return false
+        val current=hub ?: return false
+        val address=machineWriteRecovery.address ?: return false
+        val owner=settingRecoveryOwner ?: return false
+        return machineWriteRecovery.owns(owner) && boilerRecoveryProductSafe() && current.canRefreshUnknownBoilerSettings &&
+            permitsOrdinaryWrite(current,address,token,MachineWriteDispatchPermit.Request.BoilerSettingsRecovery(settingsWrite))
+    }
+    fun refreshUnknownBoilerSettings():String? {
+        if(!canRefreshUnknownBoilerSettings)return getString(R.string.service_setting_unresolved)
+        val current=requireNotNull(hub)
+        val token=requireNotNull(settingsWrite.boilerRecoveryToken())
+        val address=requireNotNull(machineWriteRecovery.address)
+        val owner=requireNotNull(settingRecoveryOwner)
+        current.refreshUnknownBoilerSettings({machineWriteRecovery.owns(owner) && boilerRecoveryProductSafe() &&
+            permitsOrdinaryWrite(current,address,token,MachineWriteDispatchPermit.Request.BoilerSettingsRecovery(settingsWrite))}) {attempt,result->
+            recordBoilerRefresh(true,attempt,result)
+        }
+        return null
+    }
+
     fun changeMachineSetting(change: MachineSettingChange): String? {
         if (mock != null) {
             val result = mock.changeSetting(change)
@@ -1102,6 +1172,19 @@ class MobileService : Service() {
                     writeWatchdog.await(token, MachineWriteWatchdog.Request.Setting(settingsWrite)) { serials ->
                         recoveryAfterSettingsSerial = serials.settings
                         event(ResourceMessage(R.string.service_write_setting_no_readback), "settings.unknown")
+                    }
+                    if(change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating) {
+                        // First arm WAITING/watchdog, then request one fresh 0x83 via authenticated
+                        // time sync. Its GATT success is not evidence that the setting was applied.
+                        val fallback=BoilerFallback(current,token,coffeeAddress,current.coffeeGeneration,recoveryOwner,
+                            MobileMonotonicClock.elapsedRealtime())
+                        boilerFallback=fallback
+                        handler.postDelayed({if(boilerFallback===fallback)attemptBoilerFallback()},3000)
+                        current.refreshBoilerSettings({machineWriteRecovery.owns(recoveryOwner) && boilerRecoveryProductSafe() &&
+                            permitsOrdinaryWrite(current,coffeeAddress,token,
+                                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))}) { attempt,refreshResult ->
+                            recordBoilerRefresh(false,attempt,refreshResult)
+                        }
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
@@ -1382,6 +1465,10 @@ class MobileService : Service() {
         // Temperature preparation is start-only: callers must still be able to preheat.
         return null
     }
+    fun studioStartReason(profile:CurveProfile):io.openhoyi.session.PreheatGate.StartBlock? =
+        if(!machineBrewSettingsAvailable)io.openhoyi.session.PreheatGate.StartBlock.SETTINGS_MISSING
+        else io.openhoyi.session.PreheatGate.startBlock(snapshot.settings,currentCorrectedBrewTemperature(),
+            profile.id,profile.temperatureC,brewPreparation)
     fun studioStartBlock(profile: CurveProfile): String? = if (!machineBrewSettingsAvailable)
         getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)

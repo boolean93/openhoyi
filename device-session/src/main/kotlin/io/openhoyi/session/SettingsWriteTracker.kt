@@ -24,6 +24,14 @@ class SettingsWriteTracker {
     /** Only the original operation in WRITING owns dispatch permission. */
     fun permitsWrite(token:Long):Boolean = token == serial && state == State.WRITING
 
+    /** Only the original successful boiler write can request its one-shot settings refresh. */
+    fun permitsBoilerRefresh(token:Long):Boolean = token == serial && state == State.WAITING_READBACK &&
+        (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating)
+
+    fun boilerRecoveryToken():Long? = serial.takeIf {state==State.UNKNOWN &&
+        (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating)}
+    fun permitsBoilerRecovery(token:Long):Boolean = boilerRecoveryToken()==token
+
     fun written(token: Long, result: OperationResult, sampleSerial: Long): Boolean {
         if (token != serial || state != State.WRITING) return false
         state = when (result) {
@@ -40,12 +48,13 @@ class SettingsWriteTracker {
         return true
     }
 
-    fun observe(sampleSerial: Long, settings: Settings): Boolean {
+    fun observe(sampleSerial: Long, settings: Settings, reconcileBoilerMismatch:Boolean=false): Boolean {
         if (state !in setOf(State.WAITING_READBACK, State.UNKNOWN) || sampleSerial <= afterSample)
             return false
         afterSample = sampleSerial
         if (change?.matches(settings) != true) {
-            if (state == State.UNKNOWN) state = State.RECONCILED
+            if (state == State.UNKNOWN || reconcileBoilerMismatch &&
+                (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating)) state = State.RECONCILED
             return false
         }
         state = State.CONFIRMED

@@ -13,12 +13,21 @@ object OrdinaryWriteReadback {
 
     fun settings(tracker:SettingsWriteTracker,recovery:MachineWriteRecoveryState,
         serial:Long,frame:Settings,
-        clearRecord:()->Boolean,publish:(Event)->Unit):Boolean {
+        clearRecord:()->Boolean,publish:(Event)->Unit):Boolean =
+        settings(tracker,recovery,serial,frame,clearRecord,false,publish)
+
+    /** Opt-in only with the live original boiler owner and matching authenticated device. */
+    fun settings(tracker:SettingsWriteTracker,recovery:MachineWriteRecoveryState,
+        serial:Long,frame:Settings,clearRecord:()->Boolean,allowBoilerReconciliation:Boolean,
+        publish:(Event)->Unit):Boolean {
         val previous=tracker.state
-        if(tracker.observe(serial,frame)) publish(Event.CONFIRMED)
-        else if(previous==SettingsWriteTracker.State.UNKNOWN && tracker.state==SettingsWriteTracker.State.RECONCILED)
+        if(tracker.observe(serial,frame,allowBoilerReconciliation)) publish(Event.CONFIRMED)
+        else if(previous!=SettingsWriteTracker.State.RECONCILED && tracker.state==SettingsWriteTracker.State.RECONCILED)
             publish(Event.RECONCILED)
-        return clearIfConfirmed(tracker.state==SettingsWriteTracker.State.CONFIRMED,
+        val reconciledBoiler=allowBoilerReconciliation && tracker.state==SettingsWriteTracker.State.RECONCILED &&
+            (tracker.change is io.openhoyi.protocol.MachineSettingChange.BrewHeating ||
+                tracker.change is io.openhoyi.protocol.MachineSettingChange.SteamHeating)
+        return clearIfConfirmed(tracker.state==SettingsWriteTracker.State.CONFIRMED || reconciledBoiler,
             MachineWriteRecoveryState.Kind.SETTING,recovery,clearRecord,publish)
     }
 

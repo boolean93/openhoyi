@@ -63,7 +63,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var brewBoilerPressure: TextView
     private lateinit var steamBoilerTemperature: TextView
     private lateinit var steamBoilerPressure: TextView
-    private lateinit var boilerWriteStatus: TextView
     private lateinit var brewBoilerTarget: TextView
     private lateinit var steamBoilerTarget: TextView
     private lateinit var brewBoilerToggle: Button
@@ -251,10 +250,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val spaciousHome = !phoneHome && resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
         content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { if(spaciousHome) topMargin=dp(8) })
-        boilerWriteStatus=productStyle.text("",TaskProductVisualStyle.Type(14,400,22),"product/home/boiler-write-status").apply {
-            visibility=View.GONE; setPadding(0,dp(8),0,dp(8))
-        }
-        content.addView(boilerWriteStatus,LinearLayout.LayoutParams(-1,-2))
         fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {
                 setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4),
@@ -272,7 +267,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val pressure = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 48 else if (phoneHome) 36 else 19, 700,
                 if (spaciousHome) 58 else if (phoneHome) 44 else 25), "product/home/$tagName/pressure")
             val target = productStyle.text("—", TaskProductVisualStyle.Type(if (shortHome) 14 else 16, 400, if (shortHome) 20 else 24), "product/home/$tagName/target", true)
-            val toggle = button(card, getString(R.string.setting_on)) { confirmBoilerChange(change()) }.apply {
+            val toggle = button(card, getString(R.string.setting_on)) { changeBoilerSetting(change()) }.apply {
                 tag = "product/home/$tagName/toggle"; minimumHeight = dp(48)
             }
             if (shortHome) {
@@ -450,7 +445,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             })
             val button = productStyle.button(Button(host), outline = spaciousHome).apply {
                 tag = "product/home/direct-preset/$slot"
-                setOnClickListener { host.showExtraction(slot, confirmStart = true) }
+                setOnClickListener { host.showExtraction(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
             val contents = LinearLayout(host).apply {
@@ -499,7 +494,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
         leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
-        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }.apply {setSingleLine(true);maxLines=1}
+        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { sleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(host, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
         scaleWeight = text(deviceCard, "— g", 27, true)
@@ -688,7 +683,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetButtons = (1..5).map { slot ->
             button(presetPanel, getString(R.string.home_slot, slot.toString())) {
                 presetDialog?.dismiss()
-                host.showExtraction(slot, confirmStart = true)
+                host.showExtraction(slot)
             }
         }
         quickPresets = workbenchLink(preparationDetails, getString(R.string.home_quick_curves)) { showQuickPresets() }
@@ -824,26 +819,24 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     .setNegativeButton(getString(R.string.machine_settings_cancel), null).let(::showTransient)
             }.let(::showTransient)
     }
-    private fun confirmSleepNow() {
+    private fun sleepNow() {
         if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_sleep_mock)); return }
-        AlertDialog.Builder(host).setTitle(getString(R.string.home_sleep_confirm_title))
-            .setMessage(getString(R.string.home_sleep_confirm_message))
-            .setPositiveButton(getString(R.string.home_sleep_send)) { _, _ -> service?.enterSleepNow()?.let(::toast); render() }
-            .setNegativeButton(getString(R.string.machine_settings_cancel), null).let(::showTransient)
+        service?.enterSleepNow()?.let(::toast)
+        render()
     }
-    private fun confirmBoilerChange(change: MachineSettingChange) {
-        if (!MachineSettingsEditGate.allowed(service)) return
-        val name = settingsPresentation.change(change)
-        val title = getString(if (BuildConfig.MOCK_MODE) R.string.machine_settings_mock_confirm_title
-            else R.string.machine_settings_confirm_title)
-        val message = if (BuildConfig.MOCK_MODE)
-            getString(R.string.machine_settings_mock_confirm_message, name)
-        else name + "\n" + getString(R.string.machine_settings_readback_warning)
-        transientDialogs += AppDialog.confirm(host, title, message, AppDialog.Action(getString(if (BuildConfig.MOCK_MODE)
-            R.string.machine_settings_done else R.string.machine_settings_send)) {
-            if (!BuildConfig.MOCK_MODE) service?.changeMachineSetting(change)?.let(::toast)
-            render()
-        }, getString(R.string.machine_settings_cancel))
+    private fun changeBoilerSetting(change: MachineSettingChange) {
+        if(BuildConfig.MOCK_MODE)return
+        val owner=service ?: return
+        val recovery=owner.settingWriteState==SettingsWriteTracker.State.UNKNOWN &&
+            (change is MachineSettingChange.BrewHeating && owner.pendingSetting is MachineSettingChange.BrewHeating ||
+                change is MachineSettingChange.SteamHeating && owner.pendingSetting is MachineSettingChange.SteamHeating)
+        if(recovery) {
+            owner.refreshUnknownBoilerSettings()?.let(::toast)
+        } else {
+            if(!MachineSettingsEditGate.allowed(owner))return
+            owner.changeMachineSetting(change)?.let(::toast)
+        }
+        render()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         feedbackUi.save(outState)
@@ -856,12 +849,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val s = owner?.snapshot ?: MobileSnapshot()
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
+        val boilerRecoveryActive=owner?.boilerReadbackRecoveryActive==true
         val warning = ShotSafetyAlert.resource(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)?.let { getString(it) }
-            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage
+            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {boilerRecoveryActive}
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
-            owner?.machineWriteAcknowledgementAvailable != true) View.GONE else View.VISIBLE
+            (owner?.machineWriteAcknowledgementAvailable != true || boilerRecoveryActive)) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
             owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)
@@ -981,24 +975,26 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.brewTemperatureC?.let { "${it} °C" } ?: "—"))
         steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.steamTemperatureC?.let { "${it} °C" } ?: "—"))
         val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
-        brewBoilerToggle.isEnabled = boilerEditable
-        steamBoilerToggle.isEnabled = boilerEditable
-        listOf(brewBoilerToggle,steamBoilerToggle).forEach { it.compoundDrawablesRelative.firstOrNull()?.alpha=if(boilerEditable) 255 else 85 }
-        brewBoilerToggle.show(getString(if (s.settings?.brewHeating == true) R.string.setting_off else R.string.setting_on))
-        steamBoilerToggle.show(getString(if (s.settings?.steamHeating == true) R.string.setting_off else R.string.setting_on))
-        boilerWriteStatus.visibility=View.GONE
-        val writeState = owner?.settingWriteState
-        if (writeState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
-                SettingsWriteTracker.State.UNKNOWN)) {
-            val message = getString(when (writeState) {
-                SettingsWriteTracker.State.WRITING -> R.string.machine_settings_setting_writing
-                SettingsWriteTracker.State.WAITING_READBACK -> R.string.machine_settings_setting_waiting
-                else -> R.string.machine_settings_setting_unknown
-            })
-            boilerWriteStatus.show(message)
-            boilerWriteStatus.visibility=View.VISIBLE
-            boilerWriteStatus.setTextColor(if(writeState==SettingsWriteTracker.State.UNKNOWN) getColor(R.color.mobile_danger) else productStyle.muted)
-        }
+        val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
+        val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
+        brewBoilerToggle.isEnabled = if(brewRecovery)owner?.canRefreshUnknownBoilerSettings==true else boilerEditable
+        steamBoilerToggle.isEnabled = if(steamRecovery)owner?.canRefreshUnknownBoilerSettings==true else boilerEditable
+        listOf(brewBoilerToggle,steamBoilerToggle).forEach { it.compoundDrawablesRelative.firstOrNull()?.alpha=if(it.isEnabled) 255 else 85 }
+        val preheatOccupied=PreheatStatusPresentation.boilerOccupied(
+            owner?.brewPreparationState ?: BrewPreparation.State.IDLE,s.coffeeState==DeviceState.READY,
+            freshAwakeIdle && idle?.let {io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true,
+            owner?.machineSettingsFresh!=true || shotActive || owner?.manualShotActive==true ||
+                owner?.machineControlSafetyMessage!=null || settingBusy || sleepBusy ||
+                owner?.scheduleWriteState in setOf(io.openhoyi.session.SleepScheduleWriteTracker.State.WRITING,
+                    io.openhoyi.session.SleepScheduleWriteTracker.State.WAITING_READBACK) ||
+                owner?.cupResetState in setOf(io.openhoyi.session.CupResetTracker.State.WRITING,
+                    io.openhoyi.session.CupResetTracker.State.WAITING_ZERO))
+        brewBoilerToggle.show(getString(HomeBoilerSwitchPresentation.label(true,s.settings?.brewHeating,
+            owner?.pendingSetting,owner?.settingWriteState,owner?.boilerSettingsRecoveryBusy==true,
+            owner?.boilerReadbackReconnecting==true,preheatOccupied)))
+        steamBoilerToggle.show(getString(HomeBoilerSwitchPresentation.label(false,s.settings?.steamHeating,
+            owner?.pendingSetting,owner?.settingWriteState,owner?.boilerSettingsRecoveryBusy==true,
+            owner?.boilerReadbackReconnecting==true,preheatOccupied)))
         val liveScale = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.hundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
@@ -1175,7 +1171,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val saved = getSharedPreferences("curves", MODE_PRIVATE).edit()
             .putString("selected", ready.item.id).commit()
         if (!saved) { toast(getString(R.string.task_brew_usage_unavailable)); return }
-        host.showExtraction(slot = 7, confirmStart = true)
+        host.showExtraction(slot = 7)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun String.compactTemperature() = substringBefore(' ').toFloatOrNull()?.let { String.format(Locale.ROOT, "%.1f °C", it) } ?: this

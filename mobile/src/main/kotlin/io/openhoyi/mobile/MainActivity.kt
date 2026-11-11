@@ -30,7 +30,6 @@ class MainActivity : ThemedActivity() {
     private var destination = TaskDestination.BREW
     private var extractionVisible = false
     private var extractionSlot = 7
-    private var pendingStartConfirmation = false
     private var pendingShow = false
     private var pageId = View.generateViewId()
     private var service: MobileService? = null
@@ -150,12 +149,8 @@ class MainActivity : ThemedActivity() {
         shellStatus.present(service)
     }
     private fun sleepNow() {
-        val owner = service ?: return
-        trackDialog(AppDialog.confirm(this, getString(R.string.home_sleep_confirm_title),
-            getString(R.string.home_sleep_confirm_message), AppDialog.Action(getString(R.string.home_sleep_send)) {
-                owner.enterSleepNow()?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
-                shellStatus.present(service)
-            }, getString(R.string.machine_settings_cancel)))
+        service?.enterSleepNow()?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
+        shellStatus.present(service)
     }
     private fun openScale() {
         if (service?.snapshot?.scaleState == DeviceState.READY) select(TaskDestination.SCALE)
@@ -330,17 +325,15 @@ class MainActivity : ThemedActivity() {
         dismissTransientDialogs()
         destination = next
         extractionVisible = false
-        pendingStartConfirmation = false
         showCurrent()
     }
 
-    fun showExtraction(slot: Int = 7, confirmStart: Boolean = false) {
+    fun showExtraction(slot: Int = 7) {
         if(!extractionVisible)extractionOrigin=destination
         dismissTransientDialogs()
         destination = TaskDestination.BREW
         extractionSlot = slot
         extractionVisible = true
-        pendingStartConfirmation = confirmStart
         showCurrent()
     }
 
@@ -355,7 +348,6 @@ class MainActivity : ThemedActivity() {
             } else create(destination)).also { transaction.add(pageId, it, chosen) }
         if (extractionVisible) (selected as? ExtractionFragment)?.let {
             it.setPresetSlot(extractionSlot)
-            if (!pendingStartConfirmation) it.cancelStartConfirmation()
         }
         supportFragmentManager.fragments.forEach { fragment ->
             if (fragment.tag == chosen) {
@@ -367,10 +359,6 @@ class MainActivity : ThemedActivity() {
         transaction.setPrimaryNavigationFragment(selected)
         transaction.commitNow()
         frame.navigation.refreshSelection()
-        if (pendingStartConfirmation && selected is ExtractionFragment) {
-            pendingStartConfirmation = false
-            selected.requestStartConfirmation()
-        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

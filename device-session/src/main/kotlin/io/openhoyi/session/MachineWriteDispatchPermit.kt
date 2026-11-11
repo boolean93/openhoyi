@@ -4,6 +4,8 @@ package io.openhoyi.session
 object MachineWriteDispatchPermit {
     sealed interface Request {
         data class Setting(val tracker:SettingsWriteTracker):Request
+        data class BoilerSettingsRefresh(val tracker:SettingsWriteTracker):Request
+        data class BoilerSettingsRecovery(val tracker:SettingsWriteTracker):Request
         data class CupReset(val tracker:CupResetTracker):Request
         data class Sleep(val tracker:SleepNowTracker):Request
         data class Schedule(val tracker:SleepScheduleWriteTracker):Request
@@ -12,13 +14,15 @@ object MachineWriteDispatchPermit {
         val manualShotActive:Boolean,val shotRecoveryPending:Boolean,val shotActive:Boolean,val preparationActive:Boolean)
     fun allows(token:Long,request:Request,context:Context):Boolean {
         val kind=when(request) {
-            is Request.Setting->MachineWriteRecoveryState.Kind.SETTING
+            is Request.Setting,is Request.BoilerSettingsRefresh,is Request.BoilerSettingsRecovery->MachineWriteRecoveryState.Kind.SETTING
             is Request.CupReset->MachineWriteRecoveryState.Kind.CUP_RESET
             is Request.Sleep->MachineWriteRecoveryState.Kind.SLEEP_NOW
             is Request.Schedule->MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE
         }
         val ownsWrite=when(request) {
             is Request.Setting->request.tracker.permitsWrite(token)
+            is Request.BoilerSettingsRefresh->request.tracker.permitsBoilerRefresh(token)
+            is Request.BoilerSettingsRecovery->request.tracker.permitsBoilerRecovery(token)
             is Request.CupReset->request.tracker.permitsWrite(token)
             is Request.Sleep->request.tracker.permitsWrite(token)
             is Request.Schedule->request.tracker.permitsWrite(token)
