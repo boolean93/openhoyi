@@ -24,7 +24,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.StopReason
 import java.util.Locale
 
-/** A screen never owns BLE. Start requires an explicit confirmation; Stop is one tap. */
+/** A screen never owns BLE. Only an explicit start-button tap starts a cup; navigation never starts one. */
 class ExtractionActivity : ThemedActivity() {
     private val visual by lazy { ExtractionHistoryVisualStyle(this) }
     private val style get() = visual.palette
@@ -277,7 +277,9 @@ class ExtractionActivity : ThemedActivity() {
         }
         val actionDock = TaskActionDock(this, edgeInsetDp = 0)
         workspace.setFooter(actionDock)
-        start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { confirmStart() }
+        start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
+        (weightTarget.parent as? android.view.ViewGroup)?.removeView(weightTarget)
+        actionDock.addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
         (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
         stop = HoyiUi.button(this, actionDock, getString(R.string.extraction_stop), danger = true) {
             service?.stopShot(); render()
@@ -346,31 +348,31 @@ class ExtractionActivity : ThemedActivity() {
             .getString(PresetSlots.key(presetSlot), null))
         return id?.let(library::find)
     }
-    private fun confirmStart() {
+    private fun startSelectedCurve() {
         val owner = service ?: run { toast(getString(R.string.service_unavailable)); return }
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
         val blocked = owner.extractionStartBlock(profile, selected() != null && profile == null)
         if (!ExtractionStartAction.permit(blocked, ::toast)) { render(); return }
         requireNotNull(profile)
-        owner.studioStartBlock(profile)?.let { toast(it); render(); return }
-        val effect = if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_effect)
-            else getString(R.string.extraction_real_effect)
-        AlertDialog.Builder(this).setTitle(if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_start_title) else getString(R.string.extraction_real_start_title))
-            .setMessage(getString(R.string.extraction_start_message, profile.name, if (profile.parameters.slot == 7) getString(R.string.home_current_curve) else getString(R.string.extraction_shortcut_slot, profile.parameters.slot.toString()), profile.temperatureC.toString(), profile.maximumWaterMl.toString(), if (profile.targetHundredthsGram > 0) getString(R.string.extraction_target_weight_format, number(profile.targetHundredthsGram)) else getString(R.string.extraction_no_weight_target), effect) +
-                if (notificationsAllowed()) "" else getString(R.string.extraction_notification_warning_suffix))
-            .setPositiveButton(if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_start) else getString(R.string.extraction_real_start)) { _, _ ->
-                owner.startShot(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
-                render()
-            }
-            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
+        owner.studioStartBlock(profile)?.let { block ->
+            if(DirectExtractionStart.offerPreheat(owner.studioStartReason(profile),
+                    owner.currentCorrectedBrewTemperature(),profile.temperatureC))confirmPrepare(profile)
+            else toast(block)
+            render();return
+        }
+        // The service resolves this exact selected identity/slot and rechecks scale mode and
+        // dispatch safety. No request survives navigation, binding, resume or dialog dismissal.
+        owner.startShot(profile.id,profile.scaleMode,presetSlot)?.let(::toast)
+        render()
     }
-    private fun confirmPrepare() {
+    private fun confirmPrepare(expected:CurveProfile?=null) {
         val owner = service ?: return
         val profile = selected()?.let {
             (application as MobileApplication).curves.resolve(it.id,
                 owner.snapshot.scaleState == DeviceState.READY, presetSlot)
         } ?: run { toast(getString(R.string.extraction_choose_startable)); return }
+        if(expected!=null && expected!=profile) {toast(getString(R.string.extraction_choose_startable));return}
         val corrected = owner.currentCorrectedBrewTemperature()
         val current = corrected?.let { number(it) + " °C" } ?: getString(R.string.settings_unknown)
         AlertDialog.Builder(this).setTitle(if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_prepare_title) else getString(R.string.extraction_real_prepare_title))
@@ -378,7 +380,11 @@ class ExtractionActivity : ThemedActivity() {
                 if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_prepare_effect)
                 else getString(R.string.extraction_real_prepare_effect))
             .setPositiveButton(if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_prepare_start) else getString(R.string.extraction_real_prepare_start)) { _, _ ->
-                owner.prepareBrew(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
+                if(service!==owner || !visible) {toast(getString(R.string.service_unavailable));return@setPositiveButton}
+                val current=selected()?.let { (application as MobileApplication).curves.resolve(it.id,
+                    owner.snapshot.scaleState==DeviceState.READY,presetSlot) }
+                if(current!=profile)toast(getString(R.string.extraction_choose_startable))
+                else owner.prepareBrew(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
                 render()
             }
             .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
@@ -558,7 +564,10 @@ class ExtractionActivity : ThemedActivity() {
         live.show(getString(R.string.extraction_live_temperature, rawTemperature))
         val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
             else profile?.targetHundredthsGram
-        weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
+        val showStopModePreview=DirectExtractionStart.showStopModePreview(active,profile!=null,state)
+        weightTarget.visibility=if(showStopModePreview) View.VISIBLE else View.GONE
+        weightTarget.show(if(showStopModePreview && profile!=null) DirectExtractionStart.stopMode(profile).render {id,args->getString(id,*args)}
+            else if (owner?.manualShotActive != true && target != null && target > 0) {
             val progress = getString(R.string.extraction_weight_progress, scale?.let(::number) ?: "—", number(target))
             val advice = when {
                 owner?.scalePreflight == true -> getString(R.string.extraction_preflight_weight_advice)

@@ -445,7 +445,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             })
             val button = productStyle.button(Button(host), outline = spaciousHome).apply {
                 tag = "product/home/direct-preset/$slot"
-                setOnClickListener { host.showExtraction(slot, confirmStart = true) }
+                setOnClickListener { host.showExtraction(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
             val contents = LinearLayout(host).apply {
@@ -494,7 +494,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
         leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
-        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }.apply {setSingleLine(true);maxLines=1}
+        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { sleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(host, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
         scaleWeight = text(deviceCard, "— g", 27, true)
@@ -683,7 +683,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetButtons = (1..5).map { slot ->
             button(presetPanel, getString(R.string.home_slot, slot.toString())) {
                 presetDialog?.dismiss()
-                host.showExtraction(slot, confirmStart = true)
+                host.showExtraction(slot)
             }
         }
         quickPresets = workbenchLink(preparationDetails, getString(R.string.home_quick_curves)) { showQuickPresets() }
@@ -819,12 +819,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     .setNegativeButton(getString(R.string.machine_settings_cancel), null).let(::showTransient)
             }.let(::showTransient)
     }
-    private fun confirmSleepNow() {
+    private fun sleepNow() {
         if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_sleep_mock)); return }
-        AlertDialog.Builder(host).setTitle(getString(R.string.home_sleep_confirm_title))
-            .setMessage(getString(R.string.home_sleep_confirm_message))
-            .setPositiveButton(getString(R.string.home_sleep_send)) { _, _ -> service?.enterSleepNow()?.let(::toast); render() }
-            .setNegativeButton(getString(R.string.machine_settings_cancel), null).let(::showTransient)
+        service?.enterSleepNow()?.let(::toast)
+        render()
     }
     private fun changeBoilerSetting(change: MachineSettingChange) {
         if(BuildConfig.MOCK_MODE)return
@@ -1164,7 +1162,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val saved = getSharedPreferences("curves", MODE_PRIVATE).edit()
             .putString("selected", ready.item.id).commit()
         if (!saved) { toast(getString(R.string.task_brew_usage_unavailable)); return }
-        host.showExtraction(slot = 7, confirmStart = true)
+        host.showExtraction(slot = 7)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun String.compactTemperature() = substringBefore(' ').toFloatOrNull()?.let { String.format(Locale.ROOT, "%.1f °C", it) } ?: this

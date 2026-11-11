@@ -586,7 +586,10 @@ class MobileService : Service() {
                     boilerFallback=null
                     hub?.completeBoilerReadbackRecovery()
                 }
-                snapshot.copy(settings = frame, settingsAt = MobileMonotonicClock.elapsedRealtime())
+                // Authentication may adopt an earlier received frame after GATT completion.
+                // Preserve its receipt time; an absent native observation is not fresh evidence.
+                snapshot.copy(settings = frame, settingsAt = if(mock!=null) MobileMonotonicClock.elapsedRealtime()
+                    else hub?.coffeeSettingsObservedAtMs)
             }
             is SleepPart -> {
                 if (frame.firstDaySundayIndex == 0) {
@@ -1462,6 +1465,10 @@ class MobileService : Service() {
         // Temperature preparation is start-only: callers must still be able to preheat.
         return null
     }
+    fun studioStartReason(profile:CurveProfile):io.openhoyi.session.PreheatGate.StartBlock? =
+        if(!machineBrewSettingsAvailable)io.openhoyi.session.PreheatGate.StartBlock.SETTINGS_MISSING
+        else io.openhoyi.session.PreheatGate.startBlock(snapshot.settings,currentCorrectedBrewTemperature(),
+            profile.id,profile.temperatureC,brewPreparation)
     fun studioStartBlock(profile: CurveProfile): String? = if (!machineBrewSettingsAvailable)
         getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)

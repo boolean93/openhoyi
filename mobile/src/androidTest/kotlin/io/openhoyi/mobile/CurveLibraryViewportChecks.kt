@@ -227,8 +227,9 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 val selected = ExtractionFragment::class.java.getDeclaredMethod("selected")
                     .apply { isAccessible = true }.invoke(extraction) as CurveLibraryItem
                 check(selected.id == chosen.id && field(extraction, "presetSlot") == 7)
-                check(field(activity, "pendingStartConfirmation") == false &&
-                    field(extraction, "startConfirmationRequested") == false)
+                // There is no deferred navigation/binding start request. Selection is not Start.
+                check(activity.javaClass.declaredFields.none {it.name=="pendingStartConfirmation"} &&
+                    extraction.javaClass.declaredFields.none {it.name=="startConfirmationRequested"})
                 check(activity.currentService === owner && owner?.shotState == shotBefore &&
                     owner?.chartTraceIdentity == traceBefore) { "Using a curve started or replaced a shot" }
                 check((field(extraction, "transientDialogs") as Collection<*>).isEmpty()) {
