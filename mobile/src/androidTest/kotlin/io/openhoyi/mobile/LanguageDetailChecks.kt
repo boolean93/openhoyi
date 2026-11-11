@@ -245,23 +245,40 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             }
         }, { onMain { resource.set(service, original); invoke(home, "render") } })
     }
-    fun cancelStart(activity: MainActivity, fixture: String) {
+    fun cancelLowTemperaturePreparation(activity: MainActivity, fixture: String) {
         check(BuildConfig.MOCK_MODE && activity.packageName == "io.openhoyi.mobile.mock")
         val service = value(activity, "service") as MobileService
         onMain { check(field(service, "hub").get(service) == null && field(service, "mock").get(service) != null) }
         val prefs = activity.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val original = prefs.all.toMap()
-        val profile = requireNotNull((activity.application as MobileApplication).curves.resolve("factory-v3-002", false))
+        val profile = requireNotNull((activity.application as MobileApplication).curves.resolve("factory-v3-002", service.snapshot.scaleState == io.openhoyi.session.DeviceState.READY))
+        val runtime = field(service, "mock").get(service) as MockDeviceRuntime
+        val settingsField = field(runtime, "settings")
+        val temperatureField = field(runtime, "brewTemperatureHundredths")
+        val originalSettings = settingsField.get(runtime) as io.openhoyi.protocol.Settings
+        val originalTemperature = temperatureField.getInt(runtime)
+        val originalSnapshot = service.snapshot
         val state = service.shotState
+        val trace = service.chartTraceIdentity
+        val preparation = service.brewPreparationState
+        val preheatActive = runtime.preheatActive
         val message = service.snapshot.message
+        val safety = listOf("shot_safety", "machine_write_safety").associateWith {
+            activity.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap()
+        }
+        val markers = listOf("pending_shot.json", "pending_machine_write.json").associateWith {
+            File(activity.noBackupFilesDir, it).takeIf(File::exists)?.readBytes()?.toList()
+        }
+        check(!ShotGate.active(state) && !preheatActive && !runtime.isSleeping &&
+            preparation == io.openhoyi.session.BrewPreparation.State.IDLE)
         var dialogMayBeOpen = false
         val automation = test.uiAutomation
         val serviceInfo = requireNotNull(automation.serviceInfo)
         val originalFlags = serviceInfo.flags
-        val title = activity.getString(R.string.extraction_mock_start_title)
+        val title = activity.getString(R.string.extraction_mock_prepare_title)
         // AppDialog styles the real buttons with isAllCaps=false. Match the exact translated
         // text the user sees instead of a detached, unstyled AlertDialog's transformation.
-        val expectedPositive = activity.getString(R.string.extraction_mock_start)
+        val expectedPositive = activity.getString(R.string.extraction_mock_prepare_start)
         val expectedNegative = activity.getString(R.string.machine_settings_cancel)
         check(expectedPositive.isNotBlank() && expectedNegative.isNotBlank())
         restoreAfter({
@@ -269,13 +286,28 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             automation.serviceInfo = serviceInfo
             onMain {
                 check(prefs.edit().putString("selected", profile.id).commit())
+                // Exercise the real Start click and shared typed gate, not a private dialog method.
+                val settings = originalSettings.copy(flags = originalSettings.flags or 0x04)
+                settingsField.set(runtime, settings)
+                val corrected = (profile.temperatureC - 10) * 100
+                temperatureField.setInt(runtime, corrected + settings.brewCompensationTenthsC * 10)
+                val now = MobileMonotonicClock.elapsedRealtime()
+                val sample = runtime.sample(now)
+                field(service, "snapshot").set(service, originalSnapshot.copy(
+                    coffeeState = sample.coffeeState, coffee = sample.coffee, coffeeAt = now,
+                    settings = settings, settingsAt = now, alarmBits = 0, alarmAt = now))
                 invoke(activity, "render")
+                check(service.extractionStartBlock(profile) == null)
+                check(service.studioStartReason(profile) == io.openhoyi.session.PreheatGate.StartBlock.TEMPERATURE_NOT_READY)
+                check(service.currentCorrectedBrewTemperature() == corrected)
+                val start = requireNotNull(page(activity).requireView().findViewWithTag<Button>("product/extraction/start"))
+                check(start.isShown && start.isEnabled)
                 dialogMayBeOpen = true
-                invoke(activity, "confirmStart")
+                check(start.performClick())
             }
-            val expectedMessage = activity.getString(R.string.extraction_start_message, profile.name,
-                activity.getString(R.string.home_current_curve), profile.temperatureC.toString(), profile.maximumWaterMl.toString(),
-                activity.getString(R.string.extraction_no_weight_target), activity.getString(R.string.extraction_mock_effect))
+            val current = String.format(java.util.Locale.ROOT, "%.2f", (profile.temperatureC - 10).toFloat()) + " °C"
+            val expectedMessage = activity.getString(R.string.extraction_prepare_message, current,
+                profile.temperatureC.toString()) + activity.getString(R.string.extraction_mock_prepare_effect)
             val deadline = SystemClock.elapsedRealtime() + 10000
             while (true) {
                 var cancelled = false
@@ -318,7 +350,21 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                 Thread.sleep(25)
             }
             dialogMayBeOpen = false
-            onMain { check(service.shotState == state && service.snapshot.message === message) { "$fixture cancel started a cup" } }
+            onMain {
+                check(service.shotState == state && service.chartTraceIdentity == trace &&
+                    service.brewPreparationState == preparation && runtime.preheatActive == preheatActive &&
+                    service.snapshot.message === message) { "$fixture cancel changed shot/preheat/message state" }
+                safety.forEach { (name, expected) ->
+                    check(activity.getSharedPreferences(name, Context.MODE_PRIVATE).all == expected) {
+                        "$fixture cancel changed $name"
+                    }
+                }
+                markers.forEach { (name, expected) ->
+                    check(File(activity.noBackupFilesDir, name).takeIf(File::exists)?.readBytes()?.toList() == expected) {
+                        "$fixture cancel changed recovery marker $name"
+                    }
+                }
+            }
         }, {
             // Back dismisses a remaining dialog; never invoke the positive action during cleanup.
             cleanup({
@@ -329,8 +375,12 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                             check(automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK))
                     } finally { root.recycle() }
                 }
-            }, { onMain { restoreMockPreferences(prefs, original) } },
-                { onMain { invoke(activity, "render") } },
+            }, { onMain {
+                settingsField.set(runtime, originalSettings)
+                temperatureField.setInt(runtime, originalTemperature)
+                field(service, "snapshot").set(service, originalSnapshot)
+                restoreMockPreferences(prefs, original)
+            } }, { onMain { invoke(activity, "render") } },
                 { serviceInfo.flags = originalFlags; automation.serviceInfo = serviceInfo })
         })
     }
