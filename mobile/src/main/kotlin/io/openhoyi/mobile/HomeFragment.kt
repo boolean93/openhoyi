@@ -980,12 +980,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         brewBoilerToggle.isEnabled = if(brewRecovery)owner?.canRefreshUnknownBoilerSettings==true else boilerEditable
         steamBoilerToggle.isEnabled = if(steamRecovery)owner?.canRefreshUnknownBoilerSettings==true else boilerEditable
         listOf(brewBoilerToggle,steamBoilerToggle).forEach { it.compoundDrawablesRelative.firstOrNull()?.alpha=if(it.isEnabled) 255 else 85 }
+        val preheatOccupied=PreheatStatusPresentation.boilerOccupied(
+            owner?.brewPreparationState ?: BrewPreparation.State.IDLE,s.coffeeState==DeviceState.READY,
+            freshAwakeIdle && idle?.let {io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true,
+            owner?.machineSettingsFresh!=true || shotActive || owner?.manualShotActive==true ||
+                owner?.machineControlSafetyMessage!=null || settingBusy || sleepBusy ||
+                owner?.scheduleWriteState in setOf(io.openhoyi.session.SleepScheduleWriteTracker.State.WRITING,
+                    io.openhoyi.session.SleepScheduleWriteTracker.State.WAITING_READBACK) ||
+                owner?.cupResetState in setOf(io.openhoyi.session.CupResetTracker.State.WRITING,
+                    io.openhoyi.session.CupResetTracker.State.WAITING_ZERO))
         brewBoilerToggle.show(getString(HomeBoilerSwitchPresentation.label(true,s.settings?.brewHeating,
             owner?.pendingSetting,owner?.settingWriteState,owner?.boilerSettingsRecoveryBusy==true,
-            owner?.boilerReadbackReconnecting==true)))
+            owner?.boilerReadbackReconnecting==true,preheatOccupied)))
         steamBoilerToggle.show(getString(HomeBoilerSwitchPresentation.label(false,s.settings?.steamHeating,
             owner?.pendingSetting,owner?.settingWriteState,owner?.boilerSettingsRecoveryBusy==true,
-            owner?.boilerReadbackReconnecting==true)))
+            owner?.boilerReadbackReconnecting==true,preheatOccupied)))
         val liveScale = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.hundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))

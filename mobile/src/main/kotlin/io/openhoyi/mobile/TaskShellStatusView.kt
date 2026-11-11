@@ -282,9 +282,14 @@ internal class TaskShellStatusView(
             SettingsWriteTracker.State.WAITING_READBACK, SettingsWriteTracker.State.UNKNOWN)
         val statusId = TaskShellDeviceStatus.coffee(
             active, owner?.sleepNowState, owner?.settingWriteState,
-            owner != null && (owner.brewPreparationState != BrewPreparation.State.IDLE ||
-                owner.machineControlSafetyMessage != null), owner?.running == true,
-            snapshot.coffeeState, idle?.sleepStateRaw, snapshot.coffeeFailure,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw)
+            owner?.machineControlSafetyMessage != null ||
+                idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true,
+            owner?.running == true,
+            snapshot.coffeeState, idle?.sleepStateRaw, snapshot.coffeeFailure,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw,
+            owner?.brewPreparationState ?: BrewPreparation.State.IDLE,
+            owner?.brewPreparationTargetC?.let {target->owner.currentCorrectedBrewTemperature()?.let {
+                BrewPreparation.isAtTarget(it,target)
+            }}==true)
         val status = host.getString(statusId)
         val compactStatus=host.getString(SleepPresentation.compactStatus(statusId))
         val coffeeLine = "● $compactStatus"

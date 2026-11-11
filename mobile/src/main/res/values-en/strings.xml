@@ -294,6 +294,7 @@
     <string name="home_alarm_initial">"No machine alarm state received yet"</string>
     <string name="home_bind_failed">"Unable to bind to device service"</string>
     <string name="home_bluetooth_unsupported">"This device does not support Bluetooth"</string>
+    <string name="home_boiler_preheat_occupied">"Preheat busy"</string>
     <string name="home_boiler_reconnecting">"Reconnecting"</string>
     <string name="home_boiler_refresh">"Refresh state"</string>
     <string name="home_boiler_retry_off">"Retry off"</string>
@@ -954,6 +955,8 @@
     <string name="task_shell_machine_asleep">"Asleep"</string>
     <string name="task_shell_machine_awake">"Standby"</string>
     <string name="task_shell_machine_extraction">"Brewing"</string>
+    <string name="task_shell_machine_preheat_ready">"Preheat ready"</string>
+    <string name="task_shell_machine_preheating">"Preheating"</string>
     <string name="task_shell_machine_setting">"Updating"</string>
     <string name="task_shell_machine_sleeping">"Waiting for the coffee machine to confirm sleep"</string>
     <string name="task_shell_machine_unavailable">"Unavailable"</string>

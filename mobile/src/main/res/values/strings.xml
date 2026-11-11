@@ -320,6 +320,9 @@
     <string name="task_shell_machine_setting">"设置中"</string>
     <string name="task_shell_machine_unknown">"结果未知"</string>
     <string name="task_shell_machine_unavailable">"暂不可用"</string>
+    <string name="task_shell_machine_preheating">预热中</string>
+    <string name="task_shell_machine_preheat_ready">预热就绪</string>
+    <string name="home_boiler_preheat_occupied">预热占用</string>
     <string name="task_shell_action_sleep">"休眠"</string>
     <string name="task_shell_action_wake_on_machine">"已休眠"</string>
     <string name="task_shell_action_disconnect">"断开"</string>

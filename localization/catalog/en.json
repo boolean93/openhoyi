@@ -988,5 +988,8 @@
   "home_boiler_reconnecting": "Reconnecting",
   "home_boiler_refresh": "Refresh state",
   "home_boiler_retry_on": "Retry on",
-  "home_boiler_retry_off": "Retry off"
+  "home_boiler_retry_off": "Retry off",
+  "task_shell_machine_preheating": "Preheating",
+  "task_shell_machine_preheat_ready": "Preheat ready",
+  "home_boiler_preheat_occupied": "Preheat busy"
 }

@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "f089afae4a34a8d2b68bcddb7413a161bd3080650ade6b1173a1d7c96c2e25c5",
+  "sha256": "ca3f5622e886253c18f5ba24fb5b31039103b758800d62700cabb957aa5986a4",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -991,6 +991,9 @@
     "home_boiler_reconnecting": "重连中",
     "home_boiler_refresh": "刷新状态",
     "home_boiler_retry_on": "重试开启",
-    "home_boiler_retry_off": "重试关闭"
+    "home_boiler_retry_off": "重试关闭",
+    "task_shell_machine_preheating": "预热中",
+    "task_shell_machine_preheat_ready": "预热就绪",
+    "home_boiler_preheat_occupied": "预热占用"
   }
 }
