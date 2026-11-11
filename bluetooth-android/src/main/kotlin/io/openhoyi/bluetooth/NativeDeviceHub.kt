@@ -84,7 +84,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                     scaleWasReady=state==DeviceState.READY
                     if(state in listOf(DeviceState.READY,DeviceState.FAILED,DeviceState.UNSUPPORTED))automaticScaleConnecting=false
                     if(state!=DeviceState.READY)standaloneTare.disconnected()
-                    if(ownsScale(ticket,request) && state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED))
+                    if(ownsScale(ticket,request) && state!=DeviceState.READY)
                         extraction.scaleDisconnected()
                     if(ownsScale(ticket,request) && state==DeviceState.READY) {
                         val selected=scaleSlot.current?.selection

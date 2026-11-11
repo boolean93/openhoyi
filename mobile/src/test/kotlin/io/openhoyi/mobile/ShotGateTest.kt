@@ -70,13 +70,13 @@ class ShotGateTest {
         for (state in DeviceState.entries) {
             assertEquals(if (state == DeviceState.READY) null else "咖啡机尚未就绪",
                 block(flow, coffee = state))
-            assertEquals(if (state == DeviceState.READY) null else "目标重量萃取需要电子秤",
+            assertEquals(if (state == DeviceState.READY) null else "电子秤未就绪，请重连",
                 block(weighted, scale = state))
         }
         assertNull(block(weighted, coffeeAt = 1000, weightAt = 1000, now = 2500))
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = 2001, now = 2000))
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = null))
-        assertEquals("电子秤数据已过期", block(weighted, weightAt = null))
+        assertEquals("读数已过期，请重连电子秤", block(weighted, weightAt = null))
     }
 
     @Test fun weightedStartRequiresFreshScaleAndVerifiedCoffee() {
@@ -84,9 +84,9 @@ class ShotGateTest {
         assertEquals("咖啡机尚未就绪", block(weighted, coffee = DeviceState.UNSUPPORTED))
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeFrame = null))
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = 0, now = 1501))
-        assertEquals("目标重量萃取需要电子秤", block(weighted, scale = DeviceState.FAILED))
-        assertEquals("电子秤数据已过期", block(weighted, weightAt = 1000, now = 2501, coffeeAt = 2500))
-        assertEquals("电子秤数据已过期", block(weighted, weightAt = 3000, now = 2500, coffeeAt = 2500))
+        assertEquals("电子秤未就绪，请重连", block(weighted, scale = DeviceState.FAILED))
+        assertEquals("读数已过期，请重连电子秤", block(weighted, weightAt = 1000, now = 2501, coffeeAt = 2500))
+        assertEquals("读数已过期，请重连电子秤", block(weighted, weightAt = 3000, now = 2500, coffeeAt = 2500))
         assertNull(block(weighted, now = 2500, coffeeAt = 2500))
     }
     @Test fun flowProfileNeedsOnlyCoffeeAndActiveOutcomeBlocksRestart() {
@@ -124,5 +124,12 @@ class ShotGateTest {
         assertEquals(R.string.scale_control_unverified, resource(false, null))
         assertNull(resource(false, eligible))
         assertNull(resource(true, null))
+        val documented = eligible.copy(capabilities = ScaleCapabilities(tare=true,protocolSupportedWeightControl=true),
+            evidence = ScaleEvidence.DOCUMENTED_TRANSPORT)
+        assertNull(resource(false, documented))
+        for (evidence in listOf(ScaleEvidence.LIVE_READ_ONLY, ScaleEvidence.OFFLINE_CANDIDATE))
+            assertEquals(R.string.scale_control_unverified, resource(false, documented.copy(evidence=evidence)))
+        assertEquals(R.string.scale_control_unverified,
+            resource(false, documented.copy(capabilities=ScaleCapabilities(tare=true))))
     }
 }

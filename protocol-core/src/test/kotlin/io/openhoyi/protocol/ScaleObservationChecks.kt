@@ -29,3 +29,20 @@ fun main() {
     }
     println("PASS scale observation equivalence, malformed rejection and offline-only evidence")
 }
+
+/** Included in the regular :protocol-core:check runner. */
+fun targetWeightCapabilityChecks() {
+    val generic=ScaleObservation(0,0,ScaleObservationDecoder.bookooCapabilities,
+        ScaleEvidence.VERIFIED_TRANSPORT,raw=ByteFrame(byteArrayOf()))
+    val documented = generic.copy(capabilities=ScaleCapabilities(tare=true,protocolSupportedWeightControl=true),
+        evidence=ScaleEvidence.DOCUMENTED_TRANSPORT)
+    check(documented.eligibleForTargetWeight && !documented.eligibleForControl)
+    check(!documented.capabilities.validatedWeightControl && !documented.capabilities.automaticTare)
+    for(evidence in listOf(ScaleEvidence.LIVE_READ_ONLY,ScaleEvidence.OFFLINE_CANDIDATE,ScaleEvidence.VERIFIED_TRANSPORT))
+        check(!documented.copy(evidence=evidence).eligibleForTargetWeight)
+    check(!documented.copy(capabilities=ScaleCapabilities(tare=true)).eligibleForTargetWeight)
+    check(!documented.copy(capabilities=documented.capabilities.copy(weight=false)).eligibleForTargetWeight)
+    check(!documented.copy(capabilities=documented.capabilities.copy(tare=false)).eligibleForTargetWeight)
+    check(generic.eligibleForTargetWeight)
+    println("PASS target-weight evidence and capability boundaries")
+}

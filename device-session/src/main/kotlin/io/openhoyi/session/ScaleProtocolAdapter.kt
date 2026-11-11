@@ -26,7 +26,8 @@ interface ScaleProtocolAdapter {
     val initializationCommands:List<TimedCommand>
     val tareCommand:EncodedCommand?
     val transportVerified:Boolean
-    /** Independently documented protocol evidence permits whitelisted transport, not weight control.
+    /** Independently documented protocol evidence permits whitelisted transport, not hardware-validation claims.
+     * Target control requires a separate explicit capability.
      * This can be public vendor documentation or a recorded legacy protocol, not hardware proof. */
     val documentedTransport:Boolean get()=false
     /** One fixed keepalive; session serializes it with all writes and never retries failures. */

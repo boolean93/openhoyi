@@ -2,7 +2,7 @@ package io.openhoyi.session
 
 import io.openhoyi.protocol.*
 
-/** Independently recorded legacy profiles. No hardware, automatic-tare or machine-control claim.
+/** Independently recorded legacy profiles. No hardware-validation or automatic-tare claim.
  * Wire evidence and exact scope: docs/plans/legacy-scale-parity.md. No endpoint probing/retries. */
 abstract class LegacyDocumentedScaleAdapter:ScaleProtocolAdapter {
     final override val transportVerified=false
@@ -16,7 +16,7 @@ abstract class LegacyDocumentedScaleAdapter:ScaleProtocolAdapter {
 /** Existing saved felicita-ascii-read-only selections stay read-only. Re-select to enable tare. */
 object FelicitaScaleProtocolAdapter:LegacyDocumentedScaleAdapter() {
     override val id="felicita-ascii-legacy"
-    override val capabilities=ScaleCapabilities(tare=true)
+    override val capabilities=ScaleCapabilities(tare=true,protocolSupportedWeightControl=true)
     override val notifyEndpoint=FelicitaReadOnlyScaleProtocolAdapter.notifyEndpoint
     override val writeEndpoint=notifyEndpoint
     override val initializationCommands=emptyList<TimedCommand>()
@@ -104,7 +104,7 @@ object AcaiaPearlScaleProtocolAdapter:AcaiaScaleProtocolAdapter(AcaiaVariant.AP,
  * Exact 12-byte payloads require a connection-local protocol gram-unit response.
  * No heuristic offsets or implicit unit from successful writes. */
 abstract class DiFluidProtocolAdapter(service:String,final override val id:String):LegacyDocumentedScaleAdapter() {
-    override val capabilities=ScaleCapabilities(tare=true)
+    override val capabilities=ScaleCapabilities(tare=true,protocolSupportedWeightControl=true)
     override val writeEndpoint=Endpoint(service,"0000aa02-0000-1000-8000-00805f9b34fb")
     override val notifyEndpoint=Endpoint(service,"0000aa01-0000-1000-8000-00805f9b34fb")
     override val initializationCommands get()=listOf(TimedCommand(500,DiFluidCodec.subscribe().frame),

@@ -102,7 +102,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram !in 0..600_000 || compensationHundredthsGram !in -10_000..10_000 || (targetHundredthsGram>0 && compensationHundredthsGram>=targetHundredthsGram))return false
         val now=clock();val sample=latest
         if(!coffee.ready || !scale.startAllowed)return false
-        if(targetHundredthsGram>0&&(!scale.capabilities.validatedWeightControl || !scale.capabilities.tare || !scale.ready||sample==null||!ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,now)))return false
+        if(targetHundredthsGram>0&&(!scale.capabilities.supportsTargetWeight || !scale.capabilities.tare || !scale.ready||sample==null||!ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,now)))return false
         if(!coffee.prepareStart(parameters))return false
         val id=++serial
         clearStopIdleEvidence()
@@ -135,7 +135,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         coffee.start(parameters,{
             val sample=latest
             permitted(beforeDispatch) && id==serial && state==ExtractionState.STARTING && lastActiveFrame==null && coffee.ready && scale.startAllowed &&
-                (target==0 || (scale.capabilities.validatedWeightControl && scale.capabilities.tare && scale.ready && sample!=null &&
+                (target==0 || (scale.capabilities.supportsTargetWeight && scale.capabilities.tare && scale.ready && sample!=null &&
                     ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,clock())))
         }){result ->
             if(id!=serial)return@start
@@ -154,7 +154,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     }
     /** Generic live input; offline decode evidence is never an extraction observation. */
     fun weight(observation:ScaleObservation) {
-        if(!observation.eligibleForControl)return
+        if(!observation.eligibleForTargetWeight)return
         weight(WeightReading(observation.hundredthsGram,observation.receivedAtMs))
     }
     fun weight(reading:WeightReading) {

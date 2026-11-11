@@ -1,5 +1,7 @@
 # 补齐旧版蓝牙秤兼容
 
+> 后续更新：本文保留当时的保守控制边界。新可写 Felicita 与 DiFluid EE/DD 的协议支持目标液重联动见 [目标液重修复](scale-target-weight.md)；不提升为硬件验证，不改变其它秤、旧只读绑定或自动去皮/称豆资格。
+
 - 需求与范围：用户在核查旧版迁移缺口后明确要求“补吧”。补 BOOKOO / ULTRA 发现、Felicita 显式去皮、Acaia A/AP 及 DiFluid EE/DD 的实时连接与克单位读数，逐项核对有证据的手动控制能力。旧型号/固件仍需实机验证，不把品牌名当全系列承诺。
 - 来源分支/基线：功能最初来自 `origin/develop` / `3f9df29`；本轮依赖尚未合并的泰摩适配与多秤 owner 机制，从 `feature/timemore-scales` 的 `c0bd80e` 继续同一秤适配 PR。开始已检查并 fetch；PR #14 仍开放、目标 `develop`。不直接推送集成分支，不强推。
 - 并发归属：开始时发现其他任务在改 `mobile` 下 ExtractionActivity、ExtractionFragment、MobileService、ShotGate 及 ShotGateTest，本任务不编辑、不暂存、不撤销这些文件。Lead 写会话/BLE/适配器与文档，复用协议工作者仅写新的 LegacyLiveScaleCodec 及其测试；实际 Astra 模型负责方案和最终关键路径的独立只读复核。

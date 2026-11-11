@@ -39,7 +39,6 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     internal lateinit var feedbackUi: BrewFeedbackDialog
         private set
     private val machineAlarms by lazy { MachineAlarms(host) }
-    private val shotGate by lazy { ShotGate(host) }
     private var presetSlot = 7
     fun setPresetSlot(slot:Int) {
         val next=slot.takeIf { it in 1..5 } ?: 7
@@ -462,14 +461,11 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         return id?.let(library::find)
     }
     private fun confirmStart() {
-        val owner = service ?: return
+        val owner = service ?: run { toast(getString(R.string.service_unavailable)); return }
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
-        val blocked = owner.tareStartBlock ?: shotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
-            owner.snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), owner.shotState,
-            validated = profile?.let(library::validated) == true,
-            scaleObservation = owner.snapshot.scaleObservation)
-        if (blocked != null) { toast(blocked); render(); return }
+        val blocked = owner.extractionStartBlock(profile, selected() != null && profile == null)
+        if (!ExtractionStartAction.permit(blocked, ::toast)) { render(); return }
         requireNotNull(profile)
         owner.studioStartBlock(profile)?.let { toast(it); render(); return }
         val effect = if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_effect)
@@ -531,12 +527,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val item = selected()
         val library = (application as MobileApplication).curves
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
-        val blocked = if (owner?.manualShotActive == true) getString(R.string.extraction_manual_block)
-            else if (item != null && profile == null) getString(R.string.extraction_invalid_curve_block)
-            else owner?.tareStartBlock ?: shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-                snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), state,
-                validated = profile?.let(library::validated) == true,
-                scaleObservation = snapshot.scaleObservation)
+        val blocked = if (owner == null) getString(R.string.service_unavailable)
+            else owner.extractionStartBlock(profile, item != null && profile == null)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             getString(R.string.extraction_disconnect_advice_suffix) else
             owner?.manualSafetyMessage?.let { "\n$it" }.orEmpty()
@@ -736,9 +728,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         preparationTools.visibility = if (hideIdlePreparation) View.GONE else View.VISIBLE
         cancelPrepare.show(if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
             getString(R.string.extraction_cancel_prepare_again) else getString(R.string.extraction_cancel_prepare))
-        start.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
-            blocked == null && studioBlocked == null &&
-            !settingBusy && !sleepBusy
+        // Grey means protected, not unresponsive: tapping only explains the current reason.
+        start.isEnabled = true
+        val startProtected = blocked != null || studioBlocked != null || settingBusy || sleepBusy
+        start.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            if (startProtected) style.disabled else 0xff009e48.toInt())
+        start.setTextColor(if (startProtected) style.onDisabled else android.graphics.Color.WHITE)
+        start.contentDescription = listOfNotNull(start.text.toString(), blocked ?: studioBlocked).joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE

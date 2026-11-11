@@ -727,6 +727,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         .put("weight",value.weight).put("tare",value.tare).put("deviceFlow",value.deviceFlow)
         .put("battery",value.battery).put("deviceTimer",value.deviceTimer)
         .put("validatedWeightControl",value.validatedWeightControl)
+        .put("protocolSupportedWeightControl",value.protocolSupportedWeightControl)
     private fun sleepValue(value:SleepPart):JSONObject=JSONObject().put("kind","SleepPart")
         .put("firstDaySundayIndex",value.firstDaySundayIndex)
         .put("enabledBits",nullableValue(value.enabledBits) {it})
@@ -1007,6 +1008,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val invalid=mapOf("future-time" to sample(100001),"negative-time" to sample(-1),"unsupported-weight" to sample(100000,600001),
             "tare-capability" to sample(100000).copy(capabilities=io.openhoyi.protocol.ScaleCapabilities(tare=true)),
             "control-capability" to sample(100000).copy(capabilities=io.openhoyi.protocol.ScaleCapabilities(validatedWeightControl=true)),
+            "protocol-control-capability" to sample(100000).copy(capabilities=io.openhoyi.protocol.ScaleCapabilities(protocolSupportedWeightControl=true)),
             "verified-evidence" to sample(100000,evidence=io.openhoyi.protocol.ScaleEvidence.VERIFIED_TRANSPORT),
             "battery-without-capability" to sample(100000,percent=82),"illegal-battery" to sample(100000,battery=true,percent=101))
         invalid.forEach {(name,value)->rejected(name) {scope.offer(DeviceState.READY,value)}}

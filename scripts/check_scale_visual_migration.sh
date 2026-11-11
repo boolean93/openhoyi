@@ -204,7 +204,7 @@ def referenced_file(page, ref, expected):
 SNAPSHOT_KEYS={'coffeeState','scaleState','coffee','coffeeAt','alarmBits','alarmAt','settings','settingsAt',
     'sleepFirst','sleepSecond','sleepFirstAt','sleepSecondAt','weight','weightAt','scaleObservation',
     'scaleCapabilities','candidates','scanning','message'}
-CAPABILITY_KEYS={'weight','tare','deviceFlow','battery','deviceTimer','validatedWeightControl'}
+CAPABILITY_KEYS={'weight','tare','deviceFlow','battery','deviceTimer','validatedWeightControl','protocolSupportedWeightControl'}
 MESSAGE_KEYS={
     'Settings':{'firmwareMajor','firmwareMinor','firmwarePatch','flags','brewTemperatureC',
         'brewCompensationTenthsC','steamTemperatureC','standbyMinutes','standbyTemperatureC',
@@ -320,7 +320,7 @@ for path in manifests:
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['ownedAsyncReaderCount']==0
     guards=json.loads((folder/'service-guards.json').read_text())
     assert guards['positiveMockMainClockOwnerHubNull'] and guards['duplicateNotificationDelta']==2 and guards['duplicateTrendPointDelta']==0
-    assert len(guards['cases'])==16 and all(case['notificationDelta']==0 for case in guards['cases'])
+    assert len(guards['cases'])==17 and all(case['notificationDelta']==0 for case in guards['cases'])
     special=json.loads((folder/'special-states/manifest.json').read_text())
     assert special['evidenceSummaryVersion']==2 and special['referenceBase']=='page_root'
     assert special['completed'] and special['mainConfigurationCountContribution']==0 and special['visualAcceptance']=='ASTRA_PENDING'

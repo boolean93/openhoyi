@@ -44,7 +44,7 @@ internal class MockScaleVisualInput(
         observation?.let { sample ->
             require(sample.receivedAtMs >= 0 && sample.receivedAtMs <= now()) { "Scale reception time is outside the owned monotonic domain" }
             require(ScaleReadingPolicy.supportedWeight(sample.hundredthsGram)) { "Scale weight is outside the supported display range" }
-            require(!sample.capabilities.tare && !sample.capabilities.validatedWeightControl && sample.evidence != ScaleEvidence.VERIFIED_TRANSPORT) {
+            require(!sample.capabilities.tare && !sample.capabilities.validatedWeightControl && !sample.capabilities.protocolSupportedWeightControl && sample.evidence != ScaleEvidence.VERIFIED_TRANSPORT) {
                 "Synthetic scale input cannot grant write/control or verified-transport evidence"
             }
             require(sample.batteryPercent == null || sample.capabilities.battery && sample.batteryPercent in 0..100) { "Invalid synthetic battery evidence" }

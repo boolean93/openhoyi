@@ -1358,6 +1358,24 @@ class MobileService : Service() {
         return BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
             settings.brewCompensationTenthsC)
     }
+    /** One read-only reason for the grey start action in both extraction screens. No writes. */
+    fun extractionStartBlock(profile: CurveProfile?, invalidCurve: Boolean = false): String? {
+        if (!running) return getString(R.string.service_unavailable)
+        machineControlSafetyMessage?.let { return it }
+        if (manualShotActive) return getString(R.string.extraction_manual_block)
+        if (invalidCurve) return getString(R.string.extraction_invalid_curve_block)
+        tareStartBlock?.let { return it }
+        shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+            snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), shotState,
+            validated = profile?.let((application as MobileApplication).curves::validated) == true,
+            scaleObservation = snapshot.scaleObservation)?.let { return it }
+        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+                SettingsWriteTracker.State.UNKNOWN)) return getString(R.string.service_shot_settings_start_block)
+        if (sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP,
+                SleepNowTracker.State.UNKNOWN)) return getString(R.string.service_shot_sleep_start_block)
+        // Temperature preparation is start-only: callers must still be able to preheat.
+        return null
+    }
     fun studioStartBlock(profile: CurveProfile): String? = if (!machineBrewSettingsAvailable)
         getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)

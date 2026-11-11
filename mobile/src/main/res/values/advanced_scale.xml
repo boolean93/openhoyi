@@ -35,10 +35,10 @@
     <string name="scale_owner_required">请先在连接管理中授权蓝牙并启用蓝牙</string>
     <string name="scale_owner_failed">蓝牙会话尚未启动，请打开连接管理</string>
     <string name="scale_connection_manager">打开连接管理</string>
-    <string name="scale_offline_evidence">泰摩 DOT / Basic3 Link、旧协议 ULTRA、Felicita、Acaia 和 DiFluid 已有协议依据，待实机验收；旧款 timemore scale 为实验性只读。旧 Felicita 绑定保持只读，重新扫描选择后可手动去皮。未经验证的秤不支持目标重量联动、自动去皮或称豆取粉量。</string>
+    <string name="scale_offline_evidence">Felicita 与 DiFluid 可按协议联动目标液重，待实机验收；其余实验协议不开放目标联动。旧 Felicita 绑定保持只读，重新选择可启用去皮与目标联动。以上协议均不开放自动去皮或称豆采集。</string>
     <string name="scale_documented_live">已有协议依据，待实机验收；无目标重量联动或称豆采集</string>
     <string name="scale_capability_documented">已有协议依据，待实机验收</string>
-    <string name="scale_control_unverified">此秤尚未验证目标重量联动，不能启动重量目标曲线</string>
+    <string name="scale_control_unverified">当前连接不支持目标液重，请重新选秤</string>
     <string name="scale_secondary_value">次传感器 %1$s g（实验性）</string>
     <string name="scale_settings_subtitle">仅调整本 App 的显示；不发送设备设置命令</string>
     <string name="scale_precision">显示到 0.1 g（关闭时显示到 0.01 g）</string>
@@ -75,4 +75,5 @@
     <string name="scale_usage_instructions">使用说明</string>
     <string name="scale_operation_limits">操作限制</string>
     <string name="scale_protocol_support">协议支持</string>
+    <string name="scale_documented_target_live">支持目标液重联动；待实机验收，不支持称豆采集</string>
 </resources>

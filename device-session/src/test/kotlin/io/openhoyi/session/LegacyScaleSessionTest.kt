@@ -189,6 +189,8 @@ class LegacyScaleSessionTest {
         for(adapter in adapters) {
             assertFalse(adapter.transportVerified);assertTrue(adapter.documentedTransport)
             assertFalse(adapter.capabilities.validatedWeightControl);assertFalse(adapter.capabilities.automaticTare)
+            assertEquals(adapter in listOf(FelicitaScaleProtocolAdapter,DiFluidScaleProtocolAdapter,DiFluidTiScaleProtocolAdapter),
+                adapter.capabilities.protocolSupportedWeightControl)
             val endpoint=requireNotNull(adapter.writeEndpoint)
             for(command in adapter.initializationCommands.map {it.frame}+listOfNotNull(adapter.tareCommand?.frame,adapter.heartbeat?.command?.frame)) {
                 assertTrue(OutboundWritePolicy.permits(DeviceRole.BOOKOO,GattOperation.Write(endpoint,command.toByteArray(),true),adapter))
