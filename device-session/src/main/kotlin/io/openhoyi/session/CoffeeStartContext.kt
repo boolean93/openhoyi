@@ -8,6 +8,7 @@ class CoffeeStartContext internal constructor(
     internal val address:String?,
     internal val parameters:StartParameters,
     internal val settingsFlags:Int,
+    internal val firmwareInteger:Int,
     internal val brewTemperatureC:Int,
     internal val compensationTenthsC:Int,
     internal val capturedAt:Long,

@@ -14,7 +14,10 @@ object CoffeeFirmwareProfiles {
      */
     const val FW_1_1_4 = 0x114
 
-    private val controlPermitted = setOf(FW_1_1_3, FW_1_1_4)
+    /** 1.1.5: static parity evidence, not hardware acceptance; see docs/evidence/2026-11-11-firmware-115-parity.md. */
+    const val FW_1_1_5 = 0x115
+
+    private val controlPermitted = setOf(FW_1_1_3, FW_1_1_4, FW_1_1_5)
 
     fun permitsControl(firmwareInteger: Int): Boolean = firmwareInteger in controlPermitted
 }

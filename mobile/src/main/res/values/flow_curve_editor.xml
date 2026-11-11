@@ -26,7 +26,7 @@
     <string name="flow_editor_pressure_error">压力目标须为 0–12 bar。</string>
     <string name="flow_editor_water_positive_error">本段水量须大于 0。</string>
     <string name="flow_editor_exit_error">首段须设置时间或水量出口。</string>
-    <string name="flow_editor_firmware_required">此模式需固件 1.1.4。</string>
+    <string name="flow_editor_firmware_required">此模式需固件 1.1.4 或 1.1.5。</string>
     <string name="flow_editor_subtitle">配方保存在本机，保存不会启动机器。</string>
     <string name="flow_editor_complete_stage_error">完整曲线需 2–4 段。</string>
     <string name="flow_editor_complete_first_pressure">首段压力须为 0.5–12 bar。</string>

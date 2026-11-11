@@ -93,29 +93,62 @@ class CustomFlowStartPermitTest {
         val f = Fixture(permit = { it == p })
         assertNotNull(f.session.captureStartContext(p))
         f.now = 1501; assertNull(f.session.captureStartContext(p))
-        f.session.onNotification(f.session.generation, KnownGatt.coffeeNotify, f.bytes("830115FD5C007D0F3500190068"))
+        f.session.onNotification(f.session.generation, KnownGatt.coffeeNotify, f.bytes("830116FD5C007D0F350019006B"))
         f.fresh(); assertNull(f.session.captureStartContext(p))
     }
 
-    @Test fun newFlowCombinationsRequire114AndFirmwareChangeRevokesQueuedStart() {
-        val f = Fixture(permit = { true })
-        val hsPressureFirst = p.copy(firstSegmentFlowMode = false, target1 = 30)
-        val lsPressureFirst = hsPressureFirst.copy(pressureLogic = false)
-        f.firmware(3); f.fresh()
-        assertNotNull(f.session.captureStartContext(hsPressureFirst))
-        assertNull(f.session.captureStartContext(lsPressureFirst))
+    @Test fun reviewedFirmwareMatrixCoversCaptureAndExactQueuedDispatchForLsAndFirstFlow() {
+        val hsPressureFirst=p.copy(firstSegmentFlowMode=false,target1=30)
+        val variants=listOf(p,hsPressureFirst.copy(pressureLogic=false),p.copy(pressureLogic=false))
+        for(patch in listOf(3,4,5,6)) for(parameters in variants) {
+            val f=Fixture(permit={it==parameters});f.firmware(patch);f.fresh()
+            val allowed=patch==4 || patch==5
+            assertEquals("$patch $parameters",allowed,f.session.captureStartContext(parameters)!=null)
+            val queue=DeviceSession::class.java.getDeclaredField("queue").apply{isAccessible=true}.get(f.session) as GattQueue
+            queue.enqueue(GattOperation.Discover,5000){}
+            val barrier=f.calls.last();val size=f.calls.size;var result:OperationResult?=null
+            f.session.startExtraction(parameters){result=it}
+            assertEquals(size,f.calls.size)
+            f.session.onComplete(barrier.first,barrier.second,OperationResult.Success())
+            if(allowed) {
+                assertEquals(size+1,f.calls.size)
+                assertArrayEquals(CoffeeCommands.start(parameters).frame.toByteArray(),(f.calls.last().third as GattOperation.Write).bytes)
+                f.complete();assertTrue(result is OperationResult.Success)
+            } else {assertEquals(size,f.calls.size);assertTrue(result is OperationResult.Failed)}
+        }
+        assertTrue(CustomCurveFirmwarePolicy.permits(hsPressureFirst,CoffeeFirmware(1,1,3)))
+        for(firmware in listOf(null,CoffeeFirmware(1,1,2),CoffeeFirmware(1,1,6),CoffeeFirmware(2,0,0)))
+            for(parameters in variants)assertFalse(CustomCurveFirmwarePolicy.permits(parameters,firmware))
+    }
+
+    @Test fun firmwareChangeRevokesCapturedAndQueuedFlowEvenBetweenReviewedVersions() {
+        for(from in listOf(4,5)) for(to in listOf(3,if(from==4)5 else 4,6)) {
+            val f=Fixture(permit={true});f.firmware(from);f.fresh()
+            val context=requireNotNull(f.session.captureStartContext(p))
+            val queue=DeviceSession::class.java.getDeclaredField("queue").apply{isAccessible=true}.get(f.session) as GattQueue
+            queue.enqueue(GattOperation.Discover,5000){}
+            val barrier=f.calls.last();val size=f.calls.size;var result:OperationResult?=null
+            f.session.startExtraction(p,context){result=it}
+            f.firmware(to);f.fresh()
+            f.session.onComplete(barrier.first,barrier.second,OperationResult.Success())
+            assertEquals("$from->$to",size,f.calls.size);assertTrue(result is OperationResult.Failed)
+        }
+    }
+
+    @Test fun firmware115KeepsC6BlockAndEmergencyStopWithoutFreshIdleOrNoAlarmRequirement() {
+        val f=Fixture(permit={true});f.firmware(5);f.fresh()
+        val c6=f.bytes("400023F02F1C770B00000000000000190321AF");c6[13]=0x20
+        f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,c6)
+        assertFalse(CoffeeAlarmPolicy.permitsNewControl(0x20))
         assertNull(f.session.captureStartContext(p))
-        f.firmware(4); f.fresh()
-        assertNotNull(f.session.captureStartContext(hsPressureFirst))
-        assertNotNull(f.session.captureStartContext(lsPressureFirst))
-        val context = requireNotNull(f.session.captureStartContext(p))
-        val queue = DeviceSession::class.java.getDeclaredField("queue").apply { isAccessible = true }.get(f.session) as GattQueue
-        queue.enqueue(GattOperation.Discover, 5000) {}
-        val barrier = f.calls.last(); val size = f.calls.size
-        var result: OperationResult? = null
-        f.session.startExtraction(p, context) { result = it }
-        f.firmware(3); f.fresh()
-        f.session.onComplete(barrier.first, barrier.second, OperationResult.Success())
-        assertEquals(size, f.calls.size); assertTrue(result is OperationResult.Failed)
+        var result:OperationResult?=null;val before=f.calls.size
+        f.session.startExtraction(p){result=it};assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
+        f.session.writeSetting(MachineSettingChange.BrewTemperature(93)){result=it}
+        assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
+        f.now=1501
+        f.session.stopExtraction(7){result=it}
+        assertEquals(before+1,f.calls.size)
+        assertArrayEquals(CoffeeCommands.stop(7).frame.toByteArray(),(f.calls.last().third as GattOperation.Write).bytes)
+        f.complete();assertTrue(result is OperationResult.Success)
     }
 }

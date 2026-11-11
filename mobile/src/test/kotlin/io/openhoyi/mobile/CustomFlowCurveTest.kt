@@ -24,6 +24,30 @@ class CustomFlowCurveTest {
     private fun frame(document: CustomCurveDocument, scale: Boolean) =
         CoffeeCommands.start(requireNotNull(CustomCurveAdapter.profile(document, scale)).parameters).frame.hex()
 
+    @Test fun schema3LsAndFirstFlowLibraryCapabilitiesKeepExactFirmwareGate() {
+        val source=knownFlow()
+        for(pressureLogic in listOf(false,true)) for(firstFlow in listOf(false,true)) {
+            val doc=source.copy(stages=listOf(CustomCurveDocument.Stage(if(firstFlow)25 else 30,150),
+                CustomCurveDocument.Stage(35,400)),totalWaterLimitMl=70,
+                configuration=source.configuration!!.copy(pressureLogic=pressureLogic,firstSegmentFlowMode=firstFlow,
+                    inactiveStages=listOf(CustomCurveDocument.Stage(0,0),CustomCurveDocument.Stage(0,0))))
+            assertEquals(3,JSONObject(doc.encode()).getInt("schema"))
+            val restored=CustomCurveDocument.decode(doc.encode())
+            val row=item(restored)
+            val library=CurveLibrary(emptyList(),draftsProvider={listOf(row)},enableCustomPressureExecution=true)
+            assertTrue(library.canStart(row))
+            val parameters=requireNotNull(library.resolve(doc.id,false)).parameters
+            assertTrue(library.permitsCustomStart(doc.id,parameters))
+            for(patch in listOf(3,4,5,6)) {
+                val firmware=io.openhoyi.session.CoffeeFirmware(1,1,patch)
+                val uiMayStart=io.openhoyi.session.CoffeeFirmwareProfiles.permitsControl(0x110+patch) &&
+                    io.openhoyi.session.CustomCurveFirmwarePolicy.permits(parameters,firmware)
+                assertEquals("Ls=${!pressureLogic} firstFlow=$firstFlow patch=$patch",
+                    patch==4 || patch==5 || (patch==3 && pressureLogic && !firstFlow),uiMayStart)
+            }
+        }
+    }
+
     @Test fun completeRecipesMatchIndependent126ApkOracleAfterShareAndStorage() {
         fun resource(name: String) = requireNotNull(javaClass.classLoader!!.getResourceAsStream(name)).bufferedReader().use { it.readText() }
         val input = resource("custom-flow-curves.json")

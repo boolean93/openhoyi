@@ -442,7 +442,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun captureStartContext(parameters:StartParameters):CoffeeStartContext? {
         if(!canStartExtraction(parameters) || sleepWrite!=null || permittedStart(parameters)==null) return null
         val settings=lastSettings ?: return null
-        return CoffeeStartContext(generation,address,parameters,settings.flags and 0x26,
+        return CoffeeStartContext(generation,address,parameters,settings.flags and 0x26,settings.firmwareInteger,
             settings.brewTemperatureC,settings.brewCompensationTenthsC,clock())
     }
     fun startConditionsValid(parameters:StartParameters,context:CoffeeStartContext):Boolean {
@@ -451,6 +451,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         return context.generation==generation && context.address==address && context.parameters==parameters &&
             context.capturedAt<=now && now-context.capturedAt<5000 &&
             settings.flags and 0x26 == context.settingsFlags &&
+            settings.firmwareInteger==context.firmwareInteger &&
             settings.brewTemperatureC==context.brewTemperatureC &&
             settings.brewCompensationTenthsC==context.compensationTenthsC &&
             permittedStart(parameters)!=null && canStartExtraction(parameters)

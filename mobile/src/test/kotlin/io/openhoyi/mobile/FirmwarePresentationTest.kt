@@ -11,7 +11,8 @@ class FirmwarePresentationTest {
     @Test fun verifiedAndUnsupportedFirmwareHaveDifferentControlStatus() {
         assertEquals("固件 1.1.3 · 已验证协议", presentation.describe(CoffeeFirmware(1,1,3),DeviceState.READY,false))
         assertEquals("固件 1.1.4 · 已验证协议", presentation.describe(CoffeeFirmware(1,1,4),DeviceState.READY,false))
-        assertEquals("固件 1.1.5 · 暂不支持新版固件", presentation.describe(CoffeeFirmware(1,1,5),DeviceState.UNSUPPORTED,false))
+        assertEquals("固件 1.1.5 · 已验证协议", presentation.describe(CoffeeFirmware(1,1,5),DeviceState.READY,false))
+        assertEquals("固件 1.1.6 · 暂不支持新版固件", presentation.describe(CoffeeFirmware(1,1,6),DeviceState.UNSUPPORTED,false))
     }
     @Test fun disconnectedAndConnectingStatesDoNotDisplayOldMachineIdentity() {
         for(state in listOf(DeviceState.DISCONNECTED,DeviceState.CONNECTING,DeviceState.FAILED))
