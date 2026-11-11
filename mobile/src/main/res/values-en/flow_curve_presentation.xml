@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="flow_curve_unknown_mode">Unknown mode</string>
+    <string name="flow_curve_mixed_mode">Mixed</string>
+    <string name="flow_curve_missing_modes">This older curve is missing its first-stage and later-stage control modes, so editing and brewing are unavailable. Return to the curve library and select the original factory curve, then choose Save parameters as a new draft. The raw values can still be saved and shared.</string>
+    <string name="flow_curve_raw_target">Raw target</string>
+    <string name="flow_curve_control_target">Control target</string>
+    <string name="flow_curve_logic_hs">Hs (flow mode)</string>
+    <string name="flow_curve_logic_ls">Ls (flow mode)</string>
+    <string name="flow_curve_logic_follow">Follow (pressure mode)</string>
+    <string name="flow_curve_logic_pressure">Normal pressure</string>
+    <string name="flow_curve_missing_modes_short">This older file lacks mode parameters and cannot be edited or run · Copy the original factory curve again</string>
+    <string name="flow_curve_follow_read_only">Follow mode is not enabled for brewing · Editing and saving are available</string>
+    <string name="flow_curve_outside_execution_range">Parameters are outside the verified brewing range · Saving and sharing are available, brewing is not</string>
+    <string name="flow_curve_configuration_summary">Control logic: %1$s · First stage: %2$s\nBloom %3$d s · First-stage limit %4$d s · Weight compensation %5$s g</string>
+    <string name="flow_curve_parameters_compatible">Complete control parameters supported · Save to use for brewing</string>
+    <string name="flow_curve_stage_flow_summary">Stage %1$d: %2$s mL/s · %3$s mL</string>
+    <string name="flow_curve_parameters_require_114">Compatible parameters · This mode requires firmware 1.1.4</string>
+</resources>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="flow_editor_control">Control mode</string>
+    <string name="flow_editor_pressure">Pressure control</string>
+    <string name="flow_editor_flow">Flow priority</string>
+    <string name="flow_editor_first">First-stage target</string>
+    <string name="flow_editor_first_pressure">Pressure · bar</string>
+    <string name="flow_editor_first_flow">Flow · mL/s</string>
+    <string name="flow_editor_logic">Pressure logic Hs (off: Ls)</string>
+    <string name="flow_editor_logic_hint">Hs / Ls is an independent logic setting. It does not change target units.</string>
+    <string name="flow_editor_target">Control target</string>
+    <string name="flow_editor_flow_target">Flow target (1–10 mL/s, up to 1 decimal)</string>
+    <string name="flow_editor_timing">Timing and weight compensation</string>
+    <string name="flow_editor_preinfusion">Bloom (0–127 seconds, integer)</string>
+    <string name="flow_editor_first_duration">First-stage time limit (seconds)</string>
+    <string name="flow_editor_compensation">Weight compensation (g; with a connected scale only)</string>
+    <string name="flow_editor_switch_hint">Switching modes does not convert values. Check each target and unit. Flow priority requires 2–4 stages and a first-stage limit of 0–254 seconds. Its first stage needs a positive time or water exit; later stages need positive water. Each stage allows up to 999 mL.</string>
+    <string name="flow_editor_limit_warning">Total water is not a hard stop in every stage. The first flow-priority stage needs its own exit.</string>
+    <string name="flow_editor_invalid">Invalid parameters. Check the name, values, and ranges.</string>
+    <string name="flow_editor_units_hint">Switching modes does not convert values. Check each unit.</string>
+    <string name="flow_editor_bloom_error">Bloom must be 0–127 seconds.</string>
+    <string name="flow_editor_time_error">First-stage limit must be 0–254 seconds.</string>
+    <string name="flow_editor_compensation_error">Compensation must be within −100–100 g.</string>
+    <string name="flow_editor_flow_error">Flow target must be 1–10 mL/s.</string>
+    <string name="flow_editor_first_pressure_error">First-stage pressure must be 0.5–10 bar.</string>
+    <string name="flow_editor_pressure_error">Pressure target must be 0–12 bar.</string>
+    <string name="flow_editor_water_positive_error">Stage water must be greater than 0.</string>
+    <string name="flow_editor_exit_error">The first stage needs a time or water exit.</string>
+    <string name="flow_editor_firmware_required">This mode requires firmware 1.1.4.</string>
+    <string name="flow_editor_subtitle">Recipes stay on this device. Saving does not start the machine.</string>
+    <string name="flow_editor_complete_stage_error">Complete recipes require 2–4 stages.</string>
+    <string name="flow_editor_complete_first_pressure">First-stage pressure must be 0.5–12 bar.</string>
+    <string name="flow_editor_complete_next_pressure">Later-stage pressure must be 1–12 bar.</string>
+    <string name="flow_editor_complete_water_error">Stage water allows up to 999 mL.</string>
+    <string name="flow_editor_compensation_target_error">Compensation must be less than the target cup weight.</string>
+</resources>

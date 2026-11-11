@@ -43,6 +43,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var singleScreenChecks = false
     private var historyFooterArguments: Bundle? = null
     private var customExecution = false
+    private var customFlowEditorChecks = false
     private var systemDocuments = false
     private var disposableCiEmulator = false
     private var documentContracts = false
@@ -78,6 +79,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
         historyFooterArguments = arguments?.takeIf {it.getString("historyFooterChecks")=="true"}?.let(::Bundle)
         customExecution = arguments?.getString("customExecution") == "true"
+        customFlowEditorChecks = arguments?.getString("customFlowEditorChecks") == "true"
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
         documentContracts = arguments?.getString("documentContracts") == "true"
@@ -217,6 +219,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (singleScreenChecks) {
                 SingleScreenWindowRun(this).run()
                 report.putString("stream", "SINGLE_SCREEN_WINDOW_CHECKS_PASSED noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (customFlowEditorChecks) {
+                CustomFlowCurveEditorChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CUSTOM_FLOW_EDITOR_CHECKS_PASSED factoryCopies=2 recreate=true saveReopen=true shareImport=true invalidNoExitBlocked=true rawReadOnly=true reachableFields=true externalSend=false noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

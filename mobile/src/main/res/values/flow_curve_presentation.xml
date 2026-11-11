@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="flow_curve_unknown_mode">模式缺失</string>
+    <string name="flow_curve_mixed_mode">混合</string>
+    <string name="flow_curve_missing_modes">旧曲线缺少首段与后续段的控制模式，无法安全编辑或运行。请回到曲线库，选择原工厂曲线，再点「另存参数草稿」；原始数值仍可保存和分享。</string>
+    <string name="flow_curve_raw_target">原始目标</string>
+    <string name="flow_curve_control_target">控制目标</string>
+    <string name="flow_curve_logic_hs">Hs（流量模式）</string>
+    <string name="flow_curve_logic_ls">Ls（流量模式）</string>
+    <string name="flow_curve_logic_follow">跟随（压力模式）</string>
+    <string name="flow_curve_logic_pressure">普通压力</string>
+    <string name="flow_curve_missing_modes_short">旧文件缺少模式参数，不能编辑或运行 · 请从原工厂曲线重新复制</string>
+    <string name="flow_curve_follow_read_only">跟随模式暂不支持执行 · 可编辑保存</string>
+    <string name="flow_curve_outside_execution_range">参数超出已验证的执行范围 · 可保存和分享，不能运行</string>
+    <string name="flow_curve_configuration_summary">控制逻辑：%1$s · 首段：%2$s\n闷蒸 %3$d s · 首段限时 %4$d s · 重量补偿 %5$s g</string>
+    <string name="flow_curve_parameters_compatible">完整控制参数兼容 · 保存后可用于冲煮</string>
+    <string name="flow_curve_stage_flow_summary">第 %1$d 段：%2$s mL/s · %3$s mL</string>
+    <string name="flow_curve_parameters_require_114">参数兼容 · 此模式需固件 1.1.4</string>
+</resources>

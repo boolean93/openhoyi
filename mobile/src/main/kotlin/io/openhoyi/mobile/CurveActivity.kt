@@ -545,10 +545,12 @@ class CurveActivity : ThemedActivity() {
         }
         selected = item
         stageChart.targets = stageTargets(item)
+        val controlPreview = CurveStageParameters.preview(item)
+        stageChart.preview = controlPreview
         val draft = item.customDocument
         previewMetrics.present(item)
         previewMetrics.visibility=View.VISIBLE
-        val hasPressureSchematic = stageChart.targets.isNotEmpty()
+        val hasPressureSchematic = controlPreview.renderable
         shortPreview = false
         stageChart.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
         detailScroll.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
@@ -557,19 +559,20 @@ class CurveActivity : ThemedActivity() {
         previewFallback.text = getString(R.string.task_curve_library_no_pressure)
         previewSpacer.visibility = if (hasPressureSchematic) View.GONE else View.VISIBLE
         stageCaption.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
-        stageCaption.text = getString(R.string.profiles_stage_caption)
+        stageCaption.text = getString(when { controlPreview.mixed -> R.string.curve_control_caption_mixed
+            controlPreview.hasFlow -> R.string.curve_control_caption_flow; else -> R.string.profiles_stage_caption })
         collection.detailRequested = requested
         if (resetDetailScroll) detailScroll.scrollTo(0, 0)
         val canStart = library.canStart(item)
         detailTitle.text = item.name
         detailCategory.text = if (draft != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(this, item.category)
         details.text = if (draft != null) profileSummary(draft) else curveDetailsText.render(item, canStart)
-        baseAvailabilityText = if (draft != null) getString(if (canStart) R.string.profiles_pressure_compatible else R.string.profiles_read_only) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
+        baseAvailabilityText = if (draft != null) profileExecutionSummary(draft) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
         updateAvailabilityFeedback()
         val copyable = runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
         editDraft.text = getString(if (draft != null) R.string.profiles_edit else R.string.profiles_edit_copy)
         editDraft.visibility = View.VISIBLE
-        editDraft.isEnabled = (application as MobileApplication).customCurvesResult.isSuccess && copyable?.controlMode == CustomCurveDocument.ControlMode.PRESSURE
+        editDraft.isEnabled = (application as MobileApplication).customCurvesResult.isSuccess && copyable?.isEditable == true
         shareParameters.visibility = View.VISIBLE
         shareParameters.isEnabled = copyable != null
         directEdit.text = editDraft.text

@@ -21,6 +21,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     rememberedScaleProtocolId:String?=null,
     private val onScaleSelectionRemembered:(address:String,protocolId:String)->Unit={_,_->},
     customPressureStartPermit:(StartParameters)->Boolean={false},
+    customCurveStartPermit:(StartParameters)->Boolean={false},
     private val onCoffeeReconnect:(String)->Boolean={false},
     rememberedScaleSuppressed:Boolean=false,
     private val automaticAllowed:(DeviceRole)->Boolean={true}) : AutoCloseable {
@@ -65,7 +66,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         },
         coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
-        customPressureStartPermit=customPressureStartPermit) }
+        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit) }
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})

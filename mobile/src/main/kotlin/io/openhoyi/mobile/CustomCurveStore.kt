@@ -37,7 +37,8 @@ class CustomCurveStore(private val storage: Storage) {
     }
     private fun frozen(document: CustomCurveDocument): CustomCurveDocument {
         document.validate()
-        return document.copy(stages = java.util.Collections.unmodifiableList(document.stages.toList()))
+        return document.copy(stages = java.util.Collections.unmodifiableList(document.stages.toList()),
+            configuration = document.configuration?.let { it.copy(inactiveStages = java.util.Collections.unmodifiableList(it.inactiveStages.toList())) })
     }
     private fun commit(next: LinkedHashMap<String, CustomCurveDocument>) {
         val array = JSONArray()

@@ -21,7 +21,7 @@
     <string name="profiles_read_only">Parameters for viewing only · Running is not currently supported</string>
     <string name="profiles_stage_caption">Stage target diagram · Pressure in bar · The horizontal axis shows stages, not seconds or a prediction of future pressure</string>
     <string name="profiles_flow_raw">Flow-control target units are unconfirmed. Only raw values are retained and shown; flow editing and starting are unavailable.</string>
-    <string name="profiles_copy_warning">Recorded and factory profiles produce only minimal parameter copies. Original profiles are not overwritten, and original start messages are not included.</string>
+    <string name="profiles_copy_warning">Create a complete recipe-parameter copy without changing the original curve or including its raw start frame.</string>
     <string name="profiles_edit">Edit draft</string>
     <string name="profiles_edit_copy">Save parameters as a new draft</string>
     <string name="profiles_share">Share parameters</string>

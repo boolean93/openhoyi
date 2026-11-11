@@ -21,7 +21,7 @@
     <string name="profiles_read_only">参数仅供查看 · 暂不支持运行</string>
     <string name="profiles_stage_caption">阶段目标示意 · 压力单位 bar · 横轴为阶段，不是秒，也不是未来压力预测</string>
     <string name="profiles_flow_raw">流量控制目标的单位尚未确认。仅保留并显示原始数值；不提供流量编辑或启动。</string>
-    <string name="profiles_copy_warning">采集和工厂曲线只生成最小参数副本，不覆盖原曲线，也不包含原始启动报文。</string>
+    <string name="profiles_copy_warning">创建完整配方参数副本，不覆盖原曲线，也不包含原始启动报文。</string>
     <string name="profiles_edit">编辑草稿</string>
     <string name="profiles_edit_copy">另存参数草稿</string>
     <string name="profiles_share">分享参数</string>
