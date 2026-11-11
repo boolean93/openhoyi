@@ -5,11 +5,11 @@
 - 工作分支：`fix/scale-target-weight`；PR 目标 develop。
 - 改动文件与步骤：protocol-core 新增明确协议支持能力（不提升 VERIFIED）；device-session 统一目标资格与 preflight/dispatch；NativeDeviceHub 读数失效立即保护；mobile 共用灰态原因和点击拦截、双语能力文案；代表性回归测试。
 - 推送与合并：用户已授权完成后创建 PR 并合入 develop。完成必要本地检查和独立审查后，由协调线程按 [Git工作流](../git-workflow.md) 普通推送，通过 `scripts/create-pr` 建 PR，必需检查通过后合入；不直推受保护分支。
-- 验证证据：相关单测后运行 `:protocol-core:check :device-session:check`、Android unit/build 与 localization 校验。横竖屏共用无省略按钮文字与短 toast；未授权模拟器或实机界面验收。
+- 验证证据：相关单测后运行 `:protocol-core:check :device-session:check`、Android unit/build 与 localization 校验。横竖屏共用无省略按钮文字与短 toast；本轮未执行模拟器或实机界面验收。
 - 协议与设备风险：依据旧官方客户端明确 tare 帧与通用 7 秒后到重停止流程；能力称为 protocol-supported，不冒称硬件验证。保持归零新样本、freshness、单位、失联、未知结果不重发保护；automaticTare 不开放。不提升旧只读绑定，不改 bean capture VERIFIED 要求。
 - 发布：本任务不做正式/RC 发版，合入后的 Develop 既有自动测试预发布通道沿用现有持续授权；不改包名/签名/版本，不安装、不启动模拟器或真实萃取。单测与静态证据不等于硬件验收。
 - 回退：回退本任务代码，不涉及数据迁移，不卸载、不清记录，保留未知结果。
-- 未完成与阻塞：两品牌实秤与物理停水、横竖屏实机验收待明确授权与设备。
+- 未完成与阻塞：两品牌实秤与物理停水、横竖屏实机验收未执行。
 
 ## 实现与证据
 
