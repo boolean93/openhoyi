@@ -103,6 +103,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var lastIdleAtMs:Long?=null
     private var lastSettingsAtMs:Long?=null
     private var lastSettings:Settings?=null
+    /** Original monotonic receive time of authenticated Settings, never its replay time. */
+    val settingsObservedAtMs:Long? get()=lastSettingsAtMs
     private var sleepFirst:SleepPart?=null
     private var sleepSecond:SleepPart?=null
     private var sleepFirstAtMs:Long?=null
@@ -113,6 +115,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else scaleAdapter.notifyEndpoint!!
     private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else scaleAdapter.writeEndpoint
     private var withResponse=true
+    private class InitialAuthentication(val generation:Long,val stageDeadline:Long) {
+        var dispatchDeadline:Long?=null
+        var settings:Pair<Settings,Long>?=null
+    }
+    private var initialAuthentication:InitialAuthentication?=null
     private var stageDeadline=0L
     private var initNext=0
     private var initDue=0L
@@ -223,12 +230,34 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     }
                     if(!initializationState(expected,DeviceState.INITIALIZING,10_000))return@step
                     if(role==DeviceRole.COFFEE){
-                        step(expected,GattOperation.Write(requireNotNull(writeEndpoint),auth!!.frame.toByteArray(),withResponse),5000){
-                            initializationState(expected,DeviceState.SYNCHRONIZING,10_000)
-                        }
+                        authenticateCoffee(expected,auth!!)
                     }else{initNext=0;initBusy=false;initDue=clock()+scaleAdapter.initializationCommands.first().delayMs}
                 }
             }
+        }
+    }
+    private fun authenticateCoffee(expected:Long,auth:EncodedCommand) {
+        val attempt=InitialAuthentication(expected,stageDeadline)
+        initialAuthentication=attempt
+        queue.enqueue(GattOperation.Write(requireNotNull(writeEndpoint),auth.frame.toByteArray(),withResponse),5000,
+            beforeDispatch={
+                if(initialAuthentication!==attempt || !ownsInitialization(expected) || state!=DeviceState.INITIALIZING)false
+                else if(clock()>=attempt.stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);false}
+                else {attempt.dispatchDeadline=clock()+5000;true}
+            }) { result ->
+            if(initialAuthentication!==attempt || !ownsInitialization(expected) || state!=DeviceState.INITIALIZING)return@enqueue
+            val cached=attempt.settings
+            initialAuthentication=null
+            if(result !is OperationResult.Success){fail("authentication: $result");return@enqueue}
+            if(clock()>=attempt.stageDeadline || attempt.dispatchDeadline?.let {clock()>=it}!=false) {
+                fail(PROTOCOL_TIMEOUT_REASON);return@enqueue
+            }
+            // Publish SYNCHRONIZING first. Its observer may replace this owner or supply a
+            // newer Settings; neither continuation may be overwritten by this early frame.
+            if(!initializationState(expected,DeviceState.SYNCHRONIZING,10_000))return@enqueue
+            if(clock()>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return@enqueue}
+            if(cached!=null && SettingsFreshness.isFresh(cached.second,clock()))
+                processCoffeeFrame(expected,cached.first,cached.second)
         }
     }
     private fun ownsInitialization(expected:Long)=generation==expected && queue.active
@@ -259,27 +288,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(role==DeviceRole.COFFEE)when(val decoded=HoyiCodec.decode(bytes)) {
             is DecodeResult.Valid -> {
                 val frame=decoded.value
-                // Notifications received before this connection is READY must not populate
-                // product telemetry or satisfy readback checks.
-                val authenticated=state==DeviceState.SYNCHRONIZING||state==DeviceState.READY
-                if(frame is Settings){
-                    if(authenticated){lastSettingsAtMs=now;lastSettings=frame;acceptSettings(frame)}
-                }
-                // READY observers may synchronously replace this connection.
-                if(this.generation!=generation||!queue.active)return
-                if(state==DeviceState.READY){
-                    when(frame){
-                        is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now;idleSerial++}
-                        is ExtractionTelemetry -> {lastIdle=null;lastIdleAtMs=null;boilerReadback?.automaticCancelled=true}
-                        is SleepPart -> if(frame.firstDaySundayIndex==0) {
-                            sleepFirst=frame;sleepFirstAtMs=now;sleepSecondAtMs=null
-                        } else {
-                            sleepSecond=frame;sleepSecondAtMs=now
-                        }
-                        else -> Unit
+                if(state==DeviceState.INITIALIZING && frame is Settings) {
+                    initialAuthentication?.takeIf {it.generation==generation && it.dispatchDeadline!=null}?.let {
+                        if(now>=it.stageDeadline || now>=it.dispatchDeadline!!)fail(PROTOCOL_TIMEOUT_REASON)
+                        else it.settings=frame to now
                     }
-                    coffeeFrame(frame,now)
+                    return
                 }
+                if(state==DeviceState.SYNCHRONIZING && now>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return}
+                processCoffeeFrame(generation,frame,now)
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
         }else when(val decoded=scaleDecoder(bytes,now)) {
@@ -294,6 +311,25 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 }
             }
             else -> diagnostic("scale decode: ${decoded::class.simpleName}")
+        }
+    }
+    /** Shared live/replayed path; timestamps always describe reception, never replay. */
+    private fun processCoffeeFrame(expected:Long,frame:HoyiMessage,now:Long) {
+        if(!ownsInitialization(expected))return
+        val authenticated=state==DeviceState.SYNCHRONIZING||state==DeviceState.READY
+        if(frame is Settings && authenticated){lastSettingsAtMs=now;lastSettings=frame;acceptSettings(frame)}
+        // READY observers may synchronously replace this connection.
+        if(!ownsInitialization(expected))return
+        if(state==DeviceState.READY){
+            when(frame){
+                is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now;idleSerial++}
+                is ExtractionTelemetry -> {lastIdle=null;lastIdleAtMs=null;boilerReadback?.automaticCancelled=true}
+                is SleepPart -> if(frame.firstDaySundayIndex==0) {
+                    sleepFirst=frame;sleepFirstAtMs=now;sleepSecondAtMs=null
+                } else {sleepSecond=frame;sleepSecondAtMs=now}
+                else -> Unit
+            }
+            coffeeFrame(frame,now)
         }
     }
     private fun acceptSettings(frame:Settings){
@@ -672,6 +708,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
         heartbeatDue=null;heartbeatBusy=false
         val detachedTare=scaleTare;scaleTare=null
+        initialAuthentication=null
         coffeeAuthentication=null;boilerReadback=null;boilerRefreshTask=null;boilerReconnectLimit=null
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
         try { setState(terminal) }

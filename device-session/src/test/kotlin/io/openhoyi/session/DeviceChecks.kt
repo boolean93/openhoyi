@@ -48,12 +48,12 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.bookooNotify,settings);check(s.state!=DeviceState.READY)
         s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
         check(s.state!=DeviceState.READY && received.isEmpty() && s.observedFirmware==null)
-        complete();check(s.state==DeviceState.SYNCHRONIZING)
+        // Non-Settings telemetry must not be cached or published during authentication.
         s.onNotification(s.generation,KnownGatt.coffeeNotify,
             hex("40000ACA0B2A0000000000000000001E22DA47"))
         check(received.isEmpty())
-        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
-        check(s.state==DeviceState.READY && received.size==1)
+        // The authenticated early Settings is adopted only after GATT success.
+        complete();check(s.state==DeviceState.READY && received.size==1)
         check(s.observedFirmware==CoffeeFirmware(1,1,3))
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         var settingResult:OperationResult?=null
@@ -86,9 +86,9 @@ fun deviceChecks():Int {
         complete(OperationResult.Success(listOf(
             CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
             CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
-        complete()
+        // Before subscription completion/auth dispatch, Settings is not trusted evidence.
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
-        complete()
+        complete();complete()
         check(s.state==DeviceState.SYNCHRONIZING)
         now=10_001;s.tick()
         check(s.state==DeviceState.FAILED)

@@ -117,6 +117,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     val scaleAddress:String? get()=scaleSlot.current?.owner?.device?.session?.let { it.address.takeIf { _->it.state==DeviceState.READY } }
     val coffeeGeneration:Long get()=coffee.session.generation
     val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
+    val coffeeSettingsObservedAtMs:Long? get()=coffee.session.settingsObservedAtMs
     /** Display-only classification of the last FAILED coffee session; never a control permit. */
     val coffeeFailure:CoffeeSessionFailure? get()=coffee.session.lastFailure
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
