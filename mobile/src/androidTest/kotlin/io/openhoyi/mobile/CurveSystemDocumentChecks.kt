@@ -273,8 +273,9 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         var service:MobileService?=null;var message:SnapshotMessage?=null
         onMain {service=owner(home);message=service!!.snapshot.message}
         val traces=traceSnapshot(app)
-        val source=app.curves.items.firstOrNull {it.controlProfile!=null && runCatching {CustomCurveDocument.fromLibraryItem(it).controlMode == CustomCurveDocument.ControlMode.FLOW_RAW}.getOrDefault(false)}
-            ?: error("No captured shareable profile")
+        val source=app.curves.items.firstOrNull {(it.factoryCurve!=null || it.controlProfile!=null) && runCatching {CustomCurveDocument.fromLibraryItem(it).controlMode == CustomCurveDocument.ControlMode.FLOW_RAW}.getOrDefault(false)}
+            ?: error("No shareable read-only factory/profile parameters")
+        val sourceLimit=source.factoryCurve?.flowMl ?: requireNotNull(source.controlProfile).parameters.maximumWaterMl
         val paths=mutableListOf<String>();var saved=false;var exported:Uri?=null
         var expected:CustomCurveDocument?=null;var filename="";var failure:Throwable?=null
         fun invariants()=onMain {
@@ -299,6 +300,7 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
             val share=start(CurveShareActivity::class.java) {it.putExtra(CurveShareActivity.CURVE_ID,source.id)}
             onMain {expected=document(share)}
             val doc=requireNotNull(expected);UUID.fromString(doc.id.removePrefix("draft-"))
+            check(doc.totalWaterLimitMl==sourceLimit)
             check(custom.find(doc.id)==null)
             filename="openhoyi-${doc.id}.json"
             check(doc.id=="draft-${UUID.fromString(doc.id.removePrefix("draft-"))}")
@@ -346,6 +348,7 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
             awaitMain("confirm-single-local-draft") {confirmed.second.isDestroyed}
             opened.remove(confirmed.second);saved=true
             check(custom.find(doc.id)==doc && custom.list().size==drafts.size+1)
+            check(requireNotNull(custom.find(doc.id)).totalWaterLimitMl==sourceLimit)
             check(!app.curves.canStart(requireNotNull(app.curves.find(doc.id)))) {"Imported draft became machine-executable"}
             record("system-confirm-once-local-readonly-draft")
             close(confirmed.first)

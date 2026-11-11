@@ -69,6 +69,20 @@ class CurveRecipePlanTest {
         assertTrue(plan.preview.stages.all { it.unit == CurveStageParameters.Unit.RAW_UNKNOWN })
     }
 
+    @Test fun customPressurePlanKeepsBaseLimitSeparateFromAssignedWater() {
+        val original = CustomCurveDocument(CustomCurveDocument.newId(), "pressure", 93, 3600,
+            CustomCurveDocument.ControlMode.PRESSURE, listOf(CustomCurveDocument.Stage(90, 550)))
+        fun plan(doc: CustomCurveDocument) = CurveRecipePlan.from(CurveLibraryItem(doc.id, doc.name, "", "", null, customDocument = doc))
+        assertEquals(55, plan(original).totalWaterLimitMl)
+        assertEquals(70, plan(original.copy(totalWaterLimitMl = 70)).totalWaterLimitMl)
+        assertEquals(550, plan(original.copy(totalWaterLimitMl = 70)).assignedWaterTenthsMl)
+        assertNull(plan(original.copy(stages = listOf(CustomCurveDocument.Stage(90, 551)))).totalWaterLimitMl)
+        val factory = factory("copy", false, listOf(30, 90), listOf(15, 40), 70)
+        val copied = CustomCurveDocument.fromLibraryItem(item(factory))
+        assertEquals(70, copied.totalWaterLimitMl)
+        assertEquals(listOf(150, 400), copied.stages.map { it.waterTenthsMl })
+    }
+
     @Test fun oneAndFourStagePlansKeepEveryRealWaterValue() {
         val one = CurveRecipePlan.from(item(factory("one", false, listOf(0), listOf(0), 0)))
         val four = CurveRecipePlan.from(item(factory("four", true, listOf(0, 40, 60, 80),

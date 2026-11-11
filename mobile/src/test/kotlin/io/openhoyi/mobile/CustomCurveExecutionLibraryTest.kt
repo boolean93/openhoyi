@@ -43,6 +43,20 @@ class CustomCurveExecutionLibraryTest {
         assertTrue(library.canStart(current.single()))
         current=emptyList();assertFalse(library.validated(old));assertNull(library.resolve(doc().id,false))
     }
+    @Test fun changingOnlyLimitRevokesOldResolvedProfileAndDispatchPermit() {
+        val original = doc().copy(targetHundredthsGram = 3600, totalWaterLimitMl = 40)
+        var current = listOf(item(original))
+        val library = CurveLibrary(emptyList(), draftsProvider = { current }, enableCustomPressureExecution = true)
+        val old = requireNotNull(library.resolve(original.id, false))
+        assertEquals(40, old.maximumWaterMl)
+        assertEquals(144, requireNotNull(library.resolve(original.id, true)).maximumWaterMl)
+        current = listOf(item(original.copy(totalWaterLimitMl = 71)))
+        assertFalse(library.validated(old))
+        assertFalse(library.permitsCustomPressureStart(original.id, old.parameters))
+        val edited = requireNotNull(library.resolve(original.id, false))
+        assertEquals(71, edited.maximumWaterMl)
+        assertTrue(library.permitsCustomPressureStart(original.id, edited.parameters))
+    }
     @Test fun unstoredOrUnsupportedRecipeCannotAcquireExecutionPermission() {
         val library=CurveLibrary(emptyList(),enableCustomPressureExecution=true)
         assertFalse(library.canStart(item(doc())))

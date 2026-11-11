@@ -39,6 +39,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     val metadata: List<LinearLayout> = List(3) { MetadataCell() }
     val stageRows = List(4) { cell() }
     val stageHeader = style.visual.row()
+    val waterLimit = cell()
     val supportingBody = cell()
     private val stageContent = cell()
     private val metadataContent = style.visual.row()
@@ -213,6 +214,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             identity.addView(style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.body), LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
             row.addView(identity, LinearLayout.LayoutParams(firstWidth, -2))
         }
+        stageContent.addView(waterLimit, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
     }
     private fun Int?.orZero() = this ?: 0
     private fun shortMinimum(view: View): Int {

@@ -114,6 +114,8 @@ internal fun ThemedActivity.profileDocument(id: String?): CustomCurveDocument? {
 }
 internal fun ThemedActivity.profileSummary(doc: CustomCurveDocument): String = buildString {
     append(getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size))
+    if (doc.totalWaterLimitMl != null || doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
+        append('\n').append(profileWaterLimitSummary(doc))
     doc.stages.forEachIndexed { index, stage ->
         append('\n')
         append(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
@@ -121,6 +123,10 @@ internal fun ThemedActivity.profileSummary(doc: CustomCurveDocument): String = b
         else getString(R.string.profiles_stage_raw_summary, index + 1, stage.target, CurveDraftNumber.format(stage.waterTenthsMl, 1)))
     }
 }
+internal fun ThemedActivity.profileWaterLimitSummary(doc: CustomCurveDocument): String = doc.totalWaterLimitMl?.let {
+    getString(R.string.curve_plan_total_limit, it)
+} ?: getString(R.string.profiles_total_water_limit_auto, CurveDraftNumber.format(doc.assignedWaterTenthsMl, 1))
+
 internal fun ThemedActivity.profileCard(body: LinearLayout, doc: CustomCurveDocument) {
     val card = HoyiUi.card(this, body)
     card.setPadding(HoyiUi.dp(this, 10), HoyiUi.dp(this, 8), HoyiUi.dp(this, 10), HoyiUi.dp(this, 8))

@@ -15,6 +15,8 @@ data class CustomCurveDocument(
     val targetHundredthsGram: Int,
     val controlMode: ControlMode,
     val stages: List<Stage>,
+    /** Null retains schema-1 automatic stage total; a value is the existing base water ceiling. */
+    val totalWaterLimitMl: Int? = null,
 ) {
     enum class ControlMode { PRESSURE, FLOW_RAW }
     data class Stage(val target: Int, val waterTenthsMl: Int)
@@ -29,14 +31,23 @@ data class CustomCurveDocument(
             require(it.target in 0..if (controlMode == ControlMode.PRESSURE) 120 else 255)
             require(it.waterTenthsMl in (if (controlMode == ControlMode.PRESSURE) 1 else 0)..65535)
         }
+        totalWaterLimitMl?.let {
+            if (controlMode == ControlMode.PRESSURE) {
+                if (it !in 1..maximumSupportedWaterLimitMl)
+                    throw CurveWaterLimitException(maximumSupportedWaterLimitMl)
+            } else require(it in 1..65535)
+        }
     }
+    val assignedWaterTenthsMl: Int get() = stages.sumOf { it.waterTenthsMl }
+    val maximumSupportedWaterLimitMl: Int get() = maxOf((assignedWaterTenthsMl + 9) / 10, 800)
     fun encode(): String { validate(); return toJson().toString() }
     internal fun toJson(): JSONObject {
         val array = JSONArray()
         stages.forEach { array.put(JSONObject().put("target", it.target).put("waterTenthsMl", it.waterTenthsMl)) }
-        return JSONObject().put("schema", 1).put("kind", "openhoyi.local-curve").put("id", id).put("name", name)
+        return JSONObject().put("schema", if (totalWaterLimitMl == null) 1 else 2).put("kind", "openhoyi.local-curve").put("id", id).put("name", name)
             .put("temperatureC", temperatureC).put("targetHundredthsGram", targetHundredthsGram)
             .put("controlMode", if (controlMode == ControlMode.PRESSURE) "pressure" else "flow-raw").put("stages", array)
+            .also { json -> totalWaterLimitMl?.let { json.put("totalWaterLimitMl", it) } }
     }
     companion object {
         const val MAX_BYTES = 64 * 1024
@@ -55,15 +66,18 @@ data class CustomCurveDocument(
             return CustomCurveDocument(id, item.name, factory?.temperatureC ?: requireNotNull(profile).temperatureC,
                 factory?.weightTenthsGram?.let { Math.multiplyExact(it, 10) } ?: requireNotNull(profile).targetHundredthsGram,
                 if (flow) ControlMode.FLOW_RAW else ControlMode.PRESSURE,
-                (0 until count).map { Stage(targets[it], water[it]) }).also { it.validate() }
+                (0 until count).map { Stage(targets[it], water[it]) },
+                factory?.flowMl ?: requireNotNull(parameters).maximumWaterMl).also { it.validate() }
         }
         fun decode(value: String): CustomCurveDocument {
             require(value.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Curve document too large" }
             return fromJson(CurveDocumentJson.objectFrom(value))
         }
         internal fun fromJson(root: JSONObject): CustomCurveDocument {
-            CurveDocumentJson.keys(root, setOf("schema", "kind", "id", "name", "temperatureC", "targetHundredthsGram", "controlMode", "stages"))
-            require(CurveDocumentJson.number(root, "schema") == 1) { "Unsupported curve version" }
+            val schema = CurveDocumentJson.number(root, "schema")
+            require(schema in 1..2) { "Unsupported curve version" }
+            val keys = setOf("schema", "kind", "id", "name", "temperatureC", "targetHundredthsGram", "controlMode", "stages")
+            CurveDocumentJson.keys(root, if (schema == 1) keys else keys + "totalWaterLimitMl")
             require(CurveDocumentJson.string(root, "kind") == "openhoyi.local-curve")
             val mode = when (CurveDocumentJson.string(root, "controlMode")) {
                 "pressure" -> ControlMode.PRESSURE
@@ -78,10 +92,12 @@ data class CustomCurveDocument(
                     val stage = stages.getJSONObject(it)
                     CurveDocumentJson.keys(stage, setOf("target", "waterTenthsMl"))
                     Stage(CurveDocumentJson.number(stage, "target"), CurveDocumentJson.number(stage, "waterTenthsMl"))
-                }).also { it.validate() }
+                }, if (schema == 1) null else CurveDocumentJson.number(root, "totalWaterLimitMl")).also { it.validate() }
         }
     }
 }
+
+internal class CurveWaterLimitException(val maximumMl: Int) : IllegalArgumentException()
 
 internal object CurveDocumentJson {
     fun objectFrom(value: String): JSONObject {

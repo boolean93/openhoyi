@@ -40,7 +40,7 @@
     <string name="profiles_import_hint">Paste JSON or choose a JSON file. Check compatibility before deciding whether to save. Maximum 64 KiB.</string>
     <string name="profiles_import_invalid">Cannot read profile parameters: unsupported version, fields, or ranges, or file exceeds 64 KiB. The original file is unchanged.</string>
     <string name="profiles_import_preview">Import preview</string>
-    <string name="profiles_compatibility">Format v1 · Importing does not automatically select a profile or start the machine</string>
+    <string name="profiles_compatibility">Importing does not automatically select a profile or start the machine</string>
     <string name="profiles_import_save">Save imported draft</string>
     <string name="profiles_conflict">The same ID already has different parameters. The existing draft will not be overwritten.</string>
     <string name="profiles_existing">Existing draft</string>
@@ -63,4 +63,12 @@
     <string name="profiles_stage_summary">%1$d stage parameters</string>
     <string name="profiles_import_intro">Paste shared curve data or open a file.</string>
     <string name="profiles_import_placeholder">Paste curve data here</string>
+    <string name="profiles_total_water_limit">Total water limit (whole mL; leave blank for stage total)</string>
+    <string name="profiles_total_water_limit_title">Total water limit</string>
+    <string name="profiles_total_water_limit_hint">Blank uses stage total</string>
+    <string name="profiles_assigned_water">Stage total %1$s mL</string>
+    <string name="profiles_assigned_water_invalid">Stage total: enter valid stage water amounts first</string>
+    <string name="profiles_total_water_limit_scale">With a scale and target cup weight, the sent water limit is the greater of this setting and 4 times the target grams (mL), preserving the existing weight strategy.</string>
+    <string name="profiles_total_water_limit_invalid">Enter a whole number from %1$d to %2$d mL, or leave blank for the stage total. Stage amounts will not be changed automatically.</string>
+    <string name="profiles_total_water_limit_auto">Total water limit %1$s mL (stage total)</string>
 </resources>

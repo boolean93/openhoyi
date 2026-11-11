@@ -329,10 +329,11 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         assertInput(activity, R.string.journal_taste, notes.taste)
         assertInput(activity, R.string.journal_next, notes.nextAdjustment)
     }
-    private fun assertCurveFields(activity: Activity, name: String, temperature: Int, cup: Int, stages: List<CustomCurveDocument.Stage>) {
+    private fun assertCurveFields(activity: Activity, name: String, temperature: Int, cup: Int, stages: List<CustomCurveDocument.Stage>, totalLimit: String = "") {
         assertInput(activity, R.string.profiles_name, name)
         assertInput(activity, R.string.profiles_temperature, temperature.toString())
         assertInput(activity, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
+        assertInput(activity, R.string.profiles_total_water_limit, totalLimit)
         onMain {
             val count = views(root(activity)).filterIsInstance<CurveStageCountTabs>().single()
             check(count.isShown && count.selectedCount == stages.size) { "Restored curve stage count differs" }
@@ -1021,6 +1022,11 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                     input("name","经典浓缩")
                     input("name",""); error("editor-empty-name",R.string.profiles_save,R.string.profiles_invalid); input("name","经典浓缩")
                     input("temperature","1000"); error("editor-out-of-range",R.string.profiles_save,R.string.profiles_invalid); input("temperature","93")
+                    val beforeLimit = custom.list()
+                    input("total-water-limit","0"); click(activity,R.string.profiles_save)
+                    check(!activity.isFinishing && custom.list()==beforeLimit)
+                    input("total-water-limit","40"); roundTrip("editor-total-limit-draft")
+                    input("total-water-limit","")
                     input("target-3","")
                     capture(activity,"editor-invalid-preview")
                     onMain { check(views(root(activity)).filterIsInstance<CurveStageView>().single().targets.isEmpty()) }
@@ -1595,6 +1601,10 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 fill(editor, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
                 fill(editor, R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), index)
             }
+            fill(editor, R.string.profiles_total_water_limit, "0")
+            click(editor, R.string.profiles_save)
+            check(!editor.isFinishing && custom.list() == initialCurves)
+            fill(editor, R.string.profiles_total_water_limit, "160")
             onMain {
                 val selector = views(root(editor)).filterIsInstance<CurveStageCountTabs>().single()
                 check(selector.findViewWithTag<Button>("curve-stage-count-2").performClick())
@@ -1602,21 +1612,31 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(selector.findViewWithTag<Button>("curve-stage-count-4").performClick())
             }
             test.waitForIdleSync()
-            assertCurveFields(editor, recipeName, temperature, cup, stages)
+            assertCurveFields(editor, recipeName, temperature, cup, stages, "160")
             editor = recreate(editor)
-            assertCurveFields(editor, recipeName, temperature, cup, stages)
+            assertCurveFields(editor, recipeName, temperature, cup, stages, "160")
             onMain { views(root(editor)).filterIsInstance<android.widget.ScrollView>().forEach { it.scrollTo(0, 0) } }
             captureState(editor, "curve-editor-four-stages", listOf(R.string.profiles_save))
             click(editor, R.string.profiles_save); awaitMain { editor.isDestroyed }; opened.remove(editor)
-            val draft = custom.list().single { it.name == recipeName }; ownCurveIds += draft.id
-            val expectedDraft = CustomCurveDocument(draft.id, recipeName, temperature, cup, CustomCurveDocument.ControlMode.PRESSURE, stages)
+            var draft = custom.list().single { it.name == recipeName }; ownCurveIds += draft.id
+            val expectedDraft = CustomCurveDocument(draft.id, recipeName, temperature, cup, CustomCurveDocument.ControlMode.PRESSURE, stages, 160)
             check(draft == expectedDraft && persistedCurves().find(draft.id) == expectedDraft) { "Curve document lost a saved field/stage or differs on disk" }
             check(app.curves.canStart(requireNotNull(app.curves.find(draft.id))))
             var reopenedEditor = start(CurveEditorActivity::class.java) { it.putExtra(CurveEditorActivity.CURVE_ID, draft.id) }
-            assertCurveFields(reopenedEditor, recipeName, temperature, cup, stages)
+            assertCurveFields(reopenedEditor, recipeName, temperature, cup, stages, "160")
             reopenedEditor = recreate(reopenedEditor)
-            assertCurveFields(reopenedEditor, recipeName, temperature, cup, stages)
+            assertCurveFields(reopenedEditor, recipeName, temperature, cup, stages, "160")
+            fill(reopenedEditor, R.string.profiles_total_water_limit, "801")
+            click(reopenedEditor, R.string.profiles_save)
+            check(!reopenedEditor.isFinishing && custom.find(draft.id) == expectedDraft)
+            fill(reopenedEditor, R.string.profiles_total_water_limit, "40")
+            click(reopenedEditor, R.string.profiles_save); awaitMain { reopenedEditor.isDestroyed }; opened.remove(reopenedEditor)
+            draft = expectedDraft.copy(totalWaterLimitMl = 40)
+            check(custom.find(draft.id) == draft && persistedCurves().find(draft.id) == draft)
+            reopenedEditor = start(CurveEditorActivity::class.java) { it.putExtra(CurveEditorActivity.CURVE_ID, draft.id) }
+            assertCurveFields(reopenedEditor, recipeName, temperature, cup, stages, "40")
             close(reopenedEditor)
+            record("curve-editor-total-limit-create-edit-reopen-invalid-no-write")
             record("curve-editor-save-compatible-no-auto-start")
             val share = start(CurveShareActivity::class.java) { it.putExtra(CurveShareActivity.CURVE_ID, draft.id) }
             captureState(share, "curve-share-four-stages", listOf(R.string.profiles_copy, R.string.profiles_share_text))
@@ -1646,7 +1666,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             var copied = ""
             onMain { copied = clipboard.primaryClip!!.getItemAt(0).coerceToText(share).toString() }
             check(CustomCurveDocument.decode(copied) == draft && !copied.contains(beanName) && !copied.contains(taste) && !copied.contains(shotId))
-            check(org.json.JSONObject(copied).keys().asSequence().toSet() == setOf("schema", "kind", "id", "name", "temperatureC", "targetHundredthsGram", "controlMode", "stages"))
+            check(org.json.JSONObject(copied).keys().asSequence().toSet() == setOf("schema", "kind", "id", "name", "temperatureC", "targetHundredthsGram", "controlMode", "stages", "totalWaterLimitMl"))
             record("curve-copy-parameters-only"); close(share)
             val imported = draft.copy(id = CustomCurveDocument.newId(), name = "UI imported $token")
             fun importPreview(document: String): Pair<Activity, Activity> {
@@ -1737,7 +1757,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 (invalidImport.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                     .hideSoftInputFromWindow(field.windowToken, 0)
             }
-            for (invalid in listOf("{bad", imported.encode().replace("\"schema\":1", "\"schema\":99"), imported.copy(temperatureC = 200).toJson().toString())) {
+            for (invalid in listOf("{bad", imported.toJson().put("schema", 99).toString(), imported.copy(temperatureC = 200).toJson().toString())) {
                 check(runCatching { CustomCurveDocument.decode(invalid) }.isFailure) { "Negative import fixture is valid" }
                 fill(invalidImport, R.string.profiles_json, invalid)
                 click(invalidImport, R.string.profiles_import_preview)

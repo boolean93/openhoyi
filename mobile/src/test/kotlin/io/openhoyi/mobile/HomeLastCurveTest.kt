@@ -77,6 +77,9 @@ class HomeLastCurveTest {
             items = listOf(current)) as HomeLastCurve.Ready
         assertEquals(draft.id, matching.item.id)
         assertEquals(CurveStageParameters.preview(current), matching.preview)
+        val changedLimit = current.copy(customDocument = draft.copy(totalWaterLimitMl = 40))
+        assertEquals(HomeLastCurve.Unavailable(HomeLastCurve.Reason.MUTABLE_DRAFT),
+            resolve(latest = CurveUsage("shot-3", draft.id, 4000, fingerprint), items = listOf(changedLimit)))
         val edited = current.copy(customDocument = draft.copy(stages = listOf(CustomCurveDocument.Stage(40, 300))))
         assertEquals(HomeLastCurve.Unavailable(HomeLastCurve.Reason.MUTABLE_DRAFT),
             resolve(latest = CurveUsage("shot-3", draft.id, 4000, fingerprint), items = listOf(edited)))

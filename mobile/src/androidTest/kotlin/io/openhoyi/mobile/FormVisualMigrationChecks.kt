@@ -456,10 +456,13 @@ internal class FormVisualMigrationChecks(private val test: Instrumentation) {
                     check(input.height>=HoyiUi.dp(activity,52)) { "M2 short/natural field under 52dp: ${input.tag}" }
                 }
             }
-            val initialRequired=if(scale<=1.05f && page!="review") ids.toSet() else ids.takeLast(2).toSet()
+            // The independent limit sits after the stage table in its bounded scroll viewport.
+            // Preserve initial visibility checks for existing controls; prove the new field reachable below.
+            val initialRequired=if(scale<=1.05f && page!="review")
+                ids.filter { it!="product/form/curve-editor/total-water-limit" }.toSet() else ids.takeLast(2).toSet()
             val reached=captureReachable(activity,directory,ids,initialRequired)
             if(activity !is BeanEntryActivity) ChineseFormWindowChecks.run(test,activity,directory,"${activity.javaClass.simpleName}",
-                if(activity is CurveEditorActivity) listOf("name","temperature","cup","target-3","water-3") else listOf("dose")) {
+                if(activity is CurveEditorActivity) listOf("name","temperature","cup","target-3","water-3","total-water-limit") else listOf("dose")) {
                 frames.committedFrame(root(activity))
             }
             AdvancedBusinessUiChecks(test).verifyM2FormContract(activity,page,directory,{ activeScope.rejectWrites=it },{ activeScope.unavailable(it) }) { owner,label ->

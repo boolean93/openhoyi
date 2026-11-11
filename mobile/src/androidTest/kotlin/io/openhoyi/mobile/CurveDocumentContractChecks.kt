@@ -95,8 +95,9 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
         var service: MobileService? = null
         var message: SnapshotMessage? = null
         onMain { service = owner(home); message = service!!.snapshot.message }
-        val source = app.curves.items.firstOrNull { it.controlProfile != null && runCatching { CustomCurveDocument.fromLibraryItem(it).controlMode == CustomCurveDocument.ControlMode.FLOW_RAW }.getOrDefault(false) }
-            ?: error("No shareable captured parameter fixture")
+        val source = app.curves.items.firstOrNull { (it.factoryCurve != null || it.controlProfile != null) && runCatching { CustomCurveDocument.fromLibraryItem(it).controlMode == CustomCurveDocument.ControlMode.FLOW_RAW }.getOrDefault(false) }
+            ?: error("No shareable read-only factory/profile parameters")
+        val sourceLimit = source.factoryCurve?.flowMl ?: requireNotNull(source.controlProfile).parameters.maximumWaterMl
         val session = UUID.randomUUID().toString()
         var registered = false
         val paths = mutableListOf<String>()
@@ -152,6 +153,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
         }
         // Intercept the chooser before any external app or person receives this fixture.
         fun shareContract(activity: Activity, label: Int, expectedJson: String, uri: Uri? = null) {
+            val expectedDocument = CustomCurveDocument.decode(expectedJson)
             var observed: Intent? = null
             var intercepted = 0
             val monitor = object : Instrumentation.ActivityMonitor() {
@@ -174,6 +176,8 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
                     if (uri == null) {
                         check(intent.type == "text/plain") { "Text sharing must match plain-text receivers, got ${intent.type}" }
                         check(intent.getStringExtra(Intent.EXTRA_TEXT) == expectedJson)
+                        check(CustomCurveDocument.decode(requireNotNull(intent.getStringExtra(Intent.EXTRA_TEXT))).totalWaterLimitMl ==
+                            expectedDocument.totalWaterLimitMl)
                         check(intent.extras?.keySet() == setOf(Intent.EXTRA_TEXT))
                         check(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION == 0)
                         intent.clipData?.let { clip ->
@@ -204,6 +208,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
                 check(!button(share, R.string.profiles_share_file).isEnabled) { "File sharing enabled before export" }
             }
             val expected = requireNotNull(document)
+            check(expected.totalWaterLimitMl == sourceLimit)
             check(custom.find(expected.id) == null)
             val expectedJson = expected.encode()
             shareContract(share, R.string.profiles_share_text, expectedJson)
@@ -220,9 +225,15 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
             check(exported.contentEquals(expectedJson.toByteArray(Charsets.UTF_8))) { "Export bytes differ from exact UTF-8 parameters" }
             val utf8 = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
                 .decode(ByteBuffer.wrap(exported)).toString()
-            check(CustomCurveDocument.decode(utf8) == expected)
+            val exportedDocument = CustomCurveDocument.decode(utf8)
+            check(exportedDocument == expected)
+            check(exportedDocument.totalWaterLimitMl == expected.totalWaterLimitMl)
             val rootJson = org.json.JSONObject(utf8)
-            check(rootJson.keys().asSequence().toSet() == setOf("schema", "kind", "id", "name", "temperatureC", "targetHundredthsGram", "controlMode", "stages"))
+            val legacyKeys = setOf("schema", "kind", "id", "name", "temperatureC", "targetHundredthsGram", "controlMode", "stages")
+            check(rootJson.getInt("schema") == if (expected.totalWaterLimitMl == null) 1 else 2)
+            check(rootJson.keys().asSequence().toSet() ==
+                if (expected.totalWaterLimitMl == null) legacyKeys else legacyKeys + "totalWaterLimitMl")
+            if (expected.totalWaterLimitMl != null) check(rootJson.getInt("totalWaterLimitMl") == expected.totalWaterLimitMl)
             for (index in 0 until rootJson.getJSONArray("stages").length()) {
                 check(rootJson.getJSONArray("stages").getJSONObject(index).keys().asSequence().toSet() == setOf("target", "waterTenthsMl"))
             }
@@ -249,7 +260,11 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
                     test.waitForIdleSync(); awaitMain { preview.hasWindowFocus() && root(preview).isLaidOut }
                 } finally { test.removeMonitor(monitor) }
                 check(custom.list() == beforePreview && bytes("custom_curves_v1.json") == beforeDisk) { "File import saved without confirmation" }
-                onMain { check(CustomCurveDocument.decode(requireNotNull(preview.intent.getStringExtra(CurveImportPreviewActivity.DOCUMENT))) == expected) }
+                onMain {
+                    val incoming = CustomCurveDocument.decode(requireNotNull(preview.intent.getStringExtra(CurveImportPreviewActivity.DOCUMENT)))
+                    check(incoming == expected)
+                    check(incoming.totalWaterLimitMl == expected.totalWaterLimitMl)
+                }
                 return parent to preview
             }
             var importPages = importFile()
@@ -258,6 +273,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
             awaitMain { importPages.second.isDestroyed }; opened.remove(importPages.second)
             ownDraftId = expected.id
             check(custom.find(expected.id) == expected && custom.list().size == drafts.size + 1)
+            check(requireNotNull(custom.find(expected.id)).totalWaterLimitMl == expected.totalWaterLimitMl)
             check(!app.curves.canStart(requireNotNull(app.curves.find(expected.id))))
             record("file-confirm-local-readonly-save"); close(importPages.first)
             val afterSave = custom.list()
