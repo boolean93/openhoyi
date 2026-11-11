@@ -1757,7 +1757,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 (invalidImport.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                     .hideSoftInputFromWindow(field.windowToken, 0)
             }
-            for (invalid in listOf("{bad", imported.encode().replace("\"schema\":1", "\"schema\":99"), imported.copy(temperatureC = 200).toJson().toString())) {
+            for (invalid in listOf("{bad", imported.toJson().put("schema", 99).toString(), imported.copy(temperatureC = 200).toJson().toString())) {
                 check(runCatching { CustomCurveDocument.decode(invalid) }.isFailure) { "Negative import fixture is valid" }
                 fill(invalidImport, R.string.profiles_json, invalid)
                 click(invalidImport, R.string.profiles_import_preview)

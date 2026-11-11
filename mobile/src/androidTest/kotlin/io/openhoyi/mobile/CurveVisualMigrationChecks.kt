@@ -2301,7 +2301,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         unfocus(activity,nativeTrace)
         nativeTrace.observe("fixture_unfocus_returned",callerSite="CurveVisualMigrationChecks.importBusiness.unfocus")
         captureState(activity,directory,"raw-restored")
-        for((index,invalid) in listOf("{bad",scope.document.encode().replace("\"schema\":1","\"schema\":99"),
+        for((index,invalid) in listOf("{bad",scope.document.toJson().put("schema", 99).toString(),
             scope.document.copy(temperatureC=200).toJson().toString()).withIndex()) {
             check(runCatching { CustomCurveDocument.decode(invalid) }.isFailure)
             main { input(activity).setText(invalid); (field(activity,"error") as TextView).text=""

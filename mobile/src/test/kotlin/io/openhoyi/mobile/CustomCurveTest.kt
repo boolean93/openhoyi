@@ -77,6 +77,34 @@ class CustomCurveTest {
         reopened.save(changed.copy(totalWaterLimitMl = null))
         assertNull(CustomCurveStore(disk).find(changed.id)!!.totalWaterLimitMl)
     }
+    @Test fun sharedTextAndFileImportIntoFreshRecipientPreserveExplicitAndLegacyRecipes() {
+        val explicit = doc().copy(name = "共享曲线", totalWaterLimitMl = 40)
+        for (source in listOf(explicit, explicit.copy(totalWaterLimitMl = null))) {
+            val text = source.encode()
+            val textBytes = text.toByteArray(Charsets.UTF_8)
+            val file = java.nio.file.Files.createTempFile("curve-recipient-", ".json")
+            try {
+                java.nio.file.Files.write(file, textBytes)
+                val fileBytes = java.nio.file.Files.readAllBytes(file)
+                assertArrayEquals(textBytes, fileBytes)
+                assertEquals(text, String(fileBytes, Charsets.UTF_8))
+                val fromText = CustomCurveDocument.decode(text)
+                val fromFile = CustomCurveDocument.decode(String(fileBytes, Charsets.UTF_8))
+                assertEquals(source, fromText); assertEquals(source, fromFile)
+                val recipientDisk = Store()
+                val recipient = CustomCurveStore(recipientDisk)
+                assertTrue(recipient.list().isEmpty())
+                assertEquals(CustomCurveStore.ImportStatus.SAVED, recipient.importDocument(fromFile).status)
+                val reopened = requireNotNull(CustomCurveStore(recipientDisk).find(source.id))
+                assertEquals(source, reopened)
+                assertEquals(source.totalWaterLimitMl, reopened.totalWaterLimitMl)
+                assertEquals(listOf(150, 400), reopened.stages.map { it.waterTenthsMl })
+                val json = org.json.JSONObject(text)
+                assertEquals(if (source.totalWaterLimitMl == null) 1 else 2, json.getInt("schema"))
+                assertEquals(source.totalWaterLimitMl != null, json.has("totalWaterLimitMl"))
+            } finally { java.nio.file.Files.deleteIfExists(file) }
+        }
+    }
     @Test fun legacyFingerprintIsStableAndExplicitLimitChangesRecipeIdentity() {
         val old = doc()
         assertEquals("d58f8b3be5be03843b32c65f88367dcdde57a40bdb077ce785450a1a3ff2aebf", CustomCurveFingerprint.of(old))
