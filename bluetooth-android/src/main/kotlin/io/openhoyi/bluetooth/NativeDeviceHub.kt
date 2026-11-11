@@ -43,6 +43,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     private var scaleWasReady=false
     private var coffeeRecoveryAttempts=0
     private var coffeeRecoveryBlocked=false
+    private val boilerReadbackReconnectLease=BoilerReconnectLease()
     private val standaloneTare=if(tareStorage==null)StandaloneTare { SystemClock.elapsedRealtime() }
         else StandaloneTare(tareStorage) { SystemClock.elapsedRealtime() }
     private var scaleSampleSerial=0L
@@ -114,6 +115,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     val scaleConnectionBlocked:Boolean get()=scaleSlot.blocked
     val scaleProtocolId:String? get()=scaleSlot.current?.selection?.protocolId
     val scaleAddress:String? get()=scaleSlot.current?.owner?.device?.session?.let { it.address.takeIf { _->it.state==DeviceState.READY } }
+    val coffeeGeneration:Long get()=coffee.session.generation
     val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
     /** Display-only classification of the last FAILED coffee session; never a control permit. */
     val coffeeFailure:CoffeeSessionFailure? get()=coffee.session.lastFailure
@@ -139,7 +141,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             reconnect.observeScaleState(now,state)
             val coffeeAddress=coffeeReconnect.desiredAddress
             if(coffeeAddress!=null && coffee.session.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)) {
-                val permitted=automaticAllowed(DeviceRole.COFFEE) && DeviceConnectionGate.mayConnectCoffee(extraction.state,coffeeControl.startAddress,coffeeAddress)
+                val permitted=!boilerReadbackReconnectLease.held && automaticAllowed(DeviceRole.COFFEE) && DeviceConnectionGate.mayConnectCoffee(extraction.state,coffeeControl.startAddress,coffeeAddress)
                 if(foreground && !permitted && !coffeeRecoveryBlocked)diagnostic("coffee.auto_reconnect.blocked=intent_or_safety")
                 coffeeRecoveryBlocked=!permitted
                 val result=coffeeReconnect.dispatch(now,
@@ -192,6 +194,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             "unsettled extraction: coffee connection change blocked"
         }
         automaticCoffeeConnecting=!explicit
+        if(explicit)boilerReadbackReconnectLease.release()
         if(explicit)coffeeReconnect.explicitConnect(address,SystemClock.elapsedRealtime(),remembered)
         coffee.session.connect(address,authentication)
     }
@@ -289,13 +292,31 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         }
         coffee.session.writeSetting(change,beforeDispatch,done)
     }
-    /** Authenticated time-sync/settings request, not a boiler control retry or pure read. */
-    fun refreshBoilerSettings(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+    /** Authenticated time-sync/settings requests, never boiler-control retries. */
+    fun refreshBoilerSettings(beforeDispatch:()->Boolean,outcome:(Int,OperationResult)->Unit){
         usable()
-        coffee.session.refreshBoilerSettings({beforeDispatch() && !boilerRefreshExtractionBlocked()},done)
+        coffee.session.refreshBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},outcome)
     }
-    private fun boilerRefreshExtractionBlocked()=extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
-        ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)
+    val boilerReconciliationReady get()=coffee.session.boilerReconciliationReady
+    val boilerReadbackReconnecting get()=coffee.session.boilerReadbackReconnecting
+    val canReconnectBoilerSettings get()=!boilerReadbackReconnectLease.held && coffee.session.canReconnectBoilerSettings &&
+        !DeviceConnectionGate.unsettled(extraction.state)
+    fun reconnectBoilerSettings(beforeDispatch:()->Boolean,mayExpire:()->Boolean):Boolean {
+        usable()
+        if(!canReconnectBoilerSettings || !beforeDispatch())return false
+        // Scoped suppression survives FAILED/UNKNOWN, and never changes the user's preferences.
+        check(boilerReadbackReconnectLease.claim())
+        return coffee.session.reconnectBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},
+            {mayExpire() && !DeviceConnectionGate.unsettled(extraction.state)})
+    }
+    fun completeBoilerReadbackRecovery(){usable();boilerReadbackReconnectLease.release()}
+    val boilerSettingsRecoveryBusy get()=coffee.session.boilerSettingsRecoveryBusy
+    val canRefreshUnknownBoilerSettings get()=coffee.session.canRefreshUnknownBoilerSettings &&
+        !DeviceConnectionGate.unsettled(extraction.state)
+    fun refreshUnknownBoilerSettings(beforeDispatch:()->Boolean,outcome:(Int,OperationResult)->Unit){
+        usable()
+        coffee.session.refreshUnknownBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},outcome)
+    }
     fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,done:(OperationResult)->Unit)=writeSleepSchedule(schedule,expected,{true},done)
     fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()

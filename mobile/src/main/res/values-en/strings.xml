@@ -294,6 +294,13 @@
     <string name="home_alarm_initial">"No machine alarm state received yet"</string>
     <string name="home_bind_failed">"Unable to bind to device service"</string>
     <string name="home_bluetooth_unsupported">"This device does not support Bluetooth"</string>
+    <string name="home_boiler_reconnecting">"Reconnecting"</string>
+    <string name="home_boiler_refresh">"Refresh state"</string>
+    <string name="home_boiler_retry_off">"Retry off"</string>
+    <string name="home_boiler_retry_on">"Retry on"</string>
+    <string name="home_boiler_syncing">"Syncing"</string>
+    <string name="home_boiler_turning_off">"Turning off"</string>
+    <string name="home_boiler_turning_on">"Turning on"</string>
     <string name="home_brew_boiler">"Brew boiler"</string>
     <string name="home_brew_pressure">"Brew pressure"</string>
     <string name="home_brew_temperature">"Brew temperature"</string>

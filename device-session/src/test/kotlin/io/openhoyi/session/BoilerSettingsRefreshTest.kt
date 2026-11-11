@@ -21,22 +21,33 @@ class BoilerSettingsRefreshTest {
         var wallTime=LocalDateTime.of(2026,11,11,10,20,30)
         val tracker=SettingsWriteTracker()
         var serial=0L
-        val session=DeviceSession(DeviceRole.COFFEE,driver,{now},coffeeFrame={frame,_->
-            if(frame is Settings)tracker.observe(++serial,frame)
+        val session:DeviceSession=DeviceSession(DeviceRole.COFFEE,driver,{now},stateChanged={state->
+            if(state!=DeviceState.READY)tracker.disconnected(serial)
+        },coffeeFrame={frame,_->
+            if(frame is Settings)tracker.observe(++serial,frame,session.boilerReconciliationReady)
         },wallClock={wallTime})
         val initial=hex("830113FD5C007D0F350019006E")
         init { connect() }
         fun connect(address:String="device") {
             session.connect(address,CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            finishConnect(initial)
+        }
+        fun finishConnect(settings:ByteArray) {
             complete()
             complete(OperationResult.Success(listOf(
                 CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
                 CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
             complete();complete()
-            receive(initial)
+            receive(settings)
             session.onNotification(session.generation,KnownGatt.coffeeNotify,
                 hex("400024BF2F1C770B00000000000000190321AF"))
             assertEquals(DeviceState.READY,session.state)
+        }
+        fun advance(time:Long) {
+            now=time
+            session.onNotification(session.generation,KnownGatt.coffeeNotify,
+                hex("400024BF2F1C770B00000000000000190321AF"))
+            session.tick()
         }
         fun complete(result:OperationResult=OperationResult.Success()) {
             val(g,t,_)=driver.calls.last();session.onComplete(g,t,result)
@@ -51,109 +62,138 @@ class BoilerSettingsRefreshTest {
             session.writeSetting(change,{tracker.permitsWrite(token)}) { result->
                 tracker.written(token,result,serial)
                 if(refresh && result is OperationResult.Success)
-                    session.refreshBoilerSettings({tracker.permitsBoilerRefresh(token)}) { }
+                    session.refreshBoilerSettings({tracker.permitsBoilerRefresh(token)}) {_,_->}
             }
             return token
         }
     }
     private fun hex(value:String)=value.chunked(2).map {it.toInt(16).toByte()}.toByteArray()
 
-    @Test fun bothBoilersRequestExactlyOneCurrentTimeRefreshAndStillNeedNewReadback() {
+    @Test fun successfulGattWithoutFirstReadbackUsesSecondSyncButNeverRepeatsControl() {
         for(change in listOf(MachineSettingChange.BrewHeating(false),MachineSettingChange.SteamHeating(false))) {
             val f=Fixture();val before=f.driver.writes.size
-            f.begin(change)
-            assertArrayEquals(CoffeeCommands.setting(change).frame.toByteArray(),f.driver.writes.last().bytes)
-            f.complete()
-            assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
-            assertEquals(before+2,f.driver.writes.size)
+            f.begin(change);f.complete()
+            assertEquals(before+1,f.driver.writes.size)
+            f.advance(249);assertEquals(before+1,f.driver.writes.size)
+            f.advance(250);assertEquals(before+2,f.driver.writes.size)
             assertArrayEquals(CoffeeCommands.authenticate(f.wallTime,"123456").frame.toByteArray(),f.driver.writes.last().bytes)
-            f.complete() // Refresh transport success is not settings confirmation.
+            f.complete() // All GATT callbacks succeed, but this first sync gets no 0x83.
             assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
-            f.receive(f.disabled(change))
+            f.advance(1250);assertEquals(before+3,f.driver.writes.size)
+            f.receive(f.disabled(change)) // Response may beat the second sync's GATT callback.
             assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
-            var reentry:OperationResult?=null
-            f.session.refreshBoilerSettings({true}) {reentry=it}
-            assertTrue(reentry is OperationResult.Failed)
-            repeat(3){f.now+=100;f.session.tick()}
-            assertEquals(before+2,f.driver.writes.size)
+            f.complete();f.advance(3000);f.advance(6000)
+            assertEquals(before+3,f.driver.writes.size)
+            assertEquals(1,f.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(change).frame.toByteArray())})
         }
     }
 
-    @Test fun earlySettingNotificationCannotStrandTheWriteOrConfirmBeforeTransport() {
+    @Test fun earlyOriginalNotificationAndFirstSyncConfirmationCancelLateTimers() {
         val f=Fixture();val change=MachineSettingChange.BrewHeating(false)
-        f.begin(change)
-        f.receive(f.disabled(change)) // Notify may beat the original GATT completion.
+        f.begin(change);f.receive(f.disabled(change))
         assertEquals(SettingsWriteTracker.State.WRITING,f.tracker.state)
-        f.complete()
-        assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
-        f.receive(f.disabled(change)) // Fresh refresh response may beat its GATT completion.
-        assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
-        f.complete()
+        f.complete();assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
+        f.advance(250);f.receive(f.disabled(change));f.complete()
+        val writes=f.driver.writes.size
+        f.advance(1250);f.advance(3000);assertEquals(writes,f.driver.writes.size)
         assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
     }
 
-    @Test fun failedUnknownOrNonBoilerWritesCannotRequestRefreshAndMissingReadbackStaysUnknown() {
-        for(result in listOf(OperationResult.Failed("rejected"),OperationResult.Unknown("lost"),OperationResult.Cancelled("unsent"))) {
+    @Test fun onlyPostSyncDifferentReportClosesTypedBoilerAndStopsFurtherRecovery() {
+        val f=Fixture();f.begin(MachineSettingChange.BrewHeating(false));f.complete()
+        f.receive(f.initial) // Unrelated pre-sync report must not declare failure.
+        assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
+        f.advance(250);f.complete();f.receive(f.initial)
+        assertEquals(SettingsWriteTracker.State.RECONCILED,f.tracker.state)
+        val writes=f.driver.writes.size
+        f.advance(1250);f.advance(3000)
+        assertEquals(writes,f.driver.writes.size);assertFalse(f.session.canReconnectBoilerSettings)
+    }
+
+    @Test fun failedWritesNeverArmAndTwoFailedSyncsKeepOriginalUnknownDeadline() {
+        for(result in listOf(OperationResult.Failed("rejected"),OperationResult.Unknown("lost"))) {
             val f=Fixture();f.begin(MachineSettingChange.BrewHeating(false));val count=f.driver.writes.size
-            f.complete(result)
-            f.session.refreshBoilerSettings({true}) { assertTrue(it is OperationResult.Failed) }
+            f.complete(result);f.advance(250);f.advance(1250)
             assertEquals(count,f.driver.writes.size)
         }
-        val ordinary=Fixture();ordinary.begin(MachineSettingChange.Light(false));val count=ordinary.driver.writes.size
-        ordinary.complete();assertEquals(count,ordinary.driver.writes.size)
         val f=Fixture();val token=f.begin(MachineSettingChange.SteamHeating(false));f.complete()
-        f.complete(OperationResult.Unknown("refresh failed"))
-        assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
-        assertTrue(f.tracker.timeout(token,f.serial))
-        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+        f.advance(250);f.complete(OperationResult.Unknown("no sync response"))
+        f.advance(1250);f.complete(OperationResult.Failed("sync rejected"))
         val writes=f.driver.writes.size
-        repeat(3){f.now+=100;f.session.tick()}
-        assertEquals(writes,f.driver.writes.size)
-        assertFalse(f.tracker.permitsBoilerRefresh(token))
+        f.advance(6000);assertTrue(f.tracker.timeout(token,f.serial))
+        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+        f.advance(9000);assertEquals(writes,f.driver.writes.size)
+        assertFalse(f.session.canReconnectBoilerSettings)
     }
 
-    @Test fun queuedRefreshRechecksPermissionAndOldConnectionCannotRefreshReplacement() {
+    @Test fun queuedPermissionChangeAndConnectionReplacementCancelOldSynchronization() {
         val f=Fixture();f.begin(MachineSettingChange.BrewHeating(false),refresh=false);f.complete()
         f.session.setBrewWait(92,{true}) { }
-        var allowed=true;var refreshResult:OperationResult?=null
-        f.session.refreshBoilerSettings({allowed}) {refreshResult=it}
-        val count=f.driver.writes.size
-        allowed=false;f.complete()
-        assertTrue(refreshResult is OperationResult.Failed)
+        var allowed=true
+        f.session.refreshBoilerSettings({allowed}) {_,_->}
+        f.advance(250);val count=f.driver.writes.size
+        allowed=false;f.complete();f.advance(1250)
         assertEquals(count,f.driver.writes.size)
-        f.session.refreshBoilerSettings({true}) {assertTrue(it is OperationResult.Failed)}
-        assertEquals(count,f.driver.writes.size)
-
-        val switched=Fixture();switched.begin(MachineSettingChange.SteamHeating(false),refresh=false);switched.complete()
-        switched.session.setBrewWait(92,{true}) { }
-        val old=switched.driver.calls.last()
-        var cancelled:OperationResult?=null
-        switched.session.refreshBoilerSettings({true}) {cancelled=it}
-        switched.connect("replacement")
-        assertTrue(cancelled is OperationResult.Cancelled)
-        val writes=switched.driver.writes.size
-        switched.session.onComplete(old.first,old.second,OperationResult.Success())
-        switched.session.refreshBoilerSettings({true}) {assertTrue(it is OperationResult.Failed)}
-        assertEquals(writes,switched.driver.writes.size)
+        val replacement=Fixture();replacement.begin(MachineSettingChange.SteamHeating(false));replacement.complete()
+        replacement.advance(250);val old=replacement.driver.calls.last()
+        replacement.connect("replacement");val writes=replacement.driver.writes.size
+        replacement.session.onComplete(old.first,old.second,OperationResult.Success())
+        replacement.advance(1250);replacement.advance(3000)
+        assertEquals(writes,replacement.driver.writes.size)
+        assertFalse(replacement.session.canRefreshUnknownBoilerSettings)
     }
 
-    @Test fun refreshPermitKeepsDurableIdentityTokenAndProductSafetyGates() {
-        val tracker=SettingsWriteTracker();val token=requireNotNull(tracker.begin(MachineSettingChange.BrewHeating(false)))
-        val recovery=MachineWriteRecoveryState(object:MachineWriteRecoveryState.Storage {
-            override fun read()=MachineWriteRecoveryState.Record(null,null)
-            override fun write(record:MachineWriteRecoveryState.Record)=true
-        })
-        val address="AA:BB:CC:DD:EE:01";check(recovery.arm(MachineWriteRecoveryState.Kind.SETTING,address))
-        val context=MachineWriteDispatchPermit.Context(recovery,address,address,false,false,false,false)
-        val request=MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(tracker)
-        fun allowed(c:MachineWriteDispatchPermit.Context=context,t:Long=token)=MachineWriteDispatchPermit.allows(t,request,c)
-        assertFalse(allowed())
-        tracker.written(token,OperationResult.Success(),0)
-        assertTrue(allowed());assertFalse(tracker.permitsWrite(token));assertFalse(allowed(t=token+1))
-        for(block in listOf(context.copy(currentAddress="other"),context.copy(manualShotActive=true),
-            context.copy(shotRecoveryPending=true),context.copy(shotActive=true),context.copy(preparationActive=true)))
-            assertFalse(allowed(block))
-        check(recovery.clear());assertFalse(allowed())
-        tracker.timeout(token,0);assertFalse(allowed())
+    @Test fun staleIdleWaitsForNewReportWithoutBusyLoopOrExtraAttempt() {
+        val f=Fixture();f.begin(MachineSettingChange.BrewHeating(false));f.complete()
+        f.now=2000;val count=f.driver.writes.size
+        repeat(5){f.session.tick()}
+        assertEquals(count,f.driver.writes.size)
+        f.advance(2100);f.complete();f.advance(2350);f.complete()
+        assertEquals(count+2,f.driver.writes.size)
+        f.advance(3000);assertEquals(count+2,f.driver.writes.size)
+    }
+
+    @Test fun oneReconnectUsesFreshAuthenticationNeverReplaysControlAndHasAbsolute18sCap() {
+        val f=Fixture();val change=MachineSettingChange.BrewHeating(false)
+        f.begin(change);f.complete();f.advance(250);f.complete();f.advance(1250);f.complete();f.advance(3000)
+        assertTrue(f.session.canReconnectBoilerSettings)
+        assertTrue(f.session.reconnectBoilerSettings({true},{true}))
+        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+        assertFalse(f.session.reconnectBoilerSettings({true},{true}))
+        val count=f.driver.writes.size
+        f.now=17999;f.session.tick();assertEquals(DeviceState.CONNECTING,f.session.state)
+        f.now=18000;f.session.tick();assertEquals(DeviceState.FAILED,f.session.state)
+        assertEquals(count,f.driver.writes.size)
+        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+    }
+
+    @Test fun reconnectReadbackConfirmsOriginalAndDeadlineCannotTouchNewUserConnection() {
+        val f=Fixture();val change=MachineSettingChange.SteamHeating(false)
+        f.begin(change);f.complete();f.advance(250);f.complete();f.advance(1250);f.complete();f.advance(3000)
+        assertTrue(f.session.reconnectBoilerSettings({true},{true}))
+        f.finishConnect(f.disabled(change))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
+        assertEquals(1,f.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(change).frame.toByteArray())})
+        f.connect("user-selected");val count=f.driver.calls.size
+        f.now=18000;f.session.tick()
+        assertEquals(DeviceState.READY,f.session.state);assertEquals("user-selected",f.session.address)
+        assertEquals(count,f.driver.calls.size)
+    }
+
+    @Test fun manualRecoveryIsSingleSyncAfterSettingsExpiryWithDebounceAndNoControl() {
+        val f=Fixture();val token=f.begin(MachineSettingChange.BrewHeating(false));f.complete()
+        f.advance(6000);assertTrue(f.tracker.timeout(token,f.serial))
+        f.advance(181000)
+        assertTrue(f.session.canRefreshUnknownBoilerSettings)
+        val count=f.driver.writes.size
+        f.session.refreshUnknownBoilerSettings({f.tracker.permitsBoilerRecovery(token)}) {_,_->}
+        assertTrue(f.session.boilerSettingsRecoveryBusy)
+        f.session.refreshUnknownBoilerSettings({true}) {_,result->assertTrue(result is OperationResult.Failed)}
+        f.advance(181250);f.complete()
+        assertEquals(count+1,f.driver.writes.size)
+        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+        f.advance(187000);assertFalse(f.session.boilerSettingsRecoveryBusy)
+        assertEquals(count+1,f.driver.writes.size)
+        f.session.disconnect();assertFalse(f.session.canRefreshUnknownBoilerSettings)
     }
 }

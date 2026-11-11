@@ -9,6 +9,7 @@ enum class DeviceState { DISCONNECTED, CONNECTING, DISCOVERING, SUBSCRIBING, INI
 class CoffeeAuthentication(val time:LocalDateTime,private val password:String) {
     fun encode()=encodeAt(time)
     internal fun encodeAt(currentTime:LocalDateTime)=CoffeeCommands.authenticate(currentTime,password)
+    internal fun atTime(currentTime:LocalDateTime)=CoffeeAuthentication(currentTime,password)
     override fun toString()="CoffeeAuthentication([REDACTED])"
 }
 object KnownGatt {
@@ -71,7 +72,29 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     var lastFailure:CoffeeSessionFailure?=null;private set
     private var activeAddress:String?=null
     private var coffeeAuthentication:CoffeeAuthentication?=null
-    private var boilerRefreshAvailable=false
+    private class BoilerReadback(val generation:Long,val address:String,val authentication:CoffeeAuthentication,val startedAt:Long) {
+        var automaticStarted=false
+        var syncAttempts=0
+        var syncDispatched=false
+        var automaticCancelled=false
+        var reconnectUsed=false
+        val deadline get()=startedAt+6000
+    }
+    private class BoilerRefreshTask(val manual:Boolean,val deadline:Long,val due:List<Long>,
+        val beforeDispatch:()->Boolean,val outcome:(Int,OperationResult)->Unit) {
+        var next=0
+        var inFlight=false
+        var waitAfterIdle:Long?=null
+        var lastDispatchAt:Long?=null
+    }
+    private var boilerReadback:BoilerReadback?=null
+    private var boilerRefreshTask:BoilerRefreshTask?=null
+    private var idleSerial=0L
+    private class BoilerReconnectLimit(val generation:Long,val address:String,val deadline:Long,val mayExpire:()->Boolean)
+    private var boilerReconnectLimit:BoilerReconnectLimit?=null
+    val boilerReadbackReconnecting:Boolean get()=boilerReconnectLimit?.let {
+        generation==it.generation && address==it.address && state!=DeviceState.READY && clock()<it.deadline
+    }==true
     val address:String? get()=activeAddress
     val observedFirmware:CoffeeFirmware? get()=lastSettings?.let {
         CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch)
@@ -246,8 +269,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 if(this.generation!=generation||!queue.active)return
                 if(state==DeviceState.READY){
                     when(frame){
-                        is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now}
-                        is ExtractionTelemetry -> {lastIdle=null;lastIdleAtMs=null}
+                        is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now;idleSerial++}
+                        is ExtractionTelemetry -> {lastIdle=null;lastIdleAtMs=null;boilerReadback?.automaticCancelled=true}
                         is SleepPart -> if(frame.firstDaySundayIndex==0) {
                             sleepFirst=frame;sleepFirstAtMs=now;sleepSecondAtMs=null
                         } else {
@@ -283,6 +306,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun tick() {
         queue.tick()
         if(!queue.active)return
+        boilerReconnectLimit?.let { limit->
+            if(generation!=limit.generation || address!=limit.address || state==DeviceState.READY)boilerReconnectLimit=null
+            else if(clock()>=limit.deadline) {
+                boilerReconnectLimit=null
+                if(limit.mayExpire()){fail(PROTOCOL_TIMEOUT_REASON);return}
+            }
+        }
         scaleTare?.let {if(clock()>=it.deadline)finishScaleTare(it,OperationResult.Unknown("scale tare acknowledgement timeout"))}
         sleepWrite?.let { write ->
             if(write.secondDue?.let { clock() >= it } == true && write.generation == generation) {
@@ -304,6 +334,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 else initDue=clock()+(commands[initNext].delayMs-commands[initNext-1].delayMs)
             }
         }
+        tickBoilerSettingsRefresh()
         tickScaleHeartbeat()
     }
     private fun scaleInitialized(expected:Long) {
@@ -466,7 +497,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
     fun writeSetting(change:MachineSettingChange,callback:(OperationResult)->Unit)=writeSetting(change,{true},callback)
     fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
-        boilerRefreshAvailable=false
+        boilerReadback=null;boilerRefreshTask=null
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else if (!canWriteSetting(change)) callback(OperationResult.Failed("fresh settings with unchanged companion value required"))
         else {
@@ -479,27 +510,92 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 // Arm before the host callback: it must enter WAITING_READBACK before requesting refresh.
                 if(result is OperationResult.Success && ownsInitialization(expected) && state==DeviceState.READY &&
                     (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating))
-                    boilerRefreshAvailable=true
+                    coffeeAuthentication?.let { authentication->address?.let { target->
+                        boilerReadback=BoilerReadback(expected,target,authentication,clock())
+                    } }
                 callback(result)
             }
         }
     }
-    /** One-shot settings refresh after a successful boiler write. This also synchronizes the
-     * machine clock using the existing authenticated 0x01 frame; it is NOT a pure read.
-     * Transport completion never confirms the setting; the host still requires a newer 0x83. */
-    fun refreshBoilerSettings(beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
-        val available=boilerRefreshAvailable
-        boilerRefreshAvailable=false // Rejection/failure/reentry must never schedule a retry.
-        val authentication=coffeeAuthentication
-        if(!available || authentication==null || !canControlWithFreshSettings() || sleepWrite!=null) {
-            callback(OperationResult.Failed("no eligible boiler settings refresh"));return
+    private fun ownsBoilerReadback(readback:BoilerReadback):Boolean = boilerReadback===readback &&
+        ownsInitialization(readback.generation) && address==readback.address &&
+        coffeeAuthentication===readback.authentication && state==DeviceState.READY
+    /** Bounded authenticated time-sync requests, NOT pure reads or boiler-control retries.
+     * GATT success never confirms application. The host owns the original six-second watchdog. */
+    fun refreshBoilerSettings(beforeDispatch:()->Boolean,outcome:(Int,OperationResult)->Unit) {
+        val readback=boilerReadback
+        if(readback==null || !ownsBoilerReadback(readback) || readback.automaticStarted || clock()>=readback.deadline) {
+            outcome(0,OperationResult.Failed("no eligible boiler settings refresh"));return
         }
-        val expected=generation
-        val expectedAddress=address
-        send(authentication.encodeAt(wallClock()),DeviceRole.COFFEE,beforeDispatch={
-            ownsInitialization(expected) && address==expectedAddress && coffeeAuthentication===authentication &&
-                sleepWrite==null && canControlWithFreshSettings() && beforeDispatch()
-        },callback=callback)
+        readback.automaticStarted=true
+        boilerRefreshTask=BoilerRefreshTask(false,readback.deadline,
+            listOf(readback.startedAt+250,readback.startedAt+1250),beforeDispatch,outcome)
+    }
+    val boilerSettingsRecoveryBusy:Boolean get()=boilerRefreshTask?.let {it.manual && clock()<it.deadline}==true
+    val canRefreshUnknownBoilerSettings:Boolean get()=boilerReadback?.let {
+        ownsBoilerReadback(it) && !boilerSettingsRecoveryBusy && canControlFromIdle() && sleepWrite==null
+    }==true
+    /** Explicit user recovery is one synchronization attempt and does not require fresh settings.
+     * Only the live original successful boiler write can supply credentials/provenance. */
+    fun refreshUnknownBoilerSettings(beforeDispatch:()->Boolean,outcome:(Int,OperationResult)->Unit) {
+        if(!canRefreshUnknownBoilerSettings || !beforeDispatch()) {
+            outcome(0,OperationResult.Failed("no eligible boiler settings recovery"));return
+        }
+        val now=clock()
+        boilerRefreshTask=BoilerRefreshTask(true,now+6000,listOf(now+250),beforeDispatch,outcome)
+    }
+    private fun tickBoilerSettingsRefresh() {
+        val task=boilerRefreshTask ?: return
+        val readback=boilerReadback ?: run {boilerRefreshTask=null;return}
+        if(!ownsBoilerReadback(readback) || !task.beforeDispatch() || !task.manual && readback.automaticCancelled) {
+            if(!task.manual)readback.automaticCancelled=true
+            boilerRefreshTask=null;return
+        }
+        if(clock()>=task.deadline) {
+            boilerRefreshTask=null
+            task.outcome(0,OperationResult.Unknown("boiler settings refresh deadline"));return
+        }
+        if(task.inFlight || task.next>=task.due.size || clock()<maxOf(task.due[task.next],task.lastDispatchAt?.plus(250) ?: 0) ||
+            task.waitAfterIdle?.let {idleSerial<=it}==true)return
+        // Missing/stale idle waits for a genuinely newer report, not repeated failed writes.
+        if(!canControlFromIdle() || (!task.manual && !canControlWithFreshSettings()) || sleepWrite!=null) {
+            task.waitAfterIdle=idleSerial;return
+        }
+        task.waitAfterIdle=null;task.inFlight=true
+        var dispatched=false
+        var attempt=0
+        send(readback.authentication.encodeAt(wallClock()),DeviceRole.COFFEE,beforeDispatch={
+            val allowed=boilerRefreshTask===task && ownsBoilerReadback(readback) && clock()<task.deadline &&
+                task.beforeDispatch() && sleepWrite==null && canControlFromIdle() &&
+                (task.manual || canControlWithFreshSettings())
+            if(allowed) {
+                dispatched=true;attempt=++task.next;readback.syncDispatched=true;task.lastDispatchAt=clock()
+                if(!task.manual)readback.syncAttempts++
+            }
+            allowed
+        }) {result->
+            task.inFlight=false
+            task.outcome(attempt,result)
+            if(boilerRefreshTask===task && !dispatched)task.waitAfterIdle=idleSerial
+        }
+    }
+    /** Typed mismatch reconciliation starts only after this transaction actually sends sync. */
+    val boilerReconciliationReady:Boolean get()=boilerReadback?.let {ownsBoilerReadback(it) && it.syncDispatched}==true ||
+        boilerReconnectLimit?.let {generation==it.generation && address==it.address && state==DeviceState.READY}==true
+    val canReconnectBoilerSettings:Boolean get()=boilerReadback?.let {
+        ownsBoilerReadback(it) && it.automaticStarted && !it.automaticCancelled && it.syncAttempts==2 && !it.reconnectUsed &&
+            clock()>=it.startedAt+3000 && clock()<it.deadline && boilerRefreshTask?.inFlight!=true &&
+            canControlFromIdle() && sleepWrite==null
+    }==true
+    /** Consume the one reconnect fallback before synchronous disconnect callbacks run. */
+    fun reconnectBoilerSettings(beforeDispatch:()->Boolean,mayExpire:()->Boolean):Boolean {
+        if(!canReconnectBoilerSettings || !beforeDispatch())return false
+        val readback=requireNotNull(boilerReadback)
+        readback.reconnectUsed=true;boilerRefreshTask=null
+        connect(readback.address,readback.authentication.atTime(wallClock()))
+        if(generation==readback.generation+1 && address==readback.address && state!=DeviceState.READY)
+            boilerReconnectLimit=BoilerReconnectLimit(generation,readback.address,readback.startedAt+18000,mayExpire)
+        return true
     }
     private fun canBeginSleepWrite(expected:WeeklySleepSchedule):Boolean = canControlFromIdle() &&
         SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock()) &&
@@ -576,7 +672,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
         heartbeatDue=null;heartbeatBusy=false
         val detachedTare=scaleTare;scaleTare=null
-        coffeeAuthentication=null;boilerRefreshAvailable=false
+        coffeeAuthentication=null;boilerReadback=null;boilerRefreshTask=null;boilerReconnectLimit=null
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
         try { setState(terminal) }
         finally {

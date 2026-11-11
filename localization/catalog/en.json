@@ -981,5 +981,12 @@
   "task_shell_sleep_check": "Check machine",
   "task_shell_sleep_history": "Last asleep",
   "task_shell_sleep_unsent": "Not sent",
-  "task_shell_sleep_wake": "Use lever"
+  "task_shell_sleep_wake": "Use lever",
+  "home_boiler_turning_on": "Turning on",
+  "home_boiler_turning_off": "Turning off",
+  "home_boiler_syncing": "Syncing",
+  "home_boiler_reconnecting": "Reconnecting",
+  "home_boiler_refresh": "Refresh state",
+  "home_boiler_retry_on": "Retry on",
+  "home_boiler_retry_off": "Retry off"
 }
