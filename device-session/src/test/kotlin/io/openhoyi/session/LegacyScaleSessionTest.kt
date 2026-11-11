@@ -150,7 +150,7 @@ class LegacyScaleSessionTest {
         f.notify(hex("EFDD08035A05055D"));f.notify(weight)
         assertEquals(DeviceState.SYNCHRONIZING,f.session.state);assertEquals(2,f.seen.size)
     }
-    @Test fun difluidUsesPerFrameGramUnitAndFixedServiceWithoutTaringOnConnect() {
+    @Test fun difluidUsesPerFrameGramUnitAndDiscoveredServiceWithoutTaringOnConnect() {
         val sample=hex("DFDF03000D000002F800000000000A27B000A9") // Official 76 g sample.
         for(adapter in listOf(DiFluidScaleProtocolAdapter,DiFluidTiScaleProtocolAdapter)) {
             val f=Fixture(adapter);f.boot()
@@ -169,7 +169,7 @@ class LegacyScaleSessionTest {
         }
         val f=Fixture(DiFluidTiScaleProtocolAdapter);f.session.connect("fixture");f.complete()
         f.complete(OperationResult.Success(Fixture(DiFluidScaleProtocolAdapter).characteristics()))
-        assertEquals(DeviceState.FAILED,f.session.state);assertTrue(f.writes().isEmpty())
+        assertEquals(DeviceState.SUBSCRIBING,f.session.state);assertTrue(f.writes().isEmpty())
     }
     @Test fun ultraRetainsReadingsButNotBookooVerifiedControlEvidenceOrLegacyCallback() {
         val sample=ByteArray(20).apply {

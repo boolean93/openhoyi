@@ -54,13 +54,16 @@ class ScanCoordinator(context:Context):AutoCloseable {
                 if(gen!=generation||running==null)return@post
                 try {
                     val address=result.device.address
-                    val name=result.scanRecord?.deviceName.orEmpty()
+                    val name=ScaleAdvertisementClassifier.discoveryName(result.device.name,result.scanRecord?.deviceName)
                     val known=remembered?.takeIf { it.address.equals(address,ignoreCase=true) }
                     val protocolId=known?.protocolId ?: ScaleAdvertisementClassifier.protocolId(name)
                     val role=when{known!=null->DeviceRole.BOOKOO;name.contains("HOYI",true)->DeviceRole.COFFEE;protocolId!=null->DeviceRole.BOOKOO;else->return@post }
                     onDevice(DiscoveredDevice(address,name,result.rssi,role,if(role==DeviceRole.BOOKOO)protocolId else null))
                 }catch(_:SecurityException){finish("scan permission revoked")}
             }}
+            override fun onBatchScanResults(results:MutableList<ScanResult>){
+                results.forEach { onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES,it) }
+            }
             override fun onScanFailed(errorCode:Int){handler.post {finish("scan failed: $errorCode")}}
         }
         running=callback;scanOwner=requestedOwner;completed=onFinished

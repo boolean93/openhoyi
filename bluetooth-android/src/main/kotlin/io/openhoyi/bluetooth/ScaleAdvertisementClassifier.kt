@@ -5,6 +5,17 @@ import java.util.Locale
 
 /** Advertisement names are discovery hints, never proof of protocol or firmware compatibility. */
 object ScaleAdvertisementClassifier {
+    /** Preserve supported live advertisements; cached Android names are discovery fallbacks. */
+    fun discoveryName(deviceName:String?,localName:String?):String {
+        fun supported(name:String?)=name!=null && (name.contains("HOYI",true) || protocolId(name)!=null)
+        return when {
+            supported(localName)->localName!!
+            supported(deviceName)->deviceName!!
+            !localName.isNullOrBlank()->localName
+            else->deviceName.orEmpty()
+        }
+    }
+
     fun protocolId(name:String):String? {
         val normalized=name.lowercase(Locale.ROOT).replace(Regex("[-_\\s]+")," ").trim()
         return when {
