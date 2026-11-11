@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="flow_editor_control">控制方式</string>
+    <string name="flow_editor_pressure">压力控制</string>
+    <string name="flow_editor_flow">流量先决</string>
+    <string name="flow_editor_first">首段目标</string>
+    <string name="flow_editor_first_pressure">压力 · bar</string>
+    <string name="flow_editor_first_flow">流量 · mL/s</string>
+    <string name="flow_editor_logic">压力逻辑 Hs（关闭为 Ls）</string>
+    <string name="flow_editor_logic_hint">Hs / Ls 是独立逻辑设置，不改变阶段目标的单位。</string>
+    <string name="flow_editor_target">控制目标</string>
+    <string name="flow_editor_flow_target">流量目标（1–10 mL/s，最多 1 位小数）</string>
+    <string name="flow_editor_timing">计时与重量补偿</string>
+    <string name="flow_editor_preinfusion">闷蒸（0–127 秒，整数）</string>
+    <string name="flow_editor_first_duration">首段限时（秒）</string>
+    <string name="flow_editor_compensation">重量补偿（g；仅连接秤时使用）</string>
+    <string name="flow_editor_switch_hint">切换模式不会换算数值，请核对每段目标及单位。流量先决需 2–4 段；首段限时 0–254 秒，且限时或水量至少一项大于 0；后段水量须大于 0，每段最多 999 mL。</string>
+    <string name="flow_editor_limit_warning">总量不是各阶段硬停保障；流量首段须另设出口。</string>
+    <string name="flow_editor_invalid">参数无效，请检查名称、数值及范围。</string>
+    <string name="flow_editor_units_hint">切换模式不换算数值，请核对每段单位。</string>
+    <string name="flow_editor_bloom_error">闷蒸须为 0–127 秒。</string>
+    <string name="flow_editor_time_error">首段限时须为 0–254 秒。</string>
+    <string name="flow_editor_compensation_error">补偿须在 −100–100 g 内。</string>
+    <string name="flow_editor_flow_error">流量目标须为 1–10 mL/s。</string>
+    <string name="flow_editor_first_pressure_error">首段压力须为 0.5–10 bar。</string>
+    <string name="flow_editor_pressure_error">压力目标须为 0–12 bar。</string>
+    <string name="flow_editor_water_positive_error">本段水量须大于 0。</string>
+    <string name="flow_editor_exit_error">首段须设置时间或水量出口。</string>
+    <string name="flow_editor_firmware_required">此模式需固件 1.1.4。</string>
+    <string name="flow_editor_subtitle">配方保存在本机，保存不会启动机器。</string>
+    <string name="flow_editor_complete_stage_error">完整曲线需 2–4 段。</string>
+    <string name="flow_editor_complete_first_pressure">首段压力须为 0.5–12 bar。</string>
+    <string name="flow_editor_complete_next_pressure">后段压力须为 1–12 bar。</string>
+    <string name="flow_editor_complete_water_error">本段水量最多 999 mL。</string>
+    <string name="flow_editor_compensation_target_error">补偿须小于目标杯重。</string>
+</resources>

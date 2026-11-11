@@ -63,8 +63,7 @@ class CurveShareActivity : ThemedActivity() {
         }
         style.add(actions, style.text(getString(R.string.profiles_export_first), TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val support = style.column("product/share/support")
-        style.add(support, style.text(getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
-            R.string.profiles_pressure_compatible else R.string.profiles_read_only), TaskProductVisualStyle.auxiliary,
+        style.add(support, style.text(profileExecutionSummary(doc), TaskProductVisualStyle.auxiliary,
             "product/share/compatibility", true), 16)
         style.action(support, getString(R.string.ui_full_details), "product/share/details") {
             beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
@@ -113,15 +112,22 @@ internal fun ThemedActivity.profileDocument(id: String?): CustomCurveDocument? {
     return app.curves.find(id)?.let { CustomCurveDocument.fromLibraryItem(it) }
 }
 internal fun ThemedActivity.profileSummary(doc: CustomCurveDocument): String = buildString {
+    val preview = CurveStageParameters.preview(doc)
     append(getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size))
-    if (doc.totalWaterLimitMl != null || doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
+    if (doc.totalWaterLimitMl != null || preview.renderable)
         append('\n').append(profileWaterLimitSummary(doc))
     doc.stages.forEachIndexed { index, stage ->
         append('\n')
-        append(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
-            getString(R.string.profiles_stage_pressure_summary, index + 1, CurveDraftNumber.format(stage.target, 1), CurveDraftNumber.format(stage.waterTenthsMl, 1))
-        else getString(R.string.profiles_stage_raw_summary, index + 1, stage.target, CurveDraftNumber.format(stage.waterTenthsMl, 1)))
+        append(when (preview.stages[index].unit) {
+            CurveStageParameters.Unit.PRESSURE_BAR -> getString(R.string.profiles_stage_pressure_summary, index + 1,
+                CurveDraftNumber.format(stage.target, 1), CurveDraftNumber.format(stage.waterTenthsMl, 1))
+            CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> getString(R.string.flow_curve_stage_flow_summary, index + 1,
+                CurveDraftNumber.format(stage.target, 1), CurveDraftNumber.format(stage.waterTenthsMl, 1))
+            CurveStageParameters.Unit.RAW_UNKNOWN -> getString(R.string.profiles_stage_raw_summary, index + 1,
+                stage.target, CurveDraftNumber.format(stage.waterTenthsMl, 1))
+        })
     }
+    profileConfigurationSummary(doc)?.let { append('\n').append(it) }
 }
 internal fun ThemedActivity.profileWaterLimitSummary(doc: CustomCurveDocument): String = doc.totalWaterLimitMl?.let {
     getString(R.string.curve_plan_total_limit, it)
@@ -134,18 +140,26 @@ internal fun ThemedActivity.profileCard(body: LinearLayout, doc: CustomCurveDocu
     val workspace = TaskWorkspaceLayout(this)
     card.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
     workspace.onPrimarySpaceAvailable = { _, budget -> minOf(budget, HoyiUi.dp(this, 240)) }
-    val primary = workspace.primaryBody
+    val primary = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+    workspace.primaryBody.addView(android.widget.ScrollView(this).apply {
+        tag = "profile-preview-scroll"
+        addView(primary, android.widget.FrameLayout.LayoutParams(-1, -2))
+    }, LinearLayout.LayoutParams(-1, -1))
     val support = workspace.secondaryBody
     HoyiUi.label(this, primary, doc.name, 20, true).apply {
-        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+        maxLines = Int.MAX_VALUE; ellipsize = null
         tag = "full-text-details"
     }
-    HoyiUi.label(this, primary, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null) R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, true)
-    if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
-        primary.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.label(this, primary, getString(R.string.profiles_stage_caption), 14, muted = true)
+    HoyiUi.label(this, primary, profileExecutionSummary(doc), 14, true)
+    val controlPreview = CurveStageParameters.preview(doc)
+    if (controlPreview.renderable) {
+        primary.addView(CurveStageView(this).apply {
+            preview = controlPreview
+            targets = if (controlPreview.hasFlow) emptyList() else doc.stages.map { it.target }
+        }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 160)))
+        HoyiUi.label(this, primary, profileStageCaption(doc), 14, muted = true)
     } else {
-        HoyiUi.label(this, primary, getString(R.string.profiles_flow_raw), 15, muted = true)
+        HoyiUi.label(this, primary, getString(R.string.flow_curve_missing_modes), 15, muted = true)
     }
     HoyiUi.label(this, support, profileSummary(doc), 15)
     HoyiUi.button(this, support, getString(R.string.ui_full_details)) { beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode()) }

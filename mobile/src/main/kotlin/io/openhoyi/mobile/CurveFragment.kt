@@ -628,12 +628,12 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         detailTitle.text = item.name
         detailCategory.text = if (draft != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(host, item.category)
         details.text = if (draft != null) host.profileSummary(draft) else curveDetailsText.render(item, canStart)
-        baseAvailabilityText = if (draft != null) getString(if (canStart) R.string.profiles_pressure_compatible else R.string.profiles_read_only) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
+        baseAvailabilityText = if (draft != null) host.profileExecutionSummary(draft) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
         updateAvailabilityFeedback()
         val copyable = runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
         editDraft.text = getString(if (draft != null) R.string.profiles_edit else R.string.profiles_edit_copy)
         editDraft.visibility = View.VISIBLE
-        editDraft.isEnabled = (application as MobileApplication).customCurvesResult.isSuccess && copyable?.controlMode == CustomCurveDocument.ControlMode.PRESSURE
+        editDraft.isEnabled = (application as MobileApplication).customCurvesResult.isSuccess && copyable?.isEditable == true
         shareParameters.visibility = View.VISIBLE
         shareParameters.isEnabled = copyable != null
         directEdit.contentDescription = editDraft.text

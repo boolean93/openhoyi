@@ -37,11 +37,17 @@ internal object CurveStageParameters {
     }
 
     /** Wire target slots are tenths; per-stage mode, never pressureLogic, supplies the unit. */
+    fun preview(document: CustomCurveDocument): Preview = Preview(document.stages.mapIndexed { index, stage ->
+        Stage(stage.target, when {
+            document.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW -> Unit.RAW_UNKNOWN
+            document.isFlowStage(index) -> Unit.FLOW_ML_PER_SECOND
+            else -> Unit.PRESSURE_BAR
+        })
+    })
+
     fun preview(item: CurveLibraryItem): Preview {
         item.customDocument?.let { document ->
-            val unit = if (document.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
-                Unit.PRESSURE_BAR else Unit.RAW_UNKNOWN
-            return Preview(document.stages.map { Stage(it.target, unit) })
+            return preview(document)
         }
         item.factoryCurve?.let { curve ->
             return Preview(curve.targets.take(curve.segmentCount).mapIndexed { index, target ->

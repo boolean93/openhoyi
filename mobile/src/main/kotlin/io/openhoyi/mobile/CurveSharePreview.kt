@@ -7,16 +7,16 @@ import android.widget.ScrollView
 /** Share-only composition; dialogs keep their independent preview layout. */
 internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: CustomCurveDocument) {
     val style = TaskProductVisualStyle(this)
+    val controlPreview = CurveStageParameters.preview(doc)
     val preview = style.column("product/share/preview-body")
     if(workspace.portraitScroll) workspace.primaryBody.addView(preview,LinearLayout.LayoutParams(-1,-2))
     else workspace.primaryBody.addView(ScrollView(this).apply {
         tag = "product/share/preview-scroll"; isFillViewport = true; addView(preview)
     }, LinearLayout.LayoutParams(-1, -1))
     val name = style.text(doc.name, TaskProductVisualStyle.title, "full-text-details").apply {
-        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+        maxLines = Int.MAX_VALUE; ellipsize = null
     }
-    val mode = style.text(getString(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
-        R.string.task_chart_pressure else R.string.home_lever_flow), TaskProductVisualStyle.auxiliary,
+    val mode = style.text(profileModeLabel(doc), TaskProductVisualStyle.auxiliary,
         "product/share/mode").apply {
         setTextColor(style.accent); setPadding(style.dp(8), 0, style.dp(8), 0)
         background = style.shape(style.selected); contentDescription = doc.controlMode.name
@@ -55,12 +55,16 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
     }
     style.add(preview, metrics, 8)
     var chart: CurveStageView? = null
-    if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
+    if (controlPreview.renderable) {
         style.add(preview, style.text(getString(R.string.profiles_preview), TaskProductVisualStyle.section), 8)
-        chart = CurveStageView(this).apply { targets = doc.stages.map { it.target }; productVisualStyle = style; tag = "product/share/stage" }
+        chart = CurveStageView(this).apply {
+            this.preview = controlPreview
+            targets = if (controlPreview.hasFlow) emptyList() else doc.stages.map { it.target }
+            productVisualStyle = style; tag = "product/share/stage"
+        }
         preview.addView(chart, LinearLayout.LayoutParams(-1, style.dp(160)))
-    } else style.add(preview, style.text(getString(R.string.profiles_flow_raw), TaskProductVisualStyle.body, secondary = true), 8)
-    val caption = if (chart != null) style.text(getString(R.string.task_form_stage_caption), TaskProductVisualStyle.auxiliary,
+    } else style.add(preview, style.text(getString(R.string.flow_curve_missing_modes), TaskProductVisualStyle.body, secondary = true), 8)
+    val caption = if (chart != null) style.text(profileStageCaption(doc), TaskProductVisualStyle.auxiliary,
         "product/share/stage-caption", true) else null
     val count = style.text(getString(R.string.profiles_stage_summary, doc.stages.size), TaskProductVisualStyle.auxiliary.copy(weight = 500), "product/share/stage-count")
     val metadata = object : android.widget.FrameLayout(this) {
@@ -130,12 +134,15 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
         }
     }
     // Raw flow values are kept raw and labelled; they never become pressure targets.
-    row(listOf(getString(R.string.import_table_stage), getString(if (chart != null) R.string.import_table_pressure else R.string.profiles_flow_raw),
+    row(listOf(getString(R.string.import_table_stage), profileTargetHeading(doc),
         getString(R.string.import_table_water)), true)
     doc.stages.forEachIndexed { index, stage ->
         row(listOf(getString(R.string.profiles_stage, index + 1),
-            if (chart != null) CurveDraftNumber.format(stage.target, 1) else stage.target.toString(),
+            profileTableTarget(doc, index),
             CurveDraftNumber.format(stage.waterTenthsMl, 1)), false, index)
+    }
+    profileConfigurationSummary(doc)?.let {
+        style.add(preview, style.text(it, TaskProductVisualStyle.auxiliary, "product/share/configuration", true), 8)
     }
     if(!workspace.portraitScroll) workspace.onPrimarySpaceAvailable = { width, height ->
         val contentWidth = (width - workspace.primaryBody.paddingLeft - workspace.primaryBody.paddingRight).coerceAtLeast(0)
