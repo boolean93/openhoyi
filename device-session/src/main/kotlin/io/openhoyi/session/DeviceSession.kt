@@ -23,7 +23,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     legacyVerifiedStartFrames:Set<String> = emptySet(),
     val scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
     private val scaleObservation:(ScaleObservation)->Unit = {},
-    private val customPressureStartPermit:(StartParameters)->Boolean = {false}) {
+    private val customPressureStartPermit:(StartParameters)->Boolean = {false},
+    private val customCurveStartPermit:(StartParameters)->Boolean = {false}) {
     init {
         if(role!=DeviceRole.COFFEE) {
             if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified && !scaleAdapter.documentedTransport &&
@@ -353,7 +354,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val captured=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
         return command.takeIf { it.frame.hex() in captured || it.frame.hex() in additionalStartFrames ||
             (CustomPressureStartPolicy.permits(parameters) &&
-                runCatching {customPressureStartPermit(parameters)}.getOrDefault(false)) }
+                runCatching {customPressureStartPermit(parameters)}.getOrDefault(false)) ||
+            (CustomCurveStartPolicy.permits(parameters) && CustomCurveFirmwarePolicy.permits(parameters, observedFirmware) &&
+                runCatching {customCurveStartPermit(parameters)}.getOrDefault(false)) }
     }
     private fun canStartExtraction(parameters:StartParameters):Boolean {
         if(!canControlWithBrewSettings()) return false

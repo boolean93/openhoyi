@@ -8,7 +8,7 @@ import io.openhoyi.protocol.StartParameters
 object CustomPressureCurveAdapter {
     fun profile(document:CustomCurveDocument,scaleConnected:Boolean,slot:Int=7):CurveProfile? {
         try {document.validate()} catch(_:IllegalArgumentException) {return null}
-        if(document.controlMode!=CustomCurveDocument.ControlMode.PRESSURE ||
+        if(document.configuration != null || document.controlMode!=CustomCurveDocument.ControlMode.PRESSURE ||
             (slot !in 1..5 && slot!=7) || document.targetHundredthsGram%10!=0 ||
             document.stages.any {it.waterTenthsMl%10!=0})return null
         val stages=document.stages.toList()

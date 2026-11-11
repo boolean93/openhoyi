@@ -54,6 +54,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
         }
         val doc = document
         if (doc == null) { style.add(body, style.text(getString(R.string.profiles_import_invalid), TaskProductVisualStyle.body)); return }
+        val controlPreview = CurveStageParameters.preview(doc)
         val store = profileStore(body) ?: return
         val existing = conflicting ?: store.find(doc.id)?.takeIf { it != doc }
         val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .35f, supportingMaxWidthDp = 400,
@@ -73,11 +74,9 @@ class CurveImportPreviewActivity : ThemedActivity() {
         decisions.addView(ScrollView(this).apply { tag = "product/import-preview/information-scroll"; addView(information) },
             LinearLayout.LayoutParams(-1, 0, 1f))
         val name = style.text(doc.name, TaskProductVisualStyle.title, "full-text-details").apply {
-            maxLines = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) Int.MAX_VALUE else 2
-            ellipsize = if (maxLines == 2) android.text.TextUtils.TruncateAt.END else null
+            maxLines = Int.MAX_VALUE; ellipsize = null
         }
-        val mode = style.text(getString(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
-            R.string.task_chart_pressure else R.string.home_lever_flow), TaskProductVisualStyle.auxiliary, "product/import-preview/mode").apply {
+        val mode = style.text(profileModeLabel(doc), TaskProductVisualStyle.auxiliary, "product/import-preview/mode").apply {
             setTextColor(style.accent); setPadding(style.dp(8), 0, style.dp(8), 0)
             background = style.shape(style.selected); contentDescription = doc.controlMode.name
         }
@@ -102,18 +101,22 @@ class CurveImportPreviewActivity : ThemedActivity() {
         style.add(preview, metrics, 8)
         var stageChart: CurveStageView? = null
         var pressureCaption: android.widget.TextView? = null
-        if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
+        if (controlPreview.renderable) {
             style.add(preview, style.text(getString(R.string.curve_visual_preview_parameters, doc.stages.size), TaskProductVisualStyle.section,
                 "product/import-preview/stage-heading"), 8)
-            stageChart = CurveStageView(this).apply { targets = doc.stages.map { it.target }; productVisualStyle = style; tag = "product/import-preview/chart" }
+            stageChart = CurveStageView(this).apply {
+                this.preview = controlPreview
+                targets = if (controlPreview.hasFlow) emptyList() else doc.stages.map { it.target }
+                productVisualStyle = style; tag = "product/import-preview/chart"
+            }
             preview.addView(stageChart, LinearLayout.LayoutParams(-1, style.dp(160)))
             // Keep the complete stage-vs-time explanation visible/reachable without duplicating a left title block.
-            pressureCaption = style.text(getString(R.string.profiles_stage_caption), TaskProductVisualStyle.auxiliary,
+            pressureCaption = style.text(profileStageCaption(doc), TaskProductVisualStyle.auxiliary,
                 "product/import-preview/stage-caption", true)
         } else {
             style.add(preview, style.text(getString(R.string.profiles_stage_summary, doc.stages.size), TaskProductVisualStyle.auxiliary,
                 "product/import-preview/stage-count"), 8)
-            style.add(preview, style.text(getString(R.string.profiles_flow_raw), TaskProductVisualStyle.body, secondary = true), 8)
+            style.add(preview, style.text(getString(R.string.flow_curve_missing_modes), TaskProductVisualStyle.body, secondary = true), 8)
         }
         val table = if (stageChart != null) stageTable(doc).also { style.add(preview, it, 8) } else null
         if (table != null) workspace.onPrimarySpaceAvailable = { width, height ->
@@ -198,9 +201,11 @@ class CurveImportPreviewActivity : ThemedActivity() {
             }
         }
         pressureCaption?.let { style.add(information, it, 16) }
+        profileConfigurationSummary(doc)?.let {
+            style.add(information, style.text(it, TaskProductVisualStyle.auxiliary, "product/import-preview/configuration", true), 16)
+        }
         style.add(information, style.text(getString(R.string.profiles_compatibility), TaskProductVisualStyle.auxiliary, "product/import-preview/compatibility", true), 16)
-        style.add(information, style.text(getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
-            R.string.profiles_pressure_compatible else R.string.profiles_read_only), TaskProductVisualStyle.auxiliary, "product/import-preview/ability"), 16)
+        style.add(information, style.text(profileExecutionSummary(doc), TaskProductVisualStyle.auxiliary, "product/import-preview/ability"), 16)
         HoyiUi.button(this, information, getString(R.string.ui_full_details)) {
             beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
         }.apply {
@@ -252,9 +257,9 @@ class CurveImportPreviewActivity : ThemedActivity() {
                 line.addView(cell, LinearLayout.LayoutParams(0, if (portraitHeader) -1 else -2, 1f))
             }
         }
-        row(listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).map(::getString), true)
+        row(listOf(getString(R.string.import_table_stage), profileTargetHeading(doc), getString(R.string.import_table_water)), true)
         doc.stages.forEachIndexed { index, stage ->
-            row(listOf(getString(R.string.profiles_stage, index + 1), CurveDraftNumber.format(stage.target, 1),
+            row(listOf(getString(R.string.profiles_stage, index + 1), profileTableTarget(doc, index),
                 CurveDraftNumber.format(stage.waterTenthsMl, 1)), false, index)
         }
     }

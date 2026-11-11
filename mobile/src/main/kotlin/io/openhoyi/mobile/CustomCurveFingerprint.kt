@@ -13,6 +13,12 @@ internal object CustomCurveFingerprint {
             document.stages.forEach { append(it.target).append(',').append(it.waterTenthsMl).append(';') }
             // Keep historical schema-1 fingerprints stable until an explicit ceiling is saved.
             document.totalWaterLimitMl?.let { append("|totalWaterLimitMl=").append(it) }
+            document.configuration?.let { c ->
+                append("|configuration-v3=").append(c.pressureLogic).append(',').append(c.variableFlowLogic)
+                    .append(',').append(c.firstSegmentFlowMode).append(',').append(c.preinfusionSeconds)
+                    .append(',').append(c.firstDurationSeconds).append(',').append(c.compensationHundredthsGram)
+                c.inactiveStages.forEach { append(';').append(it.target).append(',').append(it.waterTenthsMl) }
+            }
         }
         return java.security.MessageDigest.getInstance("SHA-256")
             .digest(normalized.toByteArray(Charsets.UTF_8))

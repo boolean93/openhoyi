@@ -40,6 +40,8 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     val stageRows = List(4) { cell() }
     val stageHeader = style.visual.row()
     val waterLimit = cell()
+    val modeControls = cell()
+    val configurationFields = cell()
     val supportingBody = cell()
     private val stageContent = cell()
     private val metadataContent = style.visual.row()
@@ -182,6 +184,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         column.addView(lower, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
         lower.addView(stagePane, LinearLayout.LayoutParams(0, -1, 1.1f))
         lower.addView(previewScroll, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(24) })
+        stageContent.addView(modeControls, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
         stageContent.addView(stageHeader, LinearLayout.LayoutParams(-1, -2))
         stageContent.addView(columns, LinearLayout.LayoutParams(-1, -2))
         val firstWidth = maxOf(dp(80), dp(20) + kotlin.math.ceil(android.text.Layout.getDesiredWidth(activity.getString(R.string.profiles_stage, 4),
@@ -215,6 +218,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             row.addView(identity, LinearLayout.LayoutParams(firstWidth, -2))
         }
         stageContent.addView(waterLimit, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        stageContent.addView(configurationFields, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
     }
     private fun Int?.orZero() = this ?: 0
     private fun shortMinimum(view: View): Int {
@@ -242,6 +246,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         return total
     }
     fun setStageCount(count: Int) { stageRows.forEachIndexed { index, row -> row.visibility = if (index < count) View.VISIBLE else View.GONE } }
+    fun setTargetHeading(text: String) { (columns.getChildAt(1) as android.widget.TextView).text = text }
     val productRestoreEvidence = JSONObject()
     fun save(state: Bundle, fields: Map<String, EditText>) {
         if (android.os.Build.VERSION.SDK_INT >= 30) host.rootWindowInsets?.let { insets ->

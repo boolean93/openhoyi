@@ -40,6 +40,7 @@ import io.openhoyi.protocol.Settings
 import io.openhoyi.protocol.SleepPart
 import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.CoffeeFirmware
+import io.openhoyi.session.CustomCurveFirmwarePolicy
 import io.openhoyi.session.CoffeeSessionFailure
 import io.openhoyi.session.CoffeeAuthentication
 import io.openhoyi.session.DeviceRole
@@ -830,6 +831,10 @@ class MobileService : Service() {
                     (application as MobileApplication).curves.permitsCustomPressureStart(
                         getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null), parameters)
                 },
+                customCurveStartPermit = { parameters ->
+                    CustomCurveFirmwarePolicy.permits(parameters, coffeeFirmware) && (application as MobileApplication).curves.permitsCustomStart(
+                        getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null), parameters)
+                },
                 onCoffeeReconnect = { address ->
                     if(recentReadyCoffeeAddress?.equals(address,ignoreCase=true)!=true)false
                     else connectRememberedCoffee(address,automatic=true)==RememberedCoffeeConnection.STARTED
@@ -1359,11 +1364,17 @@ class MobileService : Service() {
             settings.brewCompensationTenthsC)
     }
     /** One read-only reason for the grey start action in both extraction screens. No writes. */
+    private fun customCurveFirmwareBlock(profile: CurveProfile?): String? {
+        val configured = profile?.let { (application as MobileApplication).curves.find(it.id)?.customDocument?.configuration } != null
+        return if (configured && !CustomCurveFirmwarePolicy.permits(requireNotNull(profile).parameters, coffeeFirmware))
+            getString(R.string.flow_editor_firmware_required) else null
+    }
     fun extractionStartBlock(profile: CurveProfile?, invalidCurve: Boolean = false): String? {
         if (!running) return getString(R.string.service_unavailable)
         machineControlSafetyMessage?.let { return it }
         if (manualShotActive) return getString(R.string.extraction_manual_block)
         if (invalidCurve) return getString(R.string.extraction_invalid_curve_block)
+        customCurveFirmwareBlock(profile)?.let { return it }
         tareStartBlock?.let { return it }
         shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), shotState,
@@ -1530,6 +1541,7 @@ class MobileService : Service() {
             val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
             if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
             if (ShotGate.active(shotState)) return getString(R.string.service_shot_mock_running)
+            customCurveFirmwareBlock(profile)?.let { return it }
             studioStartBlock(profile)?.let { return it }
             val now = MobileMonotonicClock.elapsedRealtime()
             if (brewPreparation.active) {
@@ -1542,6 +1554,7 @@ class MobileService : Service() {
             else if (!mockExtractionScenario.start(scenarioOwner, profile.parameters,
                     profile.targetHundredthsGram, profile.compensationHundredthsGram) {
                     selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
+                        customCurveFirmwareBlock(profile) == null &&
                         mockExtractionOwner === scenarioOwner
                 }) {
                 runCatching { history?.transition(ExtractionState.IDLE, null, null) }
@@ -1587,6 +1600,7 @@ class MobileService : Service() {
             return blocked.render { id, args -> getString(id, *args) }
         }
         requireNotNull(profile)
+        customCurveFirmwareBlock(profile)?.let { return it }
         studioStartBlock(profile)?.let { return it }
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null) }
@@ -1617,7 +1631,7 @@ class MobileService : Service() {
                     selected==profile && library.validated(profile),manualShotActive,busy,
                     shotRecovery.pending,shotRecovery.address,originalMachineIntent,
                     MachineWriteRecoveryState.Record(machineWriteRecovery.kind,machineWriteRecovery.address))) &&
-                    studioStartBlock(profile)==null
+                    studioStartBlock(profile)==null && customCurveFirmwareBlock(profile)==null
             } ||
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear(shotOwner)) manualSafetyResource = R.string.machine_recovery_shot_restart

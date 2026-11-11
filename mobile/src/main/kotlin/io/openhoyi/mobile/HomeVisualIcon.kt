@@ -198,7 +198,7 @@ internal data class HomeRecipePresentation(val temperatureC: Int?, val weightHun
             return HomeRecipePresentation(draft?.temperatureC ?: factory?.temperatureC ?: captured?.temperatureC,
                 draft?.targetHundredthsGram ?: factory?.weightTenthsGram?.times(10) ?: captured?.targetHundredthsGram,
                 draft?.stages?.size ?: factory?.segmentCount ?: captured?.parameters?.segmentCount,
-                draft?.let { it.controlMode == CustomCurveDocument.ControlMode.PRESSURE }
+                draft?.let { if (it.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW) null else it.controlMode == CustomCurveDocument.ControlMode.PRESSURE }
                     ?: factory?.let { !it.variableFlowLogic }
                     ?: captured?.parameters?.let { !it.variableFlowLogic && !it.firstSegmentFlowMode })
         }

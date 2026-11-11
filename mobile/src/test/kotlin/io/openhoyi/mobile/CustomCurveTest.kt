@@ -168,7 +168,9 @@ class CustomCurveTest {
         val flowProfile = CurveCatalog.profiles[1]
         val flow = CustomCurveDocument.fromLibraryItem(
             CurveLibraryItem(flowProfile.id, flowProfile.name, "", "", flowProfile))
-        assertEquals(CustomCurveDocument.ControlMode.FLOW_RAW, flow.controlMode)
+        assertEquals(CustomCurveDocument.ControlMode.FLOW, flow.controlMode)
+        assertNotNull(flow.configuration)
+        assertEquals(flowProfile.parameters.preinfusionSeconds, flow.configuration!!.preinfusionSeconds)
     }
     @Test fun callersCannotMutateSavedStageLists() {
         val store = CustomCurveStore(Store())

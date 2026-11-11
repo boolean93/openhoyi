@@ -11,7 +11,7 @@ internal data class ShotRecipeSnapshot(
                     draftDocument: CustomCurveDocument? = null): ShotRecipeSnapshot {
             require(traceId.isNotBlank())
             val fingerprint = draftDocument?.takeIf { document ->
-                document.id == profile.id && CustomPressureCurveAdapter.profile(document,
+                document.id == profile.id && CustomCurveAdapter.profile(document,
                     profile.scaleMode == true, profile.parameters.slot) == profile
             }?.let(CustomCurveFingerprint::of)
             return ShotRecipeSnapshot(traceId, profile.name, profile.temperatureC,
