@@ -7,6 +7,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 import io.openhoyi.session.DeviceConnectionGate
 import io.openhoyi.session.ExtractionStartGate
+import io.openhoyi.session.ScaleReadingPolicy
 
 /** Host-side preflight; session also checks readiness and allowed wire frames at send time. */
 class ShotGate(
@@ -37,7 +38,11 @@ class ShotGate(
         validated: Boolean = profile?.let(CurveCatalog::validated) == true,
         scaleObservation: ScaleObservation? = null): ResourceMessage? =
         when (ExtractionStartGate.block(profile?.targetHundredthsGram, validated, coffee,
-            coffeeFrame, coffeeAt, scale, weightAt, now, shot, scaleTargetSupported(scaleObservation))) {
+            // Real scales share one observation for capabilities, value validity and receive time.
+            // weightAt is a BOOKOO-only callback timestamp; retain it only for the Mock runtime.
+            coffeeFrame, coffeeAt, scale, if (mockMode) weightAt else scaleObservation?.takeIf {
+                ScaleReadingPolicy.supportedWeight(it.hundredthsGram)
+            }?.receivedAtMs, now, shot, scaleTargetSupported(scaleObservation))) {
             ExtractionStartGate.Block.CURVE_MISSING -> ResourceMessage(R.string.start_block_curve_missing)
             ExtractionStartGate.Block.CURVE_UNVERIFIED -> ResourceMessage(R.string.start_block_curve_unverified)
             ExtractionStartGate.Block.EXTRACTION_UNSETTLED -> ResourceMessage(R.string.start_block_extraction_unsettled)
