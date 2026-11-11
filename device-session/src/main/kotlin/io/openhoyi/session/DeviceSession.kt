@@ -52,7 +52,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 (hex.substring(2, 4).toInt(16) and 7).let { it in 1..5 || it == 7 }
         }) { "Invalid legacy start-frame permit" }
     }
-    private val queue=GattQueue(GuardedGattDriver(role,driver,scaleAdapter),clock){fail(it)}
+    private var boundScaleAdapter:ScaleProtocolAdapter=scaleAdapter
+    private val queue=GattQueue(GuardedGattDriver(role,driver,scaleAdapter){boundScaleAdapter},clock){fail(it)}
     // Request order also detects cancellation before a new GATT generation exists.
     private var connectionRequest=0L
     val generation:Long get()=queue.generation
@@ -160,6 +161,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         step(expected,GattOperation.Connect(address),22_000) {
             if(!initializationState(expected,DeviceState.DISCOVERING))return@step
             step(expected,GattOperation.Discover,10_000){ result ->
+                if(role==DeviceRole.BOOKOO && scaleAdapter is DiFluidProtocolAdapter) {
+                    val binding=DiFluidGattBinding.resolve(scaleAdapter,result.characteristics)
+                    if(binding==null){fail("required GATT characteristics missing or ambiguous");return@step}
+                    boundScaleAdapter=binding
+                    writeEndpoint=binding.writeEndpoint
+                    notifyEndpoint=requireNotNull(binding.notifyEndpoint)
+                }
                 val strictTimemore=role!=DeviceRole.COFFEE && scaleAdapter.requiresWriteWithoutResponse
                 val write=result.characteristics.singleOrNull{it.endpoint==writeEndpoint &&
                     (if(strictTimemore)it.writeWithoutResponse else it.write||it.writeWithoutResponse)}
@@ -524,6 +532,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         // survive into READY/DISCONNECTED/UNSUPPORTED.
         if(terminal!=DeviceState.FAILED)lastFailure=null
         // Detach old session work before invoking any observer that may reconnect.
+        boundScaleAdapter=scaleAdapter
+        writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else scaleAdapter.writeEndpoint
+        notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else scaleAdapter.notifyEndpoint!!
         val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
         heartbeatDue=null;heartbeatBusy=false
         val detachedTare=scaleTare;scaleTare=null
