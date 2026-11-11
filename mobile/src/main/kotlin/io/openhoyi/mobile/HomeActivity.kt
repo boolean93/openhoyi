@@ -757,7 +757,6 @@ class HomeActivity : ThemedActivity() {
             else -> listOf(brewTemperature, brewPressure, steamTemperature, steamPressure).forEach { it.show("—") }
         }
         val liveScale = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.hundredthsGram
-            ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.weightHundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
         machineCardState.show(DeviceStatusText.coffeeLabel(this,s.coffeeState,s.coffeeFailure) + if (coffeeFresh) getString(R.string.home_live_suffix) else "")
@@ -775,7 +774,7 @@ class HomeActivity : ThemedActivity() {
         })
         val liveDeviceFlow = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.let {
             it.deviceFlowHundredths.takeIf { _ -> it.capabilities.deviceFlow }
-        } ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.deviceFlowHundredths
+        }
         scaleWeight.show("${liveScale?.let(::number) ?: "—"} g" +
             "  ·  ${liveDeviceFlow?.let(::number) ?: "—"} g/s")
         val app = application as MobileApplication
@@ -860,10 +859,9 @@ class HomeActivity : ThemedActivity() {
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()
             s.candidates.forEach { device ->
-                if (device.scaleProtocolId?.let(io.openhoyi.session.ScaleSelectionPolicy::adapter)?.readOnlyTransport == true)
-                    HoyiUi.label(this, candidates, getString(R.string.scale_read_only_live), 14, muted = true)
-                if (device.scaleProtocolId?.let(io.openhoyi.session.ScaleSelectionPolicy::adapter)?.documentedTransport == true)
-                    HoyiUi.label(this, candidates, getString(R.string.scale_documented_live), 14, muted = true)
+                ScaleCandidateStatus.resource(device.scaleProtocolId)?.let { status ->
+                    HoyiUi.label(this, candidates, getString(status), 14, muted = true)
+                }
                 button(candidates, getString(R.string.home_candidate, device.advertisedName, getString(if (device.candidateRole == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale))) { choose(device) }
             }
         }

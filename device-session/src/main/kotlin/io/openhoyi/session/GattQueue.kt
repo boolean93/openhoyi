@@ -1,5 +1,8 @@
 package io.openhoyi.session
 
+class TransportCloseUncertainException(cause: Exception?) :
+    IllegalStateException("transport close uncertain; owner cannot reconnect", cause)
+
 /** Thread-confined queue; elapsed time must come from a monotonic clock. Never retries writes. */
 class GattQueue(private val driver: GattDriver, private val clock: () -> Long, private val invalidated: (String) -> Unit = {}) {
     private data class Pending(val token:Long,val generation:Long,val operation:GattOperation,val timeout:Long,
@@ -12,13 +15,17 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     private var opening=false
     var generation=0L; private set
     var active=false; private set
+    var transportCloseFailure: Exception? = null; private set
     val inFlight:Boolean get()=current!=null
     private fun assertThread()=check(Thread.currentThread()===owner){"GattQueue accessed outside owner thread"}
     fun open():Long {
         assertThread();check(!opening){"reentrant queue open"}
+        if (transportCloseFailure != null) throw TransportCloseUncertainException(transportCloseFailure)
         opening=true
         try {
-            disconnect("replaced");generation++;active=true;return generation
+            disconnect("replaced")
+            if (transportCloseFailure != null) throw TransportCloseUncertainException(transportCloseFailure)
+            generation++;active=true;return generation
         } finally { opening=false }
     }
     fun enqueue(operation:GattOperation, timeoutMs:Long, urgent:Boolean=false,
@@ -96,7 +103,9 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
         active=false
         val running=current;current=null
         val waiting=pending.toList();pending.clear()
-        try { driver.close(generation) } catch(_:Exception) { /* All waiters still settle. */ } finally {
+        try { driver.close(generation) } catch(error:Exception) {
+            if (transportCloseFailure == null) transportCloseFailure = error
+        } finally {
             // Failure reporting must not abandon detached operations that have not settled yet.
             var failure: Exception? = null
             fun settle(p: Pending, result: OperationResult) {

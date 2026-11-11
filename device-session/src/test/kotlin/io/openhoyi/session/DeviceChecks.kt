@@ -1,6 +1,7 @@
 package io.openhoyi.session
 
 import java.time.LocalDateTime
+import io.openhoyi.protocol.ScaleObservationDecoder
 import io.openhoyi.protocol.BookooCodec
 import io.openhoyi.protocol.StartParameters
 import io.openhoyi.protocol.MachineSettingChange
@@ -823,6 +824,7 @@ starts++;done(OperationResult.Success())}
             val scale=object:ScaleControl {
                 override val startAllowed=true
                 override val ready=true
+                override val capabilities=ScaleObservationDecoder.bookooCapabilities
                 override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){done(if(beforeDispatch())OperationResult.Success() else OperationResult.Failed("guard rejected"))}
             }
             val controller=ExtractionController(CoffeeSessionControl(s),scale,{now})

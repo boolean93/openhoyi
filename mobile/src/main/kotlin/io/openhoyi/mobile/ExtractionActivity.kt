@@ -537,7 +537,6 @@ class ExtractionActivity : ThemedActivity() {
             else -> "—"
         }))
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
-            ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
         // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
         val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY
         quantityLabel.show(getString(if (scaleQuantity) R.string.task_extraction_scale else R.string.task_extraction_water))

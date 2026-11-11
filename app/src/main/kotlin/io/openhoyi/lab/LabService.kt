@@ -40,10 +40,13 @@ class LabService : Service() {
                 val prefs = getSharedPreferences("devices", MODE_PRIVATE)
                 hub = NativeDeviceHub(applicationContext, prefs.getString("scale", null),
                     tareStorage = io.openhoyi.bluetooth.SharedPreferenceTareStorage(applicationContext),
-                    onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
+                    onScaleSelectionRemembered = { address, protocolId ->
+                        prefs.edit().putString("scale", address).putString("scaleProtocol", protocolId).apply()
+                    },
+                    rememberedScaleProtocolId = prefs.getString("scaleProtocol", null),
                     onState = { role, state ->
-                        snapshot = if (role == DeviceRole.COFFEE) snapshot.copy(coffeeState = state) else snapshot.copy(scaleState = state)
-                        event("state", "${role.name}: ${state.label()}")
+                        snapshot = if (role == DeviceRole.COFFEE) snapshot.copy(coffeeState = state) else snapshot.copy(scaleState = state, scaleObservation = snapshot.scaleObservation.takeIf { state == DeviceState.READY })
+                        event("state", "${if (role == DeviceRole.COFFEE) "咖啡机" else "电子秤"}: ${state.label()}")
                     },
                     onCoffee = { frame ->
                         snapshot = when (frame) {
@@ -52,7 +55,7 @@ class LabService : Service() {
                             else -> snapshot
                         }
                     },
-                    onWeight = { snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime()) },
+                    onScaleObservation = { snapshot = snapshot.copy(scaleObservation = it) },
                     diagnostic = { event("diagnostic", it) },
                     trace = { role, trace ->
                         logs.record("wire.${trace.kind}", buildMap {
@@ -83,7 +86,7 @@ class LabService : Service() {
     fun scan() {
         if (snapshot.scanning) return
         val current = hub ?: return
-        event("ui.scan", "扫描 HOYI / BOOKOO，持续 5 秒")
+        event("ui.scan", "扫描 HOYI / 电子秤，持续 5 秒")
         snapshot = snapshot.copy(scanning = true, devices = emptyList())
         current.scanner.start(onDevice = { device ->
             val others = snapshot.devices.filterNot { it.address == device.address }
@@ -93,20 +96,20 @@ class LabService : Service() {
             event("scan.finished", error ?: "扫描结束：${snapshot.devices.size} 个候选设备")
         })
     }
-    fun connect(role: DeviceRole, address: String, password: String? = null) {
+    fun connect(role: DeviceRole, address: String, protocolId: String? = null, password: String? = null) {
         val current = hub ?: return
         try {
             if (role == DeviceRole.COFFEE) {
                 require(password != null && password.matches(Regex("[0-9]{6}")))
                 current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
                 snapshot = snapshot.copy(coffee = null, coffeeAt = null, settings = null)
-            } else if (current.connectScale(address)) {
-                snapshot = snapshot.copy(weight = null, weightAt = null)
+            } else if (current.connectScale(address, requireNotNull(protocolId) { "Missing scale protocol" })) {
+                snapshot = snapshot.copy(scaleObservation = null)
             } else {
                 event("ui.connect_noop", "电子秤已连接或正在连接")
                 return
             }
-            event("ui.connect", "连接 ${role.name}")
+            event("ui.connect", "连接 ${if (role == DeviceRole.COFFEE) "咖啡机" else "电子秤"}")
         } catch (error: RuntimeException) {
             event("ui.connect_rejected", "连接未完成：${error.javaClass.simpleName}")
         }
@@ -114,7 +117,7 @@ class LabService : Service() {
     fun disconnect(role: DeviceRole) {
         try {
             if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
-            event("ui.disconnect", "手动断开 ${role.name}")
+            event("ui.disconnect", "手动断开 ${if (role == DeviceRole.COFFEE) "咖啡机" else "电子秤"}")
         } catch (error: RuntimeException) {
             event("ui.disconnect_rejected", "断开未执行：${error.javaClass.simpleName}")
         }
@@ -125,12 +128,15 @@ class LabService : Service() {
     }
     fun shutdown() {
         event("service", "服务停止；断开所有连接")
-        hub?.close(); hub = null; running = false
-        snapshot = snapshot.copy(scanning = false, coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED)
+        val closing = hub; hub = null; running = false
+        runCatching { closing?.close() }.onFailure { event("diagnostic", "设备关闭结果不确定：${it.javaClass.simpleName}") }
+        snapshot = snapshot.copy(scanning = false, coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED, scaleObservation = null)
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
     }
     override fun onDestroy() {
-        hub?.close(); hub = null; super.onDestroy()
+        val closing = hub; hub = null
+        try { runCatching { closing?.close() }.onFailure { event("diagnostic", "设备关闭结果不确定：${it.javaClass.simpleName}") } }
+        finally { super.onDestroy() }
     }
     companion object { const val STOP = "io.openhoyi.lab.STOP"; private const val CHANNEL = "ble" }
 }

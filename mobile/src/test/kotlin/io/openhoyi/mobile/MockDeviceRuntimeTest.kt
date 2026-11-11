@@ -21,7 +21,7 @@ class MockDeviceRuntimeTest {
         val series = ShotSeries(); series.begin("synthetic-cadence-check",0)
         for (at in 0L..8000L step 250L) {
             val snapshot = runtime.sample(at)
-            series.machine(snapshot.coffee as ExtractionTelemetry,at,snapshot.weight!!.weightHundredthsGram,at)
+            series.machine(snapshot.coffee as ExtractionTelemetry,at,snapshot.scaleObservation!!.hundredthsGram,at)
         }
         val points=series.points
         assertEquals(33,points.size)
@@ -35,7 +35,7 @@ class MockDeviceRuntimeTest {
         val frames = snapshots.map { it.coffee as ExtractionTelemetry }
         assertEquals(listOf(0,2,5,7,10),frames.map { it.pressureTenthsBar })
         assertEquals(listOf(0,1,3,4,6),frames.map { it.totalWaterTenthsMl })
-        assertEquals(listOf(0,17,35,52,70),snapshots.map { it.weight!!.weightHundredthsGram })
+        assertEquals(listOf(0,17,35,52,70),snapshots.map { it.scaleObservation!!.hundredthsGram })
         assertEquals(listOf(0,0,0,0,1),frames.map { it.elapsedSeconds })
         assertEquals(listOf(10_000L,10_250L,10_500L,10_750L,11_000L),snapshots.map { it.coffeeAt })
     }
@@ -48,21 +48,21 @@ class MockDeviceRuntimeTest {
             val sample = runtime.sample(1000+second*1000L); val frame = sample.coffee as ExtractionTelemetry
             assertEquals(minOf(second*10,90),frame.pressureTenthsBar)
             assertEquals(second*6,frame.totalWaterTenthsMl)
-            assertEquals(second*70,sample.weight!!.weightHundredthsGram)
+            assertEquals(second*70,sample.scaleObservation!!.hundredthsGram)
         }
         assertEquals(ExtractionState.ENDED_OBSERVED,runtime.sample(33_000).let { runtime.shotState })
-        assertEquals(2240,runtime.sample(Long.MAX_VALUE).weight!!.weightHundredthsGram)
+        assertEquals(2240,runtime.sample(Long.MAX_VALUE).scaleObservation!!.hundredthsGram)
     }
     @Test fun stoppingFreezesLatestFractionalWeightAndNewCupResetsProgress() {
         val runtime = MockDeviceRuntime { "" }; runtime.start(1000)
         assertEquals(0,(runtime.sample(999).coffee as ExtractionTelemetry).pressureTenthsBar)
         val last = runtime.sample(2250)
-        assertEquals(87,last.weight!!.weightHundredthsGram)
+        assertEquals(87,last.scaleObservation!!.hundredthsGram)
         runtime.stop()
         assertTrue(runtime.sample(9000).coffee is IdleTelemetry)
-        assertEquals(87,runtime.sample(9000).weight!!.weightHundredthsGram)
+        assertEquals(87,runtime.sample(9000).scaleObservation!!.hundredthsGram)
         runtime.start(10_000)
-        assertEquals(0,runtime.sample(10_000).weight!!.weightHundredthsGram)
+        assertEquals(0,runtime.sample(10_000).scaleObservation!!.hundredthsGram)
     }
 
     @Test fun disconnectedScaleHasNoWeightEvidenceWhileMachineKeepsSampling() {
@@ -70,8 +70,8 @@ class MockDeviceRuntimeTest {
         runtime.scaleConnected = false
         val idle = runtime.sample(1000)
         assertEquals(io.openhoyi.session.DeviceState.DISCONNECTED, idle.scaleState)
-        assertNull(idle.weight)
-        assertNull(idle.weightAt)
+        assertNull(idle.scaleObservation)
+        assertNull(idle.scaleObservation?.receivedAtMs)
         runtime.start(1000)
         val running = runtime.sample(6000)
         val machine = running.coffee as io.openhoyi.protocol.ExtractionTelemetry
@@ -79,15 +79,15 @@ class MockDeviceRuntimeTest {
         assertEquals(30, machine.totalWaterTenthsMl)
         assertEquals(9300, machine.brewTemperatureHundredthsC)
         assertEquals(io.openhoyi.session.ExtractionState.RUNNING, runtime.shotState)
-        assertNull(running.weight)
-        assertNull(running.weightAt)
+        assertNull(running.scaleObservation)
+        assertNull(running.scaleObservation?.receivedAtMs)
         runtime.stop()
-        assertNull(runtime.sample(7000).weight)
+        assertNull(runtime.sample(7000).scaleObservation)
         runtime.scaleConnected = true
         val restored = runtime.sample(8000)
         assertEquals(io.openhoyi.session.DeviceState.READY, restored.scaleState)
-        assertNotNull(restored.weight)
-        assertEquals(8000L, restored.weightAt)
+        assertNotNull(restored.scaleObservation)
+        assertEquals(8000L, restored.scaleObservation?.receivedAtMs)
     }
 
     @Test fun preheatCancelCapturesReasonWithoutResolvingOrChangingOutcome() {
@@ -134,7 +134,7 @@ class MockDeviceRuntimeTest {
         assertEquals(DeviceState.READY, idle.coffeeState)
         assertEquals(DeviceState.READY, idle.scaleState)
         assertTrue(idle.coffee is IdleTelemetry)
-        assertEquals(1250, idle.weight?.weightHundredthsGram)
+        assertEquals(1250, idle.scaleObservation?.hundredthsGram)
         val schedule = WeeklySleepSchedule.fromReadback(idle.sleepFirst, idle.sleepSecond)
         assertEquals(7, schedule?.days?.size)
         assertEquals(5, schedule?.days?.count { it.enabled })
@@ -143,12 +143,12 @@ class MockDeviceRuntimeTest {
         val running = mock.sample(7_000)
         assertEquals(ExtractionState.RUNNING, mock.shotState)
         assertTrue(running.coffee is ExtractionTelemetry)
-        assertEquals(350, running.weight?.weightHundredthsGram)
+        assertEquals(350, running.scaleObservation?.hundredthsGram)
 
         val ended = mock.sample(34_000)
         assertEquals(ExtractionState.ENDED_OBSERVED, mock.shotState)
         assertTrue(ended.coffee is IdleTelemetry)
-        assertEquals(2240, ended.weight?.weightHundredthsGram)
+        assertEquals(2240, ended.scaleObservation?.hundredthsGram)
     }
 
     @Test fun settingsUpdateSyntheticReadbackWithoutChangingUnrelatedFields() {
@@ -199,9 +199,9 @@ class MockDeviceRuntimeTest {
 
     @Test fun tareCupResetAndSleepAffectOnlyMockReadback() {
         val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
-        assertTrue(requireNotNull(mock.sample(1_000).weight).weightHundredthsGram > 0)
+        assertTrue(requireNotNull(mock.sample(1_000).scaleObservation).hundredthsGram > 0)
         assertNull(mock.tare())
-        assertEquals(0, mock.sample(2_000).weight?.weightHundredthsGram)
+        assertEquals(0, mock.sample(2_000).scaleObservation?.hundredthsGram)
         assertTrue(mock.tareChanged)
         assertTrue(mock.resetCupCount(41) != null)
         assertNull(mock.resetCupCount(42))
@@ -275,7 +275,7 @@ class MockDeviceRuntimeTest {
         assertEquals(8, frame.slotOrPhase)
         assertEquals(10, frame.elapsedSeconds)
         assertEquals(60, frame.totalWaterTenthsMl)
-        assertEquals(700, snapshot.weight!!.weightHundredthsGram)
+        assertEquals(700, snapshot.scaleObservation!!.hundredthsGram)
         runtime.stop()
         assertEquals(ExtractionState.ENDED_OBSERVED, runtime.shotState)
         runtime.start(20000)

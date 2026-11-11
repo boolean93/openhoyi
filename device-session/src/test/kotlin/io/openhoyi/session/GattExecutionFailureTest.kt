@@ -51,6 +51,12 @@ class GattExecutionFailureTest {
         assertEquals(OperationResult.Cancelled("not connected"), results.last().second)
         assertEquals(2, driver.calls.size)
         driver.throwOnWrite = false
+        if (closeThrows) {
+            assertThrows(TransportCloseUncertainException::class.java) { queue.open() }
+            assertEquals(generation, queue.generation)
+            assertEquals(2, driver.calls.size)
+            return
+        }
         queue.open()
         assertTrue(queue.generation > generation)
         queue.enqueue(write, 1000) { results += 4 to it }

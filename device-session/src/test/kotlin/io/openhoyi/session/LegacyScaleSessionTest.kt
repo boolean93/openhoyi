@@ -67,6 +67,18 @@ class LegacyScaleSessionTest {
         assertNull(result);f.complete();assertTrue(result is OperationResult.Success)
         assertFalse(f.seen.last().eligibleForControl);assertFalse(f.seen.last().capabilities.automaticTare)
     }
+    @Test fun duplicateWritableUuidWithOneNonWritableInstanceFailsBeforeSelection() {
+        val f=Fixture(FelicitaScaleProtocolAdapter)
+        val write=requireNotNull(FelicitaScaleProtocolAdapter.writeEndpoint)
+        val notify=requireNotNull(FelicitaScaleProtocolAdapter.notifyEndpoint)
+        f.session.connect("AA:BB:CC:DD:EE:FF");f.complete()
+        f.complete(OperationResult.Success(listOf(
+            CharacteristicInfo(write,false,false,false,false),
+            CharacteristicInfo(write,true,false,false,false),
+            CharacteristicInfo(notify,false,false,true,false))))
+        assertEquals(DeviceState.FAILED,f.session.state)
+        assertTrue(f.writes().isEmpty())
+    }
     @Test fun felicitaEmptyInitializationStillRequiresUniqueWritableEndpoint() {
         val f=Fixture(FelicitaScaleProtocolAdapter)
         f.session.connect("fixture");f.complete()

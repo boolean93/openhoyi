@@ -30,7 +30,6 @@ import android.os.*
 import android.util.Log
 import io.openhoyi.bluetooth.DiscoveredDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
-import io.openhoyi.protocol.BookooSample
 import io.openhoyi.protocol.ScaleObservation
 import io.openhoyi.protocol.ScaleCapabilities
 import io.openhoyi.protocol.HoyiMessage
@@ -68,8 +67,6 @@ data class MobileSnapshot(
     val sleepSecond: SleepPart? = null,
     val sleepFirstAt: Long? = null,
     val sleepSecondAt: Long? = null,
-    val weight: BookooSample? = null,
-    val weightAt: Long? = null,
     val scaleObservation: ScaleObservation? = null,
     val scaleCapabilities: ScaleCapabilities? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
@@ -273,6 +270,8 @@ class MobileService : Service() {
     internal fun installScaleVisualInput(owner: Any) {
         requireScaleVisualAccess(owner)
         mockScaleVisualInput.install(owner)
+        scaleTrend.clear()
+        beanDoseCapture.reset()
         applyScaleVisualInput()
     }
     internal fun offerScaleVisualInput(owner: Any, state: DeviceState, observation: ScaleObservation?) {
@@ -284,19 +283,24 @@ class MobileService : Service() {
         requireScaleVisualAccess(owner)
         mockScaleVisualInput.clear(owner)
         snapshot = snapshot.copy(scaleState = DeviceState.DISCONNECTED, scaleObservation = null,
-            scaleCapabilities = null, weight = null, weightAt = null)
+            scaleCapabilities = null)
     }
     private fun applyScaleVisualInput() {
         mockScaleVisualInput.current()?.let { input ->
             snapshot = snapshot.copy(scaleState = input.state, scaleObservation = input.observation,
-                scaleCapabilities = input.observation?.capabilities, weight = null, weightAt = null)
+                scaleCapabilities = input.observation?.capabilities)
         }
     }
     private fun refreshMock(runtime: MockDeviceRuntime, now: Long = MobileMonotonicClock.elapsedRealtime()) {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,
             scanning = previous.scanning, message = previous.message)
-        applyScaleVisualInput() // No observation notification, timestamp refresh or trend insertion on ticks.
+        if (mockScaleVisualInput.isInstalled) {
+            applyScaleVisualInput() // Injected visual input ticks never create observations.
+        } else {
+            snapshot.scaleObservation?.let(::onScaleObservation)
+                ?: scaleTrend.observe(null, snapshot.scaleState, now)
+        }
     }
     private val mockTick = object : Runnable {
         override fun run() {
@@ -425,10 +429,7 @@ class MobileService : Service() {
                 val previous = lastShotState
                 lastShotState = current
                 val now = MobileMonotonicClock.elapsedRealtime()
-                val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
-                    snapshot.scaleState == DeviceState.READY &&
-                        TelemetryFreshness.isFresh(snapshot.weightAt, now)
-                }
+                val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, now)
                 runCatching { history?.transition(current, stopReason, weight) }
                     .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
@@ -511,8 +512,7 @@ class MobileService : Service() {
                     coffeeFailure = if (state == DeviceState.FAILED) hub?.coffeeFailure else null)
             else snapshot.copy(coffeeState = state, coffeeFailure = null)
         } else if (state != DeviceState.READY) {
-            snapshot.copy(scaleState = state, weight = null, weightAt = null,
-                scaleObservation = null, scaleCapabilities = null)
+            snapshot.copy(scaleState = state, scaleObservation = null, scaleCapabilities = null)
         }
         else snapshot.copy(scaleState = state)
         if (role == DeviceRole.COFFEE) when (state) {
@@ -561,7 +561,7 @@ class MobileService : Service() {
                 discardPassiveSeries(requireDeviceMatch = false)
             }
         }
-        event("${role.name}: ${state.name}")
+        event("${getString(if (role == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale)}: ${state.name}")
         if (role == DeviceRole.COFFEE) refreshSafetyNotification()
     }
 
@@ -680,10 +680,7 @@ class MobileService : Service() {
                         passiveCommitted = false
                         manualPresentation.ended()
                         clearPassiveRecovery(requireDeviceMatch = true)
-                        val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
-                            snapshot.scaleState == DeviceState.READY &&
-                                TelemetryFreshness.isFresh(snapshot.weightAt, observedAt)
-                        }
+                        val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, observedAt)
                         passiveHistoryId?.let {
                             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
                                 "机器待机回报", weight) }
@@ -802,12 +799,6 @@ class MobileService : Service() {
                 },
                 onState = ::onDeviceState,
                 onCoffee = ::onCoffeeFrame,
-                onWeight = {
-                    observeTare()
-                    val receivedAt = MobileMonotonicClock.elapsedRealtime()
-                    if (ScaleReadingPolicy.isFresh(it.weightHundredthsGram, receivedAt, receivedAt))
-                        snapshot = snapshot.copy(weight = it, weightAt = receivedAt)
-                },
                 onScaleObservation = ::onScaleObservation,
                 diagnostic = { detail ->
                     if(detail.startsWith("coffee.auto_reconnect.trigger=") || detail.startsWith("coffee.auto_reconnect.blocked="))
@@ -877,7 +868,8 @@ class MobileService : Service() {
         if (mock != null) {
             snapshot = snapshot.copy(candidates = listOf(
                 DiscoveredDevice("02:00:00:00:00:01", "HOYI Mock", -42, DeviceRole.COFFEE),
-                DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO)),
+                DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO,
+                    io.openhoyi.session.BookooScaleProtocolAdapter.id)),
                 scanning = false)
             event(ResourceMessage(R.string.service_scan_mock), "mock.scan")
             return
@@ -967,7 +959,7 @@ class MobileService : Service() {
         if(!automatic)autoConnect.pause(DeviceRole.COFFEE,false)
         return true
     }
-    fun connectScale(address: String, protocolId: String = io.openhoyi.session.BookooScaleProtocolAdapter.id) {
+    fun connectScale(address: String, protocolId: String) {
         if (io.openhoyi.session.ScaleSelectionPolicy.adapter(protocolId) == null) {
             event(ResourceMessage(R.string.scale_protocol_unsupported)); return
         }
@@ -976,14 +968,17 @@ class MobileService : Service() {
         manualDeviceUse()
         if (ShotGate.active(shotState)) { event(ResourceMessage(R.string.service_scale_shot_block)); return }
         val current = hub ?: return
+        if (current.scaleConnectionBlocked) {
+            event(ResourceMessage(R.string.scale_connection_close_uncertain), "scale.close_uncertain"); return
+        }
         try {
             if (!current.connectScale(address, protocolId)) { event(ResourceMessage(R.string.service_scale_already_connected)); return }
         } catch (_: RuntimeException) {
-            event(ResourceMessage(R.string.service_event_communication_error), "scale.connect_failed"); return
+            event(ResourceMessage(if (current.scaleConnectionBlocked) R.string.scale_connection_close_uncertain
+                else R.string.service_event_communication_error), "scale.connect_failed"); return
         }
         autoConnect.pause(DeviceRole.BOOKOO,false)
-        snapshot = snapshot.copy(weight = null, weightAt = null,
-            scaleObservation = null, scaleCapabilities = null)
+        snapshot = snapshot.copy(scaleObservation = null, scaleCapabilities = null)
         scaleTrend.clear() // A selected scale starts a new display history, not a mixed-device line.
         event(ResourceMessage(R.string.service_scale_connect))
     }
@@ -1002,7 +997,8 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_disconnect_cancel_preheat), "brew_wait.disconnect_deferred")
             return
         }
-        event(ResourceMessage(R.string.service_disconnect, role.name))
+        event(ResourceMessage(R.string.service_disconnect,
+            getString(if (role == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale)))
         if (role == DeviceRole.COFFEE) {
             hub?.disconnectCoffee()
             autoConnect.pause(DeviceRole.COFFEE,true)
@@ -1377,9 +1373,8 @@ class MobileService : Service() {
         customCurveFirmwareBlock(profile)?.let { return it }
         tareStartBlock?.let { return it }
         shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-            snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), shotState,
-            validated = profile?.let((application as MobileApplication).curves::validated) == true,
-            scaleObservation = snapshot.scaleObservation)?.let { return it }
+            snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), shotState,
+            validated = profile?.let((application as MobileApplication).curves::validated) == true)?.let { return it }
         if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
                 SettingsWriteTracker.State.UNKNOWN)) return getString(R.string.service_shot_settings_start_block)
         if (sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP,
@@ -1397,7 +1392,7 @@ class MobileService : Service() {
             if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
             val library = (application as MobileApplication).curves
             shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-                snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), shotState,
+                snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), shotState,
                 validated = library.validated(profile))?.let { return it }
             val now = MobileMonotonicClock.elapsedRealtime()
             val result = mock.beginPreheat(profile.temperatureC, now)
@@ -1428,9 +1423,8 @@ class MobileService : Service() {
         if (profile != null && profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_scale_changed)
         val library = (application as MobileApplication).curves
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-            snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
-            validated = profile?.let(library::validated) == true,
-            scaleObservation = snapshot.scaleObservation)
+            snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
+            validated = profile?.let(library::validated) == true)
         if (blocked != null) return blocked
         requireNotNull(profile)
         val actual = currentCorrectedBrewTemperature() ?: return getString(R.string.service_shot_temperature_waiting)
@@ -1592,9 +1586,8 @@ class MobileService : Service() {
             return getString(R.string.service_shot_scale_connection_changed)
         }
         val blocked = shotGate.startBlockMessage(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-            snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
-            validated = profile?.let(library::validated) == true,
-            scaleObservation = snapshot.scaleObservation)
+            snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
+            validated = profile?.let(library::validated) == true)
         if (blocked != null) {
             event(ResourceMessage(R.string.service_shot_start_blocked, blocked), "shot.rejected")
             return blocked.render { id, args -> getString(id, *args) }
@@ -1745,13 +1738,7 @@ class MobileService : Service() {
         }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "curve.usage_observation_failed") }
         observeBrewFeedback(frame, atMs)
-        val observation = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, atMs)
-        series.machine(frame, atMs,
-            observation?.hundredthsGram ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState,
-                snapshot.weightAt, atMs)?.weightHundredthsGram,
-            observation?.receivedAtMs ?: snapshot.weightAt,
-            observation?.deviceFlowHundredths?.takeIf { observation.capabilities.deviceFlow }
-                ?: snapshot.weight?.deviceFlowHundredths?.takeIf { snapshot.scaleState == DeviceState.READY })
+        ScaleBusinessReading.recordMachine(series, frame, atMs, snapshot.scaleObservation, snapshot.scaleState)
         saveSeriesCheckpoint(atMs)
     }
     private fun saveSeriesCheckpoint(atElapsedMs: Long = MobileMonotonicClock.elapsedRealtime(), force: Boolean = false) {
@@ -2003,7 +1990,7 @@ class MobileService : Service() {
         hubForeground = false
         snapshot = snapshot.copy(coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED,
             coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null, scanning = false,
-            weight = null, weightAt = null, scaleObservation = null, scaleCapabilities = null)
+            scaleObservation = null, scaleCapabilities = null)
         (application as MobileApplication).serviceAvailability.stopped(ownerId)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

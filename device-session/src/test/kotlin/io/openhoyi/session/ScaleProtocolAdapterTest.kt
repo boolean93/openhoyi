@@ -80,9 +80,9 @@ class ScaleProtocolAdapterTest {
             }
         }
     }
-    @Test fun sessionEmitsGenericAndLegacySampleOnlyAfterSafeInitFrames() {
-        var now=0L;val driver=Driver();val observations=mutableListOf<ScaleObservation>();val legacy=mutableListOf<BookooSample>()
-        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},weightFrame={s,_->legacy+=s},scaleObservation={observations+=it})
+    @Test fun sessionEmitsGenericObservationOnlyAfterSafeInitFrames() {
+        var now=0L;val driver=Driver();val observations=mutableListOf<ScaleObservation>()
+        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},scaleObservation={observations+=it})
         fun complete(result:OperationResult=OperationResult.Success()) {val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)}
         session.connect("bookoo");complete()
         complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
@@ -91,8 +91,8 @@ class ScaleProtocolAdapterTest {
         for(command in BookooCodec.initializationCommands()) {now=command.delayMs;session.tick();complete()}
         assertEquals(DeviceState.SYNCHRONIZING,session.state)
         session.onNotification(session.generation,KnownGatt.bookooNotify,sample())
-        assertEquals(DeviceState.READY,session.state);assertEquals(1,legacy.size);assertEquals(1,observations.size)
-        assertEquals(legacy.single().weightHundredthsGram,observations.single().hundredthsGram)
+        assertEquals(DeviceState.READY,session.state);assertEquals(1,observations.size)
+        assertEquals(1800,observations.single().hundredthsGram)
         val old=session.generation;session.disconnect();session.onNotification(old,KnownGatt.bookooNotify,sample());assertEquals(1,observations.size)
         session.connect("bookoo");assertEquals(DeviceState.CONNECTING,session.state)
     }

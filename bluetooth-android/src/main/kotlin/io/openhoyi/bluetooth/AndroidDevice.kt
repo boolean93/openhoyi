@@ -9,7 +9,7 @@ import io.openhoyi.session.*
 
 /** Host owns lifecycle (e.g. service). Closing a screen must not close this object during extraction. */
 class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->Unit={},
-    coffeeFrame:(HoyiMessage,Long)->Unit={_,_->},weightFrame:(BookooSample,Long)->Unit={_,_->},diagnostic:(String)->Unit={},trace:(WireTrace)->Unit={},
+    coffeeFrame:(HoyiMessage,Long)->Unit={_,_->},diagnostic:(String)->Unit={},trace:(WireTrace)->Unit={},
     legacyVerifiedStartFrames:Set<String> = emptySet(),
     scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
     scaleObservation:(ScaleObservation)->Unit = {},
@@ -23,8 +23,22 @@ class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->
         override fun disconnected(generation:Long,reason:String)=session.onDisconnected(generation,reason)
         override fun notification(generation:Long,endpoint:Endpoint,bytes:ByteArray)=session.onNotification(generation,endpoint,bytes)
     },trace)
-    val session:DeviceSession=DeviceSession(role,driver,{SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,weightFrame,diagnostic,legacyVerifiedStartFrames,scaleAdapter,scaleObservation,customPressureStartPermit,customCurveStartPermit)
+    val session:DeviceSession=DeviceSession(role,driver,{SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,
+        diagnostic,legacyVerifiedStartFrames,scaleAdapter,scaleObservation,
+        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit)
     private val ticker=object:Runnable {override fun run(){if(!closed){session.tick();handler.postDelayed(this,50)}}}
     init {handler.post(ticker)}
-    override fun close(){check(Looper.myLooper()==Looper.getMainLooper());closed=true;handler.removeCallbacks(ticker);session.disconnect()}
+    override fun close(){
+        check(Looper.myLooper()==Looper.getMainLooper())
+        closed=true
+        handler.removeCallbacks(ticker)
+        var failure: Exception? = null
+        try { session.disconnect() } catch (error: Exception) { failure = error }
+        session.transportCloseFailure?.let { uncertain ->
+            val blocked = IllegalStateException("GATT transport close uncertain; device owner cannot be replaced", uncertain)
+            failure?.let { if (it !== uncertain) blocked.addSuppressed(it) }
+            throw blocked
+        }
+        failure?.let { throw it }
+    }
 }

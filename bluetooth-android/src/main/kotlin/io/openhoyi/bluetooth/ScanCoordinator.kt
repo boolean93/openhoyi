@@ -14,7 +14,7 @@ import android.os.Looper
 import io.openhoyi.session.DeviceRole
 
 data class DiscoveredDevice(val address:String,val advertisedName:String,val rssi:Int,val candidateRole:DeviceRole,
-    val scaleProtocolId:String?=if(candidateRole==DeviceRole.BOOKOO)io.openhoyi.session.BookooScaleProtocolAdapter.id else null)
+    val scaleProtocolId:String?=null)
 /** A single application/service-owned coordinator scans both device roles. Names are candidates, never protocol proof. */
 class ScanCoordinator(context:Context):AutoCloseable {
     private val context=context.applicationContext

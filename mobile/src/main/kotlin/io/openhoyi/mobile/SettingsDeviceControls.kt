@@ -121,10 +121,9 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             val words=style.column()
             style.add(words,style.text(candidate.advertisedName,TaskProductVisualStyle.body))
             style.add(words,style.text(candidate.address,TaskProductVisualStyle.auxiliary,secondary=true),4)
-            if(candidate.scaleProtocolId?.let(io.openhoyi.session.ScaleSelectionPolicy::adapter)?.readOnlyTransport==true)
-                style.add(words,style.text(host.getString(R.string.scale_read_only_live),TaskProductVisualStyle.auxiliary,secondary=true),4)
-            if(candidate.scaleProtocolId?.let(io.openhoyi.session.ScaleSelectionPolicy::adapter)?.documentedTransport==true)
-                style.add(words,style.text(host.getString(R.string.scale_documented_live),TaskProductVisualStyle.auxiliary,secondary=true),4)
+            ScaleCandidateStatus.resource(candidate.scaleProtocolId)?.let { status ->
+                style.add(words,style.text(host.getString(status),TaskProductVisualStyle.auxiliary,secondary=true),4)
+            }
             val connect=HoyiUi.button(host,LinearLayout(host),host.getString(R.string.home_connect)) {
                 if(!connectedActionAllowed()){error(host.getString(R.string.scale_active_guard));return@button}
                 localError=null

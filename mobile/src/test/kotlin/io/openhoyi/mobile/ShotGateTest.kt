@@ -17,14 +17,16 @@ class ShotGateTest {
     private val flow = CurveCatalog.profiles[1]
     private val idleFrame = IdleTelemetry(0, 0, 0, 0, 0, 0, 0, 0, ByteFrame(byteArrayOf()))
     private fun block(profile: CurveProfile?, coffee: DeviceState = DeviceState.READY,
-        scale: DeviceState = DeviceState.READY, weightAt: Long? = 1000, now: Long = 2000,
+        scale: DeviceState = DeviceState.READY, observationAt: Long? = 1000, now: Long = 2000,
         shot: ExtractionState = ExtractionState.IDLE, coffeeFrame: IdleTelemetry? = idleFrame,
-        coffeeAt: Long? = 1000): String? = gate.startBlock(profile, coffee, coffeeFrame, coffeeAt, scale, weightAt, now, shot)
+        coffeeAt: Long? = 1000): String? = gate.startBlock(profile, coffee, coffeeFrame, coffeeAt, scale,
+        observationAt?.let { ScaleObservation(1000,it,ScaleCapabilities(weight=true,validatedWeightControl=true),
+            ScaleEvidence.VERIFIED_TRANSPORT,raw=ByteFrame(byteArrayOf())) },now,shot)
     @Test fun structuredStartRejectionStaysBlockedWithEmptyOrChangedCopy() {
         val noDisplay = ShotGate({ _, _ -> error("Eligibility must not resolve display") })
         for (coffee in DeviceState.entries) for (state in ExtractionState.entries) {
             val message = noDisplay.startBlockMessage(flow, coffee, idleFrame, 1000,
-                DeviceState.READY, 1000, 2000, state, validated = true)
+                DeviceState.READY, null, 2000, state, validated = true)
             val expected = io.openhoyi.session.ExtractionStartGate.block(flow.targetHundredthsGram, true,
                 coffee, idleFrame, 1000, DeviceState.READY, 1000, 2000, state)
             assertEquals(expected == null, message == null)
@@ -37,7 +39,7 @@ class ShotGateTest {
             noDisplay.startBlockMessage(flow, DeviceState.DISCONNECTED, null, null,
                 DeviceState.DISCONNECTED, null, 2000, ExtractionState.RUNNING, validated = false)?.resourceId)
         val failure = requireNotNull(noDisplay.startBlockMessage(flow, DeviceState.READY,
-            idleFrame.copy(alarmBits = 1), 1000, DeviceState.READY, 1000, 2000,
+            idleFrame.copy(alarmBits = 1), 1000, DeviceState.READY, null, 2000,
             ExtractionState.IDLE, validated = true))
         val message = SnapshotMessage.resource(ResourceMessage(R.string.service_shot_start_blocked, failure),
             DefaultStringResources::resolve)
@@ -73,10 +75,10 @@ class ShotGateTest {
             assertEquals(if (state == DeviceState.READY) null else "电子秤未就绪，请重连",
                 block(weighted, scale = state))
         }
-        assertNull(block(weighted, coffeeAt = 1000, weightAt = 1000, now = 2500))
+        assertNull(block(weighted, coffeeAt = 1000, observationAt = 1000, now = 2500))
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = 2001, now = 2000))
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = null))
-        assertEquals("读数已过期，请重连电子秤", block(weighted, weightAt = null))
+        assertEquals("读数已过期，请重连电子秤", block(weighted, observationAt = null))
     }
 
     @Test fun weightedStartRequiresFreshScaleAndVerifiedCoffee() {
@@ -85,15 +87,15 @@ class ShotGateTest {
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeFrame = null))
         assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = 0, now = 1501))
         assertEquals("电子秤未就绪，请重连", block(weighted, scale = DeviceState.FAILED))
-        assertEquals("读数已过期，请重连电子秤", block(weighted, weightAt = 1000, now = 2501, coffeeAt = 2500))
-        assertEquals("读数已过期，请重连电子秤", block(weighted, weightAt = 3000, now = 2500, coffeeAt = 2500))
+        assertEquals("读数已过期，请重连电子秤", block(weighted, observationAt = 1000, now = 2501, coffeeAt = 2500))
+        assertEquals("读数已过期，请重连电子秤", block(weighted, observationAt = 3000, now = 2500, coffeeAt = 2500))
         assertNull(block(weighted, now = 2500, coffeeAt = 2500))
     }
     @Test fun flowProfileNeedsOnlyCoffeeAndActiveOutcomeBlocksRestart() {
-        assertNull(block(flow, scale = DeviceState.DISCONNECTED, weightAt = null))
+        assertNull(block(flow, scale = DeviceState.DISCONNECTED, observationAt = null))
         val activeFrame = ExtractionTelemetry(7, 5, 90, 20, 9200, 10, 64, 0, ByteFrame(byteArrayOf()))
         assertEquals("等待咖啡机新鲜待机数据", gate.startBlock(flow, DeviceState.READY,
-            activeFrame, 1000, DeviceState.READY, 1000, 2000, ExtractionState.IDLE))
+            activeFrame, 1000, DeviceState.READY, null, 2000, ExtractionState.IDLE))
         for (state in listOf(ExtractionState.STARTING, ExtractionState.RUNNING, ExtractionState.STOP_REQUESTED, ExtractionState.OUTCOME_UNKNOWN)) {
             assertEquals("上一杯尚未确认结束", block(flow, shot = state))
             assertTrue(ShotGate.active(state))
@@ -115,15 +117,15 @@ class ShotGateTest {
             coffeeFrame = idleFrame.copy(alarmBits = 0), coffeeAt = 1000, now = 2501))
     }
     @Test fun mockBypassIsCentralAndRealModeRequiresEligibleObservation() {
-        val eligible = ScaleObservation(1000, 1000, ScaleCapabilities(validatedWeightControl = true),
+        val eligible = ScaleObservation(1000, 1000, ScaleCapabilities(weight=true,validatedWeightControl = true),
             ScaleEvidence.VERIFIED_TRANSPORT, raw = ByteFrame(byteArrayOf()))
         fun resource(mock: Boolean, observation: ScaleObservation?): Int? =
             ShotGate(DefaultStringResources::resolve, mockMode = mock).startBlockMessage(
-                weighted, DeviceState.READY, idleFrame, 1000, DeviceState.READY, 1000, 2000,
-                ExtractionState.IDLE, validated = true, scaleObservation = observation)?.resourceId
+                weighted, DeviceState.READY, idleFrame, 1000, DeviceState.READY, observation, 2000,
+                ExtractionState.IDLE, validated = true)?.resourceId
         assertEquals(R.string.scale_control_unverified, resource(false, null))
         assertNull(resource(false, eligible))
-        assertNull(resource(true, null))
+        assertEquals(R.string.start_block_weight_not_fresh, resource(true, null))
         val documented = eligible.copy(capabilities = ScaleCapabilities(tare=true,protocolSupportedWeightControl=true),
             evidence = ScaleEvidence.DOCUMENTED_TRANSPORT)
         assertNull(resource(false, documented))

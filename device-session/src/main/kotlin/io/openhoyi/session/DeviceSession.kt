@@ -19,7 +19,7 @@ object KnownGatt {
 /** All methods run on one owner thread. Host ticks with a monotonic clock, not Activity lifecycle. */
 class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->Long,
     private val stateChanged:(DeviceState)->Unit={}, private val coffeeFrame:(HoyiMessage,Long)->Unit={_,_->},
-    private val weightFrame:(BookooSample,Long)->Unit={_,_->},private val diagnostic:(String)->Unit={},
+    private val diagnostic:(String)->Unit={},
     legacyVerifiedStartFrames:Set<String> = emptySet(),
     val scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
     private val scaleObservation:(ScaleObservation)->Unit = {},
@@ -63,6 +63,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     // Request order also detects cancellation before a new GATT generation exists.
     private var connectionRequest=0L
     val generation:Long get()=queue.generation
+    val transportCloseFailure: Exception? get()=queue.transportCloseFailure
     var state=DeviceState.DISCONNECTED;private set
     /** Classification of the most recent FAILED; display-only, never a control permit. */
     var lastFailure:CoffeeSessionFailure?=null;private set
@@ -161,7 +162,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         endConnection(DeviceState.DISCONNECTED,"user disconnect","coffee disconnected")
         if(connectionRequest!=request)return
         lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();lastFailure=null;activeAddress=address
-        val expected=queue.open()
+        val expected=try { queue.open() } catch (_: TransportCloseUncertainException) {
+            fail("transport close uncertain")
+            return
+        }
         scaleDecoder=scaleAdapter.newDecoder {event->scaleEvent(expected,event)} ?: scaleAdapter::decode
         if(!initializationState(expected,DeviceState.CONNECTING,22_000))return
         step(expected,GattOperation.Connect(address),22_000) {
@@ -175,10 +179,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     notifyEndpoint=requireNotNull(binding.notifyEndpoint)
                 }
                 val strictTimemore=role!=DeviceRole.COFFEE && scaleAdapter.requiresWriteWithoutResponse
-                val write=result.characteristics.singleOrNull{it.endpoint==writeEndpoint &&
-                    (if(strictTimemore)it.writeWithoutResponse else it.write||it.writeWithoutResponse)}
-                val notify=result.characteristics.singleOrNull{it.endpoint==notifyEndpoint &&
-                    (if(strictTimemore)it.notify else it.notify||it.indicate)}
+                // Android resolves by UUID, so require the raw endpoint itself to be unique before property checks.
+                val write=result.characteristics.singleOrNull{it.endpoint==writeEndpoint}?.takeIf {
+                    if(strictTimemore)it.writeWithoutResponse else it.write||it.writeWithoutResponse}
+                val notify=result.characteristics.singleOrNull{it.endpoint==notifyEndpoint}?.takeIf {
+                    if(strictTimemore)it.notify else it.notify||it.indicate}
                 val subscriptionOnly=role!=DeviceRole.COFFEE && scaleAdapter.readOnlyTransport
                 if((!subscriptionOnly && write==null)||notify==null){fail("required GATT characteristics missing or ambiguous");return@step}
                 withResponse=if(strictTimemore)false else write?.write ?: true
@@ -258,10 +263,6 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 if(this.generation!=generation||!queue.active)return
                 if(state==DeviceState.READY) {
                     scaleObservation(decoded.value)
-                    // Compatibility callback is deliberately outside generic extraction logic.
-                    if(this.generation==generation && queue.active && state==DeviceState.READY &&
-                        scaleAdapter===BookooScaleProtocolAdapter)
-                        (BookooCodec.decode(bytes) as? DecodeResult.Valid)?.let { weightFrame(it.value,now) }
                 }
             }
             else -> diagnostic("scale decode: ${decoded::class.simpleName}")

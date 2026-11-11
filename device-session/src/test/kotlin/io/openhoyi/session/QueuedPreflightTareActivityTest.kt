@@ -18,9 +18,9 @@ class QueuedPreflightTareActivityTest {
                 calls+=Triple(generation,token,operation);return true
             }
             override fun close(generation:Long)=Unit
-        },{coffee.now},weightFrame={sample,at->
-            tare.sample(++samples,sample.weightHundredthsGram)
-            controller?.weight(WeightReading(sample.weightHundredthsGram,at))
+        },{coffee.now},scaleObservation={sample->
+            tare.sample(++samples,sample.hundredthsGram)
+            controller?.weight(sample)
         })
         val scaleControl=ScaleSessionControl(scale,tare,{samples})
         val beforeCoffee:Int

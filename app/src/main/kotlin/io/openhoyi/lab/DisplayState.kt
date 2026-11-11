@@ -1,7 +1,7 @@
 package io.openhoyi.lab
 
 import io.openhoyi.bluetooth.DiscoveredDevice
-import io.openhoyi.protocol.BookooSample
+import io.openhoyi.protocol.ScaleObservation
 import io.openhoyi.protocol.HoyiMessage
 import io.openhoyi.protocol.Settings
 import io.openhoyi.session.DeviceState
@@ -14,8 +14,7 @@ data class LabSnapshot(
     val coffee: HoyiMessage? = null,
     val coffeeAt: Long? = null,
     val settings: Settings? = null,
-    val weight: BookooSample? = null,
-    val weightAt: Long? = null,
+    val scaleObservation: ScaleObservation? = null,
     val devices: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
     val events: List<String> = emptyList(),

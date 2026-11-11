@@ -25,7 +25,11 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
     private var pending:Pending?=null
     private fun owner()=check(Looper.myLooper()==Looper.getMainLooper()){"BLE access must use main looper"}
     private fun allowed()=Build.VERSION.SDK_INT<31||context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED
-    private fun characteristic(ep:Endpoint)=gatt?.getService(UUID.fromString(ep.service))?.getCharacteristic(UUID.fromString(ep.characteristic))
+    // Android's getService/getCharacteristic return the first UUID match. Never pair
+    // metadata from one duplicate with a different instance selected for a write.
+    private fun characteristic(ep:Endpoint): BluetoothGattCharacteristic? =
+        gatt?.services?.singleOrNull { it.uuid == UUID.fromString(ep.service) }
+            ?.characteristics?.singleOrNull { it.uuid == UUID.fromString(ep.characteristic) }
     private fun record(kind:String,gen:Long,token:Long?=null,op:GattOperation?=null,detail:String?=null) {
         val ep=when(op){is GattOperation.Write->op.endpoint;is GattOperation.Subscribe->op.endpoint;else->null}
         val operation=when(op){is GattOperation.Connect->"connect";GattOperation.Discover->"discover";is GattOperation.Subscribe->"subscribe";is GattOperation.Write->"write";null->null}

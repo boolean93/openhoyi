@@ -86,7 +86,7 @@ internal class ServiceStopFeedbackChecks(private val test:Instrumentation) {
                         field(session,"lastSettings").set(session,settings);field(session,"lastSettingsAtMs").set(session,now)
                         field(session,"lastIdle").set(session,idle);field(session,"lastIdleAtMs").set(session,now)
                         field(service,"snapshot").set(service,MobileSnapshot(coffeeState=DeviceState.READY,scaleState=DeviceState.READY,
-                            coffee=idle,coffeeAt=now,settings=settings,settingsAt=now,weightAt=now))
+                            coffee=idle,coffeeAt=now,settings=settings,settingsAt=now,scaleObservation = scaleTestObservation(now)))
                         check(service.startShot(selected.id,selected.scaleMode,7)==null)
                         check(calls.size==1 && (calls[0].third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.start(selected.parameters).frame.toByteArray()))
                         session.onComplete(calls[0].first,calls[0].second,OperationResult.Success())

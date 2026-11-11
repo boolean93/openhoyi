@@ -126,7 +126,7 @@ internal class ServiceTransportUnknownChecks(private val test: Instrumentation) 
                         listOf("cupSettingsSerial", "cupIdleSerial", "settingsSampleSerial", "firstSleepSerial",
                             "secondSleepSerial", "sleepSampleSerial", "idleSampleSerial").forEach { field(instance, it).setLong(instance, 1) }
                         field(instance, "snapshot").set(instance, MobileSnapshot(coffeeState = DeviceState.READY,
-                            scaleState = DeviceState.READY, coffee = idle, coffeeAt = stamp, weightAt = stamp,
+                            scaleState = DeviceState.READY, coffee = idle, coffeeAt = stamp, scaleObservation = scaleTestObservation(stamp),
                             settings = settings, settingsAt = stamp, sleepFirst = first, sleepSecond = second,
                             sleepFirstAt = stamp, sleepSecondAt = stamp))
                         tracker = requireNotNull(field(instance, when (kind) {

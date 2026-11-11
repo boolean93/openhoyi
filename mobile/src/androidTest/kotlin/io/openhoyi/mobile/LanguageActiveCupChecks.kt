@@ -147,7 +147,7 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
             check(points.size >= 2 && points.last().waterTenthsMl > 0 && points.last().pressureTenthsBar > 0 &&
                 points.last().temperatureHundredthsC > 0)
             if (connected) check(points.any { it.weightHundredthsGram != null })
-            else check(points.all { it.weightHundredthsGram == null } && owner.snapshot.weight == null && owner.snapshot.weightAt == null)
+            else check(points.all { it.weightHundredthsGram == null } && owner.snapshot.scaleObservation == null)
             val label = requireNotNull(screen.window.decorView.findViewWithTag<android.widget.TextView>(
                 "product/extraction/metric/WEIGHT/name"))
             val scaleNumber = requireNotNull(screen.window.decorView.findViewWithTag<android.widget.TextView>(

@@ -422,7 +422,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             cleanup { main {
                 val frame = requireNotNull(restoreFrame) { "Candidate restoration never captured the current frame" }
                 check(service.snapshot.coffeeAt?.let { it >= requireNotNull(frame.coffeeAt) } == true)
-                check(service.snapshot.weightAt?.let { it >= requireNotNull(frame.weightAt) } == true)
+                check(service.snapshot.scaleObservation?.receivedAtMs?.let { it >= requireNotNull(frame.scaleObservation?.receivedAtMs) } == true)
             } }
             cleanup { main { check(service.snapshot.message === before.message) } }
             cleanup { main { check(service.shotState == state) } }
