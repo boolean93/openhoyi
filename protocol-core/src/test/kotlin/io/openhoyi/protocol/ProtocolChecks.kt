@@ -11,6 +11,7 @@ fun main() {
     timemoreChecks()
     runFelicitaNotificationChecks()
     legacyLiveScaleChecks()
+    targetWeightCapabilityChecks()
     // Legacy scale formats are offline candidates only. They must never feed the live stop policy.
     val acaiaPositive = LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA,
         hex("EFDD0C08053930000002000000"))

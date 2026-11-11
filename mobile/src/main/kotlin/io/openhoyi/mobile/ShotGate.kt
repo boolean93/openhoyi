@@ -37,7 +37,7 @@ class ShotGate(
         validated: Boolean = profile?.let(CurveCatalog::validated) == true,
         scaleObservation: ScaleObservation? = null): ResourceMessage? =
         when (ExtractionStartGate.block(profile?.targetHundredthsGram, validated, coffee,
-            coffeeFrame, coffeeAt, scale, weightAt, now, shot, scaleControlValidated(scaleObservation))) {
+            coffeeFrame, coffeeAt, scale, weightAt, now, shot, scaleTargetSupported(scaleObservation))) {
             ExtractionStartGate.Block.CURVE_MISSING -> ResourceMessage(R.string.start_block_curve_missing)
             ExtractionStartGate.Block.CURVE_UNVERIFIED -> ResourceMessage(R.string.start_block_curve_unverified)
             ExtractionStartGate.Block.EXTRACTION_UNSETTLED -> ResourceMessage(R.string.start_block_extraction_unsettled)
@@ -53,6 +53,6 @@ class ShotGate(
         }
 
     /** Mock builds have no real scale evidence. Keep the bypass in one place so UI and service cannot diverge. */
-    private fun scaleControlValidated(observation: ScaleObservation?): Boolean =
-        mockMode || observation?.eligibleForControl == true
+    private fun scaleTargetSupported(observation: ScaleObservation?): Boolean =
+        mockMode || observation?.eligibleForTargetWeight == true
 }

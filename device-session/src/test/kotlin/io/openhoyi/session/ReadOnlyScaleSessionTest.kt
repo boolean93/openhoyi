@@ -119,6 +119,7 @@ class ReadOnlyScaleSessionTest {
         for(adapter in listOf(
             object:ScaleProtocolAdapter by FelicitaReadOnlyScaleProtocolAdapter {override val writeEndpoint=KnownGatt.bookooWrite},
             object:ScaleProtocolAdapter by FelicitaReadOnlyScaleProtocolAdapter {override val capabilities=ScaleCapabilities(validatedWeightControl=true)},
+            object:ScaleProtocolAdapter by FelicitaReadOnlyScaleProtocolAdapter {override val capabilities=ScaleCapabilities(protocolSupportedWeightControl=true)},
             object:ScaleProtocolAdapter by FelicitaReadOnlyScaleProtocolAdapter {override val tareCommand=BookooCodec.tare()},
             object:ScaleProtocolAdapter by FelicitaReadOnlyScaleProtocolAdapter {override val initializationCommands=BookooCodec.initializationCommands()},
             object:ScaleProtocolAdapter by FelicitaReadOnlyScaleProtocolAdapter {override val transportVerified=true}

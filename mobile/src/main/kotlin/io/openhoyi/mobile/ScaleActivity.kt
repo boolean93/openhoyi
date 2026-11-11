@@ -237,6 +237,7 @@ class ScaleActivity:ScaleOwnerActivity() {
             live==null->R.string.scale_stale
             live.evidence==ScaleEvidence.OFFLINE_CANDIDATE->R.string.scale_offline_evidence
             live.evidence==ScaleEvidence.LIVE_READ_ONLY->R.string.scale_read_only_live
+            live.evidence==ScaleEvidence.DOCUMENTED_TRANSPORT && live.eligibleForTargetWeight->R.string.scale_documented_target_live
             live.evidence==ScaleEvidence.DOCUMENTED_TRANSPORT->R.string.scale_documented_live
             else->R.string.scale_live
         }))

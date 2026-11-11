@@ -1,6 +1,6 @@
 package io.openhoyi.protocol
 
-/** Capabilities describe verified evidence, not a brand-name promise. Device timers and battery
+/** Capabilities distinguish verified and documented support, not a brand-name promise. Device timers and battery
  * stay unavailable until a captured format and transport path actually support them. */
 data class ScaleCapabilities(
     val weight:Boolean = true,
@@ -11,7 +11,11 @@ data class ScaleCapabilities(
     val validatedWeightControl:Boolean = false,
     /** Independently verified automatic tare policy; explicit tare alone never grants this. */
     val automaticTare:Boolean = false,
-)
+    /** Explicit protocol-supported target weight; not hardware validation or automatic tare. */
+    val protocolSupportedWeightControl:Boolean = false,
+) {
+    val supportsTargetWeight:Boolean get() = weight && (validatedWeightControl || protocolSupportedWeightControl)
+}
 enum class ScaleEvidence { VERIFIED_TRANSPORT, OFFLINE_CANDIDATE, LIVE_READ_ONLY, DOCUMENTED_TRANSPORT }
 
 data class ScaleObservation(
@@ -27,6 +31,10 @@ data class ScaleObservation(
 ) {
     val eligibleForControl:Boolean get() = evidence==ScaleEvidence.VERIFIED_TRANSPORT &&
         capabilities.weight && capabilities.validatedWeightControl
+    /** Target-weight control may use explicitly supported documented protocols, never read-only/offline. */
+    val eligibleForTargetWeight:Boolean get() = eligibleForControl ||
+        (evidence==ScaleEvidence.DOCUMENTED_TRANSPORT && capabilities.weight &&
+            capabilities.tare && capabilities.protocolSupportedWeightControl)
 }
 
 object ScaleObservationDecoder {

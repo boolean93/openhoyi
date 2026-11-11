@@ -29,12 +29,17 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified && !scaleAdapter.documentedTransport &&
                 scaleAdapter.notifyEndpoint!=null && scaleAdapter.writeEndpoint==null &&
                 scaleAdapter.initializationCommands.isEmpty() && scaleAdapter.tareCommand==null && scaleAdapter.heartbeat==null &&
-                !scaleAdapter.capabilities.tare && !scaleAdapter.capabilities.validatedWeightControl) {
+                !scaleAdapter.capabilities.tare && !scaleAdapter.capabilities.validatedWeightControl &&
+                !scaleAdapter.capabilities.protocolSupportedWeightControl) {
                 "Read-only scale adapter cannot expose control or characteristic writes"
             } else {
+                require(!scaleAdapter.capabilities.protocolSupportedWeightControl ||
+                    (scaleAdapter.documentedTransport && scaleAdapter.capabilities.tare && scaleAdapter.tareCommand!=null)) {
+                    "Protocol-supported target control requires documented writable tare transport"
+                }
                 require(!scaleAdapter.documentedTransport || (!scaleAdapter.transportVerified &&
                     !scaleAdapter.capabilities.validatedWeightControl && !scaleAdapter.capabilities.automaticTare)) {
-                    "Documented scale transport is not validated for machine control or automatic tare"
+                    "Documented scale transport is not hardware validated or approved for automatic tare"
                 }
                 require((scaleAdapter.transportVerified || scaleAdapter.documentedTransport) && scaleAdapter.writeEndpoint!=null &&
                     scaleAdapter.notifyEndpoint!=null) { "Offline scale candidates cannot connect" }

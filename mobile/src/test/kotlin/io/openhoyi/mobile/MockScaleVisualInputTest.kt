@@ -74,7 +74,8 @@ class MockScaleVisualInputTest {
         val scope = Scope(); scope.input.install(scope.owner)
         val illegal = listOf(scope.sample(evidence = ScaleEvidence.VERIFIED_TRANSPORT),
             scope.sample(capabilities = ScaleCapabilities(tare = true)),
-            scope.sample(capabilities = ScaleCapabilities(validatedWeightControl = true)))
+            scope.sample(capabilities = ScaleCapabilities(validatedWeightControl = true)),
+            scope.sample(capabilities = ScaleCapabilities(protocolSupportedWeightControl = true)))
         illegal.forEach { sample -> assertThrows(IllegalArgumentException::class.java) { scope.input.offer(scope.owner, DeviceState.READY, sample) } }
         assertTrue(scope.observations.isEmpty() && scope.states.isEmpty())
     }

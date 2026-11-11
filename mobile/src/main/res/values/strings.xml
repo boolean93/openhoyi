@@ -458,8 +458,8 @@
     <string name="start_block_idle_not_fresh">"等待咖啡机新鲜待机数据"</string>
     <string name="start_block_asleep">"咖啡机处于睡眠状态"</string>
     <string name="start_block_sleep_unknown">"咖啡机睡眠状态未知"</string>
-    <string name="start_block_scale_not_ready">"目标重量萃取需要电子秤"</string>
-    <string name="start_block_weight_not_fresh">"电子秤数据已过期"</string>
+    <string name="start_block_scale_not_ready">电子秤未就绪，请重连</string>
+    <string name="start_block_weight_not_fresh">读数已过期，请重连电子秤</string>
     <string name="extraction_start_message">"%1$s · %2$s · %3$s °C\n最大水量：%4$s ml\n目标重量：%5$s\n%6$s"</string>
     <string name="extraction_shortcut_slot">"快捷槽位 %1$s"</string>
     <string name="extraction_target_weight_format">"%1$s g（电子秤）"</string>
@@ -516,7 +516,7 @@
     <string name="extraction_preflight_label">"等待电子秤归零后启动"</string>
     <string name="extraction_manual_label">"机器手动萃取"</string>
     <string name="extraction_manual_guidance">"机器手动萃取中；请用机器拨杆停止"</string>
-    <string name="extraction_preflight_guidance">"正在等待电子秤归零，尚未启动咖啡机"</string>
+    <string name="extraction_preflight_guidance">等待电子秤归零</string>
     <string name="extraction_starting_guidance">"启动命令处理中，请留意咖啡机"</string>
     <string name="extraction_running_guidance">"正在萃取，请守在机器旁"</string>
     <string name="extraction_stopping_guidance">"停止命令处理中，请确认机器停水"</string>
@@ -546,7 +546,7 @@
     <string name="extraction_auto_stop_advice">"萃取满 7 秒且达到目标重量后自动停止；请守在机器旁"</string>
     <string name="extraction_pending_stop_advice">"停止命令处理中；请确认机器停水"</string>
     <string name="extraction_weight_control_advice">"使用电子秤控制停止"</string>
-    <string name="extraction_no_weight_advice">"这条曲线不按秤重停机，由咖啡机按曲线结束"</string>
+    <string name="extraction_no_weight_advice">"本次不按秤重停机，按曲线水量结束"</string>
     <string name="extraction_cancel_prepare_again">"再次发送取消预热"</string>
     <string name="extraction_state_starting">"启动中"</string>
     <string name="extraction_state_running">"萃取中"</string>
@@ -731,8 +731,8 @@
 
     <!-- Tare and unresolved setting messages: state gates and dispatch are unchanged. -->
     <string name="service_setting_unresolved">"上次机器设置结果未知，请等待新的设置回读或重新连接"</string>
-    <string name="service_tare_start_wait">"正在等待电子秤去皮确认，暂不能开始萃取"</string>
-    <string name="service_tare_start_unknown">"去皮结果未知，请重新去皮并确认归零后再开始"</string>
+    <string name="service_tare_start_wait">等待电子秤归零</string>
+    <string name="service_tare_start_unknown">归零未确认，请重新去皮</string>
     <string name="service_tare_confirmed">"电子秤已归零"</string>
     <string name="service_tare_unknown">"去皮结果未知，请重新去皮并等待归零"</string>
     <string name="service_tare_mock">"Mock 电子秤已归零；未发送蓝牙命令"</string>
