@@ -12,7 +12,7 @@ object CustomPressureCurveAdapter {
             (slot !in 1..5 && slot!=7) || document.targetHundredthsGram%10!=0 ||
             document.stages.any {it.waterTenthsMl%10!=0})return null
         val stages=document.stages.toList()
-        val totalMl=stages.sumOf {it.waterTenthsMl/10}
+        val totalMl=document.totalWaterLimitMl ?: stages.sumOf {it.waterTenthsMl/10}
         val maximumMl=if(scaleConnected && document.targetHundredthsGram>0)
             maxOf(totalMl,(document.targetHundredthsGram+24)/25) else totalMl
         val targets=(stages.map {it.target}+List(4-stages.size){0})

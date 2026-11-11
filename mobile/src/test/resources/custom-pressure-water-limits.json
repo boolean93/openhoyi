@@ -1,0 +1,125 @@
+{
+  "format": "openhoyi-legacy-curves-v1",
+  "items": [
+    {
+      "name": "Explicit water limit 70",
+      "flow": 70,
+      "weight": 361,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 93,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 30,
+      "press2": 90,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 15,
+      "flow2": 40,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 2,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-10000000-0000-4000-8000-000000000001",
+        "name": "Explicit water limit 70",
+        "temperatureC": 93,
+        "targetHundredthsGram": 3610,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 30,
+            "waterTenthsMl": 150
+          },
+          {
+            "target": 90,
+            "waterTenthsMl": 400
+          }
+        ],
+        "totalWaterLimitMl": 70
+      }
+    },
+    {
+      "name": "Explicit water limit 200",
+      "flow": 200,
+      "weight": 361,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 93,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 30,
+      "press2": 90,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 15,
+      "flow2": 40,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 2,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-10000000-0000-4000-8000-000000000002",
+        "name": "Explicit water limit 200",
+        "temperatureC": 93,
+        "targetHundredthsGram": 3610,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 30,
+            "waterTenthsMl": 150
+          },
+          {
+            "target": 90,
+            "waterTenthsMl": 400
+          }
+        ],
+        "totalWaterLimitMl": 200
+      }
+    },
+    {
+      "name": "Explicit water limit 40",
+      "flow": 40,
+      "weight": 360,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 93,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 30,
+      "press2": 90,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 15,
+      "flow2": 40,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 2,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-10000000-0000-4000-8000-000000000003",
+        "name": "Explicit water limit 40",
+        "temperatureC": 93,
+        "targetHundredthsGram": 3600,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 30,
+            "waterTenthsMl": 150
+          },
+          {
+            "target": 90,
+            "waterTenthsMl": 400
+          }
+        ],
+        "totalWaterLimitMl": 40
+      }
+    }
+  ]
+}

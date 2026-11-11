@@ -80,9 +80,22 @@ class CustomPressureStartPermitTest {
     @Test fun hostCannotAuthorizeUnvalidatedModesOrLossyWaterThroughPressurePermit() {
         val f=CoffeeSessionFixture {true};fresh(f)
         for(bad in listOf(p.copy(pressureLogic=true),p.copy(variableFlowLogic=true),p.copy(target1=121),
-            p.copy(firstFlowTenths=151),p.copy(target4=1),p.copy(maximumWaterMl=54),
+            p.copy(firstFlowTenths=151),p.copy(target4=1),p.copy(maximumWaterMl=0),
             p.copy(maximumWaterMl=801),p.copy(preinfusionSeconds=1),p.copy(firstDurationSeconds=1),
             p.copy(firstSegmentFlowMode=true)))assertNull(f.session.captureStartContext(bad))
+    }
+    @Test fun independentWaterThresholdBelowStageTotalStillNeedsExactHostPermission() {
+        val below=p.copy(maximumWaterMl=40)
+        val allowed=CoffeeSessionFixture {it==below};fresh(allowed)
+        assertTrue(CustomPressureStartPolicy.permits(below))
+        assertNotNull(allowed.session.captureStartContext(below))
+        assertNull(allowed.session.captureStartContext(p))
+        assertFalse(CustomPressureStartPolicy.permits(below.copy(maximumWaterMl=-1)))
+        assertFalse(CustomPressureStartPolicy.permits(below.copy(maximumWaterMl=0)))
+        assertFalse(CustomPressureStartPolicy.permits(below.copy(maximumWaterMl=801)))
+        assertFalse(CustomPressureStartPolicy.permits(below.copy(firstFlowTenths=151)))
+        assertFalse(CustomPressureStartPolicy.permits(below.copy(pressureLogic=true)))
+        assertFalse(CustomPressureStartPolicy.permits(below.copy(slot=6)))
     }
     @Test fun authorizedRecipeStillRequiresFreshIdleAndVerifiedFirmware() {
         val f=CoffeeSessionFixture {true};fresh(f)

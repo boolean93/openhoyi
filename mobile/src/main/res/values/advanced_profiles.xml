@@ -40,7 +40,7 @@
     <string name="profiles_import_hint">粘贴或选择 JSON 文件。先检查兼容信息，再决定是否保存。最多 64 KiB。</string>
     <string name="profiles_import_invalid">无法读取曲线参数：版本、字段或范围不支持，或文件超过 64 KiB。原文件未改变。</string>
     <string name="profiles_import_preview">导入预览</string>
-    <string name="profiles_compatibility">格式 v1 · 导入不会自动选择或启动机器</string>
+    <string name="profiles_compatibility">导入不会自动选择或启动机器</string>
     <string name="profiles_import_save">保存导入草稿</string>
     <string name="profiles_conflict">相同 ID 已有不同参数。现有草稿不会被覆盖。</string>
     <string name="profiles_existing">现有草稿</string>
@@ -63,4 +63,12 @@
     <string name="profiles_stage_summary">%1$d 个阶段参数</string>
     <string name="profiles_import_intro">粘贴别人分享的曲线数据，或打开文件。</string>
     <string name="profiles_import_placeholder">在此粘贴曲线数据</string>
+    <string name="profiles_total_water_limit">总量上限（mL，整数；留空按阶段合计）</string>
+    <string name="profiles_total_water_limit_title">总量上限</string>
+    <string name="profiles_total_water_limit_hint">留空按阶段合计</string>
+    <string name="profiles_assigned_water">阶段合计 %1$s mL</string>
+    <string name="profiles_assigned_water_invalid">阶段合计：请先填写有效的本段水量</string>
+    <string name="profiles_total_water_limit_scale">连接秤且设置目标杯重时，实际下发总量取本设置与目标克重 4 倍的较大值（mL），沿用原有重量策略。</string>
+    <string name="profiles_total_water_limit_invalid">总量上限须为 %1$d–%2$d mL 的整数；可留空按阶段合计。阶段水量不会自动调整。</string>
+    <string name="profiles_total_water_limit_auto">总量上限 %1$s mL（按阶段合计）</string>
 </resources>

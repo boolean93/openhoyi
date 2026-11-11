@@ -486,8 +486,8 @@ internal object ChineseFormWindowChecks {
                 }) {
                 main {
                     val inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
-                    check(inputs.size == 11) { "$name missing metadata or four-stage fields" }
-                    inputs.forEach(::fullyVisible)
+                    check(inputs.size == 12) { "$name missing metadata or four-stage fields" }
+                    inputs.filter { it.tag != "product/form/curve-editor/total-water-limit" }.forEach(::fullyVisible)
                     val topPositions = listOf(R.string.profiles_name, R.string.profiles_temperature, R.string.profiles_cup).map { label ->
                         val field = inputs.single { it.contentDescription?.toString() == activity.getString(label) }
                         val location = IntArray(2); field.getLocationOnScreen(location); location[1]

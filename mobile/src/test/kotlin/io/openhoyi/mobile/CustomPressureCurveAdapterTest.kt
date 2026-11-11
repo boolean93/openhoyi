@@ -46,6 +46,37 @@ class CustomPressureCurveAdapterTest {
             }
         }
     }
+    @Test fun explicitLimitsMatchIndependentLegacyFramesIncludingBelowAllocatedWater() {
+        val input=resource("custom-pressure-water-limits.json")
+        val rows=JSONObject(input).getJSONArray("items")
+        val docs=(0 until rows.length()).map { CustomCurveDocument.decode(rows.getJSONObject(it).getJSONObject("customDocument").toString()) }
+        val hash=MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        val lines=resource("custom-pressure-water-limit-wire.tsv").trimEnd().lines()
+        assertEquals(3,docs.size);assertEquals(19,lines.size)
+        assertTrue(lines.first().contains("encoder-sha256=2fa002d7307e0b6192afdaf6c0d1b50f2d9d1c9f9f477eeb87c8aa0e879d515f"))
+        assertTrue(lines.first().contains("source-sha256=70ccac9c2bb3705b446cbc9a338f68706506901be05d18d6c84cdae0b7a1cbe1"))
+        assertTrue(lines.first().contains("apk-sha256=401afbd9d36494f5acc41b0c15f7dae5a59684573ecdc5d905c8fd8ed40ace21"))
+        assertTrue(lines.first().endsWith("export-sha256=$hash"))
+        for ((position,line) in lines.drop(1).withIndex()) {
+            val parts=line.split('\t');assertEquals(4,parts.size)
+            assertEquals(position/6,parts[0].toInt())
+            val slot=listOf(7,1,2,3,4,5)[position%6];assertEquals(slot,parts[1].toInt())
+            val doc=docs[parts[0].toInt()]
+            for (scale in listOf(false,true)) {
+                val profile=requireNotNull(CustomPressureCurveAdapter.profile(doc,scale,slot))
+                assertTrue(CustomPressureStartPolicy.permits(profile.parameters))
+                assertEquals(parts[if(scale)3 else 2],CoffeeCommands.start(profile.parameters).frame.hex())
+                assertEquals(listOf(150,400),listOf(profile.parameters.firstFlowTenths,profile.parameters.secondFlowTenths))
+            }
+        }
+        val below=docs.single { it.totalWaterLimitMl==40 }
+        assertEquals(40,requireNotNull(CustomPressureCurveAdapter.profile(below,false)).maximumWaterMl)
+        assertEquals(144,requireNotNull(CustomPressureCurveAdapter.profile(below,true)).maximumWaterMl)
+        val invalid=below.copy(totalWaterLimitMl=801)
+        assertNull(CustomPressureCurveAdapter.profile(invalid,false))
+        assertNull(CustomPressureCurveAdapter.profile(below.copy(totalWaterLimitMl=0),true))
+    }
     @Test fun unsupportedOrLossyParametersAreRejectedWithoutSilentRounding() {
         val doc=documents()[2]
         assertNull(CustomPressureCurveAdapter.profile(doc.copy(controlMode=CustomCurveDocument.ControlMode.FLOW_RAW),false))

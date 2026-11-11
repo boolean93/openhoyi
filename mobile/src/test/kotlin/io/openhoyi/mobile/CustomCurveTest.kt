@@ -24,6 +24,67 @@ class CustomCurveTest {
         rejects { CustomCurveDocument.decode(json + " garbage") }
         assertEquals(CustomCurveDocument.ControlMode.FLOW_RAW, CustomCurveDocument.decode(document.copy(controlMode = CustomCurveDocument.ControlMode.FLOW_RAW).encode()).controlMode)
     }
+    @Test fun explicitLimitUsesStrictVersionTwoAndLegacyDocumentsKeepVersionOne() {
+        val legacy = doc()
+        val explicit = legacy.copy(totalWaterLimitMl = 70)
+        val oldJson = org.json.JSONObject(legacy.encode())
+        val newJson = org.json.JSONObject(explicit.encode())
+        assertEquals(1, oldJson.getInt("schema")); assertFalse(oldJson.has("totalWaterLimitMl"))
+        assertEquals(2, newJson.getInt("schema")); assertEquals(70, newJson.getInt("totalWaterLimitMl"))
+        assertEquals(explicit, CustomCurveDocument.decode(newJson.toString()))
+        rejects { CustomCurveDocument.decode(newJson.put("schema", 1).toString()) }
+        rejects { CustomCurveDocument.decode(oldJson.put("schema", 2).toString()) }
+        for (value in listOf<Any>(org.json.JSONObject.NULL, "70", 70.5, -1, 0, 801)) {
+            rejects { CustomCurveDocument.decode(org.json.JSONObject(explicit.encode()).put("totalWaterLimitMl", value).toString()) }
+        }
+        rejects { CustomCurveDocument.decode(org.json.JSONObject(explicit.encode()).put("unknown", 1).toString()) }
+        assertNull(CustomCurveDocument.decode(legacy.encode()).totalWaterLimitMl)
+    }
+    @Test fun independentLimitBoundsKeepStageAllocationUnchanged() {
+        val original = doc()
+        assertEquals(original.stages, original.copy(totalWaterLimitMl = 55).also { it.validate() }.stages)
+        original.copy(totalWaterLimitMl = 800).validate()
+        val fractional = original.copy(stages = listOf(CustomCurveDocument.Stage(90, 551)))
+        assertEquals(800, fractional.maximumSupportedWaterLimitMl)
+        fractional.copy(totalWaterLimitMl = 1).validate()
+        fractional.copy(totalWaterLimitMl = 56).validate()
+        rejects { original.copy(totalWaterLimitMl = 0).validate() }
+        val large = original.copy(stages = listOf(CustomCurveDocument.Stage(90, 9000)))
+        large.copy(totalWaterLimitMl = 900).validate()
+        large.copy(totalWaterLimitMl = 40).validate()
+        rejects { large.copy(totalWaterLimitMl = 901).validate() }
+    }
+    @Test fun mixedStoreKeepsOldDocumentsAndPersistsEditedLimitAcrossReopenAndCopy() {
+        val disk = Store(); val store = CustomCurveStore(disk)
+        store.save(doc())
+        val oldBytes = disk.value
+        val reopened = CustomCurveStore(disk)
+        assertEquals(oldBytes, disk.value)
+        val changed = doc().copy(totalWaterLimitMl = 70)
+        reopened.save(changed)
+        assertEquals(changed, CustomCurveStore(disk).find(changed.id))
+        val copy = reopened.saveCopy(changed)
+        assertEquals(70, copy.totalWaterLimitMl); assertEquals(changed.stages, copy.stages)
+        assertEquals(copy, CustomCurveStore(disk).find(copy.id))
+        val legacySibling = doc("draft-00000000-0000-0000-0000-000000000002")
+        reopened.save(legacySibling)
+        val mixed = CustomCurveStore(disk)
+        assertEquals(legacySibling, mixed.find(legacySibling.id))
+        assertEquals(changed, mixed.find(changed.id))
+        assertEquals(copy, mixed.find(copy.id))
+        assertEquals(CustomCurveStore.ImportStatus.ALREADY_EXISTS, reopened.importDocument(changed).status)
+        assertEquals(CustomCurveStore.ImportStatus.CONFLICT, reopened.importDocument(changed.copy(totalWaterLimitMl = 71)).status)
+        reopened.save(changed.copy(totalWaterLimitMl = null))
+        assertNull(CustomCurveStore(disk).find(changed.id)!!.totalWaterLimitMl)
+    }
+    @Test fun legacyFingerprintIsStableAndExplicitLimitChangesRecipeIdentity() {
+        val old = doc()
+        assertEquals("d58f8b3be5be03843b32c65f88367dcdde57a40bdb077ce785450a1a3ff2aebf", CustomCurveFingerprint.of(old))
+        val explicit = old.copy(totalWaterLimitMl = 55)
+        assertNotEquals(CustomCurveFingerprint.of(old), CustomCurveFingerprint.of(explicit))
+        assertNotEquals(CustomCurveFingerprint.of(explicit), CustomCurveFingerprint.of(explicit.copy(totalWaterLimitMl = 70)))
+        assertEquals(CustomCurveFingerprint.of(explicit), CustomCurveFingerprint.of(explicit.copy(name = "renamed")))
+    }
     @Test fun validatesKnownRangesAndAtMostFourStages() {
         rejects { doc().copy(temperatureC = 74).encode() }
         rejects { doc().copy(targetHundredthsGram = -1).encode() }
@@ -74,6 +135,7 @@ class CustomCurveTest {
         assertTrue(draft.id.startsWith("draft-"))
         assertEquals(90, draft.stages.first().target)
         assertEquals(350, draft.stages.first().waterTenthsMl)
+        assertEquals(profile.parameters.maximumWaterMl, draft.totalWaterLimitMl)
         assertFalse(library.canStart(original))
         val flowProfile = CurveCatalog.profiles[1]
         val flow = CustomCurveDocument.fromLibraryItem(

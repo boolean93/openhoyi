@@ -82,6 +82,17 @@ class CurveEditorActivity : ThemedActivity() {
             style.unit(target, "bar", "curve-editor", "target-$index")
             style.unit(water, "ml", "curve-editor", "water-$index")
         }
+        val totalLimit = field(sections.waterLimit, "total-water-limit", R.string.profiles_total_water_limit,
+            source.totalWaterLimitMl?.toString().orEmpty(), compactLabel = getString(R.string.profiles_total_water_limit_title)).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            hint = getString(R.string.profiles_total_water_limit_hint)
+        }
+        style.unit(totalLimit, "mL", "curve-editor", "total-water-limit")
+        val assignedWater = style.visual.text("", TaskProductVisualStyle.auxiliary,
+            "product/form/curve-editor/assigned-water", true)
+        style.visual.add(sections.waterLimit, assignedWater, 8)
+        style.visual.add(sections.waterLimit, style.visual.text(getString(R.string.profiles_total_water_limit_scale),
+            TaskProductVisualStyle.auxiliary, secondary = true), 8)
         var previewChanged: () -> Unit = {}
         fun visibility() {
             sections.setStageCount(stageCount)
@@ -94,10 +105,25 @@ class CurveEditorActivity : ThemedActivity() {
         sections.stageHeader.addView(selector, LinearLayout.LayoutParams(HoyiUi.dp(this, 192), -2))
         visibility()
         val error = style.error(beanError(body))
-        fun parsed(): CustomCurveDocument = CustomCurveDocument(draftId, name.text.toString().trim(),
-            CurveDraftNumber.parse(temperature.text.toString(), 0), CurveDraftNumber.parse(cup.text.toString(), 2), CustomCurveDocument.ControlMode.PRESSURE,
-            (0 until stageCount).map { CustomCurveDocument.Stage(CurveDraftNumber.parse(fields.getValue("target-$it").text.toString(), 1), CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1)) })
-            .also { it.validate() }
+        fun parsed(): CustomCurveDocument {
+            val stages = (0 until stageCount).map {
+                CustomCurveDocument.Stage(CurveDraftNumber.parse(fields.getValue("target-$it").text.toString(), 1),
+                    CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1))
+            }
+            val maximum = maxOf(((stages.sumOf { it.waterTenthsMl.toLong() } + 9) / 10).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), 800)
+            val limit = totalLimit.text.toString().trim().takeIf { it.isNotEmpty() }?.let { text ->
+                try { CurveDraftNumber.parse(text, 0) }
+                catch (_: IllegalArgumentException) { throw CurveWaterLimitException(maximum) }
+            }
+            return CustomCurveDocument(draftId, name.text.toString().trim(),
+                CurveDraftNumber.parse(temperature.text.toString(), 0), CurveDraftNumber.parse(cup.text.toString(), 2),
+                CustomCurveDocument.ControlMode.PRESSURE, stages, limit).also { it.validate() }
+        }
+        fun showError(failure: Throwable) {
+            error.text = if (failure is CurveWaterLimitException)
+                getString(R.string.profiles_total_water_limit_invalid, 1, failure.maximumMl)
+            else getString(R.string.profiles_invalid)
+        }
         val preview = CurveStageView(this).apply { tag = "task-form-stage-preview"; productVisualStyle = style.visual }
         style.visual.add(sections.supportingBody, style.visual.text(getString(R.string.profiles_preview), TaskProductVisualStyle.section))
         sections.supportingBody.addView(preview, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 280)))
@@ -107,10 +133,16 @@ class CurveEditorActivity : ThemedActivity() {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         previewChanged = {
+            assignedWater.text = runCatching {
+                val tenths = (0 until stageCount).sumOf {
+                    CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1).also { require(it in 1..65535) }
+                }
+                getString(R.string.profiles_assigned_water, CurveDraftNumber.format(tenths, 1))
+            }.getOrElse { getString(R.string.profiles_assigned_water_invalid) }
             runCatching { parsed() }.onSuccess { doc ->
                 preview.targets = doc.stages.map { it.target }
                 preview.contentDescription = profileSummary(doc)
-                previewStatus.text = getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size)
+                previewStatus.text = getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size) + "\n" + profileWaterLimitSummary(doc)
             }.onFailure {
                 preview.targets = emptyList()
                 preview.contentDescription = getString(R.string.profiles_invalid)
@@ -135,11 +167,12 @@ class CurveEditorActivity : ThemedActivity() {
             })
         }
         HoyiUi.button(this, supportingActions, getString(R.string.profiles_preview)) {
-            runCatching { parsed() }.onSuccess { profilePreviewDialog(it); error.text = "" }.onFailure { error.setText(R.string.profiles_invalid) }
+            runCatching { parsed() }.onSuccess { profilePreviewDialog(it); error.text = "" }.onFailure(::showError)
         }.apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f); style.visual.button(this) }
         HoyiUi.button(this, supportingActions, getString(R.string.ui_full_details)) {
             beanDetails(getString(R.string.profiles_editor), listOf(R.string.profiles_temperature, R.string.profiles_cup,
-                R.string.profiles_pressure, R.string.profiles_water, R.string.profiles_pressure_execution_limits).joinToString("\n\n") { getString(it) })
+                R.string.profiles_pressure, R.string.profiles_water, R.string.profiles_total_water_limit,
+                R.string.profiles_total_water_limit_scale, R.string.profiles_pressure_execution_limits).joinToString("\n\n") { getString(it) })
         }.apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f); style.visual.button(this) }
         val footer = beanActions(body)
         val actionRow = style.visual.row()
@@ -151,7 +184,7 @@ class CurveEditorActivity : ThemedActivity() {
             "product/form/curve-editor/scope", true)
         footer.addView(style.footer(notice, actionRow, "curve-editor", topRule = true), LinearLayout.LayoutParams(-1, -2))
         save.setOnClickListener {
-            val doc = runCatching { parsed() }.getOrElse { error.setText(R.string.profiles_invalid); return@setOnClickListener }
+            val doc = runCatching { parsed() }.getOrElse { showError(it); return@setOnClickListener }
             val available = (application as MobileApplication).customCurvesResult.getOrNull()
             if (available == null) { error.setText(R.string.profiles_unavailable); save.isEnabled = false; return@setOnClickListener }
             save.isEnabled = false

@@ -14,7 +14,8 @@ object CustomPressureStartPolicy {
             water.take(p.segmentCount).any {it !in 10..65530 || it%10!=0} ||
             targets.drop(p.segmentCount).any {it!=0} || water.drop(p.segmentCount).any {it!=0})return false
         val totalMl=water.sum()/10
-        // The only supported expansion is the legacy 4× target-weight ceiling (max 200g).
-        return p.maximumWaterMl in totalMl..maxOf(totalMl,800)
+        // Legacy APKs store an independent cumulative-water threshold, including below the
+        // stage allocation. Firmware consumes it separately; keep the existing upper bound.
+        return p.maximumWaterMl in 1..maxOf(totalMl,800)
     }
 }
