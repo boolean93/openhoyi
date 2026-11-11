@@ -254,7 +254,7 @@ for profile in landscape wideFont; do
   run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
   grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=2 themes=2 pages=6 fixtures=24 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=2 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
-  grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=2 themes=2 curveKinds=5 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=2 themes=2 curveKinds=5 manualWarnings=3 cancelledLowTemperaturePreparation=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=2 themes=2 choices=2 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   adb pull "/sdcard/Android/data/$package/files/language-detail-success" "$output_dir/"
   python3 - "$output_dir/language-detail-success" "$profile" <<'FOOTER_PY'

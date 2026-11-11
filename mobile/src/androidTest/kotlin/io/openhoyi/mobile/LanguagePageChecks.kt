@@ -159,7 +159,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                         "Curve" -> detailChecks.curves(home, fixture) { checkPage(home, it) }
                         "Extraction" -> {
                             onMain { TrendChartTextChecks.run(home, fixture) }
-                            detailChecks.cancelStart(home, fixture)
+                            detailChecks.cancelLowTemperaturePreparation(home, fixture)
                         }
                         "AppSettings" -> {
                             home = LanguageSelectorUiChecks(test).run(home) { home = it }
