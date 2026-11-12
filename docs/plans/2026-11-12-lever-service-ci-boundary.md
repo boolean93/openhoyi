@@ -21,3 +21,9 @@
 - compileDebugKotlin / compileMockKotlin 通过。
 - compileMockAndroidTestKotlin 与 testMockUnitTest 最终单 worker、in-process 执行通过。首次并行构建出现 Kotlin daemon 读取 classes.jar 内部异常，未将该失败记为通过，停止并行后重跑成功。
 - 新增实窗断言仅编译，未执行设备 instrumentation；继续保留合入后同 SHA push lifecycle/upgrade 门禁。
+
+## 后续上下文所有者补充
+
+- PR #63 / develop 0f3cee6a 的 push upgrade 43176029142 已成功；lifecycle 43176029171 通过原首页 idle/navigation 阶段，继续到语言检查中 ServiceOwnerCleanupChecks 才失败。
+- 该旧夹具使用隔离 applicationContext wrapper 以保护原数据，同时正确设置 Service.mApplication。获取 journal 必须优先 Android 提供的 Service.application，只有未 attach 的测试构造才回落 applicationContext；两条路径均严格要求原进程 MobileApplication，不得新建 store 或吞异常放行。
+- 补修分支 fix/lever-service-context-owner 来自上述最新 develop，补齐双上下文回归；继续 scripts/create-pr、本地完整检查、PR门禁及合入后的发布门禁，不修改现有夹具保护和断言。

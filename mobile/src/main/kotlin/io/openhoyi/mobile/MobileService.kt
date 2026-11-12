@@ -1209,9 +1209,10 @@ class MobileService : Service() {
         }
         return null
     }
-    // Context ownership is available after attachBaseContext, including detached upgrade checks.
-    // Never substitute an empty journal: missing/wrong application must fail closed.
-    private val leverStore get() = (applicationContext as MobileApplication).leverRecipes
+    // The framework-attached Application owns the journal even when the base context is isolated.
+    // Detached upgrade checks have only a base context. Never substitute an empty journal.
+    private val leverStore get() = ((application as? MobileApplication)
+        ?: (applicationContext as MobileApplication)).leverRecipes
     private var leverInFlight: String? = null
     internal val leverDeviceAddress: String? get() = if (mock != null) "00:00:00:00:00:01" else hub?.coffeeAddress
     private val leverWriteBlock: String? get() = if (leverStore.blocked)

@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Instrumentation
+import android.app.Service
 import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Bitmap
@@ -97,10 +98,22 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
                 val journalGetter = MobileService::class.java.getDeclaredMethod("getLeverStore")
                     .apply { isAccessible = true }
                 check(journalGetter.invoke(detached) === lever) { "Detached Service must use the process journal" }
+                // Match lifecycle's attached owner with an isolated applicationContext wrapper.
+                val attached = MobileService()
+                val isolated = object : ContextWrapper(app) {
+                    override fun getApplicationContext(): Context = this
+                }
+                ContextWrapper::class.java.getDeclaredMethod("attachBaseContext", Context::class.java)
+                    .apply { isAccessible = true }.invoke(attached, isolated)
+                Service::class.java.getDeclaredField("mApplication").apply { isAccessible = true }.set(attached, app)
+                check(attached.applicationContext === isolated && attached.application === app)
+                check(journalGetter.invoke(attached) === lever) { "Attached Service must prefer its framework owner" }
                 usable.setBoolean(lever, false)
                 try {
-                    check(detached.machineControlSafetyMessage == detached.getString(R.string.lever_unresolved))
-                    check(detached.leverRecipeWriteBlock() == detached.getString(R.string.lever_unresolved))
+                    for (subject in listOf(detached, attached)) {
+                        check(subject.machineControlSafetyMessage == subject.getString(R.string.lever_unresolved))
+                        check(subject.leverRecipeWriteBlock() == subject.getString(R.string.lever_unresolved))
+                    }
                 } finally { usable.setBoolean(lever, true) }
 
                 @Suppress("UNCHECKED_CAST") val source = originalDocs as Map<String, CustomCurveDocument>
