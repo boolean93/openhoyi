@@ -16,8 +16,8 @@
     <string name="scale_tare_idle">去皮：尚未请求</string>
     <string name="scale_tare_waiting">去皮：等待归零回报</string>
     <string name="scale_tare_confirmed">去皮：已观察到归零</string>
-    <string name="scale_tare_failed">去皮：请求未完成</string>
-    <string name="scale_tare_unknown">去皮：结果未知，不会自动重发</string>
+    <string name="scale_tare_failed">去皮失败</string>
+    <string name="scale_tare_unknown">归零未确认</string>
     <string name="scale_active_guard">萃取进行中或结果未确认，不能去皮、换秤或取作粉量</string>
     <string name="scale_timer_title">App 本地计时</string>
     <string name="scale_timer_help">手动开始；不是秤内计时，也不用于自动停水</string>
@@ -78,4 +78,5 @@
     <string name="scale_operation_limits">操作限制</string>
     <string name="scale_protocol_support">协议支持</string>
     <string name="scale_documented_target_live">支持目标液重联动；待实机验收，不支持称豆采集</string>
+    <string name="scale_tare_retry">重新去皮</string>
 </resources>

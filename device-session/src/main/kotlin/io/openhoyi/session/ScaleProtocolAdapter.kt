@@ -6,6 +6,7 @@ data class ScaleHeartbeat(val command:EncodedCommand,val intervalMs:Long)
 
 sealed interface ScaleProtocolEvent {
     data object ReadingInvalidated:ScaleProtocolEvent
+    data object FrameBoundaryResynchronized:ScaleProtocolEvent
     data class TareAcknowledgement(val success:Boolean):ScaleProtocolEvent
 }
 

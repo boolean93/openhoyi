@@ -320,7 +320,7 @@
   "home_tare_writing": "Sending request",
   "home_tare_waiting": "Request written; waiting for zero reading",
   "home_tare_confirmed": "Zero reading received",
-  "home_tare_unknown": "Outcome unknown; check the scale",
+  "home_tare_unknown": "Zero unconfirmed; you can tare again",
   "home_sleep_stale": "No fresh state available",
   "home_sleep_awake": "Standby",
   "home_sleep_asleep": "Asleep · Use the coffee machine lever to wake it",
@@ -655,8 +655,8 @@
   "export_history_partial": "Exported %1$s history records and %2$s curves; %3$s sample sets unavailable",
   "export_history_failed": "History export failed: %1$s",
   "service_setting_unresolved": "Previous machine setting outcome unknown; wait for new settings readback or reconnect",
-  "service_tare_start_wait": "Waiting for scale zero",
-  "service_tare_start_unknown": "Zero unconfirmed. Tare again",
+  "service_tare_start_wait": "Still waiting for scale zero. Please wait",
+  "service_tare_start_unknown": "Zero unconfirmed. Tare again before starting",
   "service_tare_confirmed": "Scale zero confirmed",
   "service_tare_unknown": "Tare outcome unknown; tare again and wait for zero",
   "service_tare_mock": "Mock scale zero confirmed; no Bluetooth commands sent",
@@ -830,7 +830,7 @@
   "service_event_mock_temperature_ready": "Mock target temperature reached; no Bluetooth commands sent",
   "service_event_shot_clear_failed": "Cannot clear extraction safety record; check the machine and retry.",
   "service_event_preheat_clear_failed": "Cannot clear preheat safety record; check the machine",
-  "service_event_tare_unconfirmed": "Scale tare not confirmed; coffee machine did not start",
+  "service_event_tare_unconfirmed": "Start cancelled; coffee machine did not start. Check tare status",
   "service_event_conditions_changed": "Start conditions changed; coffee machine did not start. Recheck curve and machine settings",
   "service_event_mock_started": "Mock data started; all device commands are simulated",
   "service_event_credential_save_failed": "Coffee machine connected, but password could not be saved locally",
@@ -991,5 +991,6 @@
   "home_boiler_retry_off": "Retry off",
   "task_shell_machine_preheating": "Preheating",
   "task_shell_machine_preheat_ready": "Preheat ready",
-  "home_boiler_preheat_occupied": "Preheat busy"
+  "home_boiler_preheat_occupied": "Preheat busy",
+  "service_event_tare_cancelled_waiting": "Start cancelled. Wait for scale zero, then start again"
 }

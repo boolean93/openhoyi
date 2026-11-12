@@ -70,7 +70,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit) }
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
-    val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})
+    val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()},{scaleSampleSerial})
     // Retain the current-device reflection contract used by lifecycle diagnostics.
     private var scale:AndroidDevice=scaleSlot.replace(ScaleSelection("",BookooScaleProtocolAdapter.id)) {
         createScaleOwner(it,BookooScaleProtocolAdapter)

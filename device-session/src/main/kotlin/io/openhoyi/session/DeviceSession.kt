@@ -155,6 +155,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private fun scaleEvent(expected:Long,event:ScaleProtocolEvent) {
         if(!ownsInitialization(expected))return
         when(event) {
+            ScaleProtocolEvent.FrameBoundaryResynchronized->diagnostic("scale frame boundary resynchronized")
             ScaleProtocolEvent.ReadingInvalidated->if(state==DeviceState.READY)
                 initializationState(expected,DeviceState.SYNCHRONIZING,5000)
             is ScaleProtocolEvent.TareAcknowledgement->scaleTare?.takeIf {it.dispatched}?.let {

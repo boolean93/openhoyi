@@ -111,7 +111,7 @@ abstract class DiFluidProtocolAdapter(service:String,final override val id:Strin
         TimedCommand(1000,DiFluidCodec.setGrams().frame),TimedCommand(1200,DiFluidCodec.readUnit().frame))
     override val tareCommand get()=DiFluidCodec.tare()
     override fun newDecoder(onEvent:(ScaleProtocolEvent)->Unit):(ByteArray,Long)->DecodeResult<ScaleObservation> {
-        val stream=DiFluidStreamDecoder()
+        val stream=DiFluidStreamDecoder {onEvent(ScaleProtocolEvent.FrameBoundaryResynchronized)}
         var gramsConfirmed=false
         return {bytes,at->
             var observation:DecodeResult<ScaleObservation> = DecodeResult.Unknown(ByteFrame(bytes))
