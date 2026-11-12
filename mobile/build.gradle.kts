@@ -3,10 +3,13 @@ apply(from = "distribution.gradle.kts")
 @Suppress("UNCHECKED_CAST")
 val externalSigning = extra["hoyiExternalSigning"] as Map<String, String?>
 val externalSigningComplete = extra["hoyiExternalSigningComplete"] as Boolean
+val updateChecks = providers.gradleProperty("hoyiUpdateChecks").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiUpdateChecks must be true or false") }
+} ?: false
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
-    testBuildType = "mock"
+    testBuildType = if (updateChecks) "updateFixture" else "mock"
     defaultConfig {
         applicationId = "io.openhoyi.mobile"
         minSdk = 26
@@ -15,7 +18,7 @@ android {
         resourceConfigurations += listOf("zh", "en")
         versionCode = extra["hoyiDistributionVersionCode"] as Int
         versionName = extra["hoyiDistributionVersionName"] as String
-        testInstrumentationRunner = "io.openhoyi.mobile.BrewAudioInstrumentation"
+        testInstrumentationRunner = if (updateChecks) "io.openhoyi.mobile.UpdateAcceptanceInstrumentation" else "io.openhoyi.mobile.BrewAudioInstrumentation"
     }
     buildFeatures { buildConfig = true }
     if (externalSigningComplete) {
@@ -39,6 +42,21 @@ android {
             buildConfigField("boolean", "MOCK_MODE", "true")
         }
     }
+    if (updateChecks) {
+        buildTypes.create("updateFixture") {
+            initWith(buildTypes.getByName("mock"))
+            applicationIdSuffix = ".updatefixture"
+            matchingFallbacks += listOf("mock", "debug")
+        }
+        sourceSets.getByName("updateFixture") {
+            java.srcDir("src/mock/kotlin")
+            res.srcDir("src/mock/res")
+        }
+        sourceSets.getByName("androidTest") {
+            manifest.srcFile("src/updateFixtureTest/AndroidManifest.xml")
+            java.setSrcDirs(listOf("src/updateFixtureTest/kotlin"))
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }
@@ -47,6 +65,7 @@ dependencies {
     implementation(project(":bean-core"))
     implementation(project(":bluetooth-android"))
     implementation(project(":trace-core"))
+    implementation("com.android.tools.build:apksig:8.10.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
@@ -74,4 +93,26 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     inputs.file(rootProject.file("docs/evidence/local-brew-audio-assets.json"))
         .withPropertyName("brewFeedbackProvenance")
         .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+}
+
+// Exercise the actual runtime APK-signature verifier using tiny, locally generated signed bytes.
+// Fixture keys are generated outside the repository and destroyed before this task returns.
+val updateApkFixtureDirectory = layout.buildDirectory.dir("update-apk-fixtures")
+val prepareUpdateApkFixtures = tasks.register<Exec>("prepareUpdateApkFixtures") {
+    inputs.file(rootProject.file("scripts/prepare_update_apk_fixtures.py"))
+    outputs.dir(updateApkFixtureDirectory)
+    commandLine("python3", rootProject.file("scripts/prepare_update_apk_fixtures.py").absolutePath,
+        "--sdk", android.sdkDirectory.absolutePath, "--output", updateApkFixtureDirectory.get().asFile.absolutePath)
+}
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    dependsOn(prepareUpdateApkFixtures)
+    systemProperty("hoyi.update.fixture.dir", updateApkFixtureDirectory.get().asFile.absolutePath)
+}
+
+if (updateChecks) {
+    android.sourceSets.getByName("updateFixture").assets.srcDir(updateApkFixtureDirectory)
+    tasks.matching { it.name == "mergeUpdateFixtureAssets" }.configureEach { dependsOn(prepareUpdateApkFixtures) }
+}
+if (updateChecks) {
+    kotlin.sourceSets.getByName("androidTest").kotlin.setSrcDirs(listOf("src/updateFixtureTest/kotlin"))
 }

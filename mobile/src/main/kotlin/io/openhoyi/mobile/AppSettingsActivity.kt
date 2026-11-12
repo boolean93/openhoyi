@@ -54,7 +54,7 @@ class AppSettingsActivity : ThemedActivity() {
         val body=visual.page(this,R.string.app_settings_title,R.string.app_settings_subtitle,640,"app")
         val theme = settingsGroup(this, body, getString(R.string.settings_appearance_language), visual)
         val appearance = getSharedPreferences("appearance", MODE_PRIVATE)
-        themeCheckBox = Switch(this).apply {
+        themeCheckBox = HoyiSwitch(this).apply {
             text = getString(R.string.app_settings_dark)
             textSize = TaskVisualTokens.BODY_SP.toFloat()
             typeface = TaskTypography.face(this@AppSettingsActivity, 400)

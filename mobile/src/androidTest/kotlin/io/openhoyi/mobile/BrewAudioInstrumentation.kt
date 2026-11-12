@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var unifiedSwitchChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
     private var shortcutTheme: Boolean? = null
@@ -60,6 +61,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         darkThemeWindow = arguments?.getString("darkThemeWindow")?.let { check(it in setOf("light", "dark")); it == "dark" }
         connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
         settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
@@ -112,6 +114,11 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (liveScaleReadoutChecks) {
                 ExtractionScaleWindowChecks(this).run()
                 report.putString("stream", "LIVE_SCALE_WINDOW_PASSED realMockService=true actualStopButton=true retainedTestShot=true portraitDark=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (unifiedSwitchChecks) {
+                UnifiedSwitchChecks(this).run()
+                report.putString("stream", "UNIFIED_SWITCH_PASSED lightDark=true states=true rtl=true rejectedSave=true restoration=true repeated=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (shortcutDirectStartChecks) {

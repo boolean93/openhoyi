@@ -47,8 +47,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
         val store = app.customCurvesResult.getOrThrow()
-        val docs = store.javaClass.getDeclaredField("documents").apply { isAccessible = true }
-        val originalDocs = docs.get(store)
+        val curveFixture = CustomCurveWindowFixture(store)
         val curvePrefs = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val slotPrefs = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
         val shortcutPrefs = context.getSharedPreferences("shortcut_start", Context.MODE_PRIVATE)
@@ -63,8 +62,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             CustomCurveDocument.ControlMode.PRESSURE,
             listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
         fun put(doc: CustomCurveDocument?) {
-            @Suppress("UNCHECKED_CAST") val old = originalDocs as Map<String, CustomCurveDocument>
-            docs.set(store, LinkedHashMap(old).apply { if (doc != null) put(doc.id, doc) })
+            curveFixture.replace(doc)
         }
         val directory = File(context.getExternalFilesDir(null), "custom-shortcut-checks").apply { mkdirs() }
         fun capture(name: String) {
@@ -138,7 +136,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                 capture("missing-shortcut")
             } finally { test.removeMonitor(monitor) }
         } finally {
-            try { main { docs.set(store, originalDocs); activity?.finish() } }
+            try { main { curveFixture.restore(); activity?.finish() } }
             finally {
                 check(shortcutPrefs.edit().apply {
                     if (shortcutDirect == null) remove("direct_start") else putBoolean("direct_start", shortcutDirect)

@@ -11,6 +11,8 @@ data class ReleaseUpdate(
     val apkSha256: String,
     val downloadUrl: String,
     val releaseUrl: String,
+    internal val indexJson: String? = null,
+    val apkSize: Long = 0,
 )
 
 object ReleaseUpdateIndex {
@@ -55,7 +57,7 @@ object ReleaseUpdateIndex {
         require(string("releaseUrl") == releaseUrl && string("downloadUrl") == downloadUrl)
         require(string("distributionUrl") == prefix + "distribution.json")
         require(string("checksumsUrl") == prefix + "SHA256SUMS.txt")
-        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl)
+        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl, json, integer("apkSize"))
     }
 
     /** Schema v1 is flat. Reject JSONTokener's Android leniencies and duplicate keys explicitly. */

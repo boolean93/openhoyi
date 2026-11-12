@@ -1,5 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <queries>
+        <intent><action android:name="android.intent.action.INSTALL_PACKAGE" /><data android:mimeType="application/vnd.android.package-archive" /></intent>
+        <intent><action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES" /></intent>
+    </queries>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -35,6 +40,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
         <service android:name=".MobileService" android:exported="false" android:foregroundServiceType="connectedDevice" android:stopWithTask="false" />
     </application>
 </manifest>

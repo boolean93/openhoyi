@@ -150,7 +150,7 @@ class AppSettingsFragment : Fragment() {
         val scale=sections.getValue("scale")
         scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),TaskProductVisualStyle.auxiliary,secondary=true)
         val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
-        scale.addView(Switch(activity).apply {
+        scale.addView(HoyiSwitch(activity).apply {
             text = getString(R.string.scale_precision_short)
             isChecked = prefs.getBoolean("one_decimal", false)
             visual.switch(this, 48)
@@ -167,7 +167,7 @@ class AppSettingsFragment : Fragment() {
         }
         val shortcutSection = sections.getValue("shortcuts")
         val shortcutPreferences = ShortcutStartPreferences(activity)
-        shortcutToggle = Switch(activity).apply {
+        shortcutToggle = HoyiSwitch(activity).apply {
             text = getString(R.string.shortcut_start_setting)
             isChecked = shortcutPreferences.read().startsOnTap
             tag = "product/settings/shortcuts/direct-start"
@@ -200,7 +200,7 @@ class AppSettingsFragment : Fragment() {
         themeError = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/theme/error").apply {
             setTextColor(activity.getColor(R.color.mobile_danger)); visibility = View.GONE
         }
-        val toggle = Switch(activity).apply {
+        val toggle = HoyiSwitch(activity).apply {
             text = getString(R.string.app_settings_dark)
             isChecked = appearance.getBoolean("dark", false)
             minimumHeight = style.dp(52)
@@ -244,7 +244,6 @@ class AppSettingsFragment : Fragment() {
             style.add(info, pair)
         }
         infoRow("name", R.string.settings_info_name, getString(R.string.app_name))
-        infoRow("version", R.string.settings_info_version, getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
         infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
         infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
         updateCard = ReleaseUpdateCard(activity, info, visual)
