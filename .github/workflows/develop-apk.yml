@@ -170,3 +170,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/develop_release.py release-lease
+
+  release-list-notice:
+    needs: [plan, publish, cleanup]
+    if: >-
+      always() && !cancelled() && needs.plan.result == 'success' &&
+      vars.DEVELOP_APK_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Link the first visible release to the newest public test version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_list_notice.py
