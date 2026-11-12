@@ -33,5 +33,5 @@
 - 原头 `65c9b810` 的单次手动 lifecycle run `43201937639` 全成功，原720×360 idle/running/last-curve三几何断言及横竖×浅暗四组一键流程通过。
 - 实际紧凑卡 `Rect(444,452–628,612)`：160px=80dp全高可见，viewport底624，余12px；开关 `Rect(420,356–642,452)`：96px=48dp完整可见。不是通过降低断言掩盖问题。
 - 协调层独立屏幕复核通过。浅暗紧凑图证明卡片底边/名称/预览完整；竖屏两图仅证明开关及底部导航，卡片在下方正常滚动区，不声称整页无需滚动。既有紧凑顶栏拆字非本次引入。
-- 按跨PR排序先让#69合入，再普通merge `3ac5b9144c3f75b7150c5f9f784d7e2960be910b`，保留其重量证据及显示修复。本补修UI/主题/几何测试文件与已实窗头逐文件相同；新头仍重新等待必需CI。
+- 按跨PR排序先让#69合入，再普通merge `3ac5b9144c3f75b7150c5f9f784d7e2960be910b`，保留其重量证据及显示修复。HomeFragment、ThemedActivity、MainNavigationChecks、ShortcutDirectStartWindowChecks与已实窗头逐文件相同；BrewAudioInstrumentation仅并入#69独立选择器，原快捷截图分支未变。新头仍重新等待必需CI。
 - 只有云Mock实际窗口证据，没有真实机器/本地AVD/设备安装。最终合入仍需新头必需CI及strict-base一致。
