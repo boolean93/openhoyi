@@ -45,7 +45,7 @@ class UpdateAcceptanceInstrumentation : Instrumentation() {
             override fun onActivityCreated(a:Activity,b:Bundle?)=Unit
             override fun onActivityStarted(a:Activity)=Unit
             override fun onActivityStopped(a:Activity)=Unit
-            override fun onActivityPaused(a:Activity)=Unit
+            override fun onActivityPaused(a:Activity){if(current.get()===a)current.set(null)}
             override fun onActivitySaveInstanceState(a:Activity,b:Bundle)=Unit
         }
         try {
@@ -69,6 +69,7 @@ class UpdateAcceptanceInstrumentation : Instrumentation() {
                 }
                 activity=current.get()!!
                 val a=activity
+                awaitHostWindow(a,"$orientation/$dark before hint")
                 main{a.showHint()};capture(a,"$orientation-${if(dark)"dark" else "light"}-fixture-B")
                 main{val hint=a.javaClass.getDeclaredField("hint").apply{isAccessible=true}.get(a)!!
                     val shell=hint.javaClass.getDeclaredField("shell").apply{isAccessible=true}.get(hint) as View
@@ -127,7 +128,31 @@ class UpdateAcceptanceInstrumentation : Instrumentation() {
             finish(Activity.RESULT_CANCELED,result)
         }finally{main{activity?.closeWindows();activity?.finish()};app.unregisterActivityLifecycleCallbacks(callbacks)}
     }
+    /** Resume/configuration completion does not mean accessibility has switched from the launcher yet. */
+    private fun awaitHostWindow(activity:Activity,label:String){
+        val until=SystemClock.elapsedRealtime()+10000
+        var stable=0;var nullRoots=0;var foreignRoots=0
+        var last=""
+        while(true){
+            var resumed=false;var attached=false;var shown=false;var focused=false;var sized=false
+            main{
+                val content=activity.findViewById<View>(android.R.id.content)
+                resumed=current.get()===activity&&!activity.isFinishing&&!activity.isDestroyed
+                attached=content.isAttachedToWindow;shown=content.isShown
+                focused=activity.hasWindowFocus();sized=content.width>0&&content.height>0
+            }
+            val active=uiAutomation.rootInActiveWindow?.packageName?.toString()
+            if(active==null)nullRoots++ else if(active!=host)foreignRoots++
+            val ready=resumed&&attached&&shown&&focused&&sized&&active==host
+            stable=if(ready)stable+1 else 0
+            if(stable>=2)return
+            last="resumed=$resumed attached=$attached shown=$shown focused=$focused sized=$sized activePackage=${active?:"<null>"} nullRoots=$nullRoots foreignRoots=$foreignRoots"
+            check(SystemClock.elapsedRealtime()<until){"Refusing a foreign/unready-window screenshot ($label): $last"}
+            SystemClock.sleep(40)
+        }
+    }
     private fun capture(activity:Activity,name:String){
+        awaitHostWindow(activity,name)
         val drawn=java.util.concurrent.CountDownLatch(1)
         main{activity.findViewById<View>(android.R.id.content).postOnAnimation {
             activity.findViewById<View>(android.R.id.content).postOnAnimation {drawn.countDown()}
@@ -137,9 +162,12 @@ class UpdateAcceptanceInstrumentation : Instrumentation() {
             val content=activity.findViewById<View>(android.R.id.content)
             val at=IntArray(2);content.getLocationOnScreen(at);rect.set(at[0],at[1],at[0]+content.width,at[1]+content.height)
         }
-        check(uiAutomation.rootInActiveWindow?.packageName?.toString()==host){"Refusing a foreign-window screenshot"}
+        // Recheck after draw/layout waiting, and discard a captured frame if foreground changed during capture.
+        check(uiAutomation.rootInActiveWindow?.packageName?.toString()==host){"Refusing a foreign-window screenshot before capture ($name)"}
         val raw=requireNotNull(uiAutomation.takeScreenshot())
         try{
+            check(uiAutomation.rootInActiveWindow?.packageName?.toString()==host){"Discarding a foreign-window screenshot after capture ($name)"}
+            main{check(current.get()===activity&&!activity.isFinishing&&!activity.isDestroyed){"Activity left foreground during capture ($name)"}}
             check(rect.left>=0&&rect.top>=0&&rect.right<=raw.width&&rect.bottom<=raw.height&&!rect.isEmpty)
             val cropped=Bitmap.createBitmap(raw,rect.left,rect.top,rect.width(),rect.height())
             try{File(output,"$name.png").outputStream().use{check(cropped.compress(Bitmap.CompressFormat.PNG,100,it))}}
