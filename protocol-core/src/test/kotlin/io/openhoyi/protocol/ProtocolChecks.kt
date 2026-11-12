@@ -8,6 +8,24 @@ private fun verify(value: Boolean) { checks++; check(value) { "Protocol check $c
 private fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 private fun rejected(block: () -> Unit) { verify(runCatching(block).exceptionOrNull() is IllegalArgumentException) }
 fun main() {
+    val stored = StartParameters(true, false, 2, 7, 92, 70, false, 3,
+        30, 90, 0, 0, 150, 8, 400, 0, 0)
+    val candidate = StoredLeverRecipeFormat.candidate(stored).toByteArray()
+    verify(candidate.contentEquals(hex("08825c0046031e5a0000009608019000000000d8")))
+    verify(candidate.size == 20 && (candidate[0].toInt() and 255) == 8)
+    verify((candidate[1].toInt() and 255) == 0x82)
+    verify(candidate.fold(0) { a, b -> a xor (b.toInt() and 255) } == 0)
+    verify(candidate.copyOfRange(2, 19).contentEquals(CoffeeCommands.start(stored).frame.toByteArray().copyOfRange(2, 19)))
+    verify(StoredLeverRecipeFormat.candidate(stored.copy(slot = 1)) == StoredLeverRecipeFormat.candidate(stored))
+    val flowCandidate = StoredLeverRecipeFormat.candidate(stored.copy(variableFlowLogic = true,
+        firstSegmentFlowMode = true, segmentCount = 4)).toByteArray()
+    verify((flowCandidate[1].toInt() and 255) == 0xC4)
+    verify((flowCandidate[5].toInt() and 255) == 0x83)
+    verify(flowCandidate.fold(0) { a, b -> a xor (b.toInt() and 255) } == 0)
+    rejected { StoredLeverRecipeFormat.candidate(stored.copy(segmentCount = 5)) }
+    rejected { StoredLeverRecipeFormat.candidate(stored.copy(maximumWaterMl = 65536)) }
+    verify((StoredLeverRecipeFormat.candidate(stored.copy(pressureLogic = false)).toByteArray()[1].toInt() and 255) == 2)
+
     // 1.1.5 retains the 13-byte main Settings layout, including >=1.1.4 filter flags.
     val firmware115=(HoyiCodec.decode(hex("830115FD5C007D0F350019026A")) as DecodeResult.Valid).value as Settings
     verify(firmware115.firmwareInteger==0x115 && firmware115.firmwarePatch==5)

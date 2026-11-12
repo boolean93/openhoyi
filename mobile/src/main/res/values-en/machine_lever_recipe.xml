@@ -1,0 +1,21 @@
+<resources>
+    <string name="lever_title">Lever recipe</string>
+    <string name="lever_recent">Last sent</string>
+    <string name="lever_empty">—</string>
+    <string name="lever_unknown_short">Check needed</string>
+    <string name="lever_set_title">Set lever recipe</string>
+    <string name="lever_set_action">Confirm change</string>
+    <string name="lever_confirm">Replace the machine’s lever recipe and control mode with “%1$s”? The machine cannot return the complete recipe, so saving cannot be verified after sending. The lever uses the system temperature; target weight is not stored on the machine.</string>
+    <string name="lever_local_record">This is only the recipe last sent by this app, not a machine readback. Changes made by other apps are not reflected here.</string>
+    <string name="lever_sending">Sending lever recipe</string>
+    <string name="lever_sent">Sent</string>
+    <string name="lever_not_sent">Not sent. Please try again.</string>
+    <string name="lever_result_unknown">Send outcome unknown. Check the machine; this app will not retry automatically.</string>
+    <string name="lever_unresolved">Resolve the pending send in the home lever-recipe card</string>
+    <string name="lever_changed">Recipe or device changed. Select it again.</string>
+    <string name="lever_record_failed">Cannot save the send record. Further control is blocked.</string>
+    <string name="lever_firmware_unsupported">This firmware does not support setting a lever recipe yet</string>
+    <string name="lever_reconnect_original">Reconnect the original machine and wait until it is idle</string>
+    <string name="lever_ack_action">Acknowledge and end this attempt</string>
+    <string name="lever_choose_curve">Choose recipe</string>
+</resources>

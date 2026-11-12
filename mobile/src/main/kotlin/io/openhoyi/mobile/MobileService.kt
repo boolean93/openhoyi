@@ -133,7 +133,7 @@ class MobileService : Service() {
     private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
         machineWriteRecovery.kind, brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
-    val machineControlSafetyMessage: String? get() = MachineControlGate.block(
+    val machineControlSafetyMessage: String? get() = leverWriteBlock ?: MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
     val shotRecoveryClearBlock: String? get() = shotRecoveryClearResource?.let { getString(it) }
     private val shotRecoveryClearResource: Int? get() = shotRecoveryClearGate.resource(shotRecovery,
@@ -496,6 +496,8 @@ class MobileService : Service() {
     }
     fun requestCoffeeRecoverySoon(){if(appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY) settleLeverWriteUnknown()
+
         if(state==DeviceState.READY)selectingDevice=false
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
@@ -935,6 +937,11 @@ class MobileService : Service() {
     private fun coffeeConnectionAllowed(address: String, automatic: Boolean): Boolean {
         if (mock != null) { event(ResourceMessage(R.string.service_coffee_mock), "mock.connect"); return false }
         if (manualShotActive) { event(ResourceMessage(R.string.service_connection_manual_block)); return false }
+        leverStore.blockingAttempt?.let {
+            if (leverInFlight != null || !it.snapshot.address.equals(address, ignoreCase = true)) {
+                event(ResourceMessage(R.string.lever_reconnect_original), "lever_recipe.device_mismatch"); return false
+            }
+        }
         if (!shotRecovery.matchesDevice(address)) {
             event(ResourceMessage(R.string.service_connection_shot_device_mismatch), "shot.device_mismatch"); return false
         }
@@ -1202,6 +1209,110 @@ class MobileService : Service() {
         }
         return null
     }
+    private val leverStore get() = (application as MobileApplication).leverRecipes
+    private var leverInFlight: String? = null
+    internal val leverDeviceAddress: String? get() = if (mock != null) "00:00:00:00:00:01" else hub?.coffeeAddress
+    private val leverWriteBlock: String? get() = if (leverStore.blocked)
+        getString(if (leverStore.active) R.string.lever_sending else R.string.lever_unresolved) else null
+
+    /** No complete recipe readback exists. This API reports transport only, never durable save. */
+    internal fun leverRecipeWriteBlock(): String? {
+        leverWriteBlock?.let { return it }
+        return leverRecipeConditions()
+    }
+    private fun leverRecipeConditions(): String? {
+        MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)?.let { return it }
+        if (manualShotActive || ShotGate.active(shotState) || brewPreparation.active || cupResetBusy || scheduleBusy ||
+            settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+                SettingsWriteTracker.State.UNKNOWN) || sleepNow.state in setOf(SleepNowTracker.State.WRITING,
+                SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
+            return getString(R.string.service_write_operation_pending)
+        if (mock != null) return null
+        if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
+        val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
+        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()) ||
+            idle.sleepStateRaw != 0 || idle.alarmBits != 0 || !machineSettingsFresh)
+            return getString(R.string.service_write_awake_idle_needed)
+        if (coffeeFirmware !in listOf(CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5)))
+            return getString(R.string.lever_firmware_unsupported)
+        return null
+    }
+    internal fun sendLeverRecipe(profile: CurveProfile, expectedAddress: String, expectedFirmware: String,
+        outcome: (String) -> Unit): String? {
+        leverRecipeWriteBlock()?.let { return it }
+        val app = application as MobileApplication
+        if (leverDeviceAddress != expectedAddress || coffeeFirmware.toString() != expectedFirmware ||
+            app.curves.resolve(profile.id, false, 7) != profile || !app.curves.validated(profile))
+            return getString(R.string.lever_changed)
+        val frame = runCatching { io.openhoyi.protocol.StoredLeverRecipeFormat.candidate(profile.parameters).hex() }
+            .getOrNull() ?: return getString(R.string.lever_changed)
+        val current = hub
+        val generation = current?.coffeeGeneration
+        val token = leverStore.begin(MachineLeverRecipeStore.Snapshot(expectedAddress, profile.id, profile.name,
+            frame, System.currentTimeMillis(), expectedFirmware)) ?: return getString(R.string.lever_record_failed)
+        leverInFlight = token
+        event(ResourceMessage(R.string.lever_sending), "lever_recipe.requested")
+        fun complete(result: OperationResult) {
+            if (leverInFlight != token) return
+            leverInFlight = null
+            val sameOwner = mock != null || (hub === current && current?.coffeeGeneration == generation &&
+                leverDeviceAddress == expectedAddress)
+            val state = when {
+                !sameOwner -> MachineLeverRecipeStore.State.UNKNOWN
+                result is OperationResult.Success -> MachineLeverRecipeStore.State.SENT
+                result is OperationResult.Failed || result is OperationResult.Cancelled -> MachineLeverRecipeStore.State.FAILED
+                else -> MachineLeverRecipeStore.State.UNKNOWN
+            }
+            val persisted = leverStore.complete(token, state)
+            val resource = when {
+                !persisted -> R.string.lever_record_failed
+                state == MachineLeverRecipeStore.State.SENT -> R.string.lever_sent
+                state == MachineLeverRecipeStore.State.FAILED -> R.string.lever_not_sent
+                else -> R.string.lever_result_unknown
+            }
+            event(ResourceMessage(resource), "lever_recipe.result")
+            if (persisted && state == MachineLeverRecipeStore.State.SENT && mock == null && current != null) {
+                // Read fresh mode/settings once. 0x83 is NOT stored-recipe verification.
+                current.refreshStoredRecipeSettings({
+                    hub === current && current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
+                        snapshot.coffeeState == DeviceState.READY && !leverStore.blocked &&
+                        !manualShotActive && !ShotGate.active(shotState) && !brewPreparation.active &&
+                        !machineWriteRecovery.pending && !cupResetBusy && !scheduleBusy &&
+                        settingWriteState !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+                }) { refresh ->
+                    if (refresh !is OperationResult.Success)
+                        logs.record("lever_recipe.settings_refresh_unconfirmed", mapOf("result" to refresh.javaClass.simpleName))
+                }
+            }
+            outcome(getString(resource))
+        }
+        if (mock != null) { complete(OperationResult.Success()); return null }
+        if (current == null) { complete(OperationResult.Failed("no owner")); return null }
+        try { current.writeStoredLeverRecipe(profile.parameters, {
+            leverInFlight == token && leverStore.pending(token) && hub === current &&
+                current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
+                coffeeFirmware.toString() == expectedFirmware && leverRecipeConditions() == null &&
+                app.curves.resolve(profile.id, false, 7) == profile && app.curves.validated(profile)
+        }, { snapshot = snapshot.copy(settingsAt = null) }, ::complete)
+        } catch (_: Exception) { complete(OperationResult.Unknown("recipe submission interrupted")) }
+        return null
+    }
+    private fun settleLeverWriteUnknown() {
+        leverInFlight?.let { token ->
+            leverInFlight = null
+            leverStore.complete(token, MachineLeverRecipeStore.State.UNKNOWN)
+        }
+    }
+    internal fun acknowledgeLeverRecipeUnknown(): String? {
+        if (leverInFlight != null) return getString(R.string.lever_sending)
+        val record = leverStore.blockingAttempt ?: return getString(R.string.lever_record_failed)
+        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true) || leverRecipeConditions() != null)
+            return getString(R.string.lever_reconnect_original)
+        if (!leverStore.acknowledge(record.token)) return getString(R.string.lever_record_failed)
+        event(ResourceMessage(R.string.lever_result_unknown), "lever_recipe.acknowledged")
+        return null
+    }
+
     fun resetCupCount(expectedCount: Int): String? {
         if (mock != null) {
             val result = mock.resetCupCount(expectedCount)
@@ -1650,6 +1761,7 @@ class MobileService : Service() {
             else event(ResourceMessage(R.string.service_shot_requested, profile.name), "mock.synthetic_shot_requested")
             return null
         }
+        leverWriteBlock?.let { return it }
         if (manualShotActive) return getString(R.string.service_shot_manual_block)
         if (machineWriteRecovery.kind != MachineWriteRecoveryState.Kind.BREW_WAIT ||
             !machineWriteRecovery.matchesDevice(hub?.coffeeAddress) ||
@@ -2083,6 +2195,8 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        settleLeverWriteUnknown()
+
         running = false
         (application as MobileApplication).serviceAvailability.stopped(ownerId)
         (application as MobileApplication).feedbackPreferences.unobserve(ownerId)

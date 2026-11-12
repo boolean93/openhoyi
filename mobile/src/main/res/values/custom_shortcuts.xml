@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_slot_invalid">"曲线不可用"</string>
+    <string name="curve_slot_unavailable">"此快捷曲线已丢失或不可执行，请重新选择"</string>
+</resources>
