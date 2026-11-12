@@ -54,12 +54,7 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            if [ "$UPDATE_CHECKS" = "true" ]; then
-              python3 scripts/check_update_acceptance.py --sdk "$ANDROID_HOME"
-            else
-              bash scripts/check_mock_lifecycle.sh
-            fi
+          script: bash scripts/check_mock_or_update_acceptance.sh
       - name: Upload lifecycle logs
         if: always() && env.UPDATE_CHECKS != 'true'
         uses: actions/upload-artifact@v6

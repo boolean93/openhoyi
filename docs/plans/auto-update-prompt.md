@@ -61,6 +61,16 @@
 
 ## 统一 Switch 公共入口接线（2026-11-12）
 
-更新页开关已调用现有 `SettingsVisualStyle.switch(toggle)`，不增加单页轨道或动画，不修改公共样式实现。后续独立样式分支将全局方案A及滑动动效合入公共入口后，本页会随公共实现统一生效；本树当前不能宣称已具备该独立分支的A动效。此局部接线只做Debug编译与既有更新开关回归，不重复完整矩阵或设备操作。上方双包哈希对应此前的软件构建产物，本轮不为这条接线重建或分发APK。
+更新页开关已调用现有 `SettingsVisualStyle.switch(toggle)`，不增加单页轨道或动画，不修改公共样式实现。后续独立样式分支#75的A外观及动效在HoyiSwitch构造中实现，不能仅凭公共入口调用宣称自动继承；待#75合入、最终同步develop后还须将本页构造替换为HoyiSwitch(activity)，继续调用visual.switch，并更新最终截图。本树当前不复制该分支代码，也不宣称已有A动效。此局部接线只做Debug编译与既有更新开关回归，不重复完整矩阵或设备操作。上方双包哈希对应此前的软件构建产物，本轮不为这条接线重建或分发APK。
 
 本次 `:mobile:compileDebugKotlin :mobile:testDebugUnitTest --tests io.openhoyi.mobile.ReleaseUpdateCoordinatorTest` 通过（43s），既有11项更新协调/开关测试0失败；日志 `/tmp/hoyi-auto-update-switch-hook.log`。完整软件回归JUnit证据已保存在 `/tmp/hoyi-auto-update-device-check/full-final-junit-reports.zip`，没有设备操作或新APK分发。
+
+## 当前并行样式说明
+
+首个CI候选42e4bab2仅包含公共Switch入口接线，不能视为统一A样式成品；#75真正样式在HoyiSwitch，尚待合入后统一同步并改构造。首轮截图仅作功能/安全/旧样式证据，最终用户截图须基于集成后的样式重新获取。
+
+## 首轮CI调度修复
+
+42e4bab2 的 API34 手动运行43254244870已完成宿主构建和QEMU启动，但android-emulator-runner逐行执行多行script，shell if被拆开报语法错，尚未运行instrumentation、无实窗证据。入口已改为单行固定wrapper `bash scripts/check_mock_or_update_acceptance.sh`；wrapper仅接受true/false，固定派发两个脚本。本地stub验证两路与非法输入，绝不运行设备；后续须推送新SHA重新dispatch，不rerun旧SHA冒称修复。
+
+当前56e3b9ac基线候选42e4bab2的默认产品完整本地verify已通过（Gradle2m26s、双包各3239资源匹配、12项release guard）；默认Debug/Mock实际APK已检查无UpdateAcceptance类/Activity/fixture APK资产。该结果不替代待运行的API34 runtime验签/系统页/截图。
