@@ -16,6 +16,8 @@ import android.view.WindowInsets
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Toast
+import android.widget.CheckBox
+import android.content.SharedPreferences
 import android.app.AlertDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
@@ -62,11 +64,22 @@ class MainActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val manualPresentation = object : Runnable {
         override fun run() {
+            shortcutStart?.allows()
             presentManualShotIfNew()
             if (::shellStatus.isInitialized) shellStatus.present(service)
             if (foreground) handler.postDelayed(this, 250)
         }
     }
+    private var shortcutStart: ShortcutStartPermit? = null
+    private var shortcutPrompt: AlertDialog? = null
+    private val shortcutPreferences by lazy { ShortcutStartPreferences(this) }
+    private val shortcutPreferenceFiles by lazy {
+        listOf("presets", "curves", "devices", ShortcutStartPolicy.PREFERENCES).map { getSharedPreferences(it, MODE_PRIVATE) }
+    }
+    private val shortcutPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        revokeShortcutStart()
+    }
+    internal fun revokeShortcutStart() { shortcutStart?.revoke(); shortcutStart = null }
     private val subscribers = mutableSetOf<(MobileService?) -> Unit>()
     private val transientDialogs = mutableListOf<AlertDialog>()
     internal fun trackDialog(dialog: AlertDialog) { transientDialogs += dialog }
@@ -95,6 +108,7 @@ class MainActivity : ThemedActivity() {
     }
     internal fun removeServiceObserver(observer: (MobileService?) -> Unit) { subscribers -= observer }
     private fun publishService() {
+        shortcutStart?.allows()
         subscribers.toList().forEach { it(service) }
         if (::shellStatus.isInitialized) shellStatus.present(service)
         presentManualShotIfNew()
@@ -223,6 +237,7 @@ class MainActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        shortcutPreferenceFiles.forEach { it.registerOnSharedPreferenceChangeListener(shortcutPreferenceListener) }
         destination = (savedInstanceState?.getString(STATE_DESTINATION)
             ?: intent.getStringExtra(EXTRA_INITIAL_DESTINATION))?.let { runCatching { TaskDestination.valueOf(it) }.getOrNull() }
             ?: TaskDestination.BREW
@@ -293,10 +308,18 @@ class MainActivity : ThemedActivity() {
         handler.post(manualPresentation)
     }
     override fun onPause() {
+        revokeShortcutStart()
+        shortcutPrompt?.dismiss(); shortcutPrompt = null
         foreground = false
         handler.removeCallbacks(manualPresentation)
         dismissTransientDialogs()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        revokeShortcutStart()
+        shortcutPreferenceFiles.forEach { it.unregisterOnSharedPreferenceChangeListener(shortcutPreferenceListener) }
+        super.onDestroy()
     }
 
     private fun tag(destination: TaskDestination) = "root:${destination.name}"
@@ -323,6 +346,7 @@ class MainActivity : ThemedActivity() {
         scaleSettingsReturn = true
     }
     internal fun select(next: TaskDestination) {
+        revokeShortcutStart()
         if (next == destination && !extractionVisible) return
         scaleSettingsReturn = false
         settingsOrigin = null
@@ -350,7 +374,98 @@ class MainActivity : ThemedActivity() {
         }
     }
 
+    /** Only the five local Home shortcuts enter here. All other navigation remains inert. */
+    internal fun openShortcut(slot: Int) {
+        PresetSlots.requireSlot(slot)
+        if (!foreground || supportFragmentManager.isStateSaved || extractionVisible || destination != TaskDestination.BREW) return
+        revokeShortcutStart()
+        if (shortcutPrompt?.isShowing == true) return
+        val stored = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null)
+        val library = (application as MobileApplication).curves
+        val route = PresetSlots.route(slot, stored, library) as? PresetSlots.Route.Ready
+            ?: run { Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show(); return }
+        val item = library.find(route.curveId)
+        fun unchanged() = foreground && !supportFragmentManager.isStateSaved && !extractionVisible &&
+            destination == TaskDestination.BREW &&
+            getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null) == stored &&
+            PresetSlots.route(slot, stored, library) == route && library.find(route.curveId) == item
+        fun choose(startNow: Boolean, remember: Boolean?) {
+            if (!unchanged()) {
+                Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show()
+                return
+            }
+            if (remember != null && !shortcutPreferences.choose(remember)) {
+                Toast.makeText(this, R.string.shortcut_start_save_failed, Toast.LENGTH_LONG).show()
+                return
+            }
+            launchShortcut(slot, stored, route, startNow)
+        }
+        val preference = shortcutPreferences.read()
+        if (!preference.showPrompt) { choose(preference.startsOnTap, null); return }
+        val style = TaskProductVisualStyle(this)
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(style.dp(24), style.dp(8), style.dp(24), style.dp(8))
+        }
+        body.addView(style.text(getString(R.string.shortcut_start_prompt_message), TaskProductVisualStyle.body))
+        val direct = CheckBox(this).apply {
+            text = getString(R.string.shortcut_start_remember)
+            isChecked = false
+            minHeight = style.dp(48)
+            tag = "product/home/shortcut/direct-start"
+        }
+        body.addView(direct)
+        val dialog = AppDialog.show(AlertDialog.Builder(this)
+            .setTitle(R.string.shortcut_start_prompt_title).setView(body)
+            .setPositiveButton(R.string.extraction_start) { _, _ -> choose(true, direct.isChecked) }
+            .setNeutralButton(R.string.shortcut_start_view) { _, _ -> choose(false, direct.isChecked) }
+            .setNegativeButton(android.R.string.cancel, null).create())
+        shortcutPrompt = dialog
+        dialog.setOnDismissListener { if (shortcutPrompt === dialog) shortcutPrompt = null }
+        trackDialog(dialog)
+    }
+
+    private fun launchShortcut(sourceSlot: Int, stored: String?, route: PresetSlots.Route.Ready, startNow: Boolean) {
+        val requestedAt = MobileMonotonicClock.elapsedRealtime()
+        val owner = service
+        val library = (application as MobileApplication).curves
+        val expected = owner?.let { library.resolve(route.curveId, it.snapshot.scaleState == DeviceState.READY, route.wireSlot) }
+        val expectedItem = library.find(route.curveId)
+        val app = application as MobileApplication
+        val curveRevision = app.customCurvesResult.getOrNull()?.revision
+        val configurationRevision = owner?.shortcutConfigurationRevision
+        val settings = owner?.snapshot?.settings
+        val device = owner?.shortcutDeviceIdentity
+        val preference = shortcutPreferences.read()
+        showExtraction(sourceSlot)
+        if (!startNow) return
+        val fragment = supportFragmentManager.primaryNavigationFragment as? ExtractionFragment ?: return
+        if (owner == null || expected == null) {
+            Toast.makeText(this, if (owner == null) R.string.service_unavailable else R.string.extraction_choose_startable, Toast.LENGTH_LONG).show()
+            return
+        }
+        val permit = ShortcutStartPermit(requestedAt, MobileMonotonicClock::elapsedRealtime) {
+            foreground && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                !supportFragmentManager.isStateSaved && extractionVisible &&
+                supportFragmentManager.primaryNavigationFragment === fragment && fragment.shortcutStartVisible &&
+                service === owner && owner.running && owner.shortcutDeviceIdentity == device &&
+                device != null && owner.snapshot.settings == settings &&
+                owner.shortcutConfigurationRevision == configurationRevision &&
+                app.customCurvesResult.getOrNull()?.revision == curveRevision &&
+                shortcutPreferences.read() == preference &&
+                getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(sourceSlot), null) == stored &&
+                PresetSlots.route(sourceSlot, stored, library) == route &&
+                (route.wireSlot != 7 || getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null) == route.curveId) &&
+                library.resolve(route.curveId, owner.snapshot.scaleState == DeviceState.READY, route.wireSlot) == expected &&
+                library.find(route.curveId) == expectedItem && library.validated(expected) &&
+                owner.studioStartBlock(expected) == null
+        }
+        shortcutStart = permit
+        fragment.tryShortcutStart(expected, permit)
+    }
+
     fun showExtraction(slot: Int = 7) {
+        revokeShortcutStart()
         val wireSlot = routeShortcut(slot) ?: return
         if(!extractionVisible)extractionOrigin=destination
         dismissTransientDialogs()
@@ -385,6 +500,7 @@ class MainActivity : ThemedActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        revokeShortcutStart()
         outState.putString("extractionOrigin",extractionOrigin?.name)
         outState.putString("settingsOrigin",settingsOrigin?.name)
         outState.putBoolean("settingsScaleReturn", scaleSettingsReturn)
@@ -419,6 +535,7 @@ class MainActivity : ThemedActivity() {
     }
 
     private fun navigateBack() {
+        revokeShortcutStart()
         val current = supportFragmentManager.primaryNavigationFragment
         val consumed = when (current) {
             is CurveFragment -> current.consumeBack()

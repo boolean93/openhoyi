@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var shortcutDirectStartChecks = false
     private var machineLeverRecipeChecks = false
     private var customShortcutChecks = false
     private var darkThemeWindow: Boolean? = null
@@ -95,12 +96,18 @@ class BrewAudioInstrumentation : Instrumentation() {
         upgradeChecks = arguments?.getString("upgradeChecks")
         customShortcutChecks = arguments?.getString("customShortcutChecks") == "true"
         machineLeverRecipeChecks = arguments?.getString("machineLeverRecipeChecks") == "true"
+        shortcutDirectStartChecks = arguments?.getString("shortcutDirectStartChecks") == "true"
         super.onCreate(arguments); start()
     }
     override fun onStart() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (shortcutDirectStartChecks) {
+                ShortcutDirectStartWindowChecks(this).run()
+                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED cancel=true remembered=true settings=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if (machineLeverRecipeChecks) {
                 MachineLeverRecipeWindowChecks(this).run()
                 report.putString("stream", "MACHINE_LEVER_RECIPE_WINDOW_PASSED cancel=true confirm=true firstCard=true unknown=true failed=true deviceIsolation=true noBle=true noShot=true journalPreserved=true\n")

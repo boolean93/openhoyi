@@ -23,6 +23,18 @@ class AppSettingsFragment : Fragment() {
             .edit().putBoolean("dark", value).commit()
     }
     private var updatingTheme = false
+    private var shortcutToggle: Switch? = null
+    private var updatingShortcut = false
+    private var shortcutError: TextView? = null
+    private var shortcutRetry: android.widget.Button? = null
+    private fun refreshShortcutChoice() {
+        val prefs = ShortcutStartPreferences(requireContext())
+        updatingShortcut = true
+        shortcutToggle?.isChecked = prefs.read().startsOnTap
+        updatingShortcut = false
+        shortcutError?.visibility = if (prefs.suppressed) View.VISIBLE else View.GONE
+        shortcutRetry?.visibility = if (prefs.suppressed) View.VISIBLE else View.GONE
+    }
     private var machineControls: MachineSettingsControls? = null
     private var document: SettingsDocumentLayout? = null
     private var documentState: Bundle? = null
@@ -114,6 +126,7 @@ class AppSettingsFragment : Fragment() {
             "machine" to root.section("machine", getString(R.string.settings_section_machine)),
             "schedule" to root.section("schedule", getString(R.string.settings_section_schedule)),
             "scale" to root.section("scale", getString(R.string.scale_title)),
+            "shortcuts" to root.section("shortcuts", getString(R.string.shortcut_start_settings_title)),
             "appearance" to root.section("appearance", getString(R.string.settings_appearance_language)),
             "feedback" to root.section("feedback", getString(R.string.settings_section_feedback)),
             "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)),
@@ -149,6 +162,34 @@ class AppSettingsFragment : Fragment() {
             style.add(scale,style.text(getString(title),TaskProductVisualStyle.action),16)
             style.add(scale,style.text(getString(detail),TaskProductVisualStyle.auxiliary,secondary=true),8)
         }
+        val shortcutSection = sections.getValue("shortcuts")
+        val shortcutPreferences = ShortcutStartPreferences(activity)
+        shortcutToggle = Switch(activity).apply {
+            text = getString(R.string.shortcut_start_setting)
+            isChecked = shortcutPreferences.read().startsOnTap
+            tag = "product/settings/shortcuts/direct-start"
+            visual.switch(this, 52)
+            setOnCheckedChangeListener { _, checked ->
+                if (!updatingShortcut) {
+                    if (!shortcutPreferences.choose(checked)) {
+                        android.widget.Toast.makeText(activity, R.string.shortcut_start_save_failed, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    refreshShortcutChoice()
+                }
+            }
+        }.also { shortcutSection.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+        shortcutError = style.text(getString(R.string.shortcut_start_save_failed_detail),
+            TaskProductVisualStyle.auxiliary, "product/settings/shortcuts/error").apply {
+            setTextColor(activity.getColor(R.color.mobile_danger)); visibility = View.GONE
+        }.also { style.add(shortcutSection, it, 8) }
+        shortcutRetry = HoyiUi.button(activity, shortcutSection, getString(R.string.shortcut_start_retry_off)) {
+            if (!shortcutPreferences.choose(false)) {
+                android.widget.Toast.makeText(activity, R.string.shortcut_start_save_failed, android.widget.Toast.LENGTH_LONG).show()
+            }
+            refreshShortcutChoice()
+        }.apply { tag = "product/settings/shortcuts/retry"; visibility = View.GONE }
+        style.add(shortcutSection, style.text(getString(R.string.shortcut_start_settings_hint),
+            TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val theme = sections.getValue("appearance")
         val appearance = activity.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE)
         themeError = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/theme/error").apply {
@@ -219,6 +260,7 @@ class AppSettingsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        refreshShortcutChoice()
         (requireActivity() as MainActivity).observeService(serviceObserver)
         refreshHandler.post(refreshCapabilities)
         machineControls?.start()
@@ -241,6 +283,7 @@ class AppSettingsFragment : Fragment() {
         feedbackCard?.stop(); languageCard?.close()
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         documentState=Bundle().also { document?.save(it) }
+        shortcutToggle = null; shortcutError = null; shortcutRetry = null
         document=null; deviceControls?.close(); deviceControls=null
         machineControls = null
         feedbackCard = null; languageCard = null; exportStatus = null

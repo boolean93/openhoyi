@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 
 /** Actual controller, coffee adapter, Session and queue; only the BLE driver and scale are fake. */
-internal class QueuedExtractionFixture(val target:Int=3400) {
+internal class QueuedExtractionFixture(val target:Int=3400, permit:()->Boolean={true}) {
     val f=CoffeeSessionFixture()
     val profile=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
     class Scale:ScaleControl {
@@ -36,7 +36,7 @@ internal class QueuedExtractionFixture(val target:Int=3400) {
         queue.enqueue(GattOperation.Discover,5000) { }
         blocker=f.calls.last();before=f.calls.size
         controller.weight(WeightReading(0,0))
-        assertTrue(controller.start(profile,target,0))
+        assertTrue(controller.start(profile,target,0,permit))
         if(target>0) {
             assertEquals(1,scale.tares);assertTrue(controller.preparingScale)
             idle(100);controller.weight(WeightReading(0,100))
@@ -113,6 +113,17 @@ class QueuedStartUnexpectedActivityTest(private val target:Int) {
             val q=QueuedExtractionFixture(target);q.f.now=200
             q.controller.machineFrame(ExtractionTelemetry(8,1,0,0,9200,0,32,0,ByteFrame(byteArrayOf())),200)
             q.idle(201);q.release(true)
+        }
+    }
+}
+
+class QueuedCallerStartPermitTest {
+    @Test fun revokedCallerCannotStartAfterAnExistingGattOperationFinishes() {
+        for(target in listOf(0,3400)) {
+            var permitted=true
+            val q=QueuedExtractionFixture(target) { permitted }
+            permitted=false
+            q.release(false)
         }
     }
 }

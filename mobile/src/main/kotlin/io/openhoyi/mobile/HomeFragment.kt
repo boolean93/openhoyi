@@ -446,7 +446,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 tag = "product/home/direct-preset/$slot"
                 // Static theme chrome belongs to view creation, not the 250ms telemetry render.
                 if (slot == 0) background = productStyle.shape(productStyle.surface, true)
-                setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.showExtraction(slot) }
+                setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
             val contents = LinearLayout(host).apply {
@@ -688,7 +688,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetButtons = (1..5).map { slot ->
             button(presetPanel, getString(R.string.home_slot, slot.toString())) {
                 presetDialog?.dismiss()
-                host.showExtraction(slot)
+                host.openShortcut(slot)
             }
         }
         quickPresets = workbenchLink(preparationDetails, getString(R.string.home_quick_curves)) { showQuickPresets() }
