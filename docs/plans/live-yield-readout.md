@@ -57,3 +57,13 @@ adb -s 192.168.31.201:5555 pull \
 - 截图物理尺寸已正确：landscape 2560x1600，portrait 1600x2560；协调线程保存于 `/tmp/live-yield-evidence/live-scale-window-checks`。system user_rotation=3、accelerometer_rotation=0 已回读恢复。
 - 新 testAPK SHA256 `e9e3554d246cd5f4779749f3fe38e124ad7350fc230740fc7e099b80b2afe569`；业务 Mock 仍为 `f602d51910a34cae85df6ae5fac9c70214034618596f45f2602b83d03dc87ecb`，此轮仅覆盖 testAPK。实际 DEX class_defs 检查无缺类；编译 1m51s 通过。
 - 功能与物理截图验证通过；portrait 标题/数字间距的独立视觉审查由 Astra 继续，尚不冒称最终视觉验收通过。本提交仅测试、计划与构建失败记录，不修改业务 UI。
+
+### 最后居中小修与 run4 结果
+
+- Astra 图审要求的小修仅两处：readout 主、次两行固定 180dp 居中，数字位仍固定 112dp；结束截图额外等待 3 秒让完成 Toast 消失。四指标、四曲线、坐标网格、动画及真实机器控制未改。
+- 最后干净构建（clean / no-build-cache / rerun-tasks）通过，2m17s；ExtractionScaleReadoutTest 8 项通过、0 failures/errors。Mock 754 个和 instrumentation 341 个本模块编译类均有实际 DEX 定义；旧 APK 的 io.openhoyi 类无缺失。两包签名与原已装包一致。
+- 最终 Mock SHA256：`8c76bc95129cfe39a06bc4d695e5848b53246534ce8da8f0f47a6918ce17c241`。
+- 最终 testAPK SHA256：`e715d44a53d9a93b1660c717c2fdc1f6aa80a327fc0fc6f03e5ad19ada426d56`。
+- 协调线程执行 run4 PASS：真实 Mock 运行/原停止按钮/结束冻结通过；最终 portrait 1600x2560 图中标签与 3.9g 组合居中，结束时秤读数说明完整、无 Toast 遮挡。landscape 截图 2560x1600。system user_rotation=3、accelerometer_rotation=0 回读恢复。
+- 最后测试杯 `2edd16d6-7127-4c3f-9f85-2e41fe33b0d3`；run2/run3/run4 三杯 QA 记录全部保留（run3=`e8bb4b55-942d-4120-8f29-e7a3f2b5cb0a`，run2=`1779ad32...`），原有记录全部保留，未清数据。
+- 本实现线程未操作设备；最终截图由协调线程核看。最终验证范围至此结束，不再扩矩阵；没有真实机器萃取/硬件验收、推送、PR 或发布结论。

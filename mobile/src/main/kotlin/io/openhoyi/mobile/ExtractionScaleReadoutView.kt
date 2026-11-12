@@ -28,8 +28,8 @@ internal class ExtractionScaleReadoutView(context: Context, visual: ExtractionHi
             it.gravity = Gravity.CENTER; it.maxLines = 1; it.ellipsize = android.text.TextUtils.TruncateAt.END
             secondary.addView(it, LayoutParams(-2, -2).apply { marginEnd = (4 * resources.displayMetrics.density).toInt() })
         }
-        addView(primary, LayoutParams(-1, -2))
-        addView(secondary, LayoutParams(-1, (18 * resources.displayMetrics.density).toInt()))
+        addView(primary, LayoutParams((180 * resources.displayMetrics.density).toInt(), -2))
+        addView(secondary, LayoutParams((180 * resources.displayMetrics.density).toInt(), (18 * resources.displayMetrics.density).toInt()))
     }
     fun present(value: ExtractionScaleReadout.Value) {
         reading.text = "${value.number} g"

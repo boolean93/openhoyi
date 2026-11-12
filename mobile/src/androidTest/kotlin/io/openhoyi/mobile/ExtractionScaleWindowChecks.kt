@@ -102,6 +102,7 @@ internal class ExtractionScaleWindowChecks(private val test: Instrumentation) {
                     view.getGlobalVisibleRect(rect) && rect.width() == view.width && rect.height() == view.height &&
                     rect.left >= 0 && rect.top >= 0 && rect.right <= expectedSize().x && rect.bottom <= expectedSize().y
             }
+            if (name.contains("stopped")) SystemClock.sleep(3000) // Let completion toast clear the readout explanation.
             SystemClock.sleep(500)
             val bitmap = checkNotNull(test.uiAutomation.takeScreenshot())
             try {
