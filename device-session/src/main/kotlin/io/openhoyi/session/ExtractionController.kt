@@ -200,7 +200,8 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(state !in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED))return
         val preparing=pendingStart
         if(preparing!=null){
-            if(!coffee.ready||!scale.ready)abortPreflight(StopReason.SCALE_UNAVAILABLE)
+            if(!permitted(preparing.beforeDispatch))abortPreflight(StopReason.START_CONDITIONS_CHANGED)
+            else if(!coffee.ready||!scale.ready)abortPreflight(StopReason.SCALE_UNAVAILABLE)
             else if(clock()>=preparing.deadline)abortPreflight(StopReason.TARE_UNCONFIRMED)
             return
         }

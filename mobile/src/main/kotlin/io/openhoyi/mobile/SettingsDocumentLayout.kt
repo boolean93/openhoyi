@@ -29,6 +29,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private var selected = -1
     private var laidOut = false
     private var restoredWidth = 0
+    private var restoredAnchorTop = 0
+    private var pendingNavigation: String? = null
     init {
         orientation = VERTICAL; setBackgroundColor(style.page)
         setPadding(style.dp(16), style.dp(8), style.dp(16), 0)
@@ -41,22 +43,38 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         columns.addView(index, LayoutParams(style.dp(160), -1))
         columns.addView(divider, LayoutParams(style.dp(1), -1).apply { marginStart=style.dp(8); marginEnd=style.dp(8) })
         columns.addView(scroll, LayoutParams(0, -1, 1f)); addView(columns, LayoutParams(-1, 0, 1f))
-        scroll.setOnScrollChangeListener { _, _, _, _, _ -> if (!applying && laidOut) rememberPosition() }
+        scroll.setOnScrollChangeListener { _, _, _, _, _ ->
+            if (!applying && laidOut && pendingNavigation == null) rememberPosition()
+        }
         picker.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (!pickerUpdating && laidOut && position != selected) navigate(sections[position].key)
+                if (!pickerUpdating && laidOut && pendingNavigation == null && position != selected) navigate(sections[position].key)
             }
         }
         viewTreeObserver.addOnGlobalLayoutListener {
-            if (sections.isNotEmpty() && (!laidOut || restoredWidth != width)) {
-                applying = true
-                val target = sections.firstOrNull { it.key == anchor } ?: sections.first()
-                scroll.scrollTo(0, if (atEnd) maxScroll() else (target.block.top + offset).coerceAtLeast(0))
-                applying = false; laidOut = true; restoredWidth=width; rememberPosition()
+            if (sections.isNotEmpty()) {
+                val requested = pendingNavigation
+                val target = sections.firstOrNull { it.key == (requested ?: anchor) } ?: sections.first()
+                if (!laidOut || restoredWidth != width || requested != null || target.block.top != restoredAnchorTop) {
+                    // A Handler post can run before layout. Resolve the heading only after
+                    // measuring, and preserve it if dynamic controls above it change height.
+                    applying = true
+                    if (requested != null) {
+                        val heading = target.block.getChildAt(0)
+                        heading.requestFocus()
+                        if (host.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isEnabled)
+                            heading.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
+                    }
+                    scroll.scrollTo(0, if (atEnd) maxScroll() else (target.block.top + offset).coerceAtLeast(0))
+                    pendingNavigation = null
+                    applying = false; laidOut = true; restoredWidth = width
+                    rememberPosition()
+                }
             }
         }
     }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val wide = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight >= style.dp(800)
         index.visibility = if (wide) VISIBLE else GONE; divider.visibility = index.visibility
@@ -89,16 +107,11 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         pickerLabels[index]=label;pickerAdapter.notifyDataSetChanged()
     }
     fun navigate(key: String) {
+        if (sections.none { it.key == key }) return
         anchor = key; offset = 0; atEnd = false
-        scroll.post {
-            val section = sections.firstOrNull { it.key == key } ?: return@post
-            applying = true; scroll.scrollTo(0, section.block.top); applying = false
-            rememberPosition()
-            val heading=section.block.getChildAt(0)
-            heading.requestFocus()
-            if(host.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isEnabled)
-                heading.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS,null)
-        }
+        pendingNavigation = key
+        // The next layout, not a posted read of stale coordinates, owns this navigation.
+        requestLayout()
     }
     private fun maxScroll() = (body.height - scroll.height).coerceAtLeast(0)
     private fun rememberPosition() {
@@ -106,6 +119,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         atEnd = maxScroll() > 0 && scroll.scrollY >= maxScroll() - 2
         val active = if (atEnd) sections.lastIndex else sections.indexOfLast { it.block.top <= scroll.scrollY + style.dp(12) }.coerceAtLeast(0)
         anchor = sections[active].key; offset = scroll.scrollY - sections[active].block.top
+        restoredAnchorTop = sections[active].block.top
         if (active != selected) {
             selected = active
             sections.forEachIndexed { i, section ->
@@ -117,7 +131,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         }
     }
     fun save(state: Bundle) {
-        if (laidOut) rememberPosition()
+        if (laidOut && pendingNavigation == null) rememberPosition()
         state.putString("settings.anchor", anchor); state.putInt("settings.offset", offset); state.putBoolean("settings.atEnd", atEnd)
     }
 }

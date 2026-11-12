@@ -392,7 +392,14 @@ class MobileService : Service() {
     }
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
-    var snapshot = MobileSnapshot(); private set
+    private val shortcutConfiguration = ShortcutContentRevision<List<Any?>>(
+        listOf(null, DeviceState.DISCONNECTED, DeviceState.DISCONNECTED, null))
+    internal val shortcutConfigurationRevision get() = shortcutConfiguration.revision
+    var snapshot = MobileSnapshot()
+        private set(value) {
+            shortcutConfiguration.observe(listOf(value.settings, value.coffeeState, value.scaleState, value.scaleCapabilities))
+            field = value
+        }
     val coffeeFirmware: CoffeeFirmware? get() = if(mock != null)
         snapshot.settings?.let { CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch) }
         else hub?.coffeeFirmware
@@ -1729,7 +1736,19 @@ class MobileService : Service() {
         }
         return null
     }
-    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
+    /** Connection identity is read-only; a shortcut cannot migrate to a replacement session. */
+    internal val shortcutDeviceIdentity: Any?
+        get() {
+            if (mock != null) return mockExtractionOwner ?: mock
+            val current = hub ?: return null
+            val address = current.coffeeAddress ?: return null
+            return Triple(current, address, current.coffeeGeneration)
+        }
+
+    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7,
+        startPermit: (() -> Boolean)? = null): String? {
+        fun callerPermits() = startPermit == null || runCatching { startPermit() }.getOrDefault(false)
+        if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
         val app = application as MobileApplication
         val preparation = app.beanPreparationResult.getOrElse { return getString(R.string.dose_start_unavailable) }
         if (preparation.current()?.let { it.shotId != null && !it.associated } == true)
@@ -1751,12 +1770,13 @@ class MobileService : Service() {
                 mock.cancelPreheat(now)
                 brewPreparation.consumed()
             }
+            if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
             val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
             val scenarioOwner = mockExtractionOwner
             if (scenarioOwner == null) mock.start(now, slot)
             else if (!mockExtractionScenario.start(scenarioOwner, profile.parameters,
                     profile.targetHundredthsGram, profile.compensationHundredthsGram) {
-                    selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
+                    callerPermits() && selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
                         customCurveFirmwareBlock(profile) == null &&
                         mockExtractionOwner === scenarioOwner
                 }) {
@@ -1828,7 +1848,7 @@ class MobileService : Service() {
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
                     settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
-                shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
+                callerPermits() && shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
                 ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,
                     selected==profile && library.validated(profile),manualShotActive,busy,

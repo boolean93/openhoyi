@@ -24,7 +24,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.StopReason
 import java.util.Locale
 
-/** A screen never owns BLE. Only an explicit start-button tap starts a cup; navigation never starts one. */
+/** A screen never owns BLE. Explicit start or a one-shot Home tap can start; navigation cannot. */
 class ExtractionFragment : androidx.fragment.app.Fragment() {
     private val host get() = requireActivity() as MainActivity
     private val application get() = host.application
@@ -371,6 +371,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
     }
     override fun onPause() {
+        host.revokeShortcutStart()
         feedbackUi.leave(host.isChangingConfigurations)
         visible=false;handler.removeCallbacks(refresh)
         if (::chart.isInitialized) chart.dismissInspection()
@@ -449,7 +450,32 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             .getString(PresetSlots.key(presetSlot), null))
         return id?.let(library::find)
     }
+    internal val shortcutStartVisible get() = visible && isResumed && !isHidden
+
+    /** Synchronous only: this is never called from bind, resume, restore, render or temperature updates. */
+    internal fun tryShortcutStart(expected: CurveProfile, permit: ShortcutStartPermit) {
+        val owner = service ?: run { permit.revoke(); toast(getString(R.string.service_unavailable)); return }
+        val library = (application as MobileApplication).curves
+        val current = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
+        if (!shortcutStartVisible || current != expected) {
+            permit.revoke(); toast(getString(R.string.extraction_choose_startable)); return
+        }
+        owner.extractionStartBlock(current)?.let {
+            permit.revoke(); toast(it); render(); return
+        }
+        owner.studioStartBlock(expected)?.let {
+            permit.revoke(); toast(it); render(); return
+        }
+        if (!permit.claim()) { toast(getString(R.string.shortcut_start_cancelled)); render(); return }
+        // Existing service gates and scale tare remain authoritative, including at final dispatch.
+        owner.startShot(expected.id, expected.scaleMode, presetSlot, permit::allows)?.let {
+            permit.revoke(); toast(it)
+        }
+        render()
+    }
+
     private fun startSelectedCurve() {
+        host.revokeShortcutStart()
         val owner = service ?: run { toast(getString(R.string.service_unavailable)); return }
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
@@ -468,6 +494,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         render()
     }
     private fun confirmPrepare(expected:CurveProfile?=null) {
+        host.revokeShortcutStart()
         val owner = service ?: return
         val profile = selected()?.let {
             (application as MobileApplication).curves.resolve(it.id,
