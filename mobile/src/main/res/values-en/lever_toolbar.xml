@@ -2,4 +2,5 @@
 <resources>
     <string name="lever_toolbar_label">Lever</string>
     <string name="slot_toolbar_label">Slots+</string>
+    <string name="lever_toolbar_label_traditional">Lever</string>
 </resources>
