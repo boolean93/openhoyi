@@ -381,6 +381,10 @@ class MainActivity : ThemedActivity() {
         revokeShortcutStart()
         val stored = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null)
         val library = (application as MobileApplication).curves
+        if (PresetSlots.curveId(slot, stored, library) == PresetSlots.EMPTY) {
+            select(TaskDestination.CURVES)
+            return
+        }
         val route = PresetSlots.route(slot, stored, library) as? PresetSlots.Route.Ready
             ?: run { Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show(); return }
         launchShortcut(slot, stored, route, shortcutPreferences.read().startsOnTap)

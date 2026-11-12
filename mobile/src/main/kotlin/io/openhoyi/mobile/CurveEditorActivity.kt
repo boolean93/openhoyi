@@ -158,7 +158,7 @@ class CurveEditorActivity : ThemedActivity() {
             listOf(getString(R.string.flow_editor_first_pressure), getString(R.string.flow_editor_first_flow)), if (firstFlow) 1 else 0) { position ->
             firstFlow = position == 1; units()
         }.apply { tag = "product/form/curve-editor/first-mode"; isEnabled = flowMode }
-        logicSwitch = android.widget.Switch(this).apply {
+        logicSwitch = HoyiSwitch(this).apply {
             text = getString(R.string.flow_editor_logic); textSize = 16f; minimumHeight = style.dp(48)
             isChecked = pressureLogic; tag = "product/form/curve-editor/pressure-logic"
             sections.modeControls.addView(this, LinearLayout.LayoutParams(-1, -2))
@@ -320,7 +320,7 @@ class CurveEditorActivity : ThemedActivity() {
             val available = (application as MobileApplication).customCurvesResult.getOrNull()
             if (available == null) { error.setText(R.string.profiles_unavailable); save.isEnabled = false; return@setOnClickListener }
             save.isEnabled = false
-            if (runCatching { available.save(doc) }.isSuccess) finish()
+            if (runCatching { available.save(doc, source.takeIf { sourceId?.startsWith("draft-") == true }) }.isSuccess) finish()
             else { error.setText(R.string.profiles_save_failed); save.isEnabled = true }
         }
     }

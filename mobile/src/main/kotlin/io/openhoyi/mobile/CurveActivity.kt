@@ -38,6 +38,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailBack: Button
     private lateinit var detailToolbar: LinearLayout
+    private lateinit var deletionUi: CurveDeletionUi
     private lateinit var detailActions: Button
     private lateinit var directEdit: Button
     private lateinit var directShare: Button
@@ -111,6 +112,7 @@ class CurveActivity : ThemedActivity() {
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = resources.configuration.screenWidthDp < 840
         browserPane = collection.browserBody
+        deletionUi = CurveDeletionUi(this, browserPane) { refreshList() }
         detailPanel = collection.detailBody
         browserPane.tag = "product/curve-library/browser"; detailPanel.tag = "product/curve-library/detail"
         collection.foreground = object : android.graphics.drawable.Drawable() {
@@ -390,9 +392,13 @@ class CurveActivity : ThemedActivity() {
             val item = selected?.takeIf { PresetSlots.canAssign(it, library) } ?: return@button
             AlertDialog.Builder(this).setTitle(getString(R.string.curve_choose_slot))
                 .setItems((1..5).map { getString(R.string.home_slot, it.toString()) }.toTypedArray()) { _, index ->
+                    if (library.find(item.id) != item || !PresetSlots.canAssign(item, library)) {
+                        Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show()
+                        return@setItems
+                    }
                     val slot = index + 1
                     getSharedPreferences("presets", MODE_PRIVATE).edit()
-                        .putString(PresetSlots.key(slot), item.id).apply()
+                        .putString(PresetSlots.key(slot), PresetSlots.bind(item.id)).apply()
                     lastAssignedCurveId = item.id
                     lastAssignedSlot = slot
                     updateAvailabilityFeedback()
@@ -411,8 +417,14 @@ class CurveActivity : ThemedActivity() {
             productStyle.button(this); HomeVisualIcon.buttonIcon(this, "share"); visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(-2, -2)
         }
+        val deleteCurve = Button(this).apply {
+            text = getString(R.string.curve_delete)
+            tag = "curve-delete"
+            setOnClickListener { selected?.let(deletionUi::confirm) }
+        }
         detailActions = HoyiUi.button(this, detailToolbar, getString(R.string.task_curve_library_actions)) {
-            showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, assignPreset))
+            deleteCurve.visibility = if (selected?.customDocument != null) View.VISIBLE else View.GONE
+            showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, assignPreset, deleteCurve))
         }.apply {
             productStyle.button(this); HomeVisualIcon.buttonIcon(this, "more")
             tag = "curve-detail-actions"
@@ -480,6 +492,14 @@ class CurveActivity : ThemedActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::deletionUi.isInitialized) { refreshList(); deletionUi.refresh() }
+    }
+    override fun onPause() {
+        if (::deletionUi.isInitialized) deletionUi.pause()
+        super.onPause()
+    }
     override fun onStop() {
         if (redirectedRoot) { super.onStop(); return }
         clearAssignmentFeedback()
@@ -689,6 +709,8 @@ class CurveActivity : ThemedActivity() {
             selected = null
             collection.detailRequested = false
             detailActions.visibility = View.GONE
+            directEdit.visibility = View.GONE
+            directShare.visibility = View.GONE
             detailScroll.visibility = View.GONE
             previewFallbackScroll.visibility = View.GONE
             previewSpacer.visibility = View.GONE

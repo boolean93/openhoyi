@@ -102,6 +102,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var directPresets: List<DirectPresetVisual>
     private var layoutDirectPresets: (Boolean) -> Unit = {}
     private var presetVisualsDirty = true
+    private var customCurveRevision = -1L
     private var shortcutToggle: Switch? = null
     private var updatingShortcut = false
     private var stopShortcutPreferenceObserver: (() -> Unit)? = null
@@ -354,24 +355,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.Type(if (shortHome) 18 else 22, 500, if (shortHome) 28 else 32), "product/home/quick-title")
-        val directStart = Switch(host).apply {
+        val directStart = HoyiSwitch(host).apply {
             text = getString(R.string.shortcut_start_setting)
             tag = "product/home/shortcuts/direct-start"
             productStyle.apply(this, TaskProductVisualStyle.Type(14, 400, 20))
             isChecked = shortcutPreferences.read().startsOnTap
             showText = false
             switchPadding = dp(6)
-            switchMinWidth = dp(36)
             minHeight = dp(48); minimumHeight = minHeight
-            minimumWidth = 0; minWidth = 0
             setPadding(dp(2), 0, 0, 0)
             background = null
-            thumbTintList = android.content.res.ColorStateList(
-                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                intArrayOf(productStyle.accent, productStyle.muted))
-            trackTintList = android.content.res.ColorStateList(
-                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                intArrayOf(productStyle.selected, productStyle.disabled))
             setOnCheckedChangeListener { _, checked ->
                 if (!updatingShortcut) {
                     host.revokeShortcutStart()
@@ -1091,6 +1084,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             "  ·  ${liveDeviceFlow?.let(::number) ?: "—"} g/s")
         val app = application as MobileApplication
         val library = app.curves
+        val revision = app.customCurvesResult.getOrNull()?.revision ?: -1L
+        if (customCurveRevision != revision) {
+            customCurveRevision = revision
+            presetVisualsDirty = true
+            lastCurveDirty = true
+            recentCurves.refresh()
+        }
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
@@ -1193,17 +1193,18 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val presetScale = CurveStageParameters.SharedScale.from(library.items)
             presetButtons.forEachIndexed { index, button ->
                 val slot = index + 1
-                val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null))
+                val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null), library)
                 val item = library.find(id)
+                val empty = id == PresetSlots.EMPTY
                 val unavailable = id.startsWith("draft-") && (item == null || !library.canStart(item))
                 val label = getString(R.string.home_slot_curve, slot.toString(),
-                    if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: id)
+                    if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: id)
                 if (button.text.toString() != label) button.text = label
                 val visual = directPresets[index + 1]
                 visual.button.contentDescription = label
                 visual.button.background = productStyle.shape(if (item != null && item.id == selected?.id) productStyle.homeSelected else productStyle.surface, true)
-                visual.button.isEnabled = unavailable || item?.let(library::canStart) == true
-                visual.name.show(if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: getString(R.string.home_slot_unconfigured))
+                visual.button.isEnabled = empty || unavailable || item?.let(library::canStart) == true
+                visual.name.show(if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: getString(R.string.home_slot_unconfigured))
                 visual.name.setTextColor(if (!unavailable && visual.button.isEnabled) productStyle.homePresetText else productStyle.onDisabled)
                 val thumbnail = HomePresetPreview.from(item, presetScale)
                 visual.sparkline.visibility = if (thumbnail == null) View.GONE else View.VISIBLE

@@ -98,9 +98,6 @@ internal class SettingsVisualStyle(val context:Context) {
         palette.apply(view,TaskProductVisualStyle.body)
         view.minHeight=palette.dp(minDp);view.minimumHeight=view.minHeight;view.minimumWidth=palette.dp(48)
         view.switchPadding=palette.dp(16)
-        view.thumbTintList=ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf(android.R.attr.state_checked),intArrayOf()),
-            intArrayOf(palette.onDisabled,palette.accent,palette.muted))
-        view.trackTintList=ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked),intArrayOf()),intArrayOf(palette.selected,palette.disabled))
     }
     fun input(view:EditText) {
         palette.apply(view,TaskProductVisualStyle.body)
