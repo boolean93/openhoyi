@@ -16,8 +16,8 @@
     <string name="scale_tare_idle">Tare: not requested</string>
     <string name="scale_tare_waiting">Tare: waiting for a zero reading</string>
     <string name="scale_tare_confirmed">Tare: zero reading observed</string>
-    <string name="scale_tare_failed">Tare: request did not complete</string>
-    <string name="scale_tare_unknown">Tare: result unknown; will not retry automatically</string>
+    <string name="scale_tare_failed">Tare failed</string>
+    <string name="scale_tare_unknown">Zero unconfirmed</string>
     <string name="scale_active_guard">Extraction is active or its result is unconfirmed. Taring, switching scales, and using the weight as a dose are unavailable.</string>
     <string name="scale_timer_title">App-local timer</string>
     <string name="scale_timer_help">Start manually. This is not the scale timer and is not used to stop water automatically.</string>
@@ -79,4 +79,5 @@
     <string name="scale_operation_limits">Operation limits</string>
     <string name="scale_protocol_support">Protocol support</string>
     <string name="scale_documented_target_live">Target weight supported; hardware acceptance pending. No bean capture</string>
+    <string name="scale_tare_retry">Tare again</string>
 </resources>

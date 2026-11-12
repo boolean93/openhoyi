@@ -72,7 +72,9 @@ class ScaleSessionControl(private val session:DeviceSession,private val tareStat
 enum class ExtractionState { IDLE, STARTING, RUNNING, STOP_REQUESTED, ENDED_OBSERVED, OUTCOME_UNKNOWN }
 private const val STOP_CONFIRMATION_TIMEOUT_MS=5_000L
 /** Caller forwards fresh decoded weights and explicit machine-state observations; no Activity timers. */
-class ExtractionController(private val coffee:CoffeeControl,private val scale:ScaleControl,private val clock:()->Long) {
+class ExtractionController(private val coffee:CoffeeControl,private val scale:ScaleControl,private val clock:()->Long,
+    private val observationSerial:()->Long?) {
+    constructor(coffee:CoffeeControl,scale:ScaleControl,clock:()->Long):this(coffee,scale,clock,{null})
     var state=ExtractionState.IDLE;private set
     var stopReason:StopReason?=null;private set
     private val policy=ExtractionPolicy()
@@ -91,6 +93,8 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     private data class PendingStart(val parameters:StartParameters,val target:Int,val compensation:Int,val deadline:Long,val beforeDispatch:()->Boolean)
     private var pendingStart:PendingStart?=null
     private var preflightTareWrittenAt:Long?=null
+    private var preflightTareWrittenSerial:Long?=null
+    private var lastObservationSerial:Long?=null
     val preparingScale:Boolean get()=pendingStart!=null
     fun start(parameters:StartParameters,targetHundredthsGram:Int,compensationHundredthsGram:Int):Boolean =
         start(parameters,targetHundredthsGram,compensationHundredthsGram,{true})
@@ -110,12 +114,15 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         state=ExtractionState.STARTING
         if(targetHundredthsGram>0){
             pendingStart=PendingStart(parameters,targetHundredthsGram,compensationHundredthsGram,now+5000,beforeDispatch)
-            preflightTareWrittenAt=null
+            preflightTareWrittenAt=null;preflightTareWrittenSerial=null
             scale.tare({permitted(beforeDispatch) && id==serial && state==ExtractionState.STARTING && lastActiveFrame==null &&
                 pendingStart?.let { clock()<it.deadline }==true && coffee.ready &&
                 coffee.startConditionsValid(parameters)}) { result ->
                 if(id!=serial||state!=ExtractionState.STARTING||pendingStart==null)return@tare
-                if(result is OperationResult.Success)preflightTareWrittenAt=clock()
+                if(result is OperationResult.Success) {
+                    preflightTareWrittenAt=clock()
+                    preflightTareWrittenSerial=observationSerial()
+                }
                 else abortPreflight(StopReason.TARE_UNCONFIRMED)
             }
         }else beginMachineStart(id,parameters,targetHundredthsGram,compensationHundredthsGram,now,null,beforeDispatch)
@@ -128,7 +135,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(!permitted(beforeDispatch) || !coffee.startConditionsValid(parameters)) {
             abortPreflight(StopReason.START_CONDITIONS_CHANGED);return
         }
-        pendingStart=null;preflightTareWrittenAt=null
+        pendingStart=null;preflightTareWrittenAt=null;preflightTareWrittenSerial=null
         policy.begin(id,target,compensation,atMs)
         baseline?.let { policy.confirmTare(id,it.hundredthsGram,it.receivedAtMs) }
         started=atMs
@@ -150,7 +157,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     private fun permitted(predicate:()->Boolean):Boolean=runCatching(predicate).getOrDefault(false)
     private fun abortPreflight(reason:StopReason){
         if(state!=ExtractionState.STARTING)return
-        pendingStart=null;preflightTareWrittenAt=null;stopReason=reason;state=ExtractionState.IDLE
+        pendingStart=null;preflightTareWrittenAt=null;preflightTareWrittenSerial=null;stopReason=reason;state=ExtractionState.IDLE
     }
     /** Generic live input; offline decode evidence is never an extraction observation. */
     fun weight(observation:ScaleObservation) {
@@ -160,15 +167,28 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     fun weight(reading:WeightReading) {
         val now=clock()
         if(!scale.ready||!ScaleReadingPolicy.isFresh(reading.hundredthsGram,reading.receivedAtMs,now))return
-        if(latest!=null&&reading.receivedAtMs<=latest!!.receivedAtMs)return
-        latest=reading
+        val sampleSerial=observationSerial()
+        val previousSerial=lastObservationSerial
+        // A host sequence can prove arrival after the successful tare callback even when
+        // both events share a millisecond. It never makes old timestamps or old sequences fresh.
+        if(sampleSerial!=null) {
+            if(previousSerial!=null && sampleSerial<=previousSerial)return
+            lastObservationSerial=sampleSerial
+        }
         val preparing=pendingStart
         val written=preflightTareWrittenAt
+        val writtenSerial=preflightTareWrittenSerial
+        val orderedPreflightZero=state==ExtractionState.STARTING && preparing!=null && written!=null &&
+            writtenSerial!=null && sampleSerial!=null && sampleSerial>writtenSerial &&
+            reading.receivedAtMs>=written && (latest==null || reading.receivedAtMs>=latest!!.receivedAtMs) &&
+            kotlin.math.abs(reading.hundredthsGram)<=50
+        if(!orderedPreflightZero && latest!=null&&reading.receivedAtMs<=latest!!.receivedAtMs)return
+        latest=reading
         if(state==ExtractionState.STARTING && preparing!=null && now>=preparing.deadline) {
             abortPreflight(StopReason.TARE_UNCONFIRMED);return
         }
         if(state==ExtractionState.STARTING&&preparing!=null&&written!=null&&
-            reading.receivedAtMs>written&&kotlin.math.abs(reading.hundredthsGram)<=50){
+            (reading.receivedAtMs>written || orderedPreflightZero)&&kotlin.math.abs(reading.hundredthsGram)<=50){
             beginMachineStart(serial,preparing.parameters,preparing.target,preparing.compensation,reading.receivedAtMs,reading,preparing.beforeDispatch)
             return
         }

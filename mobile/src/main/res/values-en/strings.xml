@@ -416,7 +416,7 @@
     <string name="home_tare_idle">"Not requested"</string>
     <string name="home_tare_initial">"Tare status: not requested"</string>
     <string name="home_tare_prefix">"Tare status: "</string>
-    <string name="home_tare_unknown">"Outcome unknown; check the scale"</string>
+    <string name="home_tare_unknown">"Zero unconfirmed; you can tare again"</string>
     <string name="home_tare_waiting">"Request written; waiting for zero reading"</string>
     <string name="home_tare_writing">"Sending request"</string>
     <string name="language_current">"Current language: %1$s · Tap to change"</string>
@@ -694,7 +694,8 @@
     <string name="service_event_sleep_reconciled">"Machine reported awake standby again; previous sleep request not confirmed"</string>
     <string name="service_event_started">"Service started"</string>
     <string name="service_event_startup_failed">"Service startup failed: %1$s"</string>
-    <string name="service_event_tare_unconfirmed">"Scale tare not confirmed; coffee machine did not start"</string>
+    <string name="service_event_tare_cancelled_waiting">"Start cancelled. Wait for scale zero, then start again"</string>
+    <string name="service_event_tare_unconfirmed">"Start cancelled; coffee machine did not start. Check tare status"</string>
     <string name="service_event_write_shutdown_block">"Previous machine write not confirmed; device service remains running"</string>
     <string name="service_scale_already_connected">"Scale connected or connecting"</string>
     <string name="service_scale_connect">"Connect scale"</string>
@@ -765,8 +766,8 @@
     <string name="service_tare_not_ready">"Scale not ready yet"</string>
     <string name="service_tare_requested">"Scale tare requested"</string>
     <string name="service_tare_shot_block">"Cannot tare manually during extraction"</string>
-    <string name="service_tare_start_unknown">"Zero unconfirmed. Tare again"</string>
-    <string name="service_tare_start_wait">"Waiting for scale zero"</string>
+    <string name="service_tare_start_unknown">"Zero unconfirmed. Tare again before starting"</string>
+    <string name="service_tare_start_wait">"Still waiting for scale zero. Please wait"</string>
     <string name="service_tare_unknown">"Tare outcome unknown; tare again and wait for zero"</string>
     <string name="service_tare_waiting">"Waiting for this tare result"</string>
     <string name="service_tare_written">"Tare command written; waiting for scale zero"</string>

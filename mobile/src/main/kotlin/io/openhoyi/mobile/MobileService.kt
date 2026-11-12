@@ -420,9 +420,15 @@ class MobileService : Service() {
     private fun observeTare() {
         val current = tareState
         if(current == lastTareState) return
+        logTarePhase(current)
         lastTareState = current
         if(current == StandaloneTare.State.CONFIRMED) event(ResourceMessage(R.string.service_tare_confirmed), "scale.tare_confirmed")
         if(current == StandaloneTare.State.UNKNOWN) event(ResourceMessage(R.string.service_tare_unknown), "scale.tare_unknown")
+    }
+    private fun logTarePhase(current: StandaloneTare.State) {
+        if (current == lastTareState) return
+        logs.record("scale.tare_phase", mapOf("from" to lastTareState.name, "to" to current.name,
+            "shotState" to shotState.name, "preparingScale" to scalePreflight.toString()))
     }
     private val watchShot = object : Runnable {
         override fun run() {
@@ -461,7 +467,8 @@ class MobileService : Service() {
                 event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
-                    event(ResourceMessage(R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
+                    event(ResourceMessage(if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
+                        R.string.service_event_tare_cancelled_waiting else R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.START_CONDITIONS_CHANGED.name)
                     event(ResourceMessage(R.string.service_event_conditions_changed), "shot.conditions_changed")
@@ -1053,6 +1060,7 @@ class MobileService : Service() {
                 hub === current,snapshot.scaleState==DeviceState.READY,manualShotActive,shotState)
         }) done@{ result ->
             if(hub !== current)return@done
+            logTarePhase(tareState)
             lastTareState = tareState
             when (tareState) {
                 StandaloneTare.State.WAITING_ZERO -> event(ResourceMessage(R.string.service_tare_written), "scale.tare_written")

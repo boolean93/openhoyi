@@ -394,7 +394,7 @@
     <string name="home_tare_writing">"正在发送"</string>
     <string name="home_tare_waiting">"已写入，等待归零"</string>
     <string name="home_tare_confirmed">"已收到归零读数"</string>
-    <string name="home_tare_unknown">"结果未知，请查看秤"</string>
+    <string name="home_tare_unknown">归零未确认，可重新去皮</string>
     <string name="home_sleep_stale">"暂无新鲜状态"</string>
     <string name="home_sleep_awake">"待机"</string>
     <string name="home_sleep_asleep">"已休眠 · 请用咖啡机拨杆唤醒"</string>
@@ -741,8 +741,8 @@
 
     <!-- Tare and unresolved setting messages: state gates and dispatch are unchanged. -->
     <string name="service_setting_unresolved">"上次机器设置结果未知，请等待新的设置回读或重新连接"</string>
-    <string name="service_tare_start_wait">等待电子秤归零</string>
-    <string name="service_tare_start_unknown">归零未确认，请重新去皮</string>
+    <string name="service_tare_start_wait">仍在等待归零，请稍候</string>
+    <string name="service_tare_start_unknown">归零未确认，可重新去皮后再启动</string>
     <string name="service_tare_confirmed">"电子秤已归零"</string>
     <string name="service_tare_unknown">"去皮结果未知，请重新去皮并等待归零"</string>
     <string name="service_tare_mock">"Mock 电子秤已归零；未发送蓝牙命令"</string>
@@ -924,7 +924,7 @@
     <string name="service_event_mock_temperature_ready">"Mock 目标温度已达到；未发送蓝牙命令"</string>
     <string name="service_event_shot_clear_failed">"无法清除萃取安全记录；请检查机器并重试。"</string>
     <string name="service_event_preheat_clear_failed">"无法清除预热安全记录；请核对机器"</string>
-    <string name="service_event_tare_unconfirmed">"电子秤去皮未确认，咖啡机未启动"</string>
+    <string name="service_event_tare_unconfirmed">本次启动已取消，咖啡机未启动；请查看去皮状态</string>
     <string name="service_event_conditions_changed">"启动条件已变化，咖啡机未启动；请重新核对曲线和机器设置"</string>
     <string name="service_event_mock_started">"Mock 数据已启动；所有设备命令均为模拟"</string>
     <string name="service_event_credential_save_failed">"咖啡机已连接，但本机未能保存密码"</string>
@@ -1020,4 +1020,5 @@
     <string name="task_shell_sleep_history">"上次休眠"</string>
     <string name="task_shell_sleep_unsent">"未发送"</string>
     <string name="task_shell_sleep_wake">"拨杆唤醒"</string>
+    <string name="service_event_tare_cancelled_waiting">启动已取消，等待归零后请重新开始</string>
 </resources>

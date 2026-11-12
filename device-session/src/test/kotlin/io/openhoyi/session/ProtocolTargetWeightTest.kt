@@ -17,7 +17,7 @@ class ProtocolTargetWeightTest {
         }
         override fun stop(done: (OperationResult) -> Unit) { stops++; done(OperationResult.Success()) }
     }
-    private class Fixture(val adapter: ScaleProtocolAdapter) {
+    private class Fixture(val adapter: ScaleProtocolAdapter, val ordered: Boolean = false) {
         var now = 100L; var sampleSerial = 0L
         val calls = mutableListOf<Triple<Long,Long,GattOperation>>()
         val coffee = Coffee()
@@ -34,7 +34,7 @@ class ProtocolTargetWeightTest {
             tare.sample(++sampleSerial, it.hundredthsGram)
             controller.weight(it)
         })
-        val controller: ExtractionController = ExtractionController(coffee, ScaleSessionControl(session,tare,{sampleSerial}), {now})
+        val controller: ExtractionController = ExtractionController(coffee, ScaleSessionControl(session,tare,{sampleSerial}), {now}, {if(ordered) sampleSerial else null})
         val parameters = StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
         fun complete(result: OperationResult = OperationResult.Success()) {
             val (g,t,_) = calls.last(); session.onComplete(g,t,result)
@@ -69,6 +69,88 @@ class ProtocolTargetWeightTest {
             begin(); complete(); now++; notify(reading(0))
             assertEquals(1,coffee.starts); assertEquals(ExtractionState.RUNNING,controller.state)
         }
+    }
+    @Test fun diagnosticDffdBoundaryRestartDoesNotInvalidateTareOrReady() {
+        fun hex(s:String)=s.chunked(2).map {it.toInt(16).toByte()}.toByteArray()
+        for(adapter in adapters.drop(1)) {
+            val f=Fixture(adapter,ordered=true);f.begin();f.complete()
+            f.now+=34;f.notify(hex("dfdf03020103c7dfdf03020101c5dfdf03000dff"))
+            assertEquals(DeviceState.READY,f.session.state)
+            assertEquals(StandaloneTare.State.WAITING_ZERO,f.tare.state)
+            f.now+=222;f.notify(hex("dfdf03000d00000000000000000015c2e6008b"))
+            assertEquals(DeviceState.READY,f.session.state)
+            assertEquals(StandaloneTare.State.CONFIRMED,f.tare.state)
+            assertEquals(1,f.coffee.starts)
+        }
+    }
+    @Test fun boundaryRestartStillRejectsWrongUnitAndCannotReviveExpiredStart() {
+        fun hex(s:String)=s.chunked(2).map {it.toInt(16).toByte()}.toByteArray()
+        val fragment=hex("dfdf03020103c7dfdf03020101c5dfdf03000dff")
+        for(adapter in adapters.drop(1)) {
+            val wrong=Fixture(adapter,ordered=true);wrong.begin();wrong.complete()
+            wrong.now++;wrong.notify(fragment);wrong.now++;wrong.notify(wrong.reading(0,unit=1))
+            assertEquals(DeviceState.SYNCHRONIZING,wrong.session.state)
+            assertEquals(StandaloneTare.State.UNKNOWN,wrong.tare.state)
+            assertEquals(0,wrong.coffee.starts)
+            val late=Fixture(adapter,ordered=true);late.begin();late.now+=4000;late.complete()
+            late.notify(fragment);late.now+=1000
+            late.notify(hex("dfdf03000d00000000000000000015c2e6008b"))
+            assertEquals(StandaloneTare.State.CONFIRMED,late.tare.state)
+            assertEquals(0,late.coffee.starts)
+            assertEquals(ExtractionState.IDLE,late.controller.state)
+        }
+    }
+    @Test fun postCallbackZeroInSameMillisecondUsesHostOrder() {
+        for(adapter in adapters) {
+            val f=Fixture(adapter,ordered=true);f.begin();f.complete()
+            f.notify(f.reading(0)) // New callback, but clock has not ticked.
+            assertEquals(StandaloneTare.State.CONFIRMED,f.tare.state)
+            assertEquals(1,f.coffee.starts)
+        }
+    }
+    @Test fun orderedRunningStillRejectsSameTimestampWeight() {
+        val f=Fixture(FelicitaScaleProtocolAdapter,ordered=true);f.begin();f.complete();f.notify(f.reading(0))
+        assertEquals(1,f.coffee.starts)
+        f.now+=7001;f.notify(f.reading(1000))
+        f.notify(f.reading(3500)) // New sequence, same timestamp: not a preflight relaxation.
+        assertEquals(0,f.coffee.stops)
+        f.now++;f.notify(f.reading(3500));assertEquals(1,f.coffee.stops)
+    }
+    @Test fun sequenceDoesNotReplayPreCallbackOrRepeatedOrOlderZero() {
+        val f=Fixture(FelicitaScaleProtocolAdapter,ordered=true);f.begin()
+        f.notify(f.reading(0));f.complete()
+        f.controller.weight(WeightReading(0,f.now)) // Same serial: already received before successful write.
+        assertEquals(0,f.coffee.starts)
+        f.sampleSerial--
+        f.controller.weight(WeightReading(0,f.now))
+        assertEquals(0,f.coffee.starts)
+        f.sampleSerial+=2
+        f.controller.weight(WeightReading(0,f.now-1)) // New serial never permits an older timestamp.
+        assertEquals(0,f.coffee.starts)
+        f.now++;f.notify(f.reading(0));assertEquals(1,f.coffee.starts)
+    }
+    @Test fun lateZeroReleasesTareButNeverRevivesExpiredStart() {
+        val f=Fixture(FelicitaScaleProtocolAdapter,ordered=true);f.begin()
+        f.now+=4000;f.complete() // Standalone confirmation deadline is later than launch intent.
+        f.now+=1000;f.controller.tick()
+        assertEquals(ExtractionState.IDLE,f.controller.state)
+        assertEquals(StandaloneTare.State.WAITING_ZERO,f.tare.state)
+        f.notify(f.reading(0))
+        assertEquals(StandaloneTare.State.CONFIRMED,f.tare.state)
+        assertEquals(0,f.coffee.starts)
+        assertEquals(StopReason.TARE_UNCONFIRMED,f.controller.stopReason)
+    }
+    @Test fun deadlineZeroWithoutTickNeverStartsEvenWithNewSequence() {
+        val f=Fixture(FelicitaScaleProtocolAdapter,ordered=true);f.begin()
+        f.now+=4000;f.complete();f.now+=1000
+        f.notify(f.reading(0))
+        assertEquals(0,f.coffee.starts)
+        assertEquals(ExtractionState.IDLE,f.controller.state)
+    }
+    @Test fun unorderedCallerKeepsStrictTimestampEvidence() {
+        val f=Fixture(FelicitaScaleProtocolAdapter);f.begin();f.complete();f.notify(f.reading(0))
+        assertEquals(0,f.coffee.starts)
+        f.now++;f.notify(f.reading(0));assertEquals(1,f.coffee.starts)
     }
     @Test fun supportedProtocolsTareConfirmNewZeroStartAndStopAtTarget() {
         for(adapter in adapters) {
