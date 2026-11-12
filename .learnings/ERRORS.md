@@ -74,3 +74,12 @@ Rebuild only this worktree's outputs with clean, --no-build-cache and --rerun-ta
 **Area**: infra
 
 主仓库 main 是旧入口，没有 docs/git-workflow.md/.agents；从 origin/develop 建独立工作树后读取现行规则。sandbox 内 fetch DNS 不可用，经已授权的网络升级后 fetch 成功。未改其它工作树。
+
+## [ERR-20261112-CURVE-FIXTURE] Private-field fixture broke after atomic store state change
+
+**Logged**: 2026-11-12
+**Priority**: medium
+**Status**: in_progress
+**Area**: tests
+
+Curve deletion moved CustomCurveStore.documents into the immutable state snapshot. JVM/PR gates passed, but post-merge lifecycle 43251947618 failed before shortcut window assertions with NoSuchFieldException. Three Android fixtures still reflected the old field. Adapt them through a shared full-state snapshot and public save on an isolated in-memory store; retain all data-preservation and safety assertions. Do not blindly rerun the old source or bypass publication gating. A gh run view query also rejected the unsupported artifacts JSON field; use the Actions artifacts REST endpoint instead.

@@ -27,8 +27,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         val oldDark = appearance.all["dark"] as? Boolean
         val app = context.applicationContext as MobileApplication
         val store = app.customCurvesResult.getOrThrow()
-        val documents = store.javaClass.getDeclaredField("documents").apply { isAccessible = true }
-        val originalDocs = documents.get(store)
+        val curveFixture = CustomCurveWindowFixture(store)
         val prefs = context.getSharedPreferences("shortcut_start", Context.MODE_PRIVATE)
         val oldDirect = prefs.all["direct_start"] as? Boolean
         val slots = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
@@ -54,8 +53,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         try {
             main {
                 darkTheme?.let { check(appearance.edit().putBoolean("dark", it).commit()) }
-                @Suppress("UNCHECKED_CAST") val old = originalDocs as Map<String, CustomCurveDocument>
-                documents.set(store, LinkedHashMap(old).apply { put(document.id, document) })
+                curveFixture.replace(document)
                 check(slots.edit().putString(PresetSlots.key(5), document.id).commit())
                 check(prefs.edit().remove("direct_start").commit())
             }
@@ -170,7 +168,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         } finally {
             try { main {
                 mockRuntime?.let { runtime -> runtime.javaClass.getDeclaredField("settings").apply { isAccessible = true }.set(runtime, originalMockSettings) }
-                documents.set(store, originalDocs); activity?.finish()
+                curveFixture.restore(); activity?.finish()
             } }
             finally {
                 if (darkTheme != null) check(appearance.edit().apply {
