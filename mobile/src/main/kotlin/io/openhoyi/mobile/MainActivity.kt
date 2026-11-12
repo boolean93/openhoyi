@@ -439,6 +439,7 @@ class MainActivity : ThemedActivity() {
     }
 
     private fun showCurrent() {
+        (application as MobileApplication).releaseUpdates.interruptInstallLease()
         if (supportFragmentManager.isStateSaved) { pendingShow = true; return }
         pendingShow = false
         val chosen = if (extractionVisible) "extraction" else tag(destination)

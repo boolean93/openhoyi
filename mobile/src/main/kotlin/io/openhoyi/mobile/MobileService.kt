@@ -133,6 +133,12 @@ class MobileService : Service() {
     private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
         machineWriteRecovery.kind, brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
+    /** Display-only update gate. The service remains the sole machine-control authority. */
+    internal val updateInterruptionBlocked: Boolean get() = releaseUpdateInterruptionBlocked(
+        shotState, manualShotActive, scalePreflight, brewPreparation.active, tareState,
+        shotRecovery.pending, machineWriteRecovery.pending, settingsWrite.state,
+        cupResetBusy, scheduleBusy, sleepNow.state, leverInFlight != null, leverStore.blocked) ||
+        (hub == null && io.openhoyi.bluetooth.SharedPreferenceTareStorage(this).read())
     val machineControlSafetyMessage: String? get() = leverWriteBlock ?: MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
     val shotRecoveryClearBlock: String? get() = shotRecoveryClearResource?.let { getString(it) }
@@ -610,6 +616,8 @@ class MobileService : Service() {
     }
 
     private fun onCoffeeFrame(frame: HoyiMessage) {
+        if (frame is io.openhoyi.protocol.ExtractionTelemetry && (frame.valveOpen || frame.brewWait))
+            interruptUpdateInstallation()
         snapshot = when (frame) {
             is Settings -> {
                 observeCupCount(true, frame.cupCount)
@@ -814,6 +822,7 @@ class MobileService : Service() {
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
+        app.releaseUpdates.serviceCreated(this)
         app.feedbackPreferences.observe(ownerId) { enabled -> if (!enabled) feedbackDelivery.clear() }
         logs = app.logs
         history = runCatching { app.history }.getOrNull()
@@ -1071,7 +1080,12 @@ class MobileService : Service() {
             autoConnect.pause(DeviceRole.BOOKOO,true)
         }
     }
+    /** UI intent revocation only; it cannot authorize, cancel or replay a machine operation. */
+    private fun interruptUpdateInstallation() {
+        (application as? MobileApplication)?.let { app -> runCatching { app.releaseUpdates.interruptInstallLease() } }
+    }
     fun tareScale(): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.tare()
             if (result == null) {
@@ -1166,6 +1180,7 @@ class MobileService : Service() {
     }
 
     fun changeMachineSetting(change: MachineSettingChange): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.changeSetting(change)
             if (result == null) {
@@ -1285,6 +1300,7 @@ class MobileService : Service() {
     }
     internal fun sendLeverRecipe(profile: CurveProfile, expectedAddress: String, expectedFirmware: String,
         outcome: (String) -> Unit): String? {
+        interruptUpdateInstallation()
         leverRecipeWriteBlock()?.let { return it }
         val app = application as MobileApplication
         if (leverDeviceAddress != expectedAddress || coffeeFirmware.toString() != expectedFirmware ||
@@ -1360,6 +1376,7 @@ class MobileService : Service() {
     }
 
     fun resetCupCount(expectedCount: Int): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.resetCupCount(expectedCount)
             if (result == null) {
@@ -1432,6 +1449,7 @@ class MobileService : Service() {
         return null
     }
     fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.changeSchedule(expected, target)
             if (result == null) {
@@ -1515,6 +1533,7 @@ class MobileService : Service() {
         return null
     }
     fun enterSleepNow(): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.sleepNow()
             if (result == null) {
@@ -1630,6 +1649,7 @@ class MobileService : Service() {
         getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
+        interruptUpdateInstallation()
         if (mock != null) {
             if (brewPreparation.active) return getString(R.string.service_shot_preheat_mock_pending)
             val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
@@ -1775,6 +1795,7 @@ class MobileService : Service() {
 
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7,
         startPermit: (() -> Boolean)? = null): String? {
+        interruptUpdateInstallation()
         fun callerPermits() = startPermit == null || runCatching { startPermit() }.getOrDefault(false)
         if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
         val app = application as MobileApplication
@@ -1927,6 +1948,7 @@ class MobileService : Service() {
         }.getOrNull()
     }
     fun stopShot() {
+        interruptUpdateInstallation()
         if (mock != null) {
             if (ShotGate.active(shotState)) {
                 val scenarioOwner = mockExtractionOwner
@@ -2022,6 +2044,7 @@ class MobileService : Service() {
     private fun event(message: String, kind: String = "mobile.event") =
         recordMessage(SnapshotMessage.raw(message), kind)
     private fun recordMessage(message: SnapshotMessage, kind: String) {
+        (application as? MobileApplication)?.let { app -> runCatching { app.releaseUpdates.interruptionStateChanged() } }
         snapshot = snapshot.copy(message = message)
         logs.record(kind, mapOf("message" to message.initialText, "ownerId" to ownerId))
         Log.i(TAG, message.initialText)
@@ -2265,6 +2288,7 @@ class MobileService : Service() {
     }
     override fun onDestroy() {
         settleLeverWriteUnknown()
+        (application as MobileApplication).releaseUpdates.serviceDestroyed(this)
 
         running = false
         (application as MobileApplication).serviceAvailability.stopped(ownerId)

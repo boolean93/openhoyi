@@ -1,125 +1,126 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
+import android.view.Gravity
 import android.view.View
+import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.Toast
-import java.util.concurrent.Executors
 
-/** About-page, user-initiated update check. External browser owns download and any later install. */
-internal class ReleaseUpdateCard(
-    private val activity: Activity,
-    parent: LinearLayout,
-    visual: SettingsVisualStyle,
-) {
-    private val identity = installedUpdateIdentity(activity)
-    private val handler = Handler(Looper.getMainLooper())
-    private val executor = Executors.newSingleThreadExecutor()
+/** Compact settings disclosure: version/check row, optional result and explicit user actions. */
+internal class ReleaseUpdateCard(private val activity: Activity, parent: LinearLayout, visual: SettingsVisualStyle,
+    private val actions: ReleaseUpdateUiActions = LiveReleaseUpdateUiActions(activity)) {
+    private val controller = actions.metadata
+    private val downloads = actions.downloads
     private val style = visual.palette
-    private val card = style.column("product/settings/app/update/card").apply {
-        setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
-        background = style.shape(style.surface, outline = true)
+    private val card = style.column("product/settings/app/update/card")
+    private val row = style.row("product/settings/app/update/version-row").apply { gravity = Gravity.CENTER_VERTICAL }
+    private val version = style.text(activity.getString(R.string.update_current_version, BuildConfig.VERSION_NAME),
+        TaskProductVisualStyle.body, "product/settings/app/update/version")
+    private val check = style.button(Button(activity)).apply {
+        text = activity.getString(R.string.update_check); tag = "product/settings/app/update/check"
+        setOnClickListener { controller.manualCheck() }
     }
-    private val status = style.text(activity.getString(R.string.update_idle), TaskProductVisualStyle.auxiliary,
-        "product/settings/app/update/status", secondary = true).apply {
+    private val status = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/update/status", true).apply {
         accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
-    private var target: String? = null
-    private val check: android.widget.Button = HoyiUi.button(activity, card, activity.getString(R.string.update_check)) { controller.check() }.apply {
-        tag = "product/settings/app/update/check"
-        visual.action(this)
+    private val progress = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
+        max = 1000; tag = "product/settings/app/update/progress"
     }
-    private val open: android.widget.Button = HoyiUi.button(activity, card, activity.getString(R.string.update_view_release)) {
-        target?.let(::openBrowser)
-    }.apply { tag = "product/settings/app/update/open"; visual.action(this, outline = true); visibility = View.GONE }
-    private val controller: ReleaseUpdateCheckController = ReleaseUpdateCheckController(::request, ::render)
-
+    private val action = style.button(Button(activity), outline = true).apply {
+        tag = "product/settings/app/update/open"
+        setOnClickListener {
+            when {
+                downloads.working -> actions.cancel()
+                downloads.state.phase == ReleaseDownloadController.Phase.FAILED ->
+                    downloads.state.target?.let { actions.download(it) }
+                downloads.state.file?.isFile == true -> actions.install()
+                downloads.state.phase in setOf(ReleaseDownloadController.Phase.FAILED, ReleaseDownloadController.Phase.INTERRUPTED) ->
+                    downloads.state.target?.let { actions.download(it) }
+                else -> controller.state.update?.let { actions.download(it) }
+            }
+        }
+    }
+    private val discard = style.button(Button(activity)).apply {
+        text = activity.getString(R.string.update_discard_download)
+        tag = "product/settings/app/update/discard"
+        setOnClickListener { actions.discard() }
+    }
+    private val toggle = android.widget.Switch(activity).apply {
+        text = activity.getString(R.string.update_auto_enabled)
+        tag = "product/settings/app/update/automatic"; isChecked = controller.enabled
+        setOnCheckedChangeListener { _, enabled ->
+            if (!controller.setEnabled(enabled)) {
+                isChecked = controller.enabled
+                Toast.makeText(activity, R.string.update_preference_failed, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    private val metadataObserver: (ReleaseUpdateCoordinator.State) -> Unit = { render() }
+    private val downloadObserver: (ReleaseDownloadController.State) -> Unit = { render() }
     init {
-        // Stable vertical layout also permits full English labels and large text to wrap naturally.
-        card.addView(style.text(activity.getString(R.string.update_title), TaskProductVisualStyle.action), 0)
-        card.addView(status, 1, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(8); bottomMargin = style.dp(8) })
-        style.add(card, style.text(activity.getString(R.string.update_manual_hint), TaskProductVisualStyle.auxiliary,
-            secondary = true), 8)
-        style.add(parent, card, 16)
-        render(controller.state)
+        visual.switch(toggle)
+        row.addView(version, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(check, LinearLayout.LayoutParams(-2, -2))
+        style.add(card, row)
+        style.add(card, status, 8); style.add(card, progress, 8); style.add(card, action, 8); style.add(card, discard, 8)
+        style.add(card, toggle, 8); style.add(parent, card, 12)
+        render()
     }
-    private fun request(result: (Result<ReleaseUpdate>) -> Unit): () -> Unit {
-        val call = ReleaseUpdateHttpCall()
-        var finished = false // Accessed only by this UI thread and its Handler callbacks.
-        var future: java.util.concurrent.Future<*>? = null
-        val timeout = Runnable {
-            if (!finished) {
-                finished = true
-                call.cancel(); future?.cancel(true)
-                result(Result.failure(java.net.SocketTimeoutException("Update check timed out")))
+    private fun render() {
+        val metadata = controller.state
+        val transfer = downloads.state
+        check.isEnabled = !metadata.checking
+        check.setText(if (metadata.checking) R.string.update_checking else R.string.update_check)
+        progress.visibility = View.GONE; action.visibility = View.GONE
+        discard.visibility = if (!downloads.working && transfer.target != null) View.VISIBLE else View.GONE
+        val text = when (transfer.phase) {
+            ReleaseDownloadController.Phase.DOWNLOADING -> {
+                val total = transfer.target?.apkSize ?: 1
+                progress.visibility = View.VISIBLE
+                progress.progress = (transfer.received * 1000 / total.coerceAtLeast(1)).toInt()
+                action.visibility = View.VISIBLE; action.setText(R.string.update_cancel_download)
+                activity.getString(R.string.update_download_progress, transfer.received, total)
             }
-        }
-        future = executor.submit {
-            val value = runCatching { call.execute() }
-            handler.post {
-                if (!finished) {
-                    finished = true
-                    handler.removeCallbacks(timeout)
-                    result(value)
+            ReleaseDownloadController.Phase.VERIFYING -> {
+                action.visibility = View.VISIBLE; action.setText(R.string.update_cancel_download)
+                activity.getString(R.string.update_verifying)
+            }
+            ReleaseDownloadController.Phase.READY, ReleaseDownloadController.Phase.NEEDS_VERIFICATION,
+            ReleaseDownloadController.Phase.INSTALLER_OPENED -> {
+                action.visibility = View.VISIBLE; action.setText(R.string.update_install)
+                activity.getString(R.string.update_ready)
+            }
+            ReleaseDownloadController.Phase.FAILED, ReleaseDownloadController.Phase.INTERRUPTED -> {
+                action.visibility = View.VISIBLE; action.setText(if (transfer.phase != ReleaseDownloadController.Phase.FAILED && transfer.file?.isFile == true) R.string.update_install else R.string.update_retry_download)
+                activity.getString(if (actions.rateLimited) R.string.update_rate_limited else if (transfer.phase == ReleaseDownloadController.Phase.FAILED) R.string.update_download_failed else R.string.update_download_interrupted)
+            }
+            ReleaseDownloadController.Phase.IDLE -> when {
+                metadata.checking -> activity.getString(R.string.update_checking)
+                metadata.limited -> activity.getString(R.string.update_rate_limited)
+                metadata.failed -> activity.getString(R.string.update_failed)
+                metadata.update != null -> {
+                    val update = metadata.update
+                    val verdict = releaseUpdateStatus(actions.identity(), update)
+                    if (verdict == ReleaseUpdateStatus.AVAILABLE) { action.visibility = View.VISIBLE; action.setText(R.string.update_download) }
+                    activity.getString(when (verdict) {
+                        ReleaseUpdateStatus.AVAILABLE -> R.string.update_found_compact
+                        ReleaseUpdateStatus.SAME_VERSION -> R.string.update_same_version
+                        ReleaseUpdateStatus.INSTALLED_NEWER -> R.string.update_installed_newer
+                        ReleaseUpdateStatus.DEBUG_PREVIEW -> R.string.update_debug_preview
+                        ReleaseUpdateStatus.MOCK_PREVIEW -> R.string.update_mock_preview
+                        ReleaseUpdateStatus.SIGNATURE_MISMATCH -> R.string.update_signer_mismatch
+                        ReleaseUpdateStatus.IDENTITY_UNAVAILABLE -> R.string.update_identity_unavailable
+                    }, update.versionName, update.versionCode)
                 }
+                else -> ""
             }
         }
-        // Also bounds UI waiting if platform DNS resolution ignores socket timeouts.
-        handler.postDelayed(timeout, 10_000)
-        return {
-            finished = true
-            handler.removeCallbacks(timeout)
-            call.cancel(); future?.cancel(true)
-        }
+        status.text = text; status.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
+        status.setTextColor(style.muted)
     }
-    private fun render(state: ReleaseUpdateCheckController.State) {
-        target = null
-        open.visibility = View.GONE
-        check.isEnabled = state != ReleaseUpdateCheckController.State.Checking
-        check.setText(if (state == ReleaseUpdateCheckController.State.Checking) R.string.update_checking else R.string.update_check)
-        status.setTextColor(activity.getColor(if (state == ReleaseUpdateCheckController.State.Failed) R.color.mobile_danger else R.color.mobile_muted))
-        when (state) {
-            ReleaseUpdateCheckController.State.Idle -> status.text = activity.getString(when {
-                identity?.packageName == "io.openhoyi.mobile.mock" -> R.string.update_idle_mock
-                identity?.debuggable == true -> R.string.update_idle_debug
-                else -> R.string.update_idle
-            })
-            ReleaseUpdateCheckController.State.Checking -> status.setText(R.string.update_checking)
-            ReleaseUpdateCheckController.State.Failed -> status.setText(R.string.update_failed)
-            is ReleaseUpdateCheckController.State.Checked -> {
-                val update = state.update
-                val verdict = releaseUpdateStatus(identity, update)
-                val message = when (verdict) {
-                    ReleaseUpdateStatus.AVAILABLE -> R.string.update_available
-                    ReleaseUpdateStatus.SAME_VERSION -> R.string.update_same_version
-                    ReleaseUpdateStatus.INSTALLED_NEWER -> R.string.update_installed_newer
-                    ReleaseUpdateStatus.DEBUG_PREVIEW -> R.string.update_debug_preview
-                    ReleaseUpdateStatus.MOCK_PREVIEW -> R.string.update_mock_preview
-                    ReleaseUpdateStatus.SIGNATURE_MISMATCH -> R.string.update_signer_mismatch
-                    ReleaseUpdateStatus.IDENTITY_UNAVAILABLE -> R.string.update_identity_unavailable
-                }
-                status.text = activity.getString(message, update.versionName, update.versionCode)
-                target = if (verdict == ReleaseUpdateStatus.AVAILABLE) update.downloadUrl else update.releaseUrl
-                open.setText(if (verdict == ReleaseUpdateStatus.AVAILABLE) R.string.update_download else R.string.update_view_release)
-                open.visibility = View.VISIBLE
-            }
-        }
-    }
-    private fun openBrowser(url: String) {
-        try {
-            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(activity, R.string.update_no_browser, Toast.LENGTH_LONG).show()
-        } catch (_: SecurityException) {
-            Toast.makeText(activity, R.string.update_no_browser, Toast.LENGTH_LONG).show()
-        }
-    }
-    fun resume() { controller.resume() }
-    fun pause() { controller.pause() }
-    fun close() { controller.pause(); executor.shutdownNow(); handler.removeCallbacksAndMessages(null) }
+    fun resume() { controller.observe(metadataObserver); downloads.observe(downloadObserver) }
+    fun pause() { controller.unobserve(metadataObserver); downloads.unobserve(downloadObserver) }
+    fun close() { pause() }
 }

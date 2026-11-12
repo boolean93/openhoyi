@@ -23,13 +23,14 @@ class ReleaseUpdateHttpCallTest {
         "distributionUrl" to "https://github.com/boolean93/openhoyi/releases/download/dev-94/distribution.json",
         "checksumsUrl" to "https://github.com/boolean93/openhoyi/releases/download/dev-94/SHA256SUMS.txt",
     )).toString().toByteArray()
-    private class Connection(val bytes: ByteArray, val code: Int = 200, val length: Long = -1) : HttpsURLConnection(URL(ReleaseUpdateIndex.URL)) {
+    private class Connection(val bytes: ByteArray, val code: Int = 200, val length: Long = -1, val retry: String? = null) : HttpsURLConnection(URL(ReleaseUpdateIndex.URL)) {
         var disconnects = 0
         var inputClosed = false
         var stream: InputStream = object : ByteArrayInputStream(bytes) {
             override fun close() { inputClosed = true; super.close() }
         }
         override fun getResponseCode() = code
+        override fun getHeaderField(name: String?) = if (name == "Retry-After") retry else null
         override fun getContentLengthLong() = length
         override fun getInputStream() = stream
         override fun disconnect() { disconnects++ }
@@ -104,4 +105,15 @@ class ReleaseUpdateHttpCallTest {
         fails { active.execute() }
         assertTrue(connection.disconnects >= 1)
     }
+    @Test fun throttlingMetadataIsPreservedWithoutReadingAnErrorBody() {
+        for (code in listOf(429, 503)) {
+            val connection = Connection(fixture(), code, retry = "120")
+            try { ReleaseUpdateHttpCall { connection }.execute(); fail("Expected response failure") }
+            catch (error: ReleaseUpdateHttpException) {
+                assertEquals(code, error.code); assertEquals("120", error.retryAfter)
+            }
+            assertFalse(connection.inputClosed); assertEquals(1, connection.disconnects)
+        }
+    }
+
 }

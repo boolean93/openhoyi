@@ -244,7 +244,6 @@ class AppSettingsFragment : Fragment() {
             style.add(info, pair)
         }
         infoRow("name", R.string.settings_info_name, getString(R.string.app_name))
-        infoRow("version", R.string.settings_info_version, getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
         infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
         infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
         updateCard = ReleaseUpdateCard(activity, info, visual)
