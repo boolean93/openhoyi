@@ -9,4 +9,6 @@
     <string name="extraction_scale_unknown">结束未确认</string>
     <string name="extraction_scale_ended">结束时秤读数</string>
     <string name="extraction_scale_target">本杯目标 %1$s g</string>
+    <string name="extraction_scale_yield">出液重</string>
+    <string name="extraction_scale_yield_ended">结束时出液重</string>
 </resources>

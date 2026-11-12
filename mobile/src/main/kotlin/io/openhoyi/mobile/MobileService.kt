@@ -212,10 +212,24 @@ class MobileService : Service() {
         StandaloneTare.State.CONFIRMED else hub?.scaleTareState ?: StandaloneTare.State.IDLE
     internal var activeShotRecipe: ShotRecipeSnapshot? = null; private set
     private val extractionScaleReadout = ExtractionScaleReadout()
-    internal fun extractionScaleValue(now: Long): ExtractionScaleReadout.Value =
-        extractionScaleReadout.value(snapshot.scaleObservation, snapshot.scaleState, now,
+    private fun scaleReadoutOwner(current:NativeDeviceHub? = hub):ExtractionScaleReadout.Owner? = current?.let {
+        val address = it.scaleAddress ?: return@let null
+        ExtractionScaleReadout.Owner(it,it.extraction,it.extraction.displayShotSerial,scaleConnectionEpoch,address)
+    }
+    private fun observeScaleReadoutProof() {
+        val controller = hub?.extraction
+        val proof = controller?.displayTareBaseline?.let {
+            ExtractionScaleReadout.Proof(it.shotSerial,it.baselineHundredthsGram,it.confirmedAtMs)
+        }
+        extractionScaleReadout.observeProof(scaleReadoutOwner(),proof,controller?.state ?: shotState)
+    }
+    internal fun extractionScaleValue(now: Long): ExtractionScaleReadout.Value {
+        observeScaleReadoutProof()
+        return extractionScaleReadout.value(snapshot.scaleObservation, snapshot.scaleState, now,
             shotState == ExtractionState.OUTCOME_UNKNOWN)
+    }
     private fun observeExtractionScaleEndpoint(frame: HoyiMessage, at: Long) {
+        observeScaleReadoutProof()
         if (frame is io.openhoyi.protocol.ExtractionTelemetry && frame.valveOpen && !frame.brewWait)
             extractionScaleReadout.brewing()
         if (frame is IdleTelemetry)
@@ -1883,7 +1897,7 @@ class MobileService : Service() {
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
         series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
-        extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram)
+        extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram, scaleReadoutOwner(current))
         activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
             (application as MobileApplication).curves.find(profile.id)?.customDocument)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)

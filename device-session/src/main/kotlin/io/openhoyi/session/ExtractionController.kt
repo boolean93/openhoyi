@@ -79,6 +79,15 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     var stopReason:StopReason?=null;private set
     private val policy=ExtractionPolicy()
     private var serial=0L
+    /** Display evidence only: never a dispatch permit, compensation, or physical cup-presence proof. */
+    data class DisplayTareBaseline(val shotSerial:Long,val baselineHundredthsGram:Int,val confirmedAtMs:Long)
+    val displayShotSerial:Long get()=serial
+    private var confirmedDisplayBaseline:DisplayTareBaseline?=null
+    private var displayStartSucceeded=false
+    val displayTareBaseline:DisplayTareBaseline? get()=confirmedDisplayBaseline?.takeIf {
+        displayStartSucceeded && state in setOf(ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED,ExtractionState.ENDED_OBSERVED)
+    }
+    private fun clearDisplayBaseline(){confirmedDisplayBaseline=null;displayStartSucceeded=false}
     private var started=0L
     private var latest:WeightReading?=null
     private var lastActiveFrame:Long?=null
@@ -109,6 +118,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram>0&&(!scale.capabilities.supportsTargetWeight || !scale.capabilities.tare || !scale.ready||sample==null||!ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,now)))return false
         if(!coffee.prepareStart(parameters))return false
         val id=++serial
+        clearDisplayBaseline()
         clearStopIdleEvidence()
         started=now;lastActiveFrame=null;startNotSubmitted=false;stopWrittenAt=null;target=targetHundredthsGram;postStartTareSent=false;stopReason=null
         state=ExtractionState.STARTING
@@ -138,6 +148,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         pendingStart=null;preflightTareWrittenAt=null;preflightTareWrittenSerial=null
         policy.begin(id,target,compensation,atMs)
         baseline?.let { policy.confirmTare(id,it.hundredthsGram,it.receivedAtMs) }
+        baseline?.let { confirmedDisplayBaseline=DisplayTareBaseline(id,it.hundredthsGram,it.receivedAtMs) }
         started=atMs
         coffee.start(parameters,{
             val sample=latest
@@ -146,6 +157,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
                     ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,clock())))
         }){result ->
             if(id!=serial)return@start
+            if(result is OperationResult.Success)displayStartSucceeded=true else clearDisplayBaseline()
             if(state==ExtractionState.STOP_REQUESTED){
                 if(result is OperationResult.Cancelled)startNotSubmitted=true
                 return@start
@@ -157,6 +169,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     private fun permitted(predicate:()->Boolean):Boolean=runCatching(predicate).getOrDefault(false)
     private fun abortPreflight(reason:StopReason){
         if(state!=ExtractionState.STARTING)return
+        clearDisplayBaseline()
         pendingStart=null;preflightTareWrittenAt=null;preflightTareWrittenSerial=null;stopReason=reason;state=ExtractionState.IDLE
     }
     /** Generic live input; offline decode evidence is never an extraction observation. */
@@ -205,9 +218,9 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
             else if(clock()>=preparing.deadline)abortPreflight(StopReason.TARE_UNCONFIRMED)
             return
         }
-        if(!coffee.ready){state=ExtractionState.OUTCOME_UNKNOWN;return}
+        if(!coffee.ready){clearDisplayBaseline();state=ExtractionState.OUTCOME_UNKNOWN;return}
         if(state==ExtractionState.STOP_REQUESTED){
-            stopWrittenAt?.let { if(clock()-it>=STOP_CONFIRMATION_TIMEOUT_MS)state=ExtractionState.OUTCOME_UNKNOWN }
+            stopWrittenAt?.let { if(clock()-it>=STOP_CONFIRMATION_TIMEOUT_MS){clearDisplayBaseline();state=ExtractionState.OUTCOME_UNKNOWN} }
             return
         }
         if(state!=ExtractionState.RUNNING)return
@@ -236,7 +249,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         coffee.stop { result->
             if(id==serial&&attempt==stopAttempt&&state==ExtractionState.STOP_REQUESTED){
                 if(result is OperationResult.Success){clearStopIdleEvidence();stopWrittenAt=clock()}
-                else state=ExtractionState.OUTCOME_UNKNOWN
+                else {clearDisplayBaseline();state=ExtractionState.OUTCOME_UNKNOWN}
             }
         }
     }
@@ -275,6 +288,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         }
     }
     fun scaleDisconnected(){
+        clearDisplayBaseline()
         latest=null
         if(pendingStart!=null)abortPreflight(StopReason.SCALE_UNAVAILABLE)
         else if(target>0&&state==ExtractionState.RUNNING)requestStop(StopReason.SCALE_UNAVAILABLE)

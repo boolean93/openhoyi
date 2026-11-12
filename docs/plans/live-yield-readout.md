@@ -67,3 +67,16 @@ adb -s 192.168.31.201:5555 pull \
 - 协调线程执行 run4 PASS：真实 Mock 运行/原停止按钮/结束冻结通过；最终 portrait 1600x2560 图中标签与 3.9g 组合居中，结束时秤读数说明完整、无 Toast 遮挡。landscape 截图 2560x1600。system user_rotation=3、accelerometer_rotation=0 回读恢复。
 - 最后测试杯 `2edd16d6-7127-4c3f-9f85-2e41fe33b0d3`；run2/run3/run4 三杯 QA 记录全部保留（run3=`e8bb4b55-942d-4120-8f29-e7a3f2b5cb0a`，run2=`1779ad32...`），原有记录全部保留，未清数据。
 - 本实现线程未操作设备；最终截图由协调线程核看。最终验证范围至此结束，不再扩矩阵；没有真实机器萃取/硬件验收、推送、PR 或发布结论。
+
+## 本杯确认归零后的只读净重展示续轮
+
+- 协调线程已确认实现：只读暴露 Controller 本次 serial / 成功有序预去皮 baseline / 时间；accepted App start 绑定同 hub、controller、serial、scaleConnectionEpoch 与秤地址。有效同会话新鲜样本显示 `raw-baseline` 为「出液重」，不加入控制补偿；其余仍「秤读数」。不改去皮、开泵、停止控制条件和调用顺序。
+- 断连/换秤/手动 tare epoch 变化本杯永久撤销净重资格，新鲜重连仅恢复原始读数；下一杯重新建立，passive/普通 Mock 不推断证明。结束冻结端点当时的值与来源名称，不因后续设备变化重命名。
+- 先相关 Controller/纯投影测试，不安装；交协调线程安排 Astra 独立复核。用户后续准许创建 PR、尚未准合入；复核后遵循 scripts/create-pr 本地检查，未经协调不自行创建 PR 或合并。本节为后续授权更新，不覆盖前几轮历史验证事实。
+
+### 只读净重本地验证与交付边界
+
+- 相关验证最终通过：ExtractionDisplayBaselineTest 4、ProtocolTargetWeightTest 13、ExtractionScaleReadoutTest 14，共 31 项，0 failures/errors；最终命令耗时 59s。资源一致性及 git diff --check 通过。独立审查由协调线程安排，报告本杯 baseline/epoch/冻结/事件顺序无阻断。
+- 最新「出液重」路径仅做本地 JVM 验证，没有安装或真实秤/机器验收。平板仍安装此前 raw readout 的 `8c76...` 包；前述 run4 不能作为新 baseline 路径硬件证据。历史/样本继续原始秤读数，不因本次展示净重而回写或标成已校准。
+- Controller 仅增加只读证明和展示字段失效清理，不改变原控制条件、协议命令、调用顺序或补偿逻辑。无目标、passive、普通 Mock 和全局 tare 状态仍 raw；未成功 start 不发布净重证明；同杯 ownership 失配永久降 raw，冻结端点保留当时名称。
+- 用户已准仅创建 PR 到 develop，不合入。提交前 fetch 已核 develop 更新为 `daac2cf7`（#67 已合入），需 merge 后对最终 HEAD 运行 scripts/create-pr 完整门禁；不以旧基线检查代替。

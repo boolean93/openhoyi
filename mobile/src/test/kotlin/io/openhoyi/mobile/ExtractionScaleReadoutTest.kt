@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import io.openhoyi.protocol.*
 import io.openhoyi.session.DeviceState
+import io.openhoyi.session.ExtractionState
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -71,6 +72,78 @@ class ExtractionScaleReadoutTest {
         p.observedIdle(stopped.scaleObservation, stopped.scaleState, 2000)
         p.finish(true)
         assertEquals(70, p.value(null, ready, 9000).hundredthsGram)
+    }
+
+    private val hub=Any()
+    private val controller=Any()
+    private fun owner(serial:Long=1,epoch:Long=1,address:String="AA:BB:CC:DD:EE:FF") =
+        ExtractionScaleReadout.Owner(hub,controller,serial,epoch,address)
+    private fun proof(serial:Long=1,baseline:Int=40,at:Long=1000) = ExtractionScaleReadout.Proof(serial,baseline,at)
+    private fun netProjection():ExtractionScaleReadout = ExtractionScaleReadout().apply {
+        begin("app",3600,owner());observeProof(owner(),proof(),ExtractionState.RUNNING)
+    }
+    @Test fun confirmedNetSubtractsBaselineNotControlCompensationAndPreservesNegative() {
+        val p=netProjection()
+        assertEquals(1194,p.value(sample(1234),ready,1000).hundredthsGram)
+        assertEquals(ExtractionScaleReadout.Source.BEVERAGE,p.value(sample(),ready,1000).source)
+        assertEquals(-140,p.value(sample(-100),ready,1000).hundredthsGram)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(1234,999),ready,1000).source)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(),ready,2501).source)
+        assertNull(p.value(sample(),ready,2501).hundredthsGram)
+    }
+    @Test fun rawWithoutThisShotProofIncludingFlowOnlyPassiveAndMockGlobalTare() {
+        for(bound in listOf(null,owner())) {
+            val p=ExtractionScaleReadout();p.begin("raw",null,bound)
+            p.observeProof(owner(),null,ExtractionState.RUNNING)
+            assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(),ready,1000).source)
+        }
+        val flow=ExtractionScaleReadout();flow.begin("flow-only",null,owner())
+        flow.observeProof(owner(),proof(),ExtractionState.RUNNING)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,flow.value(sample(),ready,1000).source)
+        val p=ExtractionScaleReadout();p.begin("passive",null)
+        // Even a leftover controller proof/global tare cannot authorize a passive or Mock begin.
+        p.observeProof(owner(),proof(),ExtractionState.RUNNING)
+        assertEquals(1234,p.value(sample(),ready,1000).hundredthsGram)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(),ready,1000).source)
+    }
+    @Test fun startMustSucceedAndAllOwnershipFieldsMustMatch() {
+        val p=ExtractionScaleReadout();p.begin("a",3600,owner())
+        p.observeProof(owner(),proof(),ExtractionState.STARTING)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(),ready,1000).source)
+        p.observeProof(owner(),proof(),ExtractionState.RUNNING)
+        assertEquals(ExtractionScaleReadout.Source.BEVERAGE,p.value(sample(),ready,1000).source)
+        for(other in listOf(owner(serial=2),owner(epoch=2),owner(address="11:22:33:44:55:66"),
+            owner().copy(hub=Any()),owner().copy(controller=Any()))) {
+            val q=netProjection();q.observeProof(other,proof(),ExtractionState.RUNNING)
+            q.observeProof(owner(),proof(),ExtractionState.RUNNING)
+            assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,q.value(sample(),ready,1000).source)
+        }
+    }
+    @Test fun disconnectReconnectAndManualTareEpochPermanentlyRevokeOnlyThisCup() {
+        val p=netProjection();p.observeProof(null,null,ExtractionState.STOP_REQUESTED)
+        p.observeProof(owner(),proof(),ExtractionState.RUNNING)
+        assertEquals(1234,p.value(sample(),ready,1000).hundredthsGram)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(),ready,1000).source)
+        p.begin("next",3600,owner(serial=2,epoch=2))
+        p.observeProof(owner(serial=2,epoch=2),proof(serial=2),ExtractionState.RUNNING)
+        assertEquals(1194,p.value(sample(),ready,1000).hundredthsGram)
+    }
+    @Test fun endpointFreezesItsValueAndNameEvenIfOwnershipLaterChanges() {
+        val p=netProjection();p.brewing();p.observedIdle(sample(3540),ready,1000)
+        p.observeProof(owner(epoch=2),null,ExtractionState.ENDED_OBSERVED)
+        p.finish(true)
+        val end=p.value(sample(-20000,3000),ready,3000)
+        assertEquals(3500,end.hundredthsGram);assertEquals(ExtractionScaleReadout.Source.BEVERAGE,end.source)
+        p.observeProof(null,null,ExtractionState.IDLE)
+        assertEquals(end,p.value(null,DeviceState.DISCONNECTED,9000))
+        p.begin("next-passive",null)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(),ready,1000).source)
+    }
+    @Test fun unknownFinishNeverReusesNetEndpoint() {
+        val p=netProjection();p.brewing();p.observedIdle(sample(3540),ready,1000);p.finish(false)
+        val end=p.value(sample(),ready,1000)
+        assertNull(end.hundredthsGram);assertEquals(ExtractionScaleReadout.Reason.UNKNOWN,end.reason)
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,end.source)
     }
 
 }

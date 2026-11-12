@@ -32,6 +32,8 @@ internal class ExtractionScaleReadoutView(context: Context, visual: ExtractionHi
         addView(secondary, LayoutParams((180 * resources.displayMetrics.density).toInt(), (18 * resources.displayMetrics.density).toInt()))
     }
     fun present(value: ExtractionScaleReadout.Value) {
+        val net = value.source == ExtractionScaleReadout.Source.BEVERAGE
+        heading.text = context.getString(if (net) R.string.extraction_scale_yield else R.string.extraction_scale_raw)
         reading.text = "${value.number} g"
         detail.text = when (value.reason) {
             ExtractionScaleReadout.Reason.NO_SCALE -> context.getString(R.string.extraction_scale_no_data)
@@ -40,7 +42,7 @@ internal class ExtractionScaleReadoutView(context: Context, visual: ExtractionHi
             ExtractionScaleReadout.Reason.STALE -> context.getString(R.string.extraction_scale_stale)
             ExtractionScaleReadout.Reason.END_UNAVAILABLE -> context.getString(R.string.extraction_scale_end_unavailable)
             ExtractionScaleReadout.Reason.UNKNOWN -> context.getString(R.string.extraction_scale_unknown)
-            null -> if (value.ended) context.getString(R.string.extraction_scale_ended) else ""
+            null -> if (value.ended) context.getString(if (net) R.string.extraction_scale_yield_ended else R.string.extraction_scale_ended) else ""
         }
         detail.visibility = if (detail.text.isEmpty()) GONE else VISIBLE
         target.text = value.targetHundredthsGram?.let {
