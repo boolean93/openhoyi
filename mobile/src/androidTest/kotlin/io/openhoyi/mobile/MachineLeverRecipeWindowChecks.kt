@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import android.app.Instrumentation
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.os.SystemClock
 import android.view.View
@@ -87,6 +88,21 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
         try {
             main {
                 storage.set(lever, memory); records.set(lever, emptyList<MachineLeverRecipeStore.Record>()); usable.setBoolean(lever, true)
+                // Match upgrade's detached Service boundary: attach context, never onCreate/BLE.
+                val detached = MobileService()
+                val wrapped = ContextWrapper(app)
+                ContextWrapper::class.java.getDeclaredMethod("attachBaseContext", Context::class.java)
+                    .apply { isAccessible = true }.invoke(detached, wrapped)
+                check(detached.application == null)
+                val journalGetter = MobileService::class.java.getDeclaredMethod("getLeverStore")
+                    .apply { isAccessible = true }
+                check(journalGetter.invoke(detached) === lever) { "Detached Service must use the process journal" }
+                usable.setBoolean(lever, false)
+                try {
+                    check(detached.machineControlSafetyMessage == detached.getString(R.string.lever_unresolved))
+                    check(detached.leverRecipeWriteBlock() == detached.getString(R.string.lever_unresolved))
+                } finally { usable.setBoolean(lever, true) }
+
                 @Suppress("UNCHECKED_CAST") val source = originalDocs as Map<String, CustomCurveDocument>
                 docs.set(custom, LinkedHashMap(source).apply { put(document.id, document) })
             }
@@ -141,7 +157,22 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
                 check(root.findViewWithTag<View>("product/home/direct-preset/0/preview").visibility == View.VISIBLE)
                 noMachineOrShot()
             }
-            android.os.SystemClock.sleep(3500) // Let the transient send Toast leave the screenshot.
+            // Repeated telemetry renders must not replace unchanged chrome or preview objects.
+            var originalBackground: android.graphics.drawable.Drawable? = null
+            var originalPreview: CurveStageParameters.Preview? = null
+            main {
+                originalBackground = tile().background
+                originalPreview = page.active("root:BREW").requireView()
+                    .findViewWithTag<CurveLibrarySparklineView>("product/home/direct-preset/0/preview").preview
+            }
+            android.os.SystemClock.sleep(3500) // Covers many render ticks and lets the send Toast expire.
+            main {
+                check(tile().background === originalBackground) { "Unchanged lever card recreated its background" }
+                check(page.active("root:BREW").requireView()
+                    .findViewWithTag<CurveLibrarySparklineView>("product/home/direct-preset/0/preview").preview === originalPreview) {
+                    "Unchanged lever card reset its preview"
+                }
+            }
             capture("sent-first-card")
 
             // Same immutable source snapshot, a new uncertain attempt. This is only a journal fixture.
@@ -153,6 +184,8 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
             main {
                 check(service.machineControlSafetyMessage != null)
                 check(page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/0/preview").visibility != View.VISIBLE)
+                check(page.active("root:BREW").requireView()
+                    .findViewWithTag<CurveLibrarySparklineView>("product/home/direct-preset/0/preview").preview.stages.isEmpty())
                 check(tile().performClick())
             }
             windowText(host.getString(R.string.lever_ack_action))
