@@ -50,6 +50,10 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Run full local and CI verification
         if: steps.scope.outputs.mode == 'full'
+        env:
+          # Kotlin compiles in-process: avoid two mobile variants sharing the 1536 MiB heap at once.
+          # Scope this limit to the CI gate; keep normal local builds and every verification task unchanged.
+          GRADLE_OPTS: -Dorg.gradle.workers.max=1
         run: scripts/verify-pr-checks full
       - name: Confirm a verification path actually ran
         if: always() && steps.scope.outcome == 'success'
