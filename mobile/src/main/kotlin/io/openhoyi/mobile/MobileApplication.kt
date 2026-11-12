@@ -15,6 +15,8 @@ class MobileApplication : Application() {
     internal lateinit var languagePreferences: AppLanguagePreference
         private set
     private lateinit var languageContext: AppLanguageContextProvider
+    internal lateinit var releaseUpdates: ReleaseUpdateOwner
+        private set
     internal val visibility = AppVisibility()
     internal val serviceAvailability = ServiceAvailability()
     internal lateinit var autoConnect:DeviceAutoConnectOwner
@@ -34,6 +36,7 @@ class MobileApplication : Application() {
         }
         autoConnect=DeviceAutoConnectOwner(this)
         registerActivityLifecycleCallbacks(AppVisibilityCallbacks(visibility))
+        releaseUpdates = ReleaseUpdateOwner(this)
     }
 
     override fun onTerminate(){

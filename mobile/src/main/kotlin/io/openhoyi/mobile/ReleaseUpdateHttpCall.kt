@@ -32,7 +32,8 @@ internal class ReleaseUpdateHttpCall(
             current.requestMethod = "GET"
             current.setRequestProperty("Accept", "application/json")
             current.setRequestProperty("Cache-Control", "no-cache")
-            if (current.responseCode != 200) throw IOException("Update index is unavailable")
+            val responseCode = current.responseCode
+            if (responseCode != 200) throw ReleaseUpdateHttpException(responseCode, current.getHeaderField("Retry-After"))
             checkActive()
             if (current.contentLengthLong > ReleaseUpdateIndex.MAX_BYTES) throw IOException("Update index too large")
             val bytes = current.inputStream.use { input ->

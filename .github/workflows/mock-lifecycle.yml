@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, develop, 'release/**', 'hotfix/**']
   workflow_dispatch:
+    inputs:
+      update_checks:
+        description: 'Run fixed isolated update runtime and UI acceptance instead of lifecycle'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -12,6 +18,8 @@ jobs:
   lifecycle:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      UPDATE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_checks == true && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -25,7 +33,13 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Build isolated Mock APK
+        if: env.UPDATE_CHECKS != 'true'
         run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Build fixed isolated update acceptance
+        if: env.UPDATE_CHECKS == 'true'
+        run: |
+          ./gradlew --no-daemon --console=plain -PhoyiUpdateChecks=true :mobile:assembleUpdateFixture :mobile:assembleUpdateFixtureAndroidTest
+          python3 scripts/check_update_acceptance.py --sdk "$ANDROID_HOME" --verify-only
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -40,12 +54,20 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_mock_lifecycle.sh
+          script: bash scripts/check_mock_or_update_acceptance.sh
       - name: Upload lifecycle logs
-        if: always()
+        if: always() && env.UPDATE_CHECKS != 'true'
         uses: actions/upload-artifact@v6
         with:
           name: mock-lifecycle
           path: build/mock-lifecycle/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload isolated update acceptance evidence
+        if: always() && env.UPDATE_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: update-acceptance-api34
+          path: build/update-acceptance/
           if-no-files-found: warn
           retention-days: 7
