@@ -73,6 +73,13 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private val curveDetailsText by lazy { CurveDetailsText(host) }
     private val library get() = (application as MobileApplication).curves
 
+    private fun leverToolbarLabel(): String {
+        val locale = resources.configuration.locales[0]
+        val traditional = locale.language == "zh" &&
+            (locale.script == "Hant" || locale.country in setOf("TW", "HK", "MO"))
+        return getString(if (traditional) R.string.lever_toolbar_label_traditional else R.string.lever_toolbar_label)
+    }
+
     private fun iconOnly(button: Button, kind: String, label: CharSequence) {
         productStyle.button(button)
         button.text = ""
@@ -500,7 +507,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }.apply {
             visibility = View.GONE; tag = "curve-set-lever-recipe"
             productStyle.button(this)
-            text = getString(R.string.lever_toolbar_label)
+            text = leverToolbarLabel()
             contentDescription = getString(R.string.lever_set_title)
             tooltipText = contentDescription
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
