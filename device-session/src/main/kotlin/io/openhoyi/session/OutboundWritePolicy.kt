@@ -32,6 +32,13 @@ object OutboundWritePolicy {
                     u(6),u(7),u(8),u(9),word(10),u(12),word(13),word(15),word(17))))
                 else -> false
             }
+            8 -> {
+                if (b.size != 20 || u(1) and 0x30 != 0) false
+                else same(CoffeeCommands.storedLeverRecipe(StartParameters(
+                    u(1) and 128!=0,u(1) and 64!=0,u(1) and 15,7,
+                    u(2),word(3),u(5) and 128!=0,u(5) and 127,
+                    u(6),u(7),u(8),u(9),word(10),u(12),word(13),word(15),word(17))))
+            }
             9 -> {
                 if(b.size !in listOf(15,19) || u(1)!=b.size-3 || u(b.lastIndex)!=0)false
                 else (2 until b.lastIndex step 4).all { i ->

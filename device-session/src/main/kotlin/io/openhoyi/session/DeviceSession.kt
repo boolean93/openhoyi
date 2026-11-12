@@ -72,6 +72,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     var lastFailure:CoffeeSessionFailure?=null;private set
     private var activeAddress:String?=null
     private var coffeeAuthentication:CoffeeAuthentication?=null
+    private class StoredRecipeRefresh(val generation:Long,val address:String,val authentication:CoffeeAuthentication,val deadline:Long)
+    private var storedRecipeRefresh:StoredRecipeRefresh?=null
     private class BoilerReadback(val generation:Long,val address:String,val authentication:CoffeeAuthentication,val startedAt:Long) {
         var automaticStarted=false
         var syncAttempts=0
@@ -171,6 +173,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         var secondDue: Long? = null
     }
     private var sleepWrite: SleepWrite? = null
+    private var storedRecipeWrite: Any? = null
     private fun finishSleepWrite(write: SleepWrite, result: OperationResult) {
         if (sleepWrite !== write) return
         sleepWrite = null
@@ -397,11 +400,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
     }
     private fun send(command:EncodedCommand,expectedRole:DeviceRole,urgent:Boolean=false,
-        beforeDispatch:()->Boolean={true},callback:(OperationResult)->Unit) {
+        beforeDispatch:()->Boolean={true},storedRecipeOwner:Any?=null,callback:(OperationResult)->Unit) {
+        fun ownsWritePermit() = storedRecipeWrite == null || storedRecipeWrite === storedRecipeOwner || urgent
+        if (!ownsWritePermit()) { callback(OperationResult.Failed("stored recipe write active")); return }
         if(role!=expectedRole||state!=DeviceState.READY){callback(OperationResult.Failed("device not ready or wrong role"));return}
         val endpoint=writeEndpoint ?: run {callback(OperationResult.Failed("scale transport is read-only"));return}
         queue.enqueue(GattOperation.Write(endpoint,command.frame.toByteArray(),withResponse),5000,urgent,
-            beforeDispatch={state==DeviceState.READY && beforeDispatch()},callback=callback)
+            beforeDispatch={state==DeviceState.READY && ownsWritePermit() && beforeDispatch()},callback=callback)
     }
     private fun canControlFromIdle():Boolean {
         val idle=lastIdle ?: return false
@@ -440,7 +445,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             idle.brewTemperatureHundredthsC,settings.brewCompensationTenthsC),parameters.temperatureC)
     }
     fun captureStartContext(parameters:StartParameters):CoffeeStartContext? {
-        if(!canStartExtraction(parameters) || sleepWrite!=null || permittedStart(parameters)==null) return null
+        if(!canStartExtraction(parameters) || sleepWrite!=null || storedRecipeWrite!=null || permittedStart(parameters)==null) return null
         val settings=lastSettings ?: return null
         return CoffeeStartContext(generation,address,parameters,settings.flags and 0x26,settings.firmwareInteger,
             settings.brewTemperatureC,settings.brewCompensationTenthsC,clock())
@@ -532,6 +537,70 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock())
             else -> true
         }
+    /** Persistent single-recipe overwrite. Success means GATT completion only, never verified storage.
+     * No automatic retry, refresh, reconnect, or extraction is performed by this operation.
+     */
+    fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) =
+        writeStoredLeverRecipe(parameters,beforeDispatch,{},callback)
+    fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,onDispatch:()->Unit,callback:(OperationResult)->Unit) {
+        // Stored recipe need not be the current extraction selection. The caller must validate
+        // the captured library item at dispatch; this layer still enforces known wire subsets.
+        fun knownRecipe():Boolean = permittedStart(parameters)!=null ||
+            CustomPressureStartPolicy.permits(parameters) ||
+            (CustomCurveStartPolicy.permits(parameters) && CustomCurveFirmwarePolicy.permits(parameters,observedFirmware))
+        val expectedGeneration=generation
+        val expectedAddress=address
+        fun conditions():Boolean = generation==expectedGeneration && address==expectedAddress &&
+            !expectedAddress.isNullOrBlank() && canControlWithFreshSettings() &&
+            lastSettings?.firmwareInteger in setOf(CoffeeFirmwareProfiles.FW_1_1_4,CoffeeFirmwareProfiles.FW_1_1_5) &&
+            sleepWrite==null && boilerRefreshTask?.let { clock()<it.deadline }!=true &&
+            boilerReconnectLimit==null && knownRecipe()
+        val command=runCatching { CoffeeCommands.storedLeverRecipe(parameters) }.getOrNull()
+        if(command==null || storedRecipeWrite!=null || queue.inFlight || !conditions()) {
+            callback(OperationResult.Failed("stored recipe requires supported firmware, validated curve and fresh idle settings"));return
+        }
+        // Reserve the session before the application's persistence callback can re-enter it.
+        val owner=Any();storedRecipeWrite=owner;storedRecipeRefresh=null
+        val authentication=coffeeAuthentication
+        var dispatched=false
+        send(command,DeviceRole.COFFEE,storedRecipeOwner=owner,beforeDispatch={
+            // The host callback may mutate state/connection, so re-check after it returns too.
+            val allowed=storedRecipeWrite===owner && conditions() && beforeDispatch() &&
+                storedRecipeWrite===owner && conditions()
+            if(allowed) {
+                dispatched=true
+                lastSettingsAtMs=null
+                onDispatch()
+            }
+            allowed && storedRecipeWrite===owner && generation==expectedGeneration && address==expectedAddress
+        }) { result ->
+            if(storedRecipeWrite===owner)storedRecipeWrite=null
+            if(dispatched && result is OperationResult.Success && generation==expectedGeneration &&
+                address==expectedAddress && state==DeviceState.READY && authentication!=null &&
+                coffeeAuthentication===authentication)
+                storedRecipeRefresh=StoredRecipeRefresh(expectedGeneration,requireNotNull(expectedAddress),authentication,clock()+6000)
+            // Once dispatch begins, a transport failure cannot prove that the machine did not save.
+            callback(if(dispatched && result !is OperationResult.Success && result !is OperationResult.Unknown)
+                OperationResult.Unknown("stored recipe submission outcome unknown") else result)
+        }
+    }
+
+    /** One authenticated time synchronization after successful 0x08 transport only.
+     * Its 0x83 notification refreshes SETTINGS, never verifies recipe persistence. */
+    fun refreshStoredRecipeSettings(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
+        val refresh=storedRecipeRefresh
+        storedRecipeRefresh=null // consumed even when conditions fail; never retry/reconnect
+        fun eligible():Boolean = refresh!=null && generation==refresh.generation && address==refresh.address &&
+            coffeeAuthentication===refresh.authentication && clock()<refresh.deadline && canControlFromIdle() &&
+            sleepWrite==null && storedRecipeWrite==null && boilerRefreshTask==null && boilerReconnectLimit==null
+        if(refresh==null || queue.inFlight || !eligible()) {
+            done(OperationResult.Failed("no eligible stored recipe settings refresh"));return
+        }
+        send(refresh.authentication.encodeAt(wallClock()),DeviceRole.COFFEE,beforeDispatch={
+            eligible() && beforeDispatch() && eligible()
+        },callback=done)
+    }
+
     fun writeSetting(change:MachineSettingChange,callback:(OperationResult)->Unit)=writeSetting(change,{true},callback)
     fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
         boilerReadback=null;boilerRefreshTask=null

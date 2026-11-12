@@ -22,6 +22,26 @@ class OutboundWritePolicyTest {
         }
         assertTrue(driver.operations.isEmpty())
     }
+    @Test fun storedRecipeCommandHasStrictFrameBoundary() {
+        val p = StartParameters(true, false, 2, 7, 92, 70, false, 3,
+            30, 90, 0, 0, 150, 8, 400, 0, 0)
+        val frame = StoredLeverRecipeFormat.candidate(p).toByteArray()
+        assertEquals(8, frame[0].toInt())
+        assertEquals(0x82, frame[1].toInt() and 255) // count, not count << 3 or slot
+        assertTrue(OutboundWritePolicy.permits(DeviceRole.COFFEE,
+            GattOperation.Write(KnownGatt.coffeeWrite, frame)))
+        for (length in 0 until frame.size) assertFalse(OutboundWritePolicy.permits(DeviceRole.COFFEE,
+            GattOperation.Write(KnownGatt.coffeeWrite, frame.copyOf(length))))
+        for (header in listOf(0x80, 0x85, 0x92, 0xa2)) {
+            val malformed=frame.copyOf();malformed[1]=header.toByte()
+            malformed[19]=malformed.take(19).fold(0){a,b->a xor (b.toInt() and 255)}.toByte()
+            assertFalse(OutboundWritePolicy.permits(DeviceRole.COFFEE,GattOperation.Write(KnownGatt.coffeeWrite,malformed)))
+        }
+        val malformed=frame.copyOf();malformed[19]=(malformed[19].toInt() xor 1).toByte()
+        assertFalse(OutboundWritePolicy.permits(DeviceRole.COFFEE,GattOperation.Write(KnownGatt.coffeeWrite,malformed)))
+        assertFalse(OutboundWritePolicy.permits(DeviceRole.BOOKOO,GattOperation.Write(KnownGatt.coffeeWrite,frame)))
+    }
+
     @Test fun wrongRoleOrEndpointNeverReachesTransport() {
         val driver=Driver();val guarded=GuardedGattDriver(DeviceRole.BOOKOO,driver)
         assertFalse(guarded.execute(1,2,GattOperation.Write(KnownGatt.coffeeWrite,CoffeeCommands.stop(7).frame.toByteArray())))
