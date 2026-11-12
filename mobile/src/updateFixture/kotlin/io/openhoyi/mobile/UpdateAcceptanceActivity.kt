@@ -121,8 +121,22 @@ internal class UpdateAcceptanceActions(private val activity: Activity) : Release
         val stop:()->Unit={future.cancel(true)}
         stop
     },newFile={File(activity.filesDir,"updates/verified/${UUID.randomUUID()}.apk")})
-    override fun identity()=InstalledUpdateIdentity("io.openhoyi.mobile",if(check==Check.CURRENT)94 else 93,false,target.signerSha256)
-    fun answer() {val callback=pending;pending=null;callback?.invoke(if(check==Check.FAIL)Result.failure(IOException("Fixture offline"))else Result.success(target))}
+    override fun identity()=InstalledUpdateIdentity("io.openhoyi.mobile",if(check==Check.CURRENT)BuildConfig.VERSION_CODE.toLong() else 93,false,target.signerSha256)
+    private fun currentMetadata():ReleaseUpdate {
+        val code=BuildConfig.VERSION_CODE
+        val json=JSONObject(requireNotNull(target.indexJson))
+        val base="https://github.com/boolean93/openhoyi/releases/"
+        val prefix=base+"download/dev-$code/"
+        json.put("versionCode",code).put("versionName",BuildConfig.VERSION_NAME).put("releaseTag","dev-$code")
+            .put("releaseUrl",base+"tag/dev-$code").put("downloadUrl",prefix+json.getString("apkFile"))
+            .put("distributionUrl",prefix+"distribution.json").put("checksumsUrl",prefix+"SHA256SUMS.txt")
+        return ReleaseUpdateIndex.parse(json.toString())
+    }
+    fun answer() {
+        val callback=pending;pending=null
+        callback?.invoke(if(check==Check.FAIL)Result.failure(IOException("Fixture offline"))
+            else Result.success(if(check==Check.CURRENT)currentMetadata()else target))
+    }
     override fun download(target:ReleaseUpdate):Boolean {hold=true;return downloads.start(target)}
     override fun install():Boolean=false // A screenshot action never launches a system installer.
     override fun cancel(){hold=false;downloads.cancel()}

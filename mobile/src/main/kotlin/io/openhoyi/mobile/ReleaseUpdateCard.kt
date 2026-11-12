@@ -47,7 +47,7 @@ internal class ReleaseUpdateCard(private val activity: Activity, parent: LinearL
         tag = "product/settings/app/update/discard"
         setOnClickListener { actions.discard() }
     }
-    private val toggle = android.widget.Switch(activity).apply {
+    private val toggle = HoyiSwitch(activity).apply {
         text = activity.getString(R.string.update_auto_enabled)
         tag = "product/settings/app/update/automatic"; isChecked = controller.enabled
         setOnCheckedChangeListener { _, enabled ->

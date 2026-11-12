@@ -86,11 +86,15 @@ class UpdateAcceptanceInstrumentation : Instrumentation() {
                 if(index==0){
                     main{a.fixture.discard();a.fixture.check=UpdateAcceptanceActions.Check.HOLD;a.fixture.metadata.manualCheck()}
                     await("checking"){a.fixture.metadata.state.checking};capture(a,"portrait-light-fixture-settings-checking")
-                    main{a.fixture.check=UpdateAcceptanceActions.Check.CURRENT;a.fixture.answer()}
+                    main{
+                        a.fixture.check=UpdateAcceptanceActions.Check.CURRENT;a.fixture.answer()
+                        check(a.fixture.metadata.state.update?.versionCode==BuildConfig.VERSION_CODE.toLong())
+                        check(a.fixture.metadata.state.update?.versionName==BuildConfig.VERSION_NAME)
+                    }
                     capture(a,"portrait-light-fixture-settings-current")
                     main{
                         val toggle=a.findViewById<View>(android.R.id.content).findViewWithTag<android.widget.Switch>("product/settings/app/update/automatic")
-                        check(toggle.isChecked);toggle.performClick();check(!a.fixture.metadata.enabled)
+                        check(toggle is HoyiSwitch);check(toggle.isChecked);toggle.performClick();check(!a.fixture.metadata.enabled)
                         a.fixture.check=UpdateAcceptanceActions.Check.AVAILABLE;a.fixture.metadata.manualCheck();a.fixture.answer()
                     }
                     capture(a,"portrait-light-fixture-settings-available")
