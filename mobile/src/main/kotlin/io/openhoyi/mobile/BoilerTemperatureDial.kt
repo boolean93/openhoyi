@@ -2,7 +2,6 @@ package io.openhoyi.mobile
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
@@ -17,7 +16,8 @@ import kotlin.math.sin
 internal class BoilerTemperatureDial(context: Context, private val heading: TextView,
     private val value: TextView, target: TextView) : FrameLayout(context) {
     private val density = resources.displayMetrics.density
-    private val ink = Color.rgb(21,26,23)
+    private val style = TaskProductVisualStyle(context)
+    private val ink = style.homeDialInk
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val headingSize=heading.textSize
     private val headingLine=heading.lineHeight
@@ -47,8 +47,8 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     init {
         setWillNotDraw(false)
         background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL; setColor(Color.WHITE)
-            setStroke(density.toInt().coerceAtLeast(1),0xffedf0ee.toInt())
+            shape = GradientDrawable.OVAL; setColor(style.surface)
+            setStroke(density.toInt().coerceAtLeast(1),style.homeDialBorder)
         }
         elevation = 2 * density
         for (field in listOf(heading, value)) {
@@ -128,10 +128,10 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         val cx=width/2f; val cy=height/2f; val radius=minOf(width,height)/2f-11*density
         val bounds=RectF(cx-radius,cy-radius,cx+radius,cy+radius)
         paint.style=Paint.Style.STROKE; paint.strokeWidth=8*density; paint.strokeCap=Paint.Cap.ROUND
-        paint.color=0xffe2e6e3.toInt(); canvas.drawArc(bounds,135f,270f,false,paint)
+        paint.color=style.homeDialTrack; canvas.drawArc(bounds,135f,270f,false,paint)
         val goal=targetTemperature; val current=currentTemperature
         if(current!=null && goal!=null && goal>0) {
-            paint.color=0xff00c853.toInt()
+            paint.color=style.homeDialProgress
             canvas.drawArc(bounds,135f,270f*(current/goal).coerceIn(0f,1f),false,paint)
         }
         paint.color=ink; paint.strokeWidth=1.5f*density

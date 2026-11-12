@@ -16,7 +16,24 @@ internal object SingleScreenPageChecks {
     fun verify(activity: Activity, expectedLegacyShot: LegacyShot? = null) {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
         val active = (activity as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
-        if (active is ExtractionFragment) TrendChartTextChecks.run(activity, "single-screen overlay")
+        if (active is ExtractionFragment) {
+            TrendChartTextChecks.run(activity, "single-screen overlay")
+            val palette = TaskProductVisualStyle(activity)
+            listOf("product/extraction/chart", "product/extraction/actions").forEach { tag ->
+                val view = checkNotNull(content.findViewWithTag<View>(tag))
+                check((view.background as? android.graphics.drawable.ColorDrawable)?.color == palette.surface) {
+                    "Extraction surface did not follow current theme: $tag"
+                }
+            }
+            val chart = checkNotNull(content.findViewWithTag<View>("product/extraction/chart"))
+            val plot = checkNotNull(chart.findViewWithTag<View>("chart-plot"))
+            val labels = plot.javaClass.getDeclaredField("endpointLabels").apply { isAccessible = true }.get(plot)
+            val labelPaint = labels.javaClass.getDeclaredField("background").apply { isAccessible = true }
+                .get(labels) as android.graphics.Paint
+            check(labelPaint.color == (palette.surface and 0x00ffffff or 0xf2000000.toInt())) {
+                "Live endpoint labels did not follow current theme"
+            }
+        }
         val fixture = activity.javaClass.simpleName + " " + activity.resources.configuration
         fun visibleFully(view: View) {
             val rect = Rect()
