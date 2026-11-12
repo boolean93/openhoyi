@@ -123,6 +123,25 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                     }
                 }
                 capture("settings")
+                var manualY = 0
+                main {
+                    val scroll = recreated.findViewById<android.widget.ScrollView>(R.id.m8_settings_scroll)
+                    scroll.scrollBy(0, 200)
+                    manualY = scroll.scrollY
+                }
+                SystemClock.sleep(750)
+                main {
+                    val scroll = recreated.findViewById<android.widget.ScrollView>(R.id.m8_settings_scroll)
+                    check(kotlin.math.abs(scroll.scrollY - manualY) <= 2) { "Settings pulled back after manual scroll" }
+                    recreated.openSettingsSection("appearance")
+                    recreated.openSettingsSection("shortcuts")
+                }
+                await("last section wins") {
+                    val toggle = recreated.findViewById<View>(android.R.id.content)
+                        .findViewWithTag<CompoundButton>("product/settings/shortcuts/direct-start")
+                    val visible = android.graphics.Rect()
+                    toggle.getGlobalVisibleRect(visible) && visible.height() >= toggle.height
+                }
                 main {
                     val toggle = recreated.findViewById<View>(android.R.id.content)
                         .findViewWithTag<CompoundButton>("product/settings/shortcuts/direct-start")
