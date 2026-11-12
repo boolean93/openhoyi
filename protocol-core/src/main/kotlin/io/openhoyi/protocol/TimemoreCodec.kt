@@ -33,7 +33,8 @@ object TimemoreCodec {
         val opcode = b.u(2)
         val command = b.u(3)
         val crc = b.be16(b.size - 2)
-        // Notify CRC is reserved on some firmware. Never exempt read/write responses or nonzero CRCs.
+        // Vendor text reserves notify CRC; accepting zero is existing compatibility policy,
+        // not hardware proof. Never exempt read/write responses or nonzero CRCs.
         if (!(opcode == 0x01 && crc == 0) && crc != timemoreCrc(b, b.size - 2)) {
             return invalid("TIMEMORE CRC mismatch")
         }
@@ -73,14 +74,29 @@ object TimemoreCodec {
     }
 }
 
-/** Per-connection decoder. Retains at most 256 bytes, even for arbitrarily large/noisy feed calls. */
+/** Per-connection decoder: 256-byte frame buffer plus fewer than 512 held boundary-candidate bytes. */
 class TimemoreStreamDecoder {
     private val buffer = ByteArray(TimemoreCodec.MAX_FRAME_SIZE)
     private var size = 0
+    private val candidate = NotificationBoundaryCandidate(0xA5, 0x5A, 6, { it.be16(4) + 8 }) { TimemoreCodec.decode(it) !is DecodeResult.Invalid }
 
     fun feed(bytes: ByteArray): List<DecodeResult<TimemoreMessage>> {
+        val incoming = candidate.prepare(size > 0, bytes) ?: return emptyList()
         val results = mutableListOf<DecodeResult<TimemoreMessage>>()
-        for (byte in bytes) {
+        if (candidate.ambiguous) {
+            size = 0
+            return listOf(DecodeResult.Invalid("Ambiguous scale notification boundary", ByteFrame(incoming)))
+        }
+        when (notificationBoundary(buffer.copyOf(size), incoming, 6, 0xA5, 0x5A,
+            { it.be16(4) + 8 }, TimemoreCodec::decode, "TIMEMORE CRC mismatch")) {
+            NotificationBoundary.RESYNC -> size = 0
+            NotificationBoundary.AMBIGUOUS -> {
+                size = 0
+                return listOf(DecodeResult.Invalid("Ambiguous scale notification boundary", ByteFrame(incoming)))
+            }
+            NotificationBoundary.CONTINUE -> Unit
+        }
+        for (byte in incoming) {
             buffer[size++] = byte
             while (size > 0) {
                 if (buffer.u(0) != 0xA5) { discard(1); continue }

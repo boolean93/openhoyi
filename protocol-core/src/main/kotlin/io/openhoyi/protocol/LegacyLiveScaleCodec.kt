@@ -97,7 +97,8 @@ object AcaiaCodec {
 
 class AcaiaStreamDecoder {
     private val stream = LegacyLiveFrameStream<AcaiaMessage>(0xEF, 0xDD, 4,
-        { it.liveU(3).takeIf { length -> length > 0 }?.plus(5) ?: 0 }, AcaiaCodec::decode)
+        { it.liveU(3).takeIf { length -> length > 0 }?.plus(5) ?: 0 }, AcaiaCodec::decode,
+        checksumError = "Acaia checksum mismatch")
     fun feed(bytes: ByteArray): List<DecodeResult<AcaiaMessage>> = stream.feed(bytes)
 }
 
@@ -171,12 +172,28 @@ private fun acaiaChecksum(payload: ByteArray): Pair<Int, Int> {
 private class LegacyLiveFrameStream<T>(
     private val first: Int, private val second: Int, private val prefixSize: Int,
     private val totalSize: (ByteArray) -> Int, private val decode: (ByteArray) -> DecodeResult<T>,
+    private val checksumError: String? = null,
 ) {
     private val buffer = ByteArray(LIVE_FRAME_LIMIT)
     private var size = 0
+    private val candidate = NotificationBoundaryCandidate(first, second, prefixSize, totalSize) { decode(it) !is DecodeResult.Invalid }
     fun feed(bytes: ByteArray): List<DecodeResult<T>> {
+        val incoming = if (checksumError != null) candidate.prepare(size > 0, bytes) ?: return emptyList() else bytes
         val results = mutableListOf<DecodeResult<T>>()
-        for (byte in bytes) {
+        if (checksumError != null && candidate.ambiguous) {
+            size = 0
+            return listOf(DecodeResult.Invalid("Ambiguous scale notification boundary", ByteFrame(incoming)))
+        }
+        if (checksumError != null) when (notificationBoundary(buffer.copyOf(size), incoming,
+            prefixSize, first, second, totalSize, decode, checksumError)) {
+            NotificationBoundary.RESYNC -> size = 0
+            NotificationBoundary.AMBIGUOUS -> {
+                size = 0
+                return listOf(DecodeResult.Invalid("Ambiguous scale notification boundary", ByteFrame(incoming)))
+            }
+            NotificationBoundary.CONTINUE -> Unit
+        }
+        for (byte in incoming) {
             buffer[size++] = byte
             while (size > 0) {
                 if (buffer.liveU(0) != first) { discard(1); continue }

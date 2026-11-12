@@ -88,6 +88,39 @@ fun timemoreChecks() {
     })
     check(resync.feed(byteArrayOf()).isEmpty())
 
+    // Lost tail followed by a new frame must never expose a mixed weight, even with reserved CRC.
+    val zero = hex("A55A01010009000000000000000000F350")
+    for (split in 1 until zero.size) {
+        val decoder = TimemoreStreamDecoder()
+        check(decoder.feed(zero.copyOf(split)).isEmpty())
+        check(decoder.feed(zero.copyOfRange(split, zero.size)).single() is DecodeResult.Valid)
+    }
+    for (lostAt in listOf(7, 8)) for (restartSplit in listOf(1, 7, zero.size)) {
+        val decoder = TimemoreStreamDecoder()
+        check(decoder.feed(zero.copyOf(lostAt)).isEmpty())
+        val results = decoder.feed(zero.copyOf(restartSplit)) +
+            decoder.feed(zero.copyOfRange(restartSplit, zero.size))
+        check(results.size == 1 && results.single() is DecodeResult.Invalid)
+        check((decoder.feed(zero).single() as DecodeResult.Valid).value is TimemoreWeight)
+    }
+    val nested = TimemoreStreamDecoder()
+    check(nested.feed(zero.copyOf(6)).isEmpty())
+    check(nested.feed(zero.copyOf(7)).isEmpty())
+    check(nested.feed(zero).single() is DecodeResult.Invalid)
+    // Header-like payload continuation is not an independently valid notification.
+    val embedded = weight(0x00A55A00, flow = 0, timer = 0)
+    val payloadSplit = TimemoreStreamDecoder()
+    check(payloadSplit.feed(embedded.copyOf(7)).isEmpty())
+    check(payloadSplit.feed(embedded.copyOfRange(7,embedded.size)).single() is DecodeResult.Valid)
+    val unknownBoundary = TimemoreStreamDecoder()
+    check(unknownBoundary.feed(zero.copyOf(6)).isEmpty())
+    check(unknownBoundary.feed(unknown).single() is DecodeResult.Invalid)
+    val reserved = weight(0, flow = 0, timer = 0, zeroCrc = true)
+    check(TimemoreStreamDecoder().feed(reserved).single() is DecodeResult.Valid)
+    val reservedSplit = TimemoreStreamDecoder()
+    check(reservedSplit.feed(reserved.copyOf(8)).isEmpty())
+    check(reservedSplit.feed(reserved.copyOfRange(8,reserved.size)).single() is DecodeResult.Valid)
+
     fun legacy(dripper: Int, scale: Int) = byteArrayOf(0x10) + le32(dripper) + le32(scale)
     val legacyBytes = legacy(-123456, 234567)
     val old = TimemoreLegacyCodec.decode(legacyBytes)
