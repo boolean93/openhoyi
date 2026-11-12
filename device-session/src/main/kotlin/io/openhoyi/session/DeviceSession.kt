@@ -27,7 +27,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private val scaleObservation:(ScaleObservation)->Unit = {},
     private val customPressureStartPermit:(StartParameters)->Boolean = {false},
     private val customCurveStartPermit:(StartParameters)->Boolean = {false},
-    private val wallClock:()->LocalDateTime = LocalDateTime::now) {
+    private val wallClock:()->LocalDateTime = LocalDateTime::now,
+    private val synchronizationRefreshPermit:()->Boolean = {false}) {
     init {
         if(role!=DeviceRole.COFFEE) {
             if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified && !scaleAdapter.documentedTransport &&
@@ -122,6 +123,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         var settings:Pair<Settings,Long>?=null
     }
     private var initialAuthentication:InitialAuthentication?=null
+    private class InitialSynchronization(val generation:Long,val address:String,val authentication:CoffeeAuthentication,val startedAt:Long) {
+        var idleAt:Long?=null
+        var cancelled=false
+        var used=false
+        var inFlight=false
+        var dispatchDeadline:Long?=null
+        var settings:Pair<Settings,Long>?=null
+    }
+    private var initialSynchronization:InitialSynchronization?=null
     private var stageDeadline=0L
     private var initNext=0
     private var initDue=0L
@@ -258,6 +268,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             }
             // Publish SYNCHRONIZING first. Its observer may replace this owner or supply a
             // newer Settings; neither continuation may be overwritten by this early frame.
+            initialSynchronization=InitialSynchronization(expected,requireNotNull(address),requireNotNull(coffeeAuthentication),clock())
             if(!initializationState(expected,DeviceState.SYNCHRONIZING,10_000))return@enqueue
             if(clock()>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return@enqueue}
             if(cached!=null && SettingsFreshness.isFresh(cached.second,clock()))
@@ -300,6 +311,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     return
                 }
                 if(state==DeviceState.SYNCHRONIZING && now>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return}
+                if(state==DeviceState.SYNCHRONIZING && frame is Settings && initialSynchronization?.inFlight==true) {
+                    initialSynchronization?.settings=frame to now
+                    return
+                }
                 processCoffeeFrame(generation,frame,now)
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
@@ -320,6 +335,14 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     /** Shared live/replayed path; timestamps always describe reception, never replay. */
     private fun processCoffeeFrame(expected:Long,frame:HoyiMessage,now:Long) {
         if(!ownsInitialization(expected))return
+        if(state==DeviceState.SYNCHRONIZING)initialSynchronization?.let { sync ->
+            when(frame) {
+                is IdleTelemetry -> sync.idleAt=now.takeIf {frame.sleepStateRaw==0 && CoffeeAlarmPolicy.permitsNewControl(frame.alarmBits)}
+                is ExtractionTelemetry -> {sync.cancelled=true;sync.idleAt=null}
+                is Settings -> {initialSynchronization=null;diagnostic("coffee.initial_sync.settings=received")}
+                else -> Unit
+            }
+        }
         val authenticated=state==DeviceState.SYNCHRONIZING||state==DeviceState.READY
         if(frame is Settings && authenticated){lastSettingsAtMs=now;lastSettings=frame;acceptSettings(frame)}
         // READY observers may synchronously replace this connection.
@@ -374,8 +397,35 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 else initDue=clock()+(commands[initNext].delayMs-commands[initNext-1].delayMs)
             }
         }
+        tickInitialSynchronization()
         tickBoilerSettingsRefresh()
         tickScaleHeartbeat()
+    }
+    /** One bounded time synchronization, not a pure read and never a control retry. */
+    private fun tickInitialSynchronization() {
+        val sync=initialSynchronization ?: return
+        fun eligible()=initialSynchronization===sync && ownsInitialization(sync.generation) &&
+            address==sync.address && coffeeAuthentication===sync.authentication && state==DeviceState.SYNCHRONIZING &&
+            !sync.cancelled && clock()<stageDeadline && TelemetryFreshness.isFresh(sync.idleAt,clock())
+        if(sync.used || queue.inFlight || !eligible() || !synchronizationRefreshPermit() || !eligible())return
+        sync.used=true;sync.inFlight=true // Consume before enqueue: synchronous callbacks must not re-arm this budget.
+        val hardDeadline=sync.startedAt+15_000
+        val command=sync.authentication.encodeAt(wallClock())
+        queue.enqueue(GattOperation.Write(requireNotNull(writeEndpoint),command.frame.toByteArray(),withResponse),
+            minOf(5000,hardDeadline-clock()).coerceAtLeast(1),beforeDispatch={
+                if(!eligible() || !synchronizationRefreshPermit() || !eligible())false
+                else {sync.dispatchDeadline=minOf(clock()+5000,hardDeadline);stageDeadline=hardDeadline;diagnostic("coffee.initial_sync.refresh=dispatched");true}
+            }) { result ->
+            if(initialSynchronization!==sync || !ownsInitialization(sync.generation) || state!=DeviceState.SYNCHRONIZING)return@enqueue
+            if(clock()>=stageDeadline || sync.dispatchDeadline?.let {clock()>=it}!=false)fail(PROTOCOL_TIMEOUT_REASON)
+            else if(result !is OperationResult.Success)fail("synchronization refresh: $result")
+            else {
+                sync.inFlight=false
+                sync.settings?.takeIf {SettingsFreshness.isFresh(it.second,clock())}?.let {
+                    processCoffeeFrame(sync.generation,it.first,it.second)
+                }
+            }
+        }
     }
     private fun scaleInitialized(expected:Long) {
         if(!ownsInitialization(expected))return
@@ -780,6 +830,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         heartbeatDue=null;heartbeatBusy=false
         val detachedTare=scaleTare;scaleTare=null
         initialAuthentication=null
+        initialSynchronization=null
         coffeeAuthentication=null;boilerReadback=null;boilerRefreshTask=null;boilerReconnectLimit=null
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
         try { setState(terminal) }

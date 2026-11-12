@@ -7,12 +7,15 @@ class ReconnectPolicy {
     private var until=0L
     private var next=0L
     private var lastAttempt= -AutoConnectTiming.FAST_INTERVAL_MS
-    fun requestSoon(now:Long){ next=maxOf(lastAttempt+AutoConnectTiming.FAST_INTERVAL_MS,now) }
+    fun requestSoon(now:Long){ next=minOf(next,maxOf(lastAttempt+AutoConnectTiming.FAST_INTERVAL_MS,now)) }
     private var foreground=false
     private var hasRememberedScale=false
     private var unsupported=false
     private var suppressed=false
     private var environmentPaused=false
+    private var discoveredEpisode=false
+    private var connecting=false
+    private var scanning=false
     private var attempting=false
     private var failures=0
     private var readyBeforeFailure=false
@@ -21,18 +24,28 @@ class ReconnectPolicy {
 
     fun foreground(now:Long,hasRememberedScale:Boolean){
         foreground=true;this.hasRememberedScale=hasRememberedScale
-        if(!failureEpisode && !readyBeforeFailure){until=now+RECOVERY_BUDGET_MS;next=now;failures=0}
+        if(until==0L){until=now+RECOVERY_BUDGET_MS;next=now;failures=0}
+        else requestSoon(now)
     }
+    /** A scan hit owns the following GATT attempt; scan cancellation is not its failure. */
+    fun scanStarted(){if(attempting)scanning=true}
+    fun discovered(now:Long){
+        if(!attempting)return
+        connecting=true;scanning=false
+        if(!discoveredEpisode){discoveredEpisode=true;until=maxOf(until,now+30_000)}
+    }
+    fun scanFinished(now:Long){if(!connecting)finish(now,false)}
     fun targetChanged(present:Boolean,now:Long){
+        discoveredEpisode=false;connecting=false;scanning=false
         hasRememberedScale=present;attempting=false;unsupported=false;readyBeforeFailure=false;failureEpisode=false
         until=now+RECOVERY_BUDGET_MS;next=now
     }
-    fun background(){foreground=false;attempting=false}
+    fun background(){foreground=false;attempting=false;connecting=false;scanning=false}
     fun setPaused(value:Boolean){suppressed=value}
-    fun manualDisconnect(){suppressed=true;attempting=false;readyBeforeFailure=false}
-    fun disable(){unsupported=true;attempting=false}
+    fun manualDisconnect(){suppressed=true;attempting=false;connecting=false;scanning=false;readyBeforeFailure=false}
+    fun disable(){unsupported=true;attempting=false;connecting=false;scanning=false}
     fun explicitConnect(now:Long?=null){
-        suppressed=false;unsupported=false;attempting=false;failureEpisode=false;readyBeforeFailure=false
+        suppressed=false;unsupported=false;attempting=false;connecting=false;scanning=false;discoveredEpisode=false;failureEpisode=false;readyBeforeFailure=false
         if(now!=null){until=now+RECOVERY_BUDGET_MS;next=now;failures=0}
     }
     fun environmentUnavailable():Boolean {
@@ -42,21 +55,21 @@ class ReconnectPolicy {
     fun shouldAttempt(now:Long,scaleReady:Boolean):Boolean {
         if(!foreground||!hasRememberedScale||suppressed||unsupported||environmentPaused||attempting||
             readyBeforeFailure||scaleReady||now<next||now<lastAttempt+AutoConnectTiming.FAST_INTERVAL_MS)return false
-        attempting=true;lastAttempt=now;return true
+        attempting=true;scanning=false;lastAttempt=now;return true
     }
     fun observeScaleState(now:Long,state:DeviceState){
         when(state){
             DeviceState.READY->{
-                hasRememberedScale=true;readyBeforeFailure=true;failureEpisode=false;attempting=false;failures=0;next=now+5000
+                hasRememberedScale=true;readyBeforeFailure=true;failureEpisode=false;attempting=false;connecting=false;scanning=false;discoveredEpisode=false;failures=0;next=now+5000
             }
             DeviceState.FAILED->{
                 if(readyBeforeFailure){
                     readyBeforeFailure=false;failureEpisode=true
                     until=now+RECOVERY_BUDGET_MS;next=now;failures=0
                 }
-                if(attempting)finish(now,false)
+                if(attempting && !scanning)finish(now,false)
             }
-            DeviceState.DISCONNECTED->if(attempting)finish(now,false)
+            DeviceState.DISCONNECTED->if(attempting && !scanning)finish(now,false)
             DeviceState.UNSUPPORTED->disable()
             else->Unit
         }
@@ -64,7 +77,7 @@ class ReconnectPolicy {
     fun attemptFinished(now:Long)=finish(now,false)
     private fun finish(now:Long,succeeded:Boolean){
         if(!attempting)return
-        attempting=false
+        attempting=false;connecting=false;scanning=false
         if(succeeded){failures=0;next=now+5000;return}
         failures=(failures+1).coerceAtMost(4)
         next=lastAttempt+if(now<until)AutoConnectTiming.FAST_INTERVAL_MS else AutoConnectTiming.WAIT_INTERVAL_MS
