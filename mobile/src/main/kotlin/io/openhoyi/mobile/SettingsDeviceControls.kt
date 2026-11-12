@@ -24,7 +24,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     private var dialog:AlertDialog?=null
     private var localError:String?=null
     private var rendered=""
-    private var roleFilter:DeviceRole?=null
+    private val selection=DeviceScanSelection()
     var errorChanged:(Boolean)->Unit={}
     private fun connectedActionAllowed()=owner!=null && allowed()
     private fun allowed()=owner?.let { !it.manualShotActive && DeviceConnectionGate.mayChangeScale(it.shotState) } ?: true
@@ -41,7 +41,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 host.reconnectCoffee()
             }.apply {visual.action(this,outline=true);tag="product/devices/coffee/retry"}
             HoyiUi.button(host,actions,host.getString(R.string.home_visual_change)) {
-                owner?.beginDeviceSelection();roleFilter=role;rendered="";render(owner)
+                owner?.beginDeviceSelection();selection.showRole(role);rendered="";render(owner)
                 candidates.post {candidates.requestRectangleOnScreen(android.graphics.Rect(0,0,candidates.width,minOf(candidates.height,style.dp(120))),false)}
             }.apply {visual.action(this,outline=true)}
             HoyiUi.button(host,actions,host.getString(label)) {
@@ -72,7 +72,13 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         }.apply {asTaskTextAction();minimumHeight=style.dp(48);disconnectActions+=this}
     }
     fun error(value:String) {errorChanged(true);localError=value;if(::message.isInitialized)message.text=value}
+    /** The shared scan action always shows both device types, including after a scoped change. */
     fun scan() {
+        selection.showAll();rendered="";render(owner)
+        resumeScan()
+    }
+    /** Permission/Bluetooth callbacks resume the current intent, not a new unfiltered search. */
+    fun resumeScan() {
         localError=null;errorChanged(false)
         if(!allowed()) {error(host.getString(R.string.scale_active_guard));return}
         val permissions=if(Build.VERSION.SDK_INT>=31)arrayOf(Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -83,7 +89,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 if(Build.VERSION.SDK_INT<31) {
                     val location=host.getSystemService(android.location.LocationManager::class.java)
                     val enabled=if(Build.VERSION.SDK_INT>=28)location.isLocationEnabled else location.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)||location.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
-                    if(!enabled){error(host.getString(R.string.scale_owner_required));return}
+                    if(!enabled){error(host.getString(R.string.device_scan_enable_location));return}
                 }
                 val adapter=host.getSystemService(BluetoothManager::class.java)?.adapter
                 if(adapter==null){error(host.getString(R.string.home_bluetooth_unsupported));return}
@@ -113,7 +119,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         val display=localError ?: snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()
         if(message.text.toString()!=display)message.text=display
         message.visibility=if(message.text.isNullOrEmpty())View.GONE else View.VISIBLE
-        val values=snapshot?.candidates.orEmpty().filter {roleFilter==null || it.candidateRole==roleFilter}.sortedBy {it.candidateRole.name}
+        val values=snapshot?.candidates.orEmpty().filter {selection.includes(it.candidateRole)}.sortedBy {it.candidateRole.name}
         val key=values.toString()+allowed()
         if(key==rendered)return
         rendered=key;candidates.removeAllViews()

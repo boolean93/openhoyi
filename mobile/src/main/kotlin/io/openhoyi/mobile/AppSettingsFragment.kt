@@ -45,11 +45,11 @@ class AppSettingsFragment : Fragment() {
     private var deviceControls: SettingsDeviceControls? = null
     private var diagnosticState: TextView? = null
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.isNotEmpty() && result.values.all { it }) deviceControls?.scan()
+        if (result.isNotEmpty() && result.values.all { it }) deviceControls?.resumeScan()
         else deviceControls?.error(getString(R.string.home_permission_required))
     }
     private val bluetooth = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) deviceControls?.scan()
+        if (result.resultCode == android.app.Activity.RESULT_OK) deviceControls?.resumeScan()
         else deviceControls?.error(getString(R.string.home_permission_required))
     }
     fun openSection(key: String) { val current=document;if(current==null)pendingSection=key else current.navigate(key) }
