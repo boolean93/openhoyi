@@ -262,6 +262,11 @@ class MainActivity : ThemedActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { navigateBack() }
         })
+        if (savedInstanceState == null && extractionVisible) {
+            val routed = routeShortcut(extractionSlot)
+            if (routed == null) { extractionVisible = false; destination = TaskDestination.BREW }
+            else extractionSlot = routed
+        }
         showCurrent()
         if (savedInstanceState == null) {
             routeHistorySource(intent)
@@ -328,11 +333,29 @@ class MainActivity : ThemedActivity() {
         showCurrent()
     }
 
+    /** Navigation only: custom shortcuts select the saved recipe and retain wire slot 7. */
+    private fun routeShortcut(slot: Int): Int? {
+        if (slot !in 1..5) return 7
+        val stored = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null)
+        return when (val route = PresetSlots.route(slot, stored, (application as MobileApplication).curves)) {
+            is PresetSlots.Route.Ready -> {
+                if (route.selectCurve) getSharedPreferences("curves", MODE_PRIVATE).edit()
+                    .putString("selected", route.curveId).apply()
+                route.wireSlot
+            }
+            PresetSlots.Route.Missing, PresetSlots.Route.Unavailable -> {
+                Toast.makeText(this, getString(R.string.curve_slot_unavailable), Toast.LENGTH_LONG).show()
+                null
+            }
+        }
+    }
+
     fun showExtraction(slot: Int = 7) {
+        val wireSlot = routeShortcut(slot) ?: return
         if(!extractionVisible)extractionOrigin=destination
         dismissTransientDialogs()
         destination = TaskDestination.BREW
-        extractionSlot = slot
+        extractionSlot = wireSlot
         extractionVisible = true
         showCurrent()
     }

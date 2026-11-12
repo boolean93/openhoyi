@@ -53,6 +53,14 @@ class MobileApplication : Application() {
     override fun getResources(): Resources =
         if (::languageContext.isInitialized) languageContext.context().resources else super.getResources()
 
+    internal val leverRecipes by lazy {
+        val prefs = getSharedPreferences("machine_lever_recipes", MODE_PRIVATE)
+        MachineLeverRecipeStore(object : MachineLeverRecipeStore.Storage {
+            override fun read(): String? = prefs.getString("journal", null)
+            override fun write(value: String): Boolean = prefs.edit().putString("journal", value).commit()
+        })
+    }
+
     val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
     val curves: CurveLibrary by lazy {
         val factory = FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))

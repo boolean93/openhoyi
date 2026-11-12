@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var machineLeverRecipeChecks = false
+    private var customShortcutChecks = false
     private var darkThemeWindow: Boolean? = null
     private var connectionSleepChecks=false
     private var settingsVisualArguments: Bundle? = null
@@ -91,12 +93,24 @@ class BrewAudioInstrumentation : Instrumentation() {
         pageProfile = arguments?.getString("pageChecks")
         languageChecks = arguments?.getString("languageChecks") == "true"
         upgradeChecks = arguments?.getString("upgradeChecks")
+        customShortcutChecks = arguments?.getString("customShortcutChecks") == "true"
+        machineLeverRecipeChecks = arguments?.getString("machineLeverRecipeChecks") == "true"
         super.onCreate(arguments); start()
     }
     override fun onStart() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (machineLeverRecipeChecks) {
+                MachineLeverRecipeWindowChecks(this).run()
+                report.putString("stream", "MACHINE_LEVER_RECIPE_WINDOW_PASSED cancel=true confirm=true firstCard=true unknown=true failed=true deviceIsolation=true noBle=true noShot=true journalPreserved=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (customShortcutChecks) {
+                CustomShortcutWindowChecks(this).run()
+                report.putString("stream", "CUSTOM_SHORTCUT_WINDOW_PASSED assignment=true navigation=true recreate=true edited=true missing=true noBle=true noShot=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             darkThemeWindow?.let { dark ->
                 DarkThemeWindowChecks(this).run(dark)
                 report.putString("stream", "DARK_THEME_WINDOW_PASSED actualWindows=true viewOnlyChartFixture=true noBle=true\n")

@@ -284,6 +284,22 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         }
         scaleControl.tare({beforeDispatch() && DeviceConnectionGate.mayChangeScale(extraction.state)},done)
     }
+    /** GATT completion is not confirmation that the persisted recipe matches. */
+    fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit) =
+        writeStoredLeverRecipe(parameters,beforeDispatch,{},done)
+    fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,onDispatch:()->Unit,done:(OperationResult)->Unit) {
+        usable()
+        if(DeviceConnectionGate.unsettled(extraction.state)) {
+            done(OperationResult.Failed("extraction active"));return
+        }
+        coffee.session.writeStoredLeverRecipe(parameters,
+            { beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state) },onDispatch,done)
+    }
+    fun refreshStoredRecipeSettings(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
+        usable()
+        coffee.session.refreshStoredRecipeSettings(
+            { beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state) },done)
+    }
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit)=writeSetting(change,{true},done)
     fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()

@@ -1,0 +1,21 @@
+<resources>
+    <string name="lever_title">拨杆配方</string>
+    <string name="lever_recent">最近发送</string>
+    <string name="lever_empty">—</string>
+    <string name="lever_unknown_short">待核对</string>
+    <string name="lever_set_title">设为拨杆配方</string>
+    <string name="lever_set_action">确认修改</string>
+    <string name="lever_confirm">将用“%1$s”覆盖机器拨杆配方及控制模式。机器不支持完整读回，发送后无法确认保存结果。拨杆使用系统设定温度，目标液重不会保存到机器。</string>
+    <string name="lever_local_record">此处仅记录本 App 最近发送的配方，不是机器读回。其他 App 的修改不会同步到这里。</string>
+    <string name="lever_sending">正在发送拨杆配方</string>
+    <string name="lever_sent">已发送</string>
+    <string name="lever_not_sent">未发送，请重试</string>
+    <string name="lever_result_unknown">发送结果未知，请核对机器；不会自动重发。</string>
+    <string name="lever_unresolved">请在首页拨杆配方中处理未确认的发送</string>
+    <string name="lever_changed">曲线或设备已变化，请重新选择</string>
+    <string name="lever_record_failed">发送记录无法保存，已阻止继续操作</string>
+    <string name="lever_firmware_unsupported">当前固件暂不支持设置拨杆配方</string>
+    <string name="lever_reconnect_original">请连接原咖啡机并等待空闲后处理</string>
+    <string name="lever_ack_action">知悉，结束本次尝试</string>
+    <string name="lever_choose_curve">选择曲线</string>
+</resources>

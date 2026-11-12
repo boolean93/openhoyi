@@ -94,6 +94,9 @@ object CoffeeCommands {
         put(19,b.take(19).fold(0){a,v->a xor (v.toInt() and 255)})
         return EncodedCommand(ByteFrame(b))
     }
+    /** Persistent overwrite; a GATT result is not a durable-save acknowledgement. */
+    fun storedLeverRecipe(parameters: StartParameters): EncodedCommand =
+        EncodedCommand(StoredLeverRecipeFormat.candidate(parameters))
     fun stop(slot:Int):EncodedCommand { require(slot in 1..5 || slot == 7); return command(2,0,slot,0,0) }
     /** Share the validated setting range even when callers use the direct encoder. */
     fun brewTemperature(celsius:Int):EncodedCommand =
@@ -147,7 +150,7 @@ object CoffeeCommands {
 enum class UnsupportedCommandGroup(val reason:String) {
     OTA("No recoverable hardware validation"), PASSWORD_CHANGE("No captured modification, readback, reconnect or recovery sequence"),
     LEVER_CALIBRATION("Legacy encoded/write length mismatch"), FACTORY_RESET_AND_ALARM_IGNORE("Opcode 0x17 conflict"),
-    CURVE_COPY("Competing 14/20 byte formats"),
+    CURVE_READBACK("No verified complete recipe readback or durable-save acknowledgement"),
     BREW_ENCOURAGEMENT_LED("Legacy automatic opcode 0x21; no captured execution/readback/recovery evidence"),
     OTHER_SETTINGS("Outside captured safe subset"),
 }

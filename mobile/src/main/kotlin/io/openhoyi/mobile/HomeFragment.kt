@@ -431,21 +431,22 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickRow.addView(presetRow, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(if (shortHome) 0 else 6)
         })
-        directPresets = (1..5).map { slot ->
+        directPresets = (0..5).map { slot ->
             val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else if (shortHome) 96 else 80) }
             if(phoneHome) {
-                if(slot%2==1) {
+                if(slot%2==0) {
                     phonePresetRow=productStyle.row()
-                    presetRow.addView(phonePresetRow,LinearLayout.LayoutParams(-1,-2).apply {if(slot>1) topMargin=dp(10)})
+                    presetRow.addView(phonePresetRow,LinearLayout.LayoutParams(-1,-2).apply {if(slot>0) topMargin=dp(10)})
                 }
-                phonePresetRow!!.addView(tile,LinearLayout.LayoutParams(0,-2,1f).apply {if(slot%2==0) marginStart=dp(10)})
-                if(slot==5) phonePresetRow!!.addView(View(host),LinearLayout.LayoutParams(0,1,1f).apply {marginStart=dp(10)})
+                phonePresetRow!!.addView(tile,LinearLayout.LayoutParams(0,-2,1f).apply {if(slot%2==1) marginStart=dp(10)})
             } else presetRow.addView(tile, LinearLayout.LayoutParams(0, if (shortHome) -2 else (dp(if (spaciousHome) 120 else 96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt(), 1f).apply {
-                if (slot > 1) marginStart = dp(if (spaciousHome) 8 else 4)
+                if (slot > 0) marginStart = dp(if (spaciousHome) 8 else 4)
             })
             val button = productStyle.button(Button(host), outline = spaciousHome).apply {
                 tag = "product/home/direct-preset/$slot"
-                setOnClickListener { host.showExtraction(slot) }
+                // Static theme chrome belongs to view creation, not the 250ms telemetry render.
+                if (slot == 0) background = productStyle.shape(productStyle.surface, true)
+                setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.showExtraction(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
             val contents = LinearLayout(host).apply {
@@ -455,8 +456,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             }
             tile.addView(contents, FrameLayout.LayoutParams(-1, if(phoneHome || shortHome) -2 else -1))
-            val slotLabel = productStyle.text(getString(R.string.home_slot, slot.toString()),
-                TaskProductVisualStyle.Type(14, 400, 20),
+            val slotLabel = productStyle.text(if (slot == 0) "${getString(R.string.lever_title)} · ${getString(R.string.lever_recent)}" else getString(R.string.home_slot, slot.toString()),
+                TaskProductVisualStyle.Type(if (slot == 0) 12 else 14, 400, if (slot == 0) 18 else 20),
                 secondary = true).apply { gravity = android.view.Gravity.START }
             val previewHeader = if (shortWideHome) productStyle.row().apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -477,6 +478,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 ellipsize = if(phoneHome || shortHome) null else android.text.TextUtils.TruncateAt.END
                 if(phoneHome) minimumHeight=dp(48)
             }
+            if (slot == 0) name.setTextColor(productStyle.homePresetText)
             contents.addView(name, if(phoneHome || shortHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(-1, 0, 1f))
             DirectPresetVisual(button, name, sparkline)
         }
@@ -680,6 +682,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setOnClickListener { host.select(TaskDestination.HISTORY) }
         }
         presetPanel = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(16), 0) }
+        button(presetPanel, getString(R.string.lever_title)) {
+            presetDialog?.dismiss(); MachineLeverRecipeUi.details(host)
+        }
         presetButtons = (1..5).map { slot ->
             button(presetPanel, getString(R.string.home_slot, slot.toString())) {
                 presetDialog?.dismiss()
@@ -1085,6 +1090,27 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     app.languagePreferences.current.locale).format(java.util.Date(it))
             } ?: "—")
         } + "\n" + getString(R.string.task_brew_history_entry))
+        val leverStore = app.leverRecipes
+        val leverAddress = service?.leverDeviceAddress
+        val leverAttempt = leverAddress?.let(leverStore::attemptFor)
+        val leverRecord = leverAddress?.let(leverStore::recordFor)
+        val leverUnknown = leverAttempt?.state == MachineLeverRecipeStore.State.UNKNOWN
+        val leverName = when {
+            leverUnknown -> getString(R.string.lever_unknown_short)
+            leverRecord != null -> leverRecord.snapshot.name
+            else -> getString(R.string.lever_empty)
+        }
+        directPresets.first().apply {
+            name.show(leverName)
+            val description = "${getString(R.string.lever_title)} · ${getString(R.string.lever_recent)} · $leverName"
+            if (button.contentDescription?.toString() != description) button.contentDescription = description
+            val preview = if (leverUnknown) null else leverRecord?.snapshot?.frameHex?.let(MachineLeverRecipePreview::from)
+            val visibility = if (preview == null) View.GONE else View.VISIBLE
+            if (sparkline.visibility != visibility) sparkline.visibility = visibility
+            // Clear old-device/uncertain previews as well; no cached machine identity is trusted.
+            val desiredPreview = preview ?: CurveStageParameters.Preview(emptyList())
+            if (sparkline.preview != desiredPreview) sparkline.preview = desiredPreview
+        }
         if (presetVisualsDirty) {
             val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
             val presetScale = CurveStageParameters.SharedScale.from(library.items)
@@ -1092,14 +1118,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 val slot = index + 1
                 val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null))
                 val item = library.find(id)
-                val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
+                val unavailable = id.startsWith("draft-") && (item == null || !library.canStart(item))
+                val label = getString(R.string.home_slot_curve, slot.toString(),
+                    if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: id)
                 if (button.text.toString() != label) button.text = label
-                val visual = directPresets[index]
+                val visual = directPresets[index + 1]
                 visual.button.contentDescription = label
                 visual.button.background = productStyle.shape(if (item != null && item.id == selected?.id) productStyle.homeSelected else productStyle.surface, true)
-                visual.button.isEnabled = item?.let(library::canStart) == true
-                visual.name.show(item?.name ?: getString(R.string.home_slot_unconfigured))
-                visual.name.setTextColor(if (visual.button.isEnabled) productStyle.homePresetText else productStyle.onDisabled)
+                visual.button.isEnabled = unavailable || item?.let(library::canStart) == true
+                visual.name.show(if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: getString(R.string.home_slot_unconfigured))
+                visual.name.setTextColor(if (!unavailable && visual.button.isEnabled) productStyle.homePresetText else productStyle.onDisabled)
                 val thumbnail = HomePresetPreview.from(item, presetScale)
                 visual.sparkline.visibility = if (thumbnail == null) View.GONE else View.VISIBLE
                 if (thumbnail != null) {

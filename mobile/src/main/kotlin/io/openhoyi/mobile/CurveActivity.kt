@@ -387,7 +387,7 @@ class CurveActivity : ThemedActivity() {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6); topMargin = dp(6) }
         }
         assignPreset = HoyiUi.button(this, editing, getString(R.string.curve_assign_slot)) {
-            val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@button
+            val item = selected?.takeIf { PresetSlots.canAssign(it, library) } ?: return@button
             AlertDialog.Builder(this).setTitle(getString(R.string.curve_choose_slot))
                 .setItems((1..5).map { getString(R.string.home_slot, it.toString()) }.toTypedArray()) { _, index ->
                     val slot = index + 1
@@ -585,8 +585,8 @@ class CurveActivity : ThemedActivity() {
         select.visibility = View.VISIBLE
         parameterShortcut.visibility = View.VISIBLE
         select.text = if (canStart) getString(R.string.curve_use) else getString(R.string.curve_cannot_start)
-        assignPreset.visibility = if (item.factoryCurve != null) View.VISIBLE else View.GONE
-        assignPreset.isEnabled = item.factoryCurve != null && canStart
+        assignPreset.visibility = if (item.factoryCurve != null || item.customDocument != null) View.VISIBLE else View.GONE
+        assignPreset.isEnabled = PresetSlots.canAssign(item, library)
         adapter.notifyDataSetChanged()
         viewport?.let { curveList.onRestoreInstanceState(it) }
     }
