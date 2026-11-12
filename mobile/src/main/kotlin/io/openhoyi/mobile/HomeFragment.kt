@@ -354,24 +354,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.Type(if (shortHome) 18 else 22, 500, if (shortHome) 28 else 32), "product/home/quick-title")
-        val directStart = Switch(host).apply {
+        val directStart = HoyiSwitch(host).apply {
             text = getString(R.string.shortcut_start_setting)
             tag = "product/home/shortcuts/direct-start"
             productStyle.apply(this, TaskProductVisualStyle.Type(14, 400, 20))
             isChecked = shortcutPreferences.read().startsOnTap
             showText = false
             switchPadding = dp(6)
-            switchMinWidth = dp(36)
             minHeight = dp(48); minimumHeight = minHeight
-            minimumWidth = 0; minWidth = 0
             setPadding(dp(2), 0, 0, 0)
             background = null
-            thumbTintList = android.content.res.ColorStateList(
-                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                intArrayOf(productStyle.accent, productStyle.muted))
-            trackTintList = android.content.res.ColorStateList(
-                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                intArrayOf(productStyle.selected, productStyle.disabled))
             setOnCheckedChangeListener { _, checked ->
                 if (!updatingShortcut) {
                     host.revokeShortcutStart()
