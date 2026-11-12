@@ -64,8 +64,7 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
         val originalSelection = curvePrefs.getString("selected", null)
         val originalSlots = slotPrefs.all.toMap()
         val custom = app.customCurvesResult.getOrThrow()
-        val docs = custom.javaClass.getDeclaredField("documents").apply { isAccessible = true }
-        val originalDocs = docs.get(custom)
+        val curveFixture = CustomCurveWindowFixture(custom)
         val curveFile = File(context.filesDir, "custom_curves_v1.json")
         val originalCurveBytes = if (curveFile.exists()) curveFile.readBytes() else null
         val oldHistory = app.history.entries
@@ -116,8 +115,7 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
                     }
                 } finally { usable.setBoolean(lever, true) }
 
-                @Suppress("UNCHECKED_CAST") val source = originalDocs as Map<String, CustomCurveDocument>
-                docs.set(custom, LinkedHashMap(source).apply { put(document.id, document) })
+                curveFixture.replace(document)
             }
             val page = MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
@@ -282,7 +280,7 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
                 main {
                     try { activity?.finish() }
                     finally {
-                        docs.set(custom, originalDocs)
+                        curveFixture.restore()
                         records.set(lever, originalRecords); usable.setBoolean(lever, originalUsable); storage.set(lever, originalStorage)
                     }
                 }
