@@ -28,6 +28,9 @@ class ShotHistory(
         val weightHundredthsGram: Int?,
         val slot: Int? = null,
         val observedRunning: Boolean = false,
+        val observedMachineElapsedSeconds: Int? = null,
+        val timingEvidenceVersion: Int = 0,
+        val observedSampleCoverageMs: Long? = null,
     )
 
     private val records = decode(storage.read()).toMutableList()
@@ -60,7 +63,7 @@ class ShotHistory(
         val id = newId()
         require(id.isNotBlank() && records.none { it.id == id })
         val next = records.toMutableList().apply {
-            add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null, slot))
+            add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null, slot, timingEvidenceVersion = 1))
             val cutoff = now() - 30L * 24 * 60 * 60 * 1000
             removeAll { it.startedAtMs < cutoff }
             if (size > 500) {
@@ -104,6 +107,30 @@ class ShotHistory(
         }
         if (updated.observedRunning && updated.curveId != "manual") onObservedUse(updated)
         if (terminal) activeId = null
+    }
+
+    /** Attach only evidence owned by this series, including after terminal clears activeId. */
+    fun attachTimingEvidence(id: String, seconds: Int?, sampleCoverageMs: Long? = null) {
+        require(seconds == null || seconds in 0..65535)
+        require(sampleCoverageMs == null || sampleCoverageMs > 0)
+        val index = records.indexOfFirst { it.id == id }
+        if (index < 0) return
+        records[index] = records[index].copy(observedMachineElapsedSeconds = seconds ?: records[index].observedMachineElapsedSeconds, timingEvidenceVersion = 1,
+            observedSampleCoverageMs = sampleCoverageMs ?: records[index].observedSampleCoverageMs)
+        persist()
+        notifyChanged(records[index])
+    }
+
+    /** Recover only explicitly observed sampling coverage; never invent a machine timer or end. */
+    fun recoverSampleCoverage(id: String, points: List<ShotPoint>) {
+        val index = records.indexOfFirst { it.id == id }
+        if (index < 0 || records[index].observedSampleCoverageMs != null) return
+        val coverage = observedSampleCoverage(points) ?: return
+        val updated = records[index].copy(observedSampleCoverageMs = coverage)
+        val next = records.toMutableList().apply { set(index, updated) }
+        storage.write(next.joinToString("\n", postfix = "\n", transform = ::encode))
+        records[index] = updated
+        notifyChanged(updated)
     }
 
     /** Fresh valve-open extraction telemetry, not a successful command callback, establishes use. */
@@ -152,20 +179,26 @@ class ShotHistory(
         value.status.name, safe(value.reason.orEmpty()), value.weightHundredthsGram?.toString().orEmpty(),
         value.slot?.toString().orEmpty(),
         value.observedRunning.toString(),
+        value.observedMachineElapsedSeconds?.toString().orEmpty(), value.timingEvidenceVersion.toString(), value.observedSampleCoverageMs?.toString().orEmpty(),
     ).joinToString("\t")
 
     private fun decode(value: String): List<Entry> = value.lineSequence().mapNotNull { line ->
         val fields = line.split('\t')
-        if (fields.size !in 8..10) return@mapNotNull null
+        if (fields.size !in 8..13) return@mapNotNull null
         runCatching {
             Entry(unsafe(fields[0]), unsafe(fields[1]), fields[2].toLong(),
                 fields[3].takeIf(String::isNotEmpty)?.toLong(), fields[4].takeIf(String::isNotEmpty)?.toLong(),
                 Status.valueOf(fields[5]), unsafe(fields[6]).ifEmpty { null },
                 fields[7].takeIf(String::isNotEmpty)?.toInt(),
                 fields.getOrNull(8)?.takeIf(String::isNotEmpty)?.toInt(),
-                fields.getOrNull(9)?.toBooleanStrict() ?: false)
+                fields.getOrNull(9)?.toBooleanStrict() ?: false,
+                fields.getOrNull(10)?.takeIf(String::isNotEmpty)?.toInt(),
+                fields.getOrNull(11)?.toInt() ?: 0,
+                fields.getOrNull(12)?.takeIf(String::isNotEmpty)?.toLong())
         }.getOrNull()?.takeIf { it.id.isNotBlank() && it.curveId.isNotBlank() && it.startedAtMs >= 0 &&
-            (it.slot == null || if (it.curveId == "manual") it.slot == 6
+            (it.observedMachineElapsedSeconds == null || it.observedMachineElapsedSeconds in 0..65535) &&
+            (it.observedSampleCoverageMs == null || it.observedSampleCoverageMs > 0) &&
+            it.timingEvidenceVersion in 0..1 && (it.slot == null || if (it.curveId == "manual") it.slot == 6
                 else it.slot in 1..5 || it.slot == 7) }
     }.toList()
 

@@ -17,6 +17,9 @@ internal class BrewJournal(private val storage: Storage) {
         val status: String,
         val reason: String?,
         val weightHundredthsGram: Int?,
+        val observedMachineElapsedSeconds: Int? = null,
+        val timingEvidenceVersion: Int = 0,
+        val observedSampleCoverageMs: Long? = null,
     )
     data class Notes(
         val beanId: String? = null,
@@ -93,6 +96,14 @@ internal class BrewJournal(private val storage: Storage) {
                 if(previous.observation.status !in setOf("ENDED","NOT_STARTED") &&
                     value.status in setOf("ENDED","NOT_STARTED"))
                     next[value.id]=previous.copy(observation=value)
+                else if (previous.observation.status == value.status &&
+                    (previous.observation.timingEvidenceVersion < value.timingEvidenceVersion ||
+                        previous.observation.observedMachineElapsedSeconds == null && value.observedMachineElapsedSeconds != null ||
+                        previous.observation.observedSampleCoverageMs == null && value.observedSampleCoverageMs != null))
+                    next[value.id]=previous.copy(observation=previous.observation.copy(
+                        observedMachineElapsedSeconds=value.observedMachineElapsedSeconds ?: previous.observation.observedMachineElapsedSeconds,
+                        timingEvidenceVersion=maxOf(previous.observation.timingEvidenceVersion,value.timingEvidenceVersion),
+                        observedSampleCoverageMs=value.observedSampleCoverageMs ?: previous.observation.observedSampleCoverageMs))
             }
         }
         if(next!=records) commit(next)
@@ -113,6 +124,9 @@ internal class BrewJournal(private val storage: Storage) {
         require(value.curveId.isNotBlank() && value.curveId.length <= 256)
         require(value.startedAtMs >= 0)
         require(value.endedAtMs == null || value.endedAtMs >= value.startedAtMs)
+        require(value.observedMachineElapsedSeconds == null || value.observedMachineElapsedSeconds in 0..65535)
+        require(value.timingEvidenceVersion in 0..1)
+        require(value.observedSampleCoverageMs == null || value.observedSampleCoverageMs > 0)
         require(value.elapsedMs == null || value.elapsedMs >= 0)
         require(value.status in setOf("STARTING", "RUNNING", "STOP_REQUESTED", "ENDED", "UNKNOWN", "NOT_STARTED"))
         require(value.reason == null || value.reason.length <= 16000)
@@ -133,12 +147,15 @@ internal class BrewJournal(private val storage: Storage) {
                 .put("id", shot.id).put("curveId", shot.curveId).put("startedAtMs", shot.startedAtMs)
                 .put("endedAtMs", shot.endedAtMs ?: JSONObject.NULL).put("elapsedMs", shot.elapsedMs ?: JSONObject.NULL)
                 .put("status", shot.status).put("reason", shot.reason ?: JSONObject.NULL)
-                .put("weightHundredthsGram", shot.weightHundredthsGram ?: JSONObject.NULL))
+                .put("weightHundredthsGram", shot.weightHundredthsGram ?: JSONObject.NULL)
+                .put("observedMachineElapsedSeconds", shot.observedMachineElapsedSeconds ?: JSONObject.NULL)
+                .put("timingEvidenceVersion", shot.timingEvidenceVersion)
+                .put("observedSampleCoverageMs", shot.observedSampleCoverageMs ?: JSONObject.NULL))
                 .put("notes", JSONObject().put("beanId", notes.beanId ?: JSONObject.NULL).put("beanName", notes.beanName ?: JSONObject.NULL)
                     .put("doseMg", notes.doseMg ?: JSONObject.NULL).put("grind", notes.grind)
                     .put("curveExpectation", notes.curveExpectation).put("taste", notes.taste).put("nextAdjustment", notes.nextAdjustment)))
         }
-        return JSONObject().put("schema", 1).put("entries", array).put("checksum", checksum(array)).toString()
+        return JSONObject().put("schema", 3).put("entries", array).put("checksum", checksum(array)).toString()
     }
     private fun decode(value: String): LinkedHashMap<String, Entry> {
         try {
@@ -146,7 +163,8 @@ internal class BrewJournal(private val storage: Storage) {
             val root = tokenizer.nextValue()
             require(root is JSONObject && tokenizer.nextClean() == '\u0000') { "Trailing or invalid journal input" }
             keys(root, setOf("schema", "entries", "checksum"))
-            require(number(root, "schema") == 1L) { "Unknown journal schema" }
+            val schema = number(root, "schema")
+            require(schema in 1L..3L) { "Unknown journal schema" }
             val array = root.getJSONArray("entries")
             require(root.get("checksum") is String && root.getString("checksum") == checksum(array)) { "Journal checksum mismatch" }
             val result = linkedMapOf<String, Entry>()
@@ -154,11 +172,15 @@ internal class BrewJournal(private val storage: Storage) {
                 val item = array.getJSONObject(index)
                 keys(item, setOf("shot", "notes"))
                 val shot = item.getJSONObject("shot")
-                keys(shot, setOf("id", "curveId", "startedAtMs", "endedAtMs", "elapsedMs", "status", "reason", "weightHundredthsGram"))
+                val timingKeys = if (schema >= 2L) setOf("observedMachineElapsedSeconds", "timingEvidenceVersion") else emptySet()
+                keys(shot, (if (schema >= 3L) setOf("observedSampleCoverageMs") else emptySet()) + timingKeys + setOf("id", "curveId", "startedAtMs", "endedAtMs", "elapsedMs", "status", "reason", "weightHundredthsGram"))
                 val weight = nullableNumber(shot, "weightHundredthsGram")
                 require(weight == null || weight in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong())
                 val observed = Observation(string(shot, "id"), string(shot, "curveId"), number(shot, "startedAtMs"),
-                    nullableNumber(shot, "endedAtMs"), nullableNumber(shot, "elapsedMs"), string(shot, "status"), nullableString(shot, "reason"), weight?.toInt())
+                    nullableNumber(shot, "endedAtMs"), nullableNumber(shot, "elapsedMs"), string(shot, "status"), nullableString(shot, "reason"), weight?.toInt(),
+                    if (timingKeys.isEmpty()) null else nullableNumber(shot, "observedMachineElapsedSeconds")?.also { require(it in 0L..65535L) }?.toInt(),
+                    if (timingKeys.isEmpty()) 0 else number(shot, "timingEvidenceVersion").also { require(it in 0..1) }.toInt(),
+                    if (schema >= 3L) nullableNumber(shot, "observedSampleCoverageMs") else null)
                 val note = item.getJSONObject("notes")
                 keys(note, setOf("beanId", "beanName", "doseMg", "grind", "curveExpectation", "taste", "nextAdjustment"))
                 val notes = Notes(nullableString(note, "beanId"), nullableString(note, "beanName"), nullableNumber(note, "doseMg"),

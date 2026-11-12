@@ -1950,6 +1950,8 @@ class MobileService : Service() {
     private fun finishSeries(observedEnd: Boolean) {
         finishBrewFeedback(observedEnd)
         val finished = series.finish() ?: return
+        runCatching { history?.attachTimingEvidence(finished.first, series.observedMachineElapsedSeconds, series.observedSampleCoverageMs) }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
         val app = application as MobileApplication
         if (observedEnd && finished.second.isNotEmpty() &&
             history?.entries?.any { it.id == finished.first } == true) {

@@ -120,6 +120,31 @@ class MobileApplication : Application() {
             samples.prune(recent.entries.map(ShotHistory.Entry::id).toSet())
         }
     }
+    /** Called only by an attached history view on the main thread after its existing async read. */
+    internal fun recoverViewedSampleCoverage(entry: ShotHistory.Entry, points: List<ShotPoint>): ShotHistory.Entry {
+        if (entry.observedMachineElapsedSeconds != null || entry.observedSampleCoverageMs != null) return entry
+        val coverage = observedSampleCoverage(points) ?: return entry
+        return runCatching {
+            val recent = history.entries.firstOrNull { it.id == entry.id }
+            if (recent != null) {
+                require(recent.curveId == entry.curveId && recent.startedAtMs == entry.startedAtMs)
+                history.recoverSampleCoverage(entry.id, points)
+                history.entries.first { it.id == entry.id }
+            } else {
+                val journal = journalResult.getOrThrow()
+                val stored = journal.find(entry.id) ?: return@runCatching entry
+                require(stored.observation.curveId == entry.curveId && stored.observation.startedAtMs == entry.startedAtMs)
+                if (stored.observation.observedMachineElapsedSeconds != null || stored.observation.observedSampleCoverageMs != null)
+                    return@runCatching stored.observation.historySummary()
+                val updated = stored.observation.copy(observedSampleCoverageMs = coverage)
+                journal.observe(updated)
+                updated.historySummary()
+            }
+        }.getOrElse { error ->
+            runCatching { logs.record("shot.coverage_recovery_pending", mapOf("type" to error.javaClass.simpleName)) }
+            entry
+        }
+    }
     val legacyHistory: LegacyHistoryStore by lazy { LegacyHistoryStore(File(filesDir, "legacy_history.json")) }
     internal val customCurvesResult by lazy {
         runCatching {

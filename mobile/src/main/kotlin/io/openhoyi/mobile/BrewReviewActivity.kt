@@ -129,7 +129,7 @@ class BrewReviewActivity : ThemedActivity() {
         style.visual.add(words, style.visual.text(journalCurve(observation.curveId) + " · " + journalDate(observation.startedAtMs),
             TaskProductVisualStyle.auxiliary, "full-text-details", true), 8)
         val outcome = ObservationFlow(style)
-        listOf(Triple(R.string.journal_elapsed, observation.elapsedMs?.let { BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString() },
+        listOf(Triple(observation.historySummary().timingLabel, observation.historySummary().timingValue,
                 getString(R.string.journal_seconds, "").trim()),
             Triple(R.string.history_end_scale, observation.weightHundredthsGram?.let { BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString() },
                 getString(R.string.journal_grams, "").trim())).forEachIndexed { index, (label, value, unit) ->
@@ -233,8 +233,8 @@ class BrewReviewActivity : ThemedActivity() {
     }
 }
 
-internal fun ShotHistory.Entry.journalObservation() = BrewJournal.Observation(id, curveId, startedAtMs, endedAtMs, elapsedMs, status.name, reason, weightHundredthsGram)
-internal fun BrewJournal.Observation.historySummary() = ShotHistory.Entry(id, curveId, startedAtMs, endedAtMs, elapsedMs, ShotHistory.Status.valueOf(status), reason, weightHundredthsGram)
+internal fun ShotHistory.Entry.journalObservation() = BrewJournal.Observation(id, curveId, startedAtMs, endedAtMs, elapsedMs, status.name, reason, weightHundredthsGram, observedMachineElapsedSeconds, timingEvidenceVersion, observedSampleCoverageMs)
+internal fun BrewJournal.Observation.historySummary() = ShotHistory.Entry(id, curveId, startedAtMs, endedAtMs, elapsedMs, ShotHistory.Status.valueOf(status), reason, weightHundredthsGram, observedMachineElapsedSeconds = observedMachineElapsedSeconds, timingEvidenceVersion = timingEvidenceVersion, observedSampleCoverageMs = observedSampleCoverageMs)
 internal fun ThemedActivity.journal(body: LinearLayout): BrewJournal? = (application as MobileApplication).journalResult.getOrNull().also {
     if (it == null) HoyiUi.label(this, HoyiUi.card(this, body), getString(R.string.journal_unavailable), 17, true)
 }
@@ -258,7 +258,8 @@ internal fun ThemedActivity.journalSummary(parent: LinearLayout, shot: BrewJourn
     journalField(card, R.string.journal_state, journalStatus(shot.status))
     journalField(card, R.string.journal_started, journalDate(shot.startedAtMs))
     journalField(card, R.string.journal_ended, shot.endedAtMs?.let { journalDate(it) })
-    journalField(card, R.string.journal_elapsed, shot.elapsedMs?.let { getString(R.string.journal_seconds, BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString()) })
+    journalField(card, shot.historySummary().timingLabel, shot.historySummary().timingValue?.let { "$it s" })
+    if ((shot.timingEvidenceVersion > 0 || shot.observedSampleCoverageMs != null)) journalField(card, R.string.history_record_elapsed, shot.elapsedMs?.let { "%.1f s".format(Locale.ROOT, it / 1000.0) })
     journalField(card, R.string.journal_weight, shot.weightHundredthsGram?.let { getString(R.string.journal_grams, BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString()) })
     if (shot.status == "UNKNOWN") HoyiUi.label(this, card, getString(R.string.history_unknown_warning), 15, true)
     return card
@@ -276,7 +277,8 @@ internal fun ThemedActivity.journalObservationText(shot: BrewJournal.Observation
     append(getString(R.string.journal_state)).append(": ").append(journalStatus(shot.status))
     append("\n").append(getString(R.string.journal_started)).append(": ").append(journalDate(shot.startedAtMs))
     append("\n").append(getString(R.string.journal_ended)).append(": ").append(shot.endedAtMs?.let { journalDate(it) } ?: getString(R.string.journal_optional))
-    append("\n").append(getString(R.string.journal_elapsed)).append(": ").append(shot.elapsedMs?.let { getString(R.string.journal_seconds, BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString()) } ?: getString(R.string.journal_optional))
+    append("\n").append(shotTimingSummary(shot.historySummary()))
+    if ((shot.timingEvidenceVersion > 0 || shot.observedSampleCoverageMs != null)) append("\n").append(shotRecordElapsed(shot.historySummary()))
     append("\n").append(getString(R.string.journal_weight)).append(": ").append(shot.weightHundredthsGram?.let { getString(R.string.journal_grams, BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString()) } ?: getString(R.string.journal_optional))
     if (shot.status == "UNKNOWN") append("\n").append(getString(R.string.history_unknown_warning))
 }
