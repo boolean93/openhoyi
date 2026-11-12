@@ -456,7 +456,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickLaunch = button(lastCurveRow, getString(R.string.home_curve_select), primary = true) {
             useLastCurve()
         }.apply {
-            tag = "product/home/last-curve/use"
             textSize=21f
             setSingleLine(true)
             if (shortWideHome) setPadding(dp(4), paddingTop, dp(4), paddingBottom)

@@ -129,7 +129,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(prefs.edit().putBoolean("direct_start", false).commit())
             }
             fun lastUse() = page.active("root:BREW").requireView()
-                .findViewWithTag<View>("product/home/last-curve/use")
+                .findViewWithTag<View>("product/home/quick-launch")
             await("previous curve shown") {
                 host.resolveLastCurve() is HomeLastCurve.Ready &&
                     page.active("root:BREW").requireView().findViewWithTag<android.widget.TextView>("product/home/quick-recipe").text.toString() == document.name
@@ -215,14 +215,21 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 noShot()
             } finally { test.removeMonitor(monitor) }
         } finally {
-            try { main {
+            // Finish first: live switches can write their rendered choice back during restoration.
+            main { activity?.finish() }
+            await("fixture Activity destroyed before restoring preferences") { activity?.isDestroyed != false }
+            val idle = java.util.concurrent.CountDownLatch(1)
+            val queue = android.os.Looper.getMainLooper().queue
+            val idleHandler = android.os.MessageQueue.IdleHandler { idle.countDown(); false }
+            main { queue.addIdleHandler(idleHandler) }
+            try {
+                check(idle.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Fixture main queue did not become idle" }
+            } finally { main { queue.removeIdleHandler(idleHandler) } }
+            main {
                 mockRuntime?.let { runtime -> runtime.javaClass.getDeclaredField("settings").apply { isAccessible = true }.set(runtime, originalMockSettings) }
                 documents.set(store, originalDocs)
                 usesField.set(ledger, originalUses)
                 if (usageBytes == null) usageFile.delete() else usageFile.writeBytes(usageBytes)
-                activity?.finish()
-            } }
-            finally {
                 if (darkTheme != null) check(appearance.edit().apply {
                     if (oldDark == null) remove("dark") else putBoolean("dark", oldDark)
                 }.commit())
@@ -231,9 +238,11 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 }.commit())
                 check(slots.edit().apply { if (oldSlot == null) remove(PresetSlots.key(5)) else putString(PresetSlots.key(5), oldSlot) }.commit())
                 check(curves.edit().apply { if (oldSelected == null) remove("selected") else putString("selected", oldSelected) }.commit())
-                check(app.history.entries == history)
-                check(if (originalBytes == null) !curveFile.exists() else curveFile.readBytes().contentEquals(originalBytes))
             }
+            // Cross another main-queue barrier and verify the exact original key/value survived.
+            main { check(prefs.all["direct_start"] == oldDirect) { "Fixture changed the saved direct-start preference" } }
+            check(app.history.entries == history)
+            check(if (originalBytes == null) !curveFile.exists() else curveFile.readBytes().contentEquals(originalBytes))
         }
     }
 }
