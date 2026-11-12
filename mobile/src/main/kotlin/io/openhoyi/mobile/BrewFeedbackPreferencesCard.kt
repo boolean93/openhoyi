@@ -21,7 +21,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
         private set
     init {
         val card = settingsGroup(activity, parent, activity.getString(R.string.feedback_enabled), visual)
-        enabledSwitch = Switch(activity).apply {
+        enabledSwitch = HoyiSwitch(activity).apply {
             text = activity.getString(R.string.settings_enable_feedback)
             textSize = TaskVisualTokens.BODY_SP.toFloat()
             typeface = TaskTypography.face(activity, 400)

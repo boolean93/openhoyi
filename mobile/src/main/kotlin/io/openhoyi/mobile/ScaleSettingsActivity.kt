@@ -17,7 +17,7 @@ class ScaleSettingsActivity:ScaleOwnerActivity() {
         body.setPadding(style.dp(24),body.paddingTop,style.dp(24),body.paddingBottom)
         val prefs=getSharedPreferences("scale_tool",MODE_PRIVATE)
         val display = settingsGroup(this, body, getString(R.string.scale_display_precision),visual)
-        display.addView(Switch(this).apply {
+        display.addView(HoyiSwitch(this).apply {
             text=getString(R.string.scale_precision_short);
             contentDescription=getString(R.string.scale_precision);isChecked=prefs.getBoolean("one_decimal",false)
             textSize=TaskVisualTokens.BODY_SP.toFloat();typeface=TaskTypography.face(this@ScaleSettingsActivity,400);setTextColor(getColor(R.color.mobile_text));minimumHeight=HoyiUi.dp(this@ScaleSettingsActivity,56)
