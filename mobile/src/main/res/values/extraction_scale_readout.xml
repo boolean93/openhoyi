@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="extraction_scale_raw">秤读数</string>
+    <string name="extraction_scale_no_data">暂无数据</string>
+    <string name="extraction_scale_disconnected">秤未连接</string>
+    <string name="extraction_scale_unavailable">读数不可用</string>
+    <string name="extraction_scale_stale">数据已过期</string>
+    <string name="extraction_scale_end_unavailable">结束读数缺失</string>
+    <string name="extraction_scale_unknown">结束未确认</string>
+    <string name="extraction_scale_ended">结束时秤读数</string>
+    <string name="extraction_scale_target">本杯目标 %1$s g</string>
+    <string name="extraction_scale_yield">出液重</string>
+    <string name="extraction_scale_yield_ended">结束时出液重</string>
+</resources>
