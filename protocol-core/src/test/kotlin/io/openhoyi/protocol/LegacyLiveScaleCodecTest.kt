@@ -40,6 +40,16 @@ fun legacyLiveScaleChecks() {
 
     val positive = hex("EFDD0C08053930000002004335")
     val negative = hex("EFDD0C08053930000002024337")
+    // Constructed fixture, not a scale capture: length=12, weight=23.2 in the current unit,
+    // then timer type=7 with three data bytes. The session separately confirms grams.
+    val withTimer = hex("EFDD0C0C05E80000000100070005030108")
+    val timerPayload = byteArrayOf(12, 5, 0xE8.toByte(), 0, 0, 0, 1, 0, 7, 0, 5, 3)
+    check(acaia(12, timerPayload).contentEquals(withTimer)) // Independent golden checksum.
+    check((aRead(withTimer) as AcaiaWeight).hundredths == 2320)
+    check(AcaiaCodec.decode(acaia(12, timerPayload.copyOf().apply { this[8] = 6 })) is DecodeResult.Invalid)
+    check(AcaiaCodec.decode(acaia(12, timerPayload.copyOf(11).apply { this[0] = 11 })) is DecodeResult.Invalid)
+    check(AcaiaCodec.decode(withTimer.copyOf(16)) is DecodeResult.Invalid)
+    check(AcaiaCodec.decode(withTimer.copyOf().apply { this[lastIndex] = 0 }) is DecodeResult.Invalid)
     check((aRead(positive) as AcaiaWeight).let {
         it.rawMagnitude == 12345 && it.decimalPlaces == 2 && !it.negative && it.hundredths == 12345
     })
@@ -57,8 +67,45 @@ fun legacyLiveScaleChecks() {
     check(AcaiaCodec.decode(positive.copyOf().apply { this[lastIndex] = 0 }) is DecodeResult.Invalid)
     check(AcaiaCodec.decode(positive.copyOf(12)) is DecodeResult.Invalid)
     check(AcaiaCodec.decode(positive + byteArrayOf(0)) is DecodeResult.Invalid)
-    check(AcaiaCodec.decode(acaia(12, byteArrayOf(2, 6))) is DecodeResult.Unknown)
+    check(AcaiaCodec.decode(acaia(12, byteArrayOf(2, 6))) is DecodeResult.Invalid) // Known battery record is truncated.
     check(AcaiaCodec.decode(acaia(8, byteArrayOf(1))) is DecodeResult.Invalid)
+
+    // Independently constructed public-record-chain cases, not physical scale captures.
+    fun records(vararg bodies: ByteArray): ByteArray {
+        val bytes = bodies.fold(byteArrayOf()) { a, b -> a + b }
+        return acaia(12, byteArrayOf((bytes.size + 1).toByte()) + bytes)
+    }
+    val recordWeight = byteArrayOf(5, 0x39, 0x30, 0, 0, 2, 0)
+    val recordTimer = byteArrayOf(7, 0, 5, 3)
+    val recordBattery = byteArrayOf(6, 90)
+    val recordButton = byteArrayOf(8, 5)
+    val recordAck = byteArrayOf(11, 0, 0)
+    for (frame in listOf(records(recordTimer, recordWeight), records(recordWeight, recordBattery),
+        records(recordAck, recordButton, recordTimer, recordWeight, recordBattery))) {
+        check((aRead(frame) as AcaiaWeight).hundredths == 12345)
+    }
+    check((aRead(records(recordWeight, recordWeight.copyOf().apply { this[1] = 1; this[2] = 0 })) as AcaiaWeight).hundredths == 1)
+    check(AcaiaCodec.decode(records(recordAck, recordTimer, recordBattery)) is DecodeResult.Unknown)
+    check(AcaiaCodec.decode(records(recordWeight, byteArrayOf(99), recordWeight)) is DecodeResult.Unknown)
+    for ((tag, width) in listOf(5 to 6, 6 to 1, 7 to 3, 8 to 1, 11 to 2)) {
+        for (size in 0 until width) {
+            check(AcaiaCodec.decode(records(recordWeight, byteArrayOf(tag.toByte()) + ByteArray(size))) is DecodeResult.Invalid)
+        }
+    }
+    for (offset in listOf(3, 4)) {
+        val high = recordWeight.copyOf().apply { this[offset] = 1 }
+        check(AcaiaCodec.decode(records(high)) is DecodeResult.Invalid)
+        check(AcaiaCodec.decode(records(high, recordWeight)) is DecodeResult.Invalid)
+    }
+    check(AcaiaCodec.decode(records(recordWeight.copyOf().apply { this[5] = 0 }, recordWeight)) is DecodeResult.Invalid)
+    check((aRead(acaia(8, byteArrayOf(3, 90, 0x82.toByte()))) as AcaiaUnit).unit == 0x82) // No unproven mask.
+    val chained = records(recordAck, recordButton, recordTimer, recordWeight, recordBattery)
+    for (split in 1 until chained.size) {
+        val stream = AcaiaStreamDecoder()
+        check(stream.feed(chained.copyOf(split)).isEmpty())
+        val values = stream.feed(chained.copyOfRange(split, chained.size))
+        check(values.size == 1 && ((values.single() as DecodeResult.Valid).value as AcaiaWeight).hundredths == 12345)
+    }
 
     val aStream = AcaiaStreamDecoder()
     check(aStream.feed(positive.copyOf(7)).isEmpty())
@@ -68,6 +115,12 @@ fun legacyLiveScaleChecks() {
             ((it[2] as DecodeResult.Valid).value as AcaiaWeight).hundredths == -12345
     })
     check(aStream.feed(byteArrayOf()).isEmpty())
+    check(aStream.feed(withTimer.copyOf(10)).isEmpty())
+    check(aStream.feed(withTimer.copyOfRange(10, withTimer.size) + grams + positive).let {
+        it.size == 3 && ((it[0] as DecodeResult.Valid).value as AcaiaWeight).hundredths == 2320 &&
+            (it[1] as DecodeResult.Valid).value is AcaiaUnit &&
+            ((it[2] as DecodeResult.Valid).value as AcaiaWeight).hundredths == 12345
+    })
     check(AcaiaStreamDecoder().feed(positive.copyOfRange(7, positive.size)).isEmpty()) // New connection has no fragment.
     val aRecovered = aStream.feed(ByteArray(4096) { 0x33 } + hex("EFEFDD0CFF") + positive)
     check(aRecovered.first() is DecodeResult.Invalid)
