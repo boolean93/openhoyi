@@ -68,7 +68,8 @@ abstract class TimemoreDocumentedScaleProtocolAdapter(final override val id:Stri
                 is DecodeResult.Invalid -> {
                     // A malformed/unknown unit must revoke trust too; corrupt weight is never fresh.
                     val raw=decoded.raw.toByteArray()
-                    if(raw.size>=4 && raw[3].toInt() and 255==0x06)gramsConfirmed=false
+                    if(decoded.reason=="Ambiguous scale notification boundary" ||
+                        (raw.size>=4 && raw[3].toInt() and 255==0x06))gramsConfirmed=false
                     onEvent(ScaleProtocolEvent.ReadingInvalidated)
                     result=decoded
                 }
