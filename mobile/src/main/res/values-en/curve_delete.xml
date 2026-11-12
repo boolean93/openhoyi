@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_delete">Delete curve</string>
+    <string name="curve_delete_confirm">Delete “%1$s”? Existing shot records are kept.</string>
+    <string name="curve_delete_slots">Linked shortcuts will be cleared.</string>
+    <string name="curve_deleted">Curve deleted</string>
+    <string name="curve_delete_undo">Undo</string>
+    <string name="curve_delete_failed">Could not delete. Try again.</string>
+    <string name="curve_delete_undo_failed">Could not undo. The curve may have been restored or changed.</string>
+    <string name="curve_delete_in_use">This curve is in use. Delete it after it finishes.</string>
+    <string name="curve_slot_choose">Choose curve</string>
+</resources>

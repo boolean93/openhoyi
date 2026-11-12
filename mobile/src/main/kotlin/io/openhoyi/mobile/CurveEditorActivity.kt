@@ -320,7 +320,7 @@ class CurveEditorActivity : ThemedActivity() {
             val available = (application as MobileApplication).customCurvesResult.getOrNull()
             if (available == null) { error.setText(R.string.profiles_unavailable); save.isEnabled = false; return@setOnClickListener }
             save.isEnabled = false
-            if (runCatching { available.save(doc) }.isSuccess) finish()
+            if (runCatching { available.save(doc, source.takeIf { sourceId?.startsWith("draft-") == true }) }.isSuccess) finish()
             else { error.setText(R.string.profiles_save_failed); save.isEnabled = true }
         }
     }

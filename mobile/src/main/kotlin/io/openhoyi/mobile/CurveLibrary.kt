@@ -15,7 +15,8 @@ data class CurveLibraryItem(
 
 class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWireProof? = null,
                    private val draftsProvider: () -> List<CurveLibraryItem> = { emptyList() },
-                   private val enableCustomPressureExecution:Boolean=false) {
+                   private val enableCustomPressureExecution:Boolean=false,
+                   val presetBinding: (Int, String?) -> String? = { _, stored -> stored }) {
     fun permitsCustomPressureStart(selectedId:String?,parameters:io.openhoyi.protocol.StartParameters):Boolean {
         if(selectedId == null || !selectedId.startsWith("draft-") || parameters.slot != 7 ||
             !io.openhoyi.protocol.CustomPressureStartPolicy.permits(parameters))return false

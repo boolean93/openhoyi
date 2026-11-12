@@ -97,6 +97,7 @@ class MobileService : Service() {
     private lateinit var logs: TraceStore
     private var history: ShotHistory? = null
     private val series = ShotSeries()
+    private var dispatchingCurveId: String? = null
     private val brewFeedback = BrewFeedbackTracker()
     private val feedbackDelivery = BrewFeedbackDelivery()
     private var feedbackShotId: String? = null
@@ -814,6 +815,11 @@ class MobileService : Service() {
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
+        app.curveDeletionGuards[ownerId] = { id ->
+            CurveDeletionPolicy.inUse(id, dispatchingCurveId, series.curveId,
+                ShotGate.active(shotState) || scalePreflight,
+                brewPreparation.profileId, brewPreparation.active)
+        }
         app.feedbackPreferences.observe(ownerId) { enabled -> if (!enabled) feedbackDelivery.clear() }
         logs = app.logs
         history = runCatching { app.history }.getOrNull()
@@ -1584,7 +1590,7 @@ class MobileService : Service() {
             getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         else if (slot in 1..5)
             PresetSlots.curveId(slot, getSharedPreferences("presets", MODE_PRIVATE)
-                .getString(PresetSlots.key(slot), null))
+                .getString(PresetSlots.key(slot), null), (application as MobileApplication).curves)
         else null
         return profileId.takeIf { it == selectedId }?.let {
             (application as MobileApplication).curves.resolve(it, snapshot.scaleState == DeviceState.READY, slot)
@@ -1775,6 +1781,12 @@ class MobileService : Service() {
 
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7,
         startPermit: (() -> Boolean)? = null): String? {
+        dispatchingCurveId = profileId
+        return try { startShotChecked(profileId, expectedScaleMode, slot, startPermit) }
+        finally { dispatchingCurveId = null }
+    }
+    private fun startShotChecked(profileId: String, expectedScaleMode: Boolean?, slot: Int,
+                                 startPermit: (() -> Boolean)?): String? {
         fun callerPermits() = startPermit == null || runCatching { startPermit() }.getOrDefault(false)
         if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
         val app = application as MobileApplication
@@ -2266,6 +2278,7 @@ class MobileService : Service() {
     override fun onDestroy() {
         settleLeverWriteUnknown()
 
+        (application as MobileApplication).curveDeletionGuards.remove(ownerId)
         running = false
         (application as MobileApplication).serviceAvailability.stopped(ownerId)
         (application as MobileApplication).feedbackPreferences.unobserve(ownerId)

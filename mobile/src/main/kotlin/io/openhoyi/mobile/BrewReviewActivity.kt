@@ -248,7 +248,7 @@ internal fun ThemedActivity.journalStatus(value: String): String = getString(whe
 })
 internal fun ThemedActivity.journalDate(value: Long): String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(value))
 internal fun ThemedActivity.journalCurve(id: String): String = if (id == "manual") getString(R.string.extraction_manual_label)
-    else runCatching { (application as MobileApplication).curves.find(id)?.name }.getOrNull() ?: id
+    else runCatching { (application as MobileApplication).historicalCurveName(id) }.getOrNull() ?: id
 internal fun ThemedActivity.journalField(parent: LinearLayout, label: Int, value: String?) {
     HoyiUi.label(this, parent, getString(R.string.journal_field_value, getString(label), value?.takeIf { it.isNotEmpty() } ?: getString(R.string.journal_optional)), 16)
         .setPadding(0, HoyiUi.dp(this, 10), 0, 0)
