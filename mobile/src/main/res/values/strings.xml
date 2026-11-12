@@ -679,7 +679,7 @@
     <string name="history_detail_mock_title">"模拟萃取详情"</string>
     <string name="history_detail_title">"萃取详情"</string>
     <string name="history_missing">"记录不存在或已过保留期限"</string>
-    <string name="history_duration">"萃取时长"</string>
+    <string name="history_duration">"机器计时"</string>
     <string name="history_end_scale">"结束时秤读数"</string>
     <string name="history_scale_disclaimer">"秤读数未经杯重校准，不等同于实际出品重量。"</string>
     <string name="history_loading_samples">"正在读取本机采样…"</string>
@@ -1021,4 +1021,8 @@
     <string name="task_shell_sleep_unsent">"未发送"</string>
     <string name="task_shell_sleep_wake">"拨杆唤醒"</string>
     <string name="service_event_tare_cancelled_waiting">启动已取消，等待归零后请重新开始</string>
+    <string name="history_record_elapsed">记录历时</string>
+    <string name="history_record_elapsed_legacy">记录历时（旧口径）</string>
+    <string name="history_timing_explanation">记录历时含结束确认；图表“采样至”使用本地采样时钟，与机器整数计时不同。采样覆盖为首末有效采样间隔，可能含缺口，不代表完整萃取时长。</string>
+    <string name="history_sample_coverage">"采样覆盖"</string>
 </resources>

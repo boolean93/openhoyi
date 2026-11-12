@@ -21,3 +21,8 @@
 - JDK17 / SDK35，临时 Gradle JVM `-XX:-UseOnStackReplacement`、单 worker、不改项目配置：
   `:mobile:testMockUnitTest --tests '*TaskLayoutPolicy*' --tests '*ShortcutStart*' :mobile:assembleMock :mobile:assembleMockAndroidTest` 成功，27 项 JVM 测试通过，Mock 与 AndroidTest 编译打包通过（2m04s）。
 - 实际窗口几何及新截图仍待此分支的一次现有手动 lifecycle CI；编译不替代真实窗口断言。
+
+## 已推送后的最新基线整合
+
+- #67 使 develop 前进到 `daac2cf761d07b551ca9d3ef7453e3cf873c7f62`。补修分支已公开，使用普通 merge 追加整合，不 rebase/强推，不覆盖 #67 的时间证据修复。
+- #67 未改 HomeFragment、ThemedActivity 或本补修的几何/主题截图测试；原手动窗口 run `43201937639`（头 `65c9b810`）继续作为相同 UI 代码的证据，不冒充新头的 CI。新头必需检查仍重新运行并等待成功。

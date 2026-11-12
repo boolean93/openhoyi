@@ -23,6 +23,11 @@ class ShotSeries {
         private set
     var curveId: String? = null
         private set
+    var observedMachineElapsedSeconds: Int? = null
+        private set
+    private var firstBrewingElapsedMs: Long? = null
+    private var lastBrewingElapsedMs: Long? = null
+    val observedSampleCoverageMs: Long? get() = sampleCoverage(firstBrewingElapsedMs, lastBrewingElapsedMs)
     private var id: String? = null
     private var startedAtMs = 0L
     private var minimumGapMs = 0L
@@ -40,6 +45,9 @@ class ShotSeries {
         minimumGapMs = 0
         lastCheckpointAtMs = null
         recorded.clear()
+        observedMachineElapsedSeconds = null
+        firstBrewingElapsedMs = null
+        lastBrewingElapsedMs = null
     }
 
     /**
@@ -69,6 +77,11 @@ class ShotSeries {
         val elapsed = atElapsedMs - startedAtMs
         val last = recorded.lastOrNull()
         if (last != null && elapsed <= last.elapsedMs) return
+        if (frame.valveOpen && !frame.brewWait) {
+            if (firstBrewingElapsedMs == null) firstBrewingElapsedMs = elapsed
+            lastBrewingElapsedMs = elapsed
+        }
+        if (frame.valveOpen && !frame.brewWait && frame.elapsedSeconds in 0..65535) observedMachineElapsedSeconds = frame.elapsedSeconds
         val freshWeight = weightHundredthsGram?.takeIf {
             weightAtElapsedMs != null && weightAtElapsedMs <= atElapsedMs && atElapsedMs - weightAtElapsedMs <= 1500
         }
@@ -102,3 +115,11 @@ class ShotSeries {
 internal object RealtimeShotProjection {
     fun values(points:List<ShotPoint>):List<Float?> = points.map { if(it.brewing==false)null else it.pressureTenthsBar/10f }
 }
+
+/** Observed interval only: never infer missing head/tail or sum contiguous fragments. */
+internal fun observedSampleCoverage(points: List<ShotPoint>): Long? {
+    val valid = points.filter { it.elapsedMs >= 0 && it.brewing == true }
+    return sampleCoverage(valid.minOfOrNull { it.elapsedMs }, valid.maxOfOrNull { it.elapsedMs })
+}
+private fun sampleCoverage(first: Long?, last: Long?): Long? =
+    if (first != null && last != null && last > first) last - first else null
