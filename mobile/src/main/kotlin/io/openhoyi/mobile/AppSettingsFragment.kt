@@ -59,6 +59,7 @@ class AppSettingsFragment : Fragment() {
         outState.putBundle("machineControls", machineState)
         super.onSaveInstanceState(outState)
     }
+    private var updateCard: ReleaseUpdateCard? = null
     private var feedbackCard: BrewFeedbackPreferencesCard? = null
     private var languageCard: AppLanguagePreferencesCard? = null
     private var exportStatus: TextView? = null
@@ -246,6 +247,7 @@ class AppSettingsFragment : Fragment() {
         infoRow("version", R.string.settings_info_version, getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
         infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
         infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
+        updateCard = ReleaseUpdateCard(activity, info, visual)
         val diagnostics = sections.getValue("maintenance")
         diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/diagnostic-state",secondary=true).also {style.add(diagnostics,it,16)}
         style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))
@@ -271,6 +273,7 @@ class AppSettingsFragment : Fragment() {
         refreshHandler.post(refreshCapabilities)
         machineControls?.start()
         feedbackCard?.start(); feedbackCard?.refresh()
+        updateCard?.resume()
     }
     override fun onPause() {
         stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
@@ -278,6 +281,7 @@ class AppSettingsFragment : Fragment() {
         deviceControls?.close()
         machineControls?.stop()
         feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close()
+        updateCard?.pause()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
         service = null
         exportGeneration++
@@ -295,6 +299,7 @@ class AppSettingsFragment : Fragment() {
         document=null; deviceControls?.close(); deviceControls=null
         machineControls = null
         feedbackCard = null; languageCard = null; exportStatus = null
+        updateCard?.close(); updateCard = null
         super.onDestroyView()
     }
 }
