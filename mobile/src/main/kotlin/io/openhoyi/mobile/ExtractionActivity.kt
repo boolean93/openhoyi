@@ -348,7 +348,7 @@ class ExtractionActivity : ThemedActivity() {
         val library = (application as MobileApplication).curves
         val id = if (presetSlot == 7) getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         else PresetSlots.curveId(presetSlot, getSharedPreferences("presets", MODE_PRIVATE)
-            .getString(PresetSlots.key(presetSlot), null))
+            .getString(PresetSlots.key(presetSlot), null), library)
         return id?.let(library::find)
     }
     private fun startSelectedCurve() {

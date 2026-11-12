@@ -70,8 +70,22 @@ class MobileApplication : Application() {
         }
             .onFailure { logs.record("factory.wire_proof_failed", mapOf("type" to it.javaClass.simpleName)) }
             .getOrNull()
-        CurveLibrary(factory, proof, draftsProvider = { customCurvesResult.getOrNull()?.items().orEmpty() }, enableCustomPressureExecution = true)
+        CurveLibrary(factory, proof, draftsProvider = { customCurvesResult.getOrNull()?.items().orEmpty() }, enableCustomPressureExecution = true,
+            presetBinding = { slot, stored -> customCurvesResult.getOrNull()?.presetBinding(slot, stored) ?: stored })
     }
+    internal val curveDeletionGuards = mutableMapOf<String, (String) -> Boolean>()
+    internal var pendingCurveDeletion: CustomCurveStore.Deletion? = null
+    internal fun deleteCurve(item: CurveLibraryItem): CustomCurveStore.Deletion {
+        check(android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
+        val prefs = getSharedPreferences("presets", MODE_PRIVATE)
+        val bindings = (1..5).mapNotNull { slot -> prefs.getString(PresetSlots.key(slot), null)?.let { slot to it } }.toMap()
+        return customCurvesResult.getOrThrow().delete(item.id, bindings, item.customDocument) {
+            curveDeletionGuards.values.none { it(item.id) }
+        }.also { pendingCurveDeletion = it }
+    }
+    internal fun historicalCurveName(id: String): String? =
+        runCatching { curves.find(id)?.name }.getOrNull() ?: customCurvesResult.getOrNull()?.historicalName(id)
+
     val samples: ShotSamplesRepository by lazy {
         ShotSamplesRepository(File(filesDir, "shot_samples")) { error ->
             logs.record("shot.samples_error", mapOf("type" to error.javaClass.simpleName))

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_delete">删除曲线</string>
+    <string name="curve_delete_confirm">删除「%1$s」？已有萃取记录不受影响。</string>
+    <string name="curve_delete_slots">关联快捷槽将清空。</string>
+    <string name="curve_deleted">曲线已删除</string>
+    <string name="curve_delete_undo">撤销</string>
+    <string name="curve_delete_failed">删除失败，请重试。</string>
+    <string name="curve_delete_undo_failed">无法撤销，曲线可能已恢复或更改。</string>
+    <string name="curve_delete_in_use">这条曲线正在使用，结束后再删除。</string>
+    <string name="curve_slot_choose">选择曲线</string>
+</resources>

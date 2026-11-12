@@ -47,6 +47,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailBack: Button
     private lateinit var detailToolbar: LinearLayout
+    private lateinit var deletionUi: CurveDeletionUi
     private lateinit var detailActions: Button
     private lateinit var directEdit: Button
     private lateinit var directShare: Button
@@ -114,6 +115,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = resources.configuration.screenWidthDp < 840
         browserPane = collection.browserBody
+        deletionUi = CurveDeletionUi(host, browserPane) { refreshList() }
         detailPanel = collection.detailBody
         browserPane.tag = "product/curve-library/browser"; detailPanel.tag = "product/curve-library/detail"
         collection.foreground = object : android.graphics.drawable.Drawable() {
@@ -471,9 +473,13 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             val item = selected?.takeIf { PresetSlots.canAssign(it, library) } ?: return@button
             AlertDialog.Builder(host).setTitle(getString(R.string.curve_choose_slot))
                 .setItems((1..5).map { getString(R.string.home_slot, it.toString()) }.toTypedArray()) { _, index ->
+                    if (library.find(item.id) != item || !PresetSlots.canAssign(item, library)) {
+                        Toast.makeText(host, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show()
+                        return@setItems
+                    }
                     val slot = index + 1
                     getSharedPreferences("presets", MODE_PRIVATE).edit()
-                        .putString(PresetSlots.key(slot), item.id).apply()
+                        .putString(PresetSlots.key(slot), PresetSlots.bind(item.id)).apply()
                     lastAssignedCurveId = item.id
                     lastAssignedSlot = slot
                     updateAvailabilityFeedback()
@@ -519,8 +525,14 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }
         detailToolbar.removeView(assignPreset)
         detailToolbar.addView(assignPreset)
+        val deleteCurve = Button(host).apply {
+            text = getString(R.string.curve_delete)
+            tag = "curve-delete"
+            setOnClickListener { selected?.let(deletionUi::confirm) }
+        }
         detailActions = HoyiUi.button(host, detailToolbar, getString(R.string.task_curve_library_actions)) {
-            showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft))
+            deleteCurve.visibility = if (selected?.customDocument != null) View.VISIBLE else View.GONE
+            showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, deleteCurve))
         }.apply {
             iconOnly(this, "more", getString(R.string.task_curve_library_actions))
             tag = "curve-detail-actions"
@@ -597,6 +609,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     override fun onResume() {
         super.onResume()
         if (!::adapter.isInitialized) return
+        deletionUi.refresh()
         val previousId = selected?.id
         val wasVisible = !compact || detailPanel.visibility == View.VISIBLE
         val requested = collection.detailRequested
@@ -608,6 +621,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     }
 
     override fun onPause() {
+        if (::deletionUi.isInitialized) deletionUi.pause()
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
         clearAssignmentFeedback()
         super.onPause()
@@ -832,6 +846,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             selected = null
             collection.detailRequested = false
             detailActions.visibility = View.GONE
+            directEdit.visibility = View.GONE
+            directShare.visibility = View.GONE
+            setLeverRecipe.visibility = View.GONE
             detailScroll.visibility = View.GONE
             previewFallbackScroll.visibility = View.GONE
             previewSpacer.visibility = View.GONE

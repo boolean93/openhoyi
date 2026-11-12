@@ -464,7 +464,11 @@ class HomeActivity : ThemedActivity() {
         presetButtons = (1..5).map { slot ->
             button(presetPanel, getString(R.string.home_slot, slot.toString())) {
                 presetDialog?.dismiss()
-                startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
+                val library = (application as MobileApplication).curves
+                val id = PresetSlots.curveId(slot, getSharedPreferences("presets", MODE_PRIVATE)
+                    .getString(PresetSlots.key(slot), null), library)
+                if (id == PresetSlots.EMPTY) startActivity(Intent(this, CurveActivity::class.java))
+                else startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
             }
         }
         quickPresets = workbenchLink(preparationDetails, getString(R.string.home_quick_curves)) { showQuickPresets() }
@@ -848,9 +852,9 @@ class HomeActivity : ThemedActivity() {
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
         presetButtons.forEachIndexed { index, button ->
             val slot = index + 1
-            val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null))
+            val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null), library)
             val item = library.find(id)
-            val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
+            val label = getString(R.string.home_slot_curve, slot.toString(), if (id == PresetSlots.EMPTY) getString(R.string.curve_slot_choose) else item?.name ?: id)
             if (button.text.toString() != label) button.text = label
         }
         val keys = s.candidates.map { "${it.address}:${it.advertisedName}:${it.scaleProtocolId}" }
