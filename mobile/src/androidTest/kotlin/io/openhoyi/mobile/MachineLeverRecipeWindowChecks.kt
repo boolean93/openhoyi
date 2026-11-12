@@ -136,6 +136,34 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
                 main { host.select(destination) }
                 await("navigation $destination") { runCatching { page.active("root:${destination.name}") }.isSuccess }
             }
+            select(TaskDestination.BREW)
+            fun assertOnlyLocalSlots() {
+                val root = page.active("root:BREW").requireView()
+                check(root.findViewWithTag<View>("product/home/direct-preset/0") == null)
+                check((1..5).all { root.findViewWithTag<View>("product/home/direct-preset/$it") != null })
+                val container = root.findViewWithTag<ViewGroup>("product/home/direct-presets")
+                val cards = views(container).filter { it.tag?.toString()?.matches(Regex("product/home/direct-preset/[0-5]")) == true }
+                check(cards.size == 5) { "Empty lever card retained layout space" }
+            }
+            await("empty lever hidden") {
+                page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/0") == null
+            }
+            main { assertOnlyLocalSlots() }
+            capture("empty-five-shortcuts")
+            // First pending/failed/unknown attempts are not a configured lever recipe.
+            val fixture = MachineLeverRecipeStore.Snapshot(address, document.id, document.name,
+                "08825c0046031e5a0000009608019000000000d8", 1234L, "1.1.5")
+            for (state in listOf(MachineLeverRecipeStore.State.FAILED, MachineLeverRecipeStore.State.UNKNOWN)) {
+                var token = ""
+                main { token = requireNotNull(lever.begin(fixture)) }
+                SystemClock.sleep(350)
+                main { assertOnlyLocalSlots(); check(lever.complete(token, state)) }
+                SystemClock.sleep(350)
+                main {
+                    assertOnlyLocalSlots()
+                    if (state == MachineLeverRecipeStore.State.UNKNOWN) check(lever.acknowledge(token))
+                }
+            }
             select(TaskDestination.CURVES)
             main {
                 val root = page.active("root:CURVES").requireView()
@@ -151,10 +179,15 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
                 main { check(page.active("root:CURVES").requireView().findViewWithTag<View>("curve-set-lever-recipe").performClick()) }
                 windowText(host.getString(R.string.lever_confirm, document.name))
             }
+            val writesBeforeCancel = memory.writes
+            val attemptBeforeCancel = lever.attemptFor(address)
             openConfirmation()
             capture("confirmation")
             windowText(host.getString(android.R.string.cancel), click = true)
-            main { check(lever.attemptFor(address) == null && memory.writes == 0); noMachineOrShot() }
+            main {
+                check(memory.writes == writesBeforeCancel && lever.attemptFor(address) == attemptBeforeCancel)
+                check(lever.recordFor(address) == null && !lever.blocked); noMachineOrShot()
+            }
             openConfirmation()
             windowText(host.getString(R.string.lever_set_action), click = true)
             await("confirmed Mock send") { lever.recordFor(address)?.snapshot?.name == document.name && !lever.blocked }
@@ -237,6 +270,13 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
                 check(tileText(document.name)); noMachineOrShot()
             }
             capture("machine-isolation")
+            // Simulate moving to a device without a journal in this isolated in-memory fixture.
+            main { records.set(lever, emptyList<MachineLeverRecipeStore.Record>()) }
+            await("sent card removed without placeholder") {
+                page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/0") == null
+            }
+            main { assertOnlyLocalSlots(); noMachineOrShot() }
+            capture("removed-five-shortcuts")
         } finally {
             try {
                 main {
