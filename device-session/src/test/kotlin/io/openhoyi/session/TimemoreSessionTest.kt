@@ -5,7 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TimemoreSessionTest {
-    // Notification CRC=0000 is explicitly reserved by the vendor; outbound CRC has codec vectors.
+    // Reserved CRC=0000 is existing compatibility interpretation, not hardware evidence.
     private fun notify(command:Int,vararg payload:Int)=byteArrayOf(0xA5.toByte(),0x5A,1,command.toByte(),0,payload.size.toByte())+
         payload.map(Int::toByte).toByteArray()+byteArrayOf(0,0)
     private fun unit(value:Int=0)=notify(6,value)
@@ -24,12 +24,12 @@ class TimemoreSessionTest {
         override fun execute(generation:Long,token:Long,operation:GattOperation):Boolean {operations+=Triple(generation,token,operation);return true}
         override fun close(generation:Long) {}
     }
-    private inner class Fixture(val adapter:ScaleProtocolAdapter=TimemoreDotScaleProtocolAdapter) {
+    private inner class Fixture(val adapter:ScaleProtocolAdapter=TimemoreDotScaleProtocolAdapter, onState:(DeviceState)->Unit={}) {
         var now=0L
         val driver=Driver()
         val samples=mutableListOf<ScaleObservation>()
         var observed:((ScaleObservation)->Unit)?=null
-        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},scaleObservation={samples+=it;observed?.invoke(it)},scaleAdapter=adapter)
+        val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},stateChanged=onState,scaleObservation={samples+=it;observed?.invoke(it)},scaleAdapter=adapter)
         val endpoint get()=adapter.notifyEndpoint!!
         fun complete(result:OperationResult=OperationResult.Success()) {val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)}
         fun start(wnr:Boolean=true,notify:Boolean=true) {
@@ -44,6 +44,26 @@ class TimemoreSessionTest {
         fun receive(bytes:ByteArray)=session.onNotification(session.generation,endpoint,bytes)
         fun ready() {start();receive(unit()+weight());assertEquals(DeviceState.READY,session.state)}
         fun writes()=driver.operations.mapNotNull {it.third as? GattOperation.Write}
+    }
+    @Test fun ambiguousRestartRevokesUnitsAndCannotConfirmPendingTare() {
+        val tracker=StandaloneTare(clock={0L})
+        val f=Fixture(onState={ if(it!=DeviceState.READY)tracker.disconnected() });f.ready()
+        var serial=0L
+        f.observed={tracker.sample(++serial,it.hundredthsGram)}
+        val token=tracker.begin()!!
+        f.session.tare({true}) {tracker.written(token,it,serial)}
+        f.complete()
+        val zero=byteArrayOf(0xA5.toByte(),0x5A,1,1,0,9,0,0,0,0,0,0,0,0,0,0xF3.toByte(),0x50)
+        f.receive(zero.copyOf(7));f.receive(zero.copyOf(7))
+        assertEquals(1,f.samples.size)
+        f.receive(zero.copyOfRange(7,zero.size))
+        f.receive(ack(true));f.receive(weight())
+        assertEquals(1,f.samples.size)
+        assertEquals(StandaloneTare.State.UNKNOWN,tracker.state)
+        f.receive(unit()+weight())
+        assertEquals(2,f.samples.size)
+        assertEquals(StandaloneTare.State.UNKNOWN,tracker.state)
+        assertEquals(3,f.writes().size)
     }
     @Test fun bothDocumentedModelsRequireReadbackAndExactGattProperties() {
         for(adapter in listOf(TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter)) {

@@ -100,6 +100,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private data class DirectPresetVisual(val button: Button, val name: TextView,
                                           val sparkline: CurveLibrarySparklineView)
     private lateinit var directPresets: List<DirectPresetVisual>
+    private var layoutDirectPresets: (Boolean) -> Unit = {}
     private var presetVisualsDirty = true
     private var customCurveRevision = -1L
     private var shortcutToggle: Switch? = null
@@ -471,21 +472,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val presetRow = productStyle.column("product/home/direct-presets").apply {
             orientation=if(phoneHome) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
         }
-        var phonePresetRow:LinearLayout?=null
         quickRow.addView(presetRow, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(if (shortHome) 0 else 6)
         })
         directPresets = (0..5).map { slot ->
             val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else 80) }
-            if(phoneHome) {
-                if(slot%2==0) {
-                    phonePresetRow=productStyle.row()
-                    presetRow.addView(phonePresetRow,LinearLayout.LayoutParams(-1,-2).apply {if(slot>0) topMargin=dp(10)})
-                }
-                phonePresetRow!!.addView(tile,LinearLayout.LayoutParams(0,-2,1f).apply {if(slot%2==1) marginStart=dp(10)})
-            } else presetRow.addView(tile, LinearLayout.LayoutParams(0, if (shortHome) -2 else (dp(if (spaciousHome) 120 else 96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt(), 1f).apply {
-                if (slot > 0) marginStart = dp(if (spaciousHome) 8 else 4)
-            })
             val button = productStyle.button(Button(host), outline = spaciousHome).apply {
                 tag = "product/home/direct-preset/$slot"
                 // Static theme chrome belongs to view creation, not the 250ms telemetry render.
@@ -526,6 +517,39 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             contents.addView(name, if(phoneHome || shortHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(-1, 0, 1f))
             DirectPresetVisual(button, name, sparkline)
         }
+        // Keep stable slot identities; only reparent when visibility changes, not on telemetry ticks.
+        val presetTiles = directPresets.map { it.button.parent as View }
+        var arrangedWithLever: Boolean? = null
+        layoutDirectPresets = { showLever ->
+            if (arrangedWithLever != showLever) {
+                presetTiles.forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+                presetRow.removeAllViews()
+                val slots = HomeDirectPresetSlots.visible(showLever)
+                if (phoneHome) {
+                    slots.chunked(2).forEachIndexed { rowIndex, rowSlots ->
+                        val row = productStyle.row()
+                        presetRow.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                            if (rowIndex > 0) topMargin = dp(10)
+                        })
+                        rowSlots.forEachIndexed { column, slot ->
+                            row.addView(presetTiles[slot], LinearLayout.LayoutParams(0, -2, 1f).apply {
+                                if (column > 0) marginStart = dp(10)
+                            })
+                        }
+                    }
+                } else {
+                    slots.forEachIndexed { index, slot ->
+                        presetRow.addView(presetTiles[slot], LinearLayout.LayoutParams(0,
+                            if (shortHome) -2 else (dp(if (spaciousHome) 120 else 96) *
+                                resources.configuration.fontScale.coerceAtLeast(1f)).toInt(), 1f).apply {
+                            if (index > 0) marginStart = dp(if (spaciousHome) 8 else 4)
+                        })
+                    }
+                }
+                arrangedWithLever = showLever
+            }
+        }
+        layoutDirectPresets(false)
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         coffeeDot = statusDot(machineChip)
@@ -1154,6 +1178,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val leverAddress = service?.leverDeviceAddress
         val leverAttempt = leverAddress?.let(leverStore::attemptFor)
         val leverRecord = leverAddress?.let(leverStore::recordFor)
+        layoutDirectPresets(leverRecord != null)
         val leverUnknown = leverAttempt?.state == MachineLeverRecipeStore.State.UNKNOWN
         val leverName = when {
             leverUnknown -> getString(R.string.lever_unknown_short)

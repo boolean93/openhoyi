@@ -67,7 +67,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         },
         coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
-        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit) }
+        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,
+        synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)}) }
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()},{scaleSampleSerial})
@@ -167,6 +168,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                     }
                     if(reconnect.shouldAttempt(now,false))try {
                         val request=scaleRequest
+                        reconnect.scanStarted()
                         diagnostic("scale.auto_reconnect.attempt=${++automaticScaleAttempts}")
                         scanner.start(AutoConnectTiming.SCAN_MS,ScanCoordinator.Owner.AUTOMATIC,selection,
                             onDevice={ found ->
@@ -174,10 +176,12 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                                     !closed && foreground && request==scaleRequest && remembered==selection &&
                                     automaticAllowed(DeviceRole.BOOKOO) && DeviceConnectionGate.mayChangeScale(extraction.state) &&
                                     scaleSlot.current?.owner?.device?.session?.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)) {
+                                    diagnostic("scale.auto_reconnect.matched=remembered_target")
+                                    reconnect.discovered(SystemClock.elapsedRealtime())
                                     scanner.cancel(ScanCoordinator.Owner.AUTOMATIC)
                                     connectScale(selection.address,selection.protocolId,explicit=false)
                                 }
-                            },onFinished={reconnect.attemptFinished(SystemClock.elapsedRealtime())})
+                            },onFinished={reconnect.scanFinished(SystemClock.elapsedRealtime())})
                     }catch(error:RuntimeException) {
                         reconnect.attemptFinished(SystemClock.elapsedRealtime())
                         diagnostic("remembered scale reconnect failed: ${error.javaClass.simpleName}")
