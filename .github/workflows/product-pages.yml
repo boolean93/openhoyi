@@ -5,18 +5,26 @@ on:
     paths:
       - 'site/**'
       - 'scripts/test_product_pages.py'
+      - 'scripts/*release_update_index*'
       - '.github/workflows/product-pages.yml'
   push:
     branches: [develop]
     paths:
       - 'site/**'
       - 'scripts/test_product_pages.py'
+      - 'scripts/*release_update_index*'
       - '.github/workflows/product-pages.yml'
+  # GITHUB_TOKEN release writes do not emit a triggering release event.
+  workflow_run:
+    workflows: [Develop APK prerelease]
+    branches: [develop]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Every non-PR entry shares one lock, held BEFORE sampling develop/releases.
 concurrency:
   group: product-pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -28,15 +36,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # Never execute workflow_run.head_sha or download a triggering artifact.
+          ref: ${{ github.event_name == 'pull_request' && github.ref || 'refs/heads/develop' }}
           persist-credentials: false
-      - name: Validate static product site
-        run: python3 -m unittest discover -s scripts -p test_product_pages.py -v
+      - name: Validate static product site and offline update fixtures
+        run: |
+          python3 -m unittest discover -s scripts -p test_product_pages.py -v
+          python3 -m unittest discover -s scripts -p test_release_update_index.py -v
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    if: >-
+      github.event_name != 'pull_request' && github.ref == 'refs/heads/develop' &&
+      github.repository == 'boolean93/openhoyi' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.repository.full_name == github.repository &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.head_branch == 'develop' &&
+        github.event.workflow_run.path == '.github/workflows/develop-apk.yml'))
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
       pages: write
@@ -47,11 +66,34 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # Resolve the current protected branch inside the deployment lock.
+          ref: refs/heads/develop
           persist-credentials: false
+      - name: Verify trusted wake-up before any deployment
+        run: python3 scripts/release_update_index.py authorize
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'build-tools;35.0.0'
+      - name: Revalidate current site and verify latest public APK before staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOYI_RELEASE_CERT_SHA256: ${{ vars.HOYI_RELEASE_CERT_SHA256 }}
+        run: |
+          python3 -m unittest discover -s scripts -p test_product_pages.py -v
+          python3 scripts/release_update_index.py generate \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner"
       - uses: actions/configure-pages@v5
+      # One complete site artifact: never deploy just updates/ over the homepage.
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
-      - name: Deploy product site
+      - name: Deploy product site and update index atomically
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Confirm public index bytes (including CDN propagation)
+        run: python3 scripts/release_update_index.py verify-public

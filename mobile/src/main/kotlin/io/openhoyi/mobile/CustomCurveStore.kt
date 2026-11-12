@@ -8,6 +8,8 @@ class CustomCurveStore(private val storage: Storage) {
     interface Storage { fun read(): String?; fun write(value: String) }
     enum class ImportStatus { SAVED, ALREADY_EXISTS, CONFLICT }
     data class ImportResult(val status: ImportStatus, val document: CustomCurveDocument)
+    var revision = 0L
+        private set
     private var documents = storage.read()?.let(::decode) ?: linkedMapOf()
 
     @Synchronized fun list(): List<CustomCurveDocument> = documents.values.toList()
@@ -45,6 +47,7 @@ class CustomCurveStore(private val storage: Storage) {
         next.values.forEach { array.put(it.toJson()) }
         storage.write(JSONObject().put("storeVersion", 1).put("documents", array).put("checksum", CurveDocumentJson.checksum(array)).toString())
         documents = next
+        revision++
     }
     private fun decode(value: String): LinkedHashMap<String, CustomCurveDocument> {
         try {

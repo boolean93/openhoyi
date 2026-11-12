@@ -101,6 +101,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                                           val sparkline: CurveLibrarySparklineView)
     private lateinit var directPresets: List<DirectPresetVisual>
     private var presetVisualsDirty = true
+    private var shortcutToggle: Switch? = null
+    private var updatingShortcut = false
+    private var stopShortcutPreferenceObserver: (() -> Unit)? = null
+    private val shortcutPreferences by lazy { ShortcutStartPreferences(host) }
+    private fun refreshShortcutChoice() {
+        val checked = shortcutPreferences.read().startsOnTap
+        updatingShortcut = true
+        if (shortcutToggle?.isChecked != checked) shortcutToggle?.isChecked = checked
+        updatingShortcut = false
+    }
     private lateinit var candidates: LinearLayout
     private lateinit var scanButton: Button
     private lateinit var coffeeDisconnect: Button
@@ -341,27 +351,60 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
             contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
         }
-        if(spaciousHome || phoneHome) {
-            val quickTitle=productStyle.text(getString(R.string.home_quick_curves),TaskProductVisualStyle.Type(22,500,32),"product/home/quick-title")
-            val previewHeading=object:LinearLayout(host) {
-                init {gravity=android.view.Gravity.CENTER_VERTICAL;addView(quickTitle);addView(previewLegend)}
-                override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
-                    val natural=View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED)
-                    quickTitle.measure(natural,natural);previewLegend.measure(natural,natural)
-                    val stacked=quickTitle.measuredWidth+previewLegend.measuredWidth+dp(16)>View.MeasureSpec.getSize(widthMeasureSpec)
-                    orientation=if(stacked) VERTICAL else HORIZONTAL
-                    val titleWidth=if(stacked) -1 else 0
-                    val titleWeight=if(stacked) 0f else 1f
-                    val titleParams=quickTitle.layoutParams as LayoutParams
-                    if(titleParams.width!=titleWidth || titleParams.weight!=titleWeight) quickTitle.layoutParams=LayoutParams(titleWidth,-2,titleWeight)
-                    val legendWidth=if(stacked) -1 else -2
-                    if(previewLegend.layoutParams.width!=legendWidth) previewLegend.layoutParams=LayoutParams(legendWidth,-2)
-                    previewLegend.gravity=if(stacked) android.view.Gravity.START else android.view.Gravity.END
-                    super.onMeasure(widthMeasureSpec,heightMeasureSpec)
+        val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
+            TaskProductVisualStyle.Type(if (shortHome) 18 else 22, 500, if (shortHome) 28 else 32), "product/home/quick-title")
+        val directStart = Switch(host).apply {
+            text = getString(R.string.shortcut_start_setting)
+            tag = "product/home/shortcuts/direct-start"
+            productStyle.apply(this, TaskProductVisualStyle.Type(14, 400, 20))
+            isChecked = shortcutPreferences.read().startsOnTap
+            showText = false
+            switchPadding = dp(6)
+            switchMinWidth = dp(36)
+            minHeight = dp(48); minimumHeight = minHeight
+            minimumWidth = 0; minWidth = 0
+            setPadding(dp(2), 0, 0, 0)
+            background = null
+            thumbTintList = android.content.res.ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(productStyle.accent, productStyle.muted))
+            trackTintList = android.content.res.ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(productStyle.selected, productStyle.disabled))
+            setOnCheckedChangeListener { _, checked ->
+                if (!updatingShortcut) {
+                    host.revokeShortcutStart()
+                    if (!shortcutPreferences.choose(checked))
+                        Toast.makeText(host, R.string.shortcut_start_save_failed, Toast.LENGTH_LONG).show()
+                    refreshShortcutChoice()
                 }
             }
-            quickRow.addView(previewHeading,LinearLayout.LayoutParams(-1,-2))
-        } else quickRow.addView(previewLegend,LinearLayout.LayoutParams(-1,-2))
+        }.also { shortcutToggle = it }
+        val titleGroup = productStyle.row("product/home/shortcut-heading").apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            addView(quickTitle, LinearLayout.LayoutParams(-2, -2))
+            addView(directStart, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) })
+        }
+        val previewHeading = object : LinearLayout(host) {
+            init { gravity = android.view.Gravity.CENTER_VERTICAL; addView(titleGroup); addView(previewLegend) }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                quickTitle.measure(natural, natural); directStart.measure(natural, natural); previewLegend.measure(natural, natural)
+                val titleNaturalWidth = quickTitle.measuredWidth + directStart.measuredWidth + dp(12)
+                val stacked = titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
+                orientation = if (stacked) VERTICAL else HORIZONTAL
+                val titleWidth = if (stacked) -1 else 0
+                val titleWeight = if (stacked) 0f else 1f
+                val titleParams = titleGroup.layoutParams as LayoutParams
+                if (titleParams.width != titleWidth || titleParams.weight != titleWeight)
+                    titleGroup.layoutParams = LayoutParams(titleWidth, -2, titleWeight)
+                val legendWidth = if (stacked) -1 else -2
+                if (previewLegend.layoutParams.width != legendWidth) previewLegend.layoutParams = LayoutParams(legendWidth, -2)
+                previewLegend.gravity = if (stacked) android.view.Gravity.START else android.view.Gravity.END
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }
+        quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
         lastCurveRow = productStyle.row("product/home/last-curve").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
             minimumHeight = dp(if(spaciousHome) 76 else 48)
@@ -432,7 +475,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             topMargin = dp(if (shortHome) 0 else 6)
         })
         directPresets = (0..5).map { slot ->
-            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else if (shortHome) 96 else 80) }
+            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else 80) }
             if(phoneHome) {
                 if(slot%2==0) {
                     phonePresetRow=productStyle.row()
@@ -446,7 +489,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 tag = "product/home/direct-preset/$slot"
                 // Static theme chrome belongs to view creation, not the 250ms telemetry render.
                 if (slot == 0) background = productStyle.shape(productStyle.surface, true)
-                setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.showExtraction(slot) }
+                setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
             val contents = LinearLayout(host).apply {
@@ -688,7 +731,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetButtons = (1..5).map { slot ->
             button(presetPanel, getString(R.string.home_slot, slot.toString())) {
                 presetDialog?.dismiss()
-                host.showExtraction(slot)
+                host.openShortcut(slot)
             }
         }
         quickPresets = workbenchLink(preparationDetails, getString(R.string.home_quick_curves)) { showQuickPresets() }
@@ -739,10 +782,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetVisualsDirty = true
         lastCurveDirty = true
         visible = true
+        stopShortcutPreferenceObserver?.invoke()
+        stopShortcutPreferenceObserver = shortcutPreferences.observe(::refreshShortcutChoice)
+        refreshShortcutChoice()
         host.observeService(serviceObserver)
         handler.post(refresh)
     }
     override fun onPause() {
+        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
         feedbackUi.leave(host.isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
@@ -750,6 +797,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetDialog?.dismiss()
         recentCurves.dismiss()
         host.removeServiceObserver(serviceObserver); service=null;super.onPause()
+    }
+    override fun onDestroyView() {
+        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
+        shortcutToggle = null
+        super.onDestroyView()
     }
     private fun missingBle(): List<String> {
         val required = if (Build.VERSION.SDK_INT >= 31) listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)

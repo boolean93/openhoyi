@@ -18,6 +18,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var liveScaleReadoutChecks = false
+    private var shortcutDirectStartChecks = false
+    private var shortcutTheme: Boolean? = null
     private var machineLeverRecipeChecks = false
     private var customShortcutChecks = false
     private var darkThemeWindow: Boolean? = null
@@ -95,12 +98,27 @@ class BrewAudioInstrumentation : Instrumentation() {
         upgradeChecks = arguments?.getString("upgradeChecks")
         customShortcutChecks = arguments?.getString("customShortcutChecks") == "true"
         machineLeverRecipeChecks = arguments?.getString("machineLeverRecipeChecks") == "true"
+        liveScaleReadoutChecks = arguments?.getString("liveScaleReadoutChecks") == "true"
+        shortcutDirectStartChecks = arguments?.getString("shortcutDirectStartChecks") == "true"
+        shortcutTheme = arguments?.getString("shortcutTheme")?.let {
+            require(it in setOf("light", "dark")); it == "dark"
+        }
         super.onCreate(arguments); start()
     }
     override fun onStart() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (liveScaleReadoutChecks) {
+                ExtractionScaleWindowChecks(this).run()
+                report.putString("stream", "LIVE_SCALE_WINDOW_PASSED realMockService=true actualStopButton=true retainedTestShot=true portraitDark=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (shortcutDirectStartChecks) {
+                ShortcutDirectStartWindowChecks(this).run(shortcutTheme)
+                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED defaultOff=true homeToggle=true settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if (machineLeverRecipeChecks) {
                 MachineLeverRecipeWindowChecks(this).run()
                 report.putString("stream", "MACHINE_LEVER_RECIPE_WINDOW_PASSED cancel=true confirm=true firstCard=true unknown=true failed=true deviceIsolation=true noBle=true noShot=true journalPreserved=true\n")

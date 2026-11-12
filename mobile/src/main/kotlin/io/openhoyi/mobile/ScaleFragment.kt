@@ -203,6 +203,8 @@ class ScaleFragment : Fragment() {
         val allowed=changesAllowed()
         guard.setIfChanged(if(service!=null && !allowed)getString(R.string.scale_active_guard)else "")
         guard.visibility=if(guard.text.isEmpty())android.view.View.GONE else android.view.View.VISIBLE
+        tare.setIfChanged(getString(if (service?.tareState in setOf(StandaloneTare.State.UNKNOWN, StandaloneTare.State.FAILED))
+            R.string.scale_tare_retry else R.string.scale_tare))
         tare.isEnabled=!BuildConfig.MOCK_MODE && allowed && snapshot?.scaleState==DeviceState.READY && snapshot.scaleCapabilities?.tare==true &&
             service?.tareState !in setOf(StandaloneTare.State.WRITING,StandaloneTare.State.WAITING_ZERO)
         tareStatus.setIfChanged(getString(when {

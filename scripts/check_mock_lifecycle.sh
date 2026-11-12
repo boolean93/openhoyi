@@ -15,6 +15,7 @@ on_error() {
   adb logcat -d -s AndroidRuntime:E OpenHoyiMobile:I OpenHoyiLanguage:I > "$output_dir/errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb pull "/sdcard/Android/data/$package/files/compact-home-navigation" "$output_dir/" || true
+  adb pull "/sdcard/Android/data/$package/files/shortcut-direct-checks" "$output_dir/" || true
   adb pull "/sdcard/Android/data/$package/files/language-detail-failures" "$output_dir/" || true
   adb pull "/sdcard/Android/data/$package/files/language-page-return-failures" "$output_dir/" || true
   adb pull "/sdcard/Android/data/$package/files/language-detail-success" "$output_dir/" || true
@@ -32,9 +33,11 @@ run_instrumentation() {
 from pathlib import Path
 import subprocess,sys
 output,mode=sys.argv[1:]
-if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle", "navigation"):
+if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle", "navigation", "shortcutsLight", "shortcutsDark"):
     raise SystemExit("Unsupported Mock instrumentation mode")
 command=["adb", "shell", "am", "instrument", "-w"]
+if mode in ("shortcutsLight", "shortcutsDark"):
+    command += ["-e", "shortcutDirectStartChecks", "true", "-e", "shortcutTheme", "dark" if mode == "shortcutsDark" else "light"]
 if mode == "navigation":
     command += ["-e", "mainNavigationChecks", "true"]
 if mode == "idle":
@@ -273,3 +276,26 @@ done
 adb shell am force-stop "$package"
 adb shell settings put system font_scale 1.0
 adb shell wm size 1600x1000
+
+# Focused regression evidence for the one-tap header. Same existing cloud Mock AVD;
+# no extra workflow or device. Keep the compact geometry assertions above unchanged.
+for profile in compact portrait; do
+  adb shell am force-stop "$package"
+  adb shell settings put system font_scale 1.0
+  if [ "$profile" = compact ]; then
+    adb shell wm size 1440x720
+    adb shell wm density 320
+  else
+    adb shell wm size 900x1600
+    adb shell wm density 360
+  fi
+  for theme in Light Dark; do
+    adb shell am force-stop "$package"
+    run_instrumentation "$output_dir/shortcut-$profile-$theme.txt" "shortcuts$theme"
+    grep -F 'SHORTCUT_DIRECT_WINDOW_PASSED defaultOff=true homeToggle=true settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true' "$output_dir/shortcut-$profile-$theme.txt" >/dev/null
+    adb pull "/sdcard/Android/data/$package/files/shortcut-direct-checks" "$output_dir/shortcut-$profile-$theme"
+  done
+done
+adb shell am force-stop "$package"
+adb shell wm size 1600x1000
+adb shell wm density 200

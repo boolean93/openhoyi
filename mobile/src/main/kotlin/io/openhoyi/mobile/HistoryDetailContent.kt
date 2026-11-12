@@ -47,14 +47,12 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
     }
     if (!standalone) HoyiUi.label(this, summary, date(entry.startedAtMs), 14, muted = true)
     val values = listOf(
-        getString(R.string.history_duration) + " " + (entry.elapsedMs?.let {
-            getString(R.string.history_duration_value, "%.1f".format(Locale.ROOT, it / 1000.0))
-        } ?: "—"),
+        shotTimingSummary(entry),
         getString(R.string.history_end_scale) + " " + (entry.weightHundredthsGram?.let {
             "%.2f g".format(Locale.ROOT, it / 100.0)
         } ?: "—")
     )
-    if (!standalone) HoyiUi.label(this, body, values.joinToString(" · "), 15, true).apply { setPadding(0, dp(6), 0, dp(6)) }
+    if (!standalone) HoyiUi.label(this, body, values.joinToString(" · "), 15, true).apply { tag = "history-legacy-timing-summary"; setPadding(0, dp(6), 0, dp(6)) }
     if (entry.status == ShotHistory.Status.UNKNOWN) HoyiUi.label(this, body,
         getString(R.string.history_unknown_warning), 14, true).apply {
         setPadding(0, dp(6), 0, dp(6))
@@ -69,9 +67,7 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         val metrics = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         plotBody.addView(metrics)
         listOf(
-            R.string.history_duration to (entry.elapsedMs?.let {
-                getString(R.string.history_duration_value, "%.1f".format(Locale.ROOT, it / 1000.0))
-            } ?: "—"),
+            entry.timingLabel to (entry.timingValue?.let { "$it s" } ?: "—"),
             R.string.history_end_scale to (entry.weightHundredthsGram?.let {
                 "%.2f g".format(Locale.ROOT, it / 100.0)
             } ?: "—")
@@ -81,8 +77,9 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
                 setPadding(0, 0, dp(16), dp(16))
             }
             metrics.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
-            HoyiUi.label(this, cell, getString(label), 14, muted = true)
+            HoyiUi.label(this, cell, getString(label), 14, muted = true).apply { if (label == entry.timingLabel) tag = "history-legacy-timing-label" }
             HoyiUi.label(this, cell, value, TaskVisualTokens.LIVE_VALUE_SP).apply {
+                if (label == entry.timingLabel) tag = "history-legacy-timing-value"
                 typeface = TaskTypography.face(this@renderHistoryDetail, 700)
                 // Root-locale values have a stable numeric prefix; Japanese/Korean units
                 // need not have a separating space. Missing values keep their plain dash.
@@ -212,6 +209,12 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         chart.post {
             if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@post
             points.onSuccess {
+                val recovered = app.recoverViewedSampleCoverage(entry, it)
+                body.findViewWithTag<android.widget.TextView>("history-legacy-timing-summary")?.text =
+                    (listOf(shotTimingSummary(recovered)) + values.drop(1)).joinToString(" · ")
+                body.findViewWithTag<android.widget.TextView>("history-legacy-timing-label")?.text = getString(recovered.timingLabel)
+                body.findViewWithTag<android.widget.TextView>("history-legacy-timing-value")?.text = recovered.timingValue?.let { "$it s" } ?: "—"
+
                 chart.points = it
                 chartStatus.text = if (it.isEmpty()) getString(R.string.history_no_samples) else
                     getString(if (entry.status == ShotHistory.Status.ENDED) R.string.history_samples_complete else R.string.history_samples_partial, it.size.toString())
@@ -261,8 +264,8 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         plot.metricCells += cell
         metrics.addView(cell); return quantity
     }
-    metric(R.string.history_duration, entry.elapsedMs?.let { "%.1f".format(Locale.ROOT, it / 1000.0) } ?: "—",
-        if (entry.elapsedMs != null) "s" else null, "product/history/elapsed")
+    val timingQuantity = metric(entry.timingLabel, entry.timingValue ?: "—",
+        if (entry.timingValue != null) "s" else null, "product/history/elapsed")
     metric(R.string.history_end_scale, entry.weightHundredthsGram?.let { "%.2f".format(Locale.ROOT, it / 100.0) } ?: "—",
         if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
     // This is a sample observation, not an inferred final outcome or stored new field.
@@ -327,7 +330,10 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         chart.post {
             if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@post
             points.onSuccess {
+                val recovered = app.recoverViewedSampleCoverage(entry, it)
                 chart.points = it
+                timingQuantity.present(recovered.timingValue ?: "—", if (recovered.timingValue != null) "s" else null)
+                metrics.findViewWithTag<android.widget.TextView>("product/history/elapsed/label")?.text = getString(recovered.timingLabel)
                 sampledWater.present(it.lastOrNull()?.waterTenthsMl?.let { water -> "%.1f".format(Locale.ROOT, water / 10.0) } ?: "—",
                     if (it.isNotEmpty()) "ml" else null)
                 sampledWater.contentDescription = getString(R.string.m5_last_sample_water) + ": " + sampledWater.contentDescription
@@ -391,8 +397,8 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         metrics.addView(cell)
         return quantity
     }
-    metric(R.string.history_duration, entry.elapsedMs?.let { "%.1f".format(Locale.ROOT, it / 1000.0) } ?: "—",
-        if (entry.elapsedMs != null) "s" else null, "product/history/elapsed")
+    val timingQuantity = metric(entry.timingLabel, entry.timingValue ?: "—",
+        if (entry.timingValue != null) "s" else null, "product/history/elapsed")
     metric(R.string.history_end_scale, entry.weightHundredthsGram?.let { "%.2f".format(Locale.ROOT, it / 100.0) } ?: "—",
         if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
     val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water", false)
@@ -432,8 +438,11 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         chart.post {
             if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@post
             points.onSuccess {
+                val recovered = app.recoverViewedSampleCoverage(entry, it)
                 chart.points = it
                 preview.formatPortraitLegend()
+                timingQuantity.present(recovered.timingValue ?: "—", if (recovered.timingValue != null) "s" else null)
+                metrics.findViewWithTag<android.widget.TextView>("product/history/elapsed/label")?.text = getString(recovered.timingLabel)
                 sampledWater.present(it.lastOrNull()?.waterTenthsMl?.let { water -> "%.1f".format(Locale.ROOT, water / 10.0) } ?: "—", if (it.isNotEmpty()) "ml" else null)
                 sampledWater.contentDescription = getString(R.string.m5_last_sample_water) + ": " + sampledWater.contentDescription
                 chartStatus.text = if (it.isEmpty()) getString(R.string.history_no_samples) else
@@ -849,11 +858,15 @@ private class EmbeddedHistoryMetricCell(context: android.content.Context, privat
 }
 
 /** Long source metadata and all journal fields are available without shrinking the chart. */
-private fun ThemedActivity.showDetails(entry: ShotHistory.Entry, curve: String, permanent: BrewJournal.Entry?, journalFailed: Boolean, points: List<ShotPoint>) {
+private fun ThemedActivity.showDetails(original: ShotHistory.Entry, curve: String, permanent: BrewJournal.Entry?, journalFailed: Boolean, points: List<ShotPoint>) {
+    val app = application as MobileApplication
+    val entry = app.history.entries.firstOrNull { it.id == original.id }
+        ?: app.journalResult.getOrNull()?.find(original.id)?.observation?.historySummary() ?: original
     val content = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(20), dp(12), dp(20), dp(12))
     }
+    HoyiUi.label(this, content, (if ((entry.timingEvidenceVersion > 0 || entry.observedSampleCoverageMs != null)) shotRecordElapsed(entry) + "\n" else "") + getString(R.string.history_timing_explanation), 13, muted = true)
     HoyiUi.label(this, content, curve, 18, true)
     HoyiUi.label(this, content, status(entry.status), 17, true)
     HoyiUi.label(this, content, getString(R.string.history_started_at, date(entry.startedAtMs)), 14)

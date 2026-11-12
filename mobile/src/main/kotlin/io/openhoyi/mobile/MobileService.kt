@@ -211,6 +211,30 @@ class MobileService : Service() {
     val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
         StandaloneTare.State.CONFIRMED else hub?.scaleTareState ?: StandaloneTare.State.IDLE
     internal var activeShotRecipe: ShotRecipeSnapshot? = null; private set
+    private val extractionScaleReadout = ExtractionScaleReadout()
+    private fun scaleReadoutOwner(current:NativeDeviceHub? = hub):ExtractionScaleReadout.Owner? = current?.let {
+        val address = it.scaleAddress ?: return@let null
+        ExtractionScaleReadout.Owner(it,it.extraction,it.extraction.displayShotSerial,scaleConnectionEpoch,address)
+    }
+    private fun observeScaleReadoutProof() {
+        val controller = hub?.extraction
+        val proof = controller?.displayTareBaseline?.let {
+            ExtractionScaleReadout.Proof(it.shotSerial,it.baselineHundredthsGram,it.confirmedAtMs)
+        }
+        extractionScaleReadout.observeProof(scaleReadoutOwner(),proof,controller?.state ?: shotState)
+    }
+    internal fun extractionScaleValue(now: Long): ExtractionScaleReadout.Value {
+        observeScaleReadoutProof()
+        return extractionScaleReadout.value(snapshot.scaleObservation, snapshot.scaleState, now,
+            shotState == ExtractionState.OUTCOME_UNKNOWN)
+    }
+    private fun observeExtractionScaleEndpoint(frame: HoyiMessage, at: Long) {
+        observeScaleReadoutProof()
+        if (frame is io.openhoyi.protocol.ExtractionTelemetry && frame.valveOpen && !frame.brewWait)
+            extractionScaleReadout.brewing()
+        if (frame is IdleTelemetry)
+            extractionScaleReadout.observedIdle(snapshot.scaleObservation, snapshot.scaleState, at)
+    }
     val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
@@ -304,6 +328,7 @@ class MobileService : Service() {
             snapshot.scaleObservation?.let(::onScaleObservation)
                 ?: scaleTrend.observe(null, snapshot.scaleState, now)
         }
+        snapshot.coffee?.let { observeExtractionScaleEndpoint(it, now) }
     }
     private val mockTick = object : Runnable {
         override fun run() {
@@ -392,7 +417,14 @@ class MobileService : Service() {
     }
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
-    var snapshot = MobileSnapshot(); private set
+    private val shortcutConfiguration = ShortcutContentRevision<List<Any?>>(
+        listOf(null, DeviceState.DISCONNECTED, DeviceState.DISCONNECTED, null))
+    internal val shortcutConfigurationRevision get() = shortcutConfiguration.revision
+    var snapshot = MobileSnapshot()
+        private set(value) {
+            shortcutConfiguration.observe(listOf(value.settings, value.coffeeState, value.scaleState, value.scaleCapabilities))
+            field = value
+        }
     val coffeeFirmware: CoffeeFirmware? get() = if(mock != null)
         snapshot.settings?.let { CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch) }
         else hub?.coffeeFirmware
@@ -420,9 +452,15 @@ class MobileService : Service() {
     private fun observeTare() {
         val current = tareState
         if(current == lastTareState) return
+        logTarePhase(current)
         lastTareState = current
         if(current == StandaloneTare.State.CONFIRMED) event(ResourceMessage(R.string.service_tare_confirmed), "scale.tare_confirmed")
         if(current == StandaloneTare.State.UNKNOWN) event(ResourceMessage(R.string.service_tare_unknown), "scale.tare_unknown")
+    }
+    private fun logTarePhase(current: StandaloneTare.State) {
+        if (current == lastTareState) return
+        logs.record("scale.tare_phase", mapOf("from" to lastTareState.name, "to" to current.name,
+            "shotState" to shotState.name, "preparingScale" to scalePreflight.toString()))
     }
     private val watchShot = object : Runnable {
         override fun run() {
@@ -461,7 +499,8 @@ class MobileService : Service() {
                 event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
-                    event(ResourceMessage(R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
+                    event(ResourceMessage(if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
+                        R.string.service_event_tare_cancelled_waiting else R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.START_CONDITIONS_CHANGED.name)
                     event(ResourceMessage(R.string.service_event_conditions_changed), "shot.conditions_changed")
@@ -634,6 +673,7 @@ class MobileService : Service() {
             else -> snapshot
         }
         val observedAt = snapshot.coffeeAt ?: MobileMonotonicClock.elapsedRealtime()
+        observeExtractionScaleEndpoint(frame, observedAt)
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
         val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
@@ -663,6 +703,8 @@ class MobileService : Service() {
                         (observedAt - passiveEvent.first.atMs)
                     val provisionalId = java.util.UUID.randomUUID().toString()
                     series.begin(provisionalId, passiveEvent.first.atMs, "manual")
+                    extractionScaleReadout.begin(provisionalId, null)
+                    extractionScaleReadout.brewing()
                     manualPresentation.started(provisionalId)
                     val feedbackSlot = passiveEvent.first.frame.slotOrPhase
                     beginBrewFeedback(provisionalId, feedbackSlot, if (feedbackSlot == 6) 0 else null,
@@ -1053,6 +1095,7 @@ class MobileService : Service() {
                 hub === current,snapshot.scaleState==DeviceState.READY,manualShotActive,shotState)
         }) done@{ result ->
             if(hub !== current)return@done
+            logTarePhase(tareState)
             lastTareState = tareState
             when (tareState) {
                 StandaloneTare.State.WAITING_ZERO -> event(ResourceMessage(R.string.service_tare_written), "scale.tare_written")
@@ -1721,7 +1764,19 @@ class MobileService : Service() {
         }
         return null
     }
-    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
+    /** Connection identity is read-only; a shortcut cannot migrate to a replacement session. */
+    internal val shortcutDeviceIdentity: Any?
+        get() {
+            if (mock != null) return mockExtractionOwner ?: mock
+            val current = hub ?: return null
+            val address = current.coffeeAddress ?: return null
+            return Triple(current, address, current.coffeeGeneration)
+        }
+
+    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7,
+        startPermit: (() -> Boolean)? = null): String? {
+        fun callerPermits() = startPermit == null || runCatching { startPermit() }.getOrDefault(false)
+        if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
         val app = application as MobileApplication
         val preparation = app.beanPreparationResult.getOrElse { return getString(R.string.dose_start_unavailable) }
         if (preparation.current()?.let { it.shotId != null && !it.associated } == true)
@@ -1743,12 +1798,13 @@ class MobileService : Service() {
                 mock.cancelPreheat(now)
                 brewPreparation.consumed()
             }
+            if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
             val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
             val scenarioOwner = mockExtractionOwner
             if (scenarioOwner == null) mock.start(now, slot)
             else if (!mockExtractionScenario.start(scenarioOwner, profile.parameters,
                     profile.targetHundredthsGram, profile.compensationHundredthsGram) {
-                    selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
+                    callerPermits() && selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
                         customCurveFirmwareBlock(profile) == null &&
                         mockExtractionOwner === scenarioOwner
                 }) {
@@ -1757,6 +1813,7 @@ class MobileService : Service() {
             }
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
             series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
+            extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram)
             activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
                 (application as MobileApplication).curves.find(profile.id)?.customDocument)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
@@ -1820,7 +1877,7 @@ class MobileService : Service() {
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
                     settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
-                shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
+                callerPermits() && shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
                 ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,
                     selected==profile && library.validated(profile),manualShotActive,busy,
@@ -1840,6 +1897,7 @@ class MobileService : Service() {
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
         series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
+        extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram, scaleReadoutOwner(current))
         activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
             (application as MobileApplication).curves.find(profile.id)?.customDocument)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
@@ -1872,7 +1930,12 @@ class MobileService : Service() {
         if (mock != null) {
             if (ShotGate.active(shotState)) {
                 val scenarioOwner = mockExtractionOwner
-                if (scenarioOwner == null) mock.stop() else mockExtractionScenario.stop(scenarioOwner)
+                if (scenarioOwner == null) {
+                    mock.stop()
+                    // Ordinary Mock has no BLE idle callback. Publish its explicit stopped sample
+                    // before watchShot can finalize the readout; synthetic inputs remain notification-only.
+                    refreshMock(mock, MobileMonotonicClock.elapsedRealtime())
+                } else mockExtractionScenario.stop(scenarioOwner)
                 if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_stopped), "mock.shot_stopped")
                 else event(ResourceMessage(R.string.service_shot_stop_requested), "mock.synthetic_stop_requested")
             }
@@ -1921,7 +1984,10 @@ class MobileService : Service() {
     internal fun discardBrewFeedback() = feedbackDelivery.clear()
     private fun finishSeries(observedEnd: Boolean) {
         finishBrewFeedback(observedEnd)
+        extractionScaleReadout.finish(observedEnd)
         val finished = series.finish() ?: return
+        runCatching { history?.attachTimingEvidence(finished.first, series.observedMachineElapsedSeconds, series.observedSampleCoverageMs) }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
         val app = application as MobileApplication
         if (observedEnd && finished.second.isNotEmpty() &&
             history?.entries?.any { it.id == finished.first } == true) {

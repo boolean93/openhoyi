@@ -149,9 +149,9 @@ object DiFluidCodec {
         return EncodedCommand(ByteFrame(body + byteArrayOf((body.sumOf { it.toInt() and 255 } and 255).toByte())))
     }
 }
-class DiFluidStreamDecoder {
+class DiFluidStreamDecoder(onBoundaryResync:()->Unit = {}) {
     private val stream = LegacyLiveFrameStream<DiFluidMessage>(0xDF, 0xDF, 5,
-        { it.liveU(4) + 6 }, DiFluidCodec::decode)
+        { it.liveU(4) + 6 }, DiFluidCodec::decode, boundaryResync=true, onBoundaryResync=onBoundaryResync)
     fun feed(bytes: ByteArray): List<DecodeResult<DiFluidMessage>> = stream.feed(bytes)
 }
 object FelicitaLiveCodec {
@@ -173,6 +173,8 @@ private class LegacyLiveFrameStream<T>(
     private val first: Int, private val second: Int, private val prefixSize: Int,
     private val totalSize: (ByteArray) -> Int, private val decode: (ByteArray) -> DecodeResult<T>,
     private val checksumError: String? = null,
+    private val boundaryResync:Boolean = false,
+    private val onBoundaryResync:()->Unit = {},
 ) {
     private val buffer = ByteArray(LIVE_FRAME_LIMIT)
     private var size = 0
@@ -192,6 +194,27 @@ private class LegacyLiveFrameStream<T>(
                 return listOf(DecodeResult.Invalid("Ambiguous scale notification boundary", ByteFrame(incoming)))
             }
             NotificationBoundary.CONTINUE -> Unit
+        }
+        // Some DFDF devices abandon a partial frame after command responses and restart
+        // the next notification with a complete frame. Do not synthesize a corrupt frame
+        // by joining those two independent records. Prefer a valid continuation, however:
+        // header bytes can legally occur in a split payload.
+        if(boundaryResync && size>=prefixSize && bytes.size>=prefixSize &&
+            bytes.liveU(0)==first && bytes.liveU(1)==second) {
+            val pendingTotal=totalSize(buffer)
+            val newTotal=totalSize(bytes)
+            if(pendingTotal in prefixSize+1..LIVE_FRAME_LIMIT && size<pendingTotal &&
+                size+bytes.size>=pendingTotal && newTotal in prefixSize+1..LIVE_FRAME_LIMIT && bytes.size>=newTotal) {
+                val joined=buffer.copyOf(size)+bytes.copyOf(pendingTotal-size)
+                // Only a validated boundary frame can replace a checksum-invalid join.
+                // Malformed complete frames and unit messages still go through normal decode.
+                val joinResult=decode(joined)
+                if(joinResult is DecodeResult.Invalid && joinResult.reason=="DiFluid checksum mismatch" &&
+                    decode(bytes.copyOf(newTotal)) !is DecodeResult.Invalid) {
+                    size=0
+                    onBoundaryResync()
+                }
+            }
         }
         for (byte in incoming) {
             buffer[size++] = byte

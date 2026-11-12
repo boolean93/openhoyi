@@ -256,7 +256,7 @@
     <string name="history_count">"%1$s local records · Retained up to 30 days / 500 records"</string>
     <string name="history_detail_mock_title">"Simulated extraction details"</string>
     <string name="history_detail_title">"Extraction details"</string>
-    <string name="history_duration">"Extraction duration"</string>
+    <string name="history_duration">"Machine timer"</string>
     <string name="history_duration_value">"%1$s seconds"</string>
     <string name="history_empty_message">"After your first extraction, its curve, extraction state and sample data will appear here."</string>
     <string name="history_empty_title">"No extraction records yet"</string>
@@ -276,6 +276,9 @@
     <string name="history_no_reason">"No app stop reason recorded"</string>
     <string name="history_no_samples">"No saved sample points yet"</string>
     <string name="history_outcome_title">"End information"</string>
+    <string name="history_record_elapsed">"Record elapsed"</string>
+    <string name="history_record_elapsed_legacy">"Record elapsed (legacy)"</string>
+    <string name="history_sample_coverage">"Sample coverage"</string>
     <string name="history_samples_complete">"%1$s sample points · Saved locally"</string>
     <string name="history_samples_failed">"Failed to read samples"</string>
     <string name="history_samples_partial">"%1$s partial sample points · Saved locally"</string>
@@ -287,6 +290,7 @@
     <string name="history_status_not_started">"Not started"</string>
     <string name="history_status_stop_requested">"Stop requested"</string>
     <string name="history_subtitle">"State and curve samples recorded for each extraction"</string>
+    <string name="history_timing_explanation">"Record elapsed includes end confirmation. Chart samples use a local clock, not the machine’s integer timer. Sample coverage spans the first and last valid extraction samples, may include gaps, and is not a complete extraction duration."</string>
     <string name="history_unavailable">"History temporarily unavailable"</string>
     <string name="history_unavailable_message">"Reopen later; it is currently not possible to determine whether local records are empty."</string>
     <string name="history_unknown_warning">"Outcome not confirmed; rely on the coffee machine\'s actual state."</string>
@@ -416,7 +420,7 @@
     <string name="home_tare_idle">"Not requested"</string>
     <string name="home_tare_initial">"Tare status: not requested"</string>
     <string name="home_tare_prefix">"Tare status: "</string>
-    <string name="home_tare_unknown">"Outcome unknown; check the scale"</string>
+    <string name="home_tare_unknown">"Zero unconfirmed; you can tare again"</string>
     <string name="home_tare_waiting">"Request written; waiting for zero reading"</string>
     <string name="home_tare_writing">"Sending request"</string>
     <string name="language_current">"Current language: %1$s · Tap to change"</string>
@@ -694,7 +698,8 @@
     <string name="service_event_sleep_reconciled">"Machine reported awake standby again; previous sleep request not confirmed"</string>
     <string name="service_event_started">"Service started"</string>
     <string name="service_event_startup_failed">"Service startup failed: %1$s"</string>
-    <string name="service_event_tare_unconfirmed">"Scale tare not confirmed; coffee machine did not start"</string>
+    <string name="service_event_tare_cancelled_waiting">"Start cancelled. Wait for scale zero, then start again"</string>
+    <string name="service_event_tare_unconfirmed">"Start cancelled; coffee machine did not start. Check tare status"</string>
     <string name="service_event_write_shutdown_block">"Previous machine write not confirmed; device service remains running"</string>
     <string name="service_scale_already_connected">"Scale connected or connecting"</string>
     <string name="service_scale_connect">"Connect scale"</string>
@@ -765,8 +770,8 @@
     <string name="service_tare_not_ready">"Scale not ready yet"</string>
     <string name="service_tare_requested">"Scale tare requested"</string>
     <string name="service_tare_shot_block">"Cannot tare manually during extraction"</string>
-    <string name="service_tare_start_unknown">"Zero unconfirmed. Tare again"</string>
-    <string name="service_tare_start_wait">"Waiting for scale zero"</string>
+    <string name="service_tare_start_unknown">"Zero unconfirmed. Tare again before starting"</string>
+    <string name="service_tare_start_wait">"Still waiting for scale zero. Please wait"</string>
     <string name="service_tare_unknown">"Tare outcome unknown; tare again and wait for zero"</string>
     <string name="service_tare_waiting">"Waiting for this tare result"</string>
     <string name="service_tare_written">"Tare command written; waiting for scale zero"</string>
@@ -993,4 +998,22 @@
     <string name="ui_home">"Home"</string>
     <string name="ui_settings">"Settings"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
+    <string name="update_available">"New test build: %1$s (%2$d). The app package and signer match. Open the browser to download."</string>
+    <string name="update_check">"Check for updates"</string>
+    <string name="update_checking">"Checking…"</string>
+    <string name="update_debug_preview">"Public test build: %1$s (%2$d). This is a debug build; this information does not assess update compatibility."</string>
+    <string name="update_download">"Open download"</string>
+    <string name="update_failed">"The check failed. The public version could not be confirmed. Check your connection and try again."</string>
+    <string name="update_identity_unavailable">"Public test build: %1$s (%2$d). The installed app identity could not be verified. Review the release page; do not uninstall or clear data."</string>
+    <string name="update_idle">"Check the public Develop test build manually. Nothing is downloaded or installed automatically."</string>
+    <string name="update_idle_debug">"This is a debug build. You can view the public test build, but update compatibility is not assessed."</string>
+    <string name="update_idle_mock">"This is the Mock demo. The public test build uses a separate app package and does not replace Mock."</string>
+    <string name="update_installed_newer">"Your installed version is newer than the public test build: %1$s (%2$d). No downgrade is needed."</string>
+    <string name="update_manual_hint">"Test builds are not stable releases. A check connects only when tapped; the browser handles downloads and you decide whether to install."</string>
+    <string name="update_mock_preview">"Public test build: %1$s (%2$d). It uses a separate app package and does not replace this Mock demo."</string>
+    <string name="update_no_browser">"No browser could be opened. Install or enable a browser first."</string>
+    <string name="update_same_version">"Your version matches the public test build: %1$s (%2$d)."</string>
+    <string name="update_signer_mismatch">"Public test build: %1$s (%2$d). Its signer differs, so it cannot directly update this app. Do not uninstall or clear data to bypass this."</string>
+    <string name="update_title">"Develop test builds"</string>
+    <string name="update_view_release">"View release page"</string>
 </resources>
