@@ -14,7 +14,8 @@ class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->
     scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
     scaleObservation:(ScaleObservation)->Unit = {},
     customPressureStartPermit:(StartParameters)->Boolean = {false},
-    customCurveStartPermit:(StartParameters)->Boolean = {false}) : AutoCloseable {
+    customCurveStartPermit:(StartParameters)->Boolean = {false},
+    synchronizationRefreshPermit:()->Boolean = {false}) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var closed=false
@@ -25,7 +26,7 @@ class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->
     },trace)
     val session:DeviceSession=DeviceSession(role,driver,{SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,
         diagnostic,legacyVerifiedStartFrames,scaleAdapter,scaleObservation,
-        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit)
+        customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,synchronizationRefreshPermit=synchronizationRefreshPermit)
     private val ticker=object:Runnable {override fun run(){if(!closed){session.tick();handler.postDelayed(this,50)}}}
     init {handler.post(ticker)}
     override fun close(){
