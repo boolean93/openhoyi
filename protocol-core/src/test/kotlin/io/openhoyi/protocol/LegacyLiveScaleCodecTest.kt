@@ -38,6 +38,23 @@ fun legacyLiveScaleChecks() {
     check(DiFluidCodec.tare().frame.hex() == "DFDF03020101C5")
     check(FelicitaLiveCodec.tare().frame.hex() == "54")
 
+    val zeroFrame = hex("EFDD0C08050000000002000A05")
+    for (split in 1 until zeroFrame.size) {
+        val decoder = AcaiaStreamDecoder()
+        check(decoder.feed(zeroFrame.copyOf(split)).isEmpty())
+        check(decoder.feed(zeroFrame.copyOfRange(split, zeroFrame.size)).single() is DecodeResult.Valid)
+    }
+    for (restartSplit in listOf(1, 6, zeroFrame.size)) {
+        val decoder = AcaiaStreamDecoder()
+        check(decoder.feed(zeroFrame.copyOf(6)).isEmpty())
+        val results = decoder.feed(zeroFrame.copyOf(restartSplit)) +
+            decoder.feed(zeroFrame.copyOfRange(restartSplit, zeroFrame.size))
+        check(results.size == 1 && results.single() is DecodeResult.Valid)
+    }
+    val embeddedHeader = hex("EFDD0C0805EFDD00000200F9E2")
+    val embeddedDecoder = AcaiaStreamDecoder()
+    check(embeddedDecoder.feed(embeddedHeader.copyOf(5)).isEmpty())
+    check(embeddedDecoder.feed(embeddedHeader.copyOfRange(5,embeddedHeader.size)).single() is DecodeResult.Valid)
     // User diagnostic notification boundaries, 2026-11-12. The first notification
     // ends with an abandoned six-byte sensor prefix; the next starts a full new frame.
     val responseAndPartial=hex("dfdf03020103c7dfdf03020101c5dfdf03000dff")

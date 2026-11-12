@@ -51,6 +51,19 @@ class LegacyScaleSessionTest {
         payload.forEachIndexed { i,b->sum[i%2]=(sum[i%2]+(b.toInt() and 255)) and 255 }
         return hex("efdd0c")+payload+byteArrayOf(sum[0].toByte(),sum[1].toByte())
     }
+    @Test fun acaiaRestartKeepsUnitsButRealCorruptionRevokesThem() {
+        val f=Fixture(AcaiaLegacyScaleProtocolAdapter);f.boot();f.notify(unit+weight)
+        val zero=hex("EFDD0C08050000000002000A05")
+        f.notify(zero.copyOf(6));f.notify(zero)
+        assertEquals(2,f.seen.size)
+        assertEquals(0,f.seen.last().hundredthsGram)
+        assertEquals(DeviceState.READY,f.session.state)
+        f.notify(zero.copyOf().apply {this[lastIndex]=0})
+        f.notify(zero)
+        assertEquals(2,f.seen.size)
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        f.notify(unit+zero);assertEquals(3,f.seen.size)
+    }
     @Test fun acaiaRecordChainsPreserveUnitFreshnessAndControlBoundaries() {
         val f=Fixture(AcaiaPearlScaleProtocolAdapter);f.boot()
         val record=hex("05393000000200")
