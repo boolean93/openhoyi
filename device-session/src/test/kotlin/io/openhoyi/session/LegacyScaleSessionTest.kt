@@ -44,6 +44,81 @@ class LegacyScaleSessionTest {
         fun notify(bytes:ByteArray) {session.onNotification(session.generation,requireNotNull(adapter.notifyEndpoint),bytes)}
         fun writes()=driver.operations.mapNotNull {it.third as? GattOperation.Write}
     }
+    private fun eventRecords(vararg records: ByteArray): ByteArray {
+        val chain=records.fold(byteArrayOf()) { a,b->a+b }
+        val payload=byteArrayOf((chain.size+1).toByte())+chain
+        val sum=IntArray(2)
+        payload.forEachIndexed { i,b->sum[i%2]=(sum[i%2]+(b.toInt() and 255)) and 255 }
+        return hex("efdd0c")+payload+byteArrayOf(sum[0].toByte(),sum[1].toByte())
+    }
+    @Test fun acaiaRecordChainsPreserveUnitFreshnessAndControlBoundaries() {
+        val f=Fixture(AcaiaPearlScaleProtocolAdapter);f.boot()
+        val record=hex("05393000000200")
+        val chain=eventRecords(hex("0b0000"),hex("07000503"),record,hex("065a"))
+        f.notify(chain);assertTrue(f.seen.isEmpty()) // Weight never implies grams.
+        f.notify(unit);f.notify(chain)
+        assertEquals(DeviceState.READY,f.session.state)
+        assertEquals(12345,f.seen.last().hundredthsGram)
+        assertFalse(f.seen.last().eligibleForControl)
+        assertFalse(f.seen.last().capabilities.tare)
+        val count=f.seen.size;val at=f.seen.last().receivedAtMs
+        f.now+=100;f.notify(eventRecords(hex("07000503"),hex("065a")))
+        f.notify(eventRecords(record,hex("63"),record))
+        assertEquals(count,f.seen.size);assertEquals(at,f.seen.last().receivedAtMs)
+        f.notify(chain);assertEquals(count+1,f.seen.size) // Unknown event did not revoke gram trust.
+        f.notify(eventRecords(record,hex("0700"))) // Truncated known record invalidates entire frame.
+        f.notify(chain);assertEquals(count+1,f.seen.size)
+        f.notify(unit+chain);assertEquals(count+2,f.seen.size)
+        f.notify(eventRecords(hex("05393001000200")));f.notify(chain)
+        assertEquals(count+2,f.seen.size) // Unsupported high bytes never truncate to trusted weight.
+        f.notify(unit+chain);assertEquals(count+3,f.seen.size)
+        f.notify(hex("efdd08035a82855a"));f.notify(chain)
+        assertEquals(count+3,f.seen.size) // An unproven status flag cannot assert grams.
+        f.notify(unit+chain);assertEquals(count+4,f.seen.size)
+        f.session.disconnect();f.boot();f.notify(chain)
+        assertEquals(count+4,f.seen.size) // Unit trust is connection-local.
+        assertFalse(f.adapter.capabilities.protocolSupportedWeightControl)
+        assertFalse(f.adapter.capabilities.automaticTare)
+    }
+
+    /** Anonymized wire samples from lunar-diag.1; no identifiers or wall-clock timestamps. */
+    @Test fun lunarDiagnosticCombinedWeightAndTimerReachesReadyAndKeepsStreaming() {
+        val f=Fixture(AcaiaPearlScaleProtocolAdapter)
+        f.subscribe()
+        val start=f.now
+        // The real scale reports its gram status during initialization, before subscription completes.
+        for(command in f.adapter.initializationCommands) {
+            f.now=start+command.delayMs;f.session.tick();f.complete()
+            if(command.delayMs==2500L) f.notify(hex("efdd080929020301000101010e2d"))
+        }
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        f.now+=200
+        f.notify(hex("efdd0c0c05000000000100070000021407"))
+        assertEquals(DeviceState.READY,f.session.state)
+        assertEquals(0,f.seen.last().hundredthsGram)
+        // A real notification was split after the four-byte header.
+        val before=f.seen.size
+        f.now+=200;f.notify(hex("efdd0c0c"))
+        assertEquals(before,f.seen.size)
+        f.notify(hex("05000000000100070000021407"))
+        assertEquals(before+1,f.seen.size)
+        val samples=listOf(
+            "efdd0c0c05200000000101070000023408" to 320,
+            "efdd0c0c05b60d0000010107000002ca15" to 35100,
+            "efdd0c0c0513160000010107000002271e" to 56510,
+            "efdd0c0c05230a00000101070000023712" to 25950,
+            "efdd0c0c05060000000101070000021a08" to 60)
+        for((frame,expected) in samples) {
+            f.now+=200;f.notify(hex(frame))
+            assertEquals(expected,f.seen.last().hundredthsGram)
+            assertEquals(f.now,f.seen.last().receivedAtMs)
+            assertEquals(DeviceState.READY,f.session.state)
+        }
+        assertTrue(f.driver.closed.isEmpty())
+        assertFalse(f.seen.last().eligibleForControl)
+        assertFalse(f.seen.last().capabilities.automaticTare)
+    }
+
     @Test fun explicitProfileSelectionsArePersistentAndDoNotUpgradeOldReadOnlyBinding() {
         val address="AA:BB:CC:DD:EE:FF"
         for(adapter in ScaleProtocolRegistry.connectable+ScaleProtocolRegistry.readOnlyCandidates) {

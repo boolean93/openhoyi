@@ -56,12 +56,33 @@ object AcaiaCodec {
             }
             0x0C -> {
                 if (length < 2) return invalid("Truncated Acaia event")
-                if (b.liveU(4) != 5) return DecodeResult.Unknown(raw)
-                if (length != 8) return invalid("Acaia weight event must have six data bytes")
-                val decimal = b.liveU(9)
-                if (decimal !in 1..4) return invalid("Invalid Acaia decimal places")
-                DecodeResult.Valid(AcaiaWeight(b.liveU(5) or (b.liveU(6) shl 8), decimal,
-                    b.liveU(10) and 2 != 0, raw))
+                // Public MIT aioacaia record-chain evidence; no SDK binary implementation.
+                // Validate every known record before exposing any weight from this frame.
+                var cursor = 4
+                val end = b.size - 2
+                var weight: AcaiaWeight? = null
+                while (cursor < end) {
+                    val tag = b.liveU(cursor++)
+                    val width = when (tag) {
+                        5 -> 6 // weight
+                        6, 8 -> 1 // battery, button
+                        7 -> 3 // timer
+                        11 -> 2 // acknowledgement
+                        else -> return DecodeResult.Unknown(raw) // Never guess an unknown boundary.
+                    }
+                    if (end - cursor < width) return invalid("Truncated Acaia event record")
+                    if (tag == 5) {
+                        // Public evidence does not establish nonzero high-byte semantics. Never discard them.
+                        if (b.liveU(cursor + 2) != 0 || b.liveU(cursor + 3) != 0)
+                            return invalid("Unsupported Acaia weight magnitude layout")
+                        val decimal = b.liveU(cursor + 4)
+                        if (decimal !in 1..4) return invalid("Invalid Acaia decimal places")
+                        weight = AcaiaWeight(b.liveU(cursor) or (b.liveU(cursor + 1) shl 8), decimal,
+                            b.liveU(cursor + 5) and 2 != 0, raw)
+                    }
+                    cursor += width
+                }
+                weight?.let { DecodeResult.Valid(it) } ?: DecodeResult.Unknown(raw)
             }
             else -> DecodeResult.Unknown(raw)
         }
