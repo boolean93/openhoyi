@@ -65,3 +65,12 @@ Rebuild only this worktree's outputs with clean, --no-build-cache and --rerun-ta
 ### Resolution
 - **Resolved**: 2026-11-12
 - **Notes**: Clean/no-build-cache/rerun-tasks rebuilt Mock successfully. Actual DEX definitions include all 754 compiled application classes and all original APK io.openhoyi classes; 341 instrumentation compiled classes also present. Coordinator retried successfully through a real Mock start/stop cup. Separate portrait capture was invalid due MIUI Activity letterboxing, not a remaining class-loading failure.
+
+## [ERR-20261112-001] repository-entry-and-network
+
+**Logged**: 2026-11-12
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+主仓库 main 是旧入口，没有 docs/git-workflow.md/.agents；从 origin/develop 建独立工作树后读取现行规则。sandbox 内 fetch DNS 不可用，经已授权的网络升级后 fetch 成功。未改其它工作树。
