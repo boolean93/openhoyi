@@ -475,7 +475,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             topMargin = dp(if (shortHome) 0 else 6)
         })
         directPresets = (0..5).map { slot ->
-            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else if (shortHome) 96 else 80) }
+            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else 80) }
             if(phoneHome) {
                 if(slot%2==0) {
                     phonePresetRow=productStyle.row()

@@ -20,9 +20,11 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             SystemClock.sleep(30)
         }
     }
-    fun run() {
+    fun run(darkTheme: Boolean? = null) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        val appearance = context.getSharedPreferences("appearance", Context.MODE_PRIVATE)
+        val oldDark = appearance.all["dark"] as? Boolean
         val app = context.applicationContext as MobileApplication
         val store = app.customCurvesResult.getOrThrow()
         val documents = store.javaClass.getDeclaredField("documents").apply { isAccessible = true }
@@ -51,6 +53,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         }
         try {
             main {
+                darkTheme?.let { check(appearance.edit().putBoolean("dark", it).commit()) }
                 @Suppress("UNCHECKED_CAST") val old = originalDocs as Map<String, CustomCurveDocument>
                 documents.set(store, LinkedHashMap(old).apply { put(document.id, document) })
                 check(slots.edit().putString(PresetSlots.key(5), document.id).commit())
@@ -58,6 +61,10 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             }
             val page = MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
+            darkTheme?.let { expected -> main {
+                check((host.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES) == expected)
+            } }
             await("service") { host.currentService?.running == true }
             val service = checkNotNull(host.currentService)
             val oldState = service.shotState
@@ -166,6 +173,9 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 documents.set(store, originalDocs); activity?.finish()
             } }
             finally {
+                if (darkTheme != null) check(appearance.edit().apply {
+                    if (oldDark == null) remove("dark") else putBoolean("dark", oldDark)
+                }.commit())
                 check(prefs.edit().apply {
                     if (oldDirect == null) remove("direct_start") else putBoolean("direct_start", oldDirect)
                 }.commit())

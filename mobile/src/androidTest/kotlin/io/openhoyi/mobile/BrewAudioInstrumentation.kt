@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
     private var shortcutDirectStartChecks = false
+    private var shortcutTheme: Boolean? = null
     private var machineLeverRecipeChecks = false
     private var customShortcutChecks = false
     private var darkThemeWindow: Boolean? = null
@@ -97,6 +98,9 @@ class BrewAudioInstrumentation : Instrumentation() {
         customShortcutChecks = arguments?.getString("customShortcutChecks") == "true"
         machineLeverRecipeChecks = arguments?.getString("machineLeverRecipeChecks") == "true"
         shortcutDirectStartChecks = arguments?.getString("shortcutDirectStartChecks") == "true"
+        shortcutTheme = arguments?.getString("shortcutTheme")?.let {
+            require(it in setOf("light", "dark")); it == "dark"
+        }
         super.onCreate(arguments); start()
     }
     override fun onStart() {
@@ -104,7 +108,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             if (shortcutDirectStartChecks) {
-                ShortcutDirectStartWindowChecks(this).run()
+                ShortcutDirectStartWindowChecks(this).run(shortcutTheme)
                 report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED defaultOff=true homeToggle=true settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
