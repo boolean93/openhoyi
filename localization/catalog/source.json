@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "641417dd620830ab2879e21bdb5880f0de2da3ed727abb846d67d08d6546e835",
+  "sha256": "61b11b10910422786a162cd7a8e89a621dba3a3fac662a083ea5b9ba0aa6da8f",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -668,7 +668,7 @@
     "history_detail_mock_title": "模拟萃取详情",
     "history_detail_title": "萃取详情",
     "history_missing": "记录不存在或已过保留期限",
-    "history_duration": "萃取时长",
+    "history_duration": "机器计时",
     "history_end_scale": "结束时秤读数",
     "history_scale_disclaimer": "秤读数未经杯重校准，不等同于实际出品重量。",
     "history_loading_samples": "正在读取本机采样…",
@@ -995,6 +995,10 @@
     "task_shell_machine_preheating": "预热中",
     "task_shell_machine_preheat_ready": "预热就绪",
     "home_boiler_preheat_occupied": "预热占用",
-    "service_event_tare_cancelled_waiting": "启动已取消，等待归零后请重新开始"
+    "service_event_tare_cancelled_waiting": "启动已取消，等待归零后请重新开始",
+    "history_record_elapsed": "记录历时",
+    "history_record_elapsed_legacy": "记录历时（旧口径）",
+    "history_timing_explanation": "记录历时含结束确认；图表“采样至”使用本地采样时钟，与机器整数计时不同。采样覆盖为首末有效采样间隔，可能含缺口，不代表完整萃取时长。",
+    "history_sample_coverage": "采样覆盖"
   }
 }

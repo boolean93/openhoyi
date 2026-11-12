@@ -256,7 +256,7 @@
     <string name="history_count">"%1$s local records · Retained up to 30 days / 500 records"</string>
     <string name="history_detail_mock_title">"Simulated extraction details"</string>
     <string name="history_detail_title">"Extraction details"</string>
-    <string name="history_duration">"Extraction duration"</string>
+    <string name="history_duration">"Machine timer"</string>
     <string name="history_duration_value">"%1$s seconds"</string>
     <string name="history_empty_message">"After your first extraction, its curve, extraction state and sample data will appear here."</string>
     <string name="history_empty_title">"No extraction records yet"</string>
@@ -276,6 +276,9 @@
     <string name="history_no_reason">"No app stop reason recorded"</string>
     <string name="history_no_samples">"No saved sample points yet"</string>
     <string name="history_outcome_title">"End information"</string>
+    <string name="history_record_elapsed">"Record elapsed"</string>
+    <string name="history_record_elapsed_legacy">"Record elapsed (legacy)"</string>
+    <string name="history_sample_coverage">"Sample coverage"</string>
     <string name="history_samples_complete">"%1$s sample points · Saved locally"</string>
     <string name="history_samples_failed">"Failed to read samples"</string>
     <string name="history_samples_partial">"%1$s partial sample points · Saved locally"</string>
@@ -287,6 +290,7 @@
     <string name="history_status_not_started">"Not started"</string>
     <string name="history_status_stop_requested">"Stop requested"</string>
     <string name="history_subtitle">"State and curve samples recorded for each extraction"</string>
+    <string name="history_timing_explanation">"Record elapsed includes end confirmation. Chart samples use a local clock, not the machine’s integer timer. Sample coverage spans the first and last valid extraction samples, may include gaps, and is not a complete extraction duration."</string>
     <string name="history_unavailable">"History temporarily unavailable"</string>
     <string name="history_unavailable_message">"Reopen later; it is currently not possible to determine whether local records are empty."</string>
     <string name="history_unknown_warning">"Outcome not confirmed; rely on the coffee machine\'s actual state."</string>
