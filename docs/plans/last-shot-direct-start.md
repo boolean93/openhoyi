@@ -27,5 +27,6 @@
 - 实际 Mock 平板实窗证据（由协调者提供）：`openhoyi-pending-qa-batch/build/tablet-qa-evidence/last-shot-dark-fixed.txt`、`RESULT.md`。覆盖上一杯 OFF 仅导航、ON 低温只进入并提示、过期历史引用拒绝、设置同步与重建不重放；无 BLE、无真实萃取。该证据来自独立整合树（production `72c76469` / test `aba7658f`），不是本分支最终 SHA 的设备验收。
 - QA 发现原测试的 `last-curve/use` tag 被既有 `quick-launch` 覆盖，现移除重复 tag，测试统一使用既有 `product/home/quick-launch`。
 - QA 发现活跃 UI 回调在 finally 恢复后又写入 true：现先 finish、限时等待 `isDestroyed` 和主线程空闲，再恢复持久偏好并跨主线程 barrier 校验原始 key/value。此清理修正本轮仅编译与门禁验证，不重新操作平板；整合 QA 当时已停止 Mock 并核验恢复原偏好。
-- 删除功能尚未合入本基线；继续使用当前 `CustomCurveStore.documents` 夹具，不引入其他任务的 state API。
+- 最新整合基线为 `origin/develop 10ca4dbe`，合并提交 `52e60499`。已采用基线的 `CustomCurveWindowFixture` state 夹具，保留 #75 新开关与 #78 更新流程；Astra 对完整差异再次独立复核通过。
+- `52e60499` 完整 `./scripts/create-pr --check-only` 及 `:mobile:assembleMockAndroidTest` 均通过，证据见本地 `mobile/build/last-shot-pr-evidence/INTEGRATED-RESULT.txt`；最终创建 PR 时再次执行入口门禁。
 - 体验限制保持：未验证真实硬件萃取/物理停水，也不声称完整竖屏、TalkBack 或手势动画矩阵通过。
