@@ -12,7 +12,7 @@ internal class LiveEndpointLabelLayer(context:Context,private val colorFor:(Char
     private val text=Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface=TaskTypography.face(context,500);textSize=14*context.resources.displayMetrics.scaledDensity
     }
-    private val background=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=0xf2ffffff.toInt()}
+    private val background=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=(TaskProductVisualStyle(context).surface and 0x00ffffff) or 0xf2000000.toInt()}
     private val line=Paint(Paint.ANTI_ALIAS_FLAG).apply {style=Paint.Style.STROKE;strokeWidth=density}
     private val dot=Paint(Paint.ANTI_ALIAS_FLAG)
     private val rect=RectF()

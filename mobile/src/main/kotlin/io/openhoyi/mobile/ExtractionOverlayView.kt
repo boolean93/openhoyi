@@ -801,7 +801,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     /** Four readouts stay whole; actual text measurement decides one or two rows. */
     private inner class LegendLayout(context: Context) : ViewGroup(context) {
-        private val separatorPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=0xffdfe5e1.toInt();strokeWidth=dp(1f) }
+        private val separatorPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=visual?.liveSeparator ?: context.getColor(R.color.mobile_border);strokeWidth=dp(1f) }
         override fun dispatchDraw(canvas: Canvas) {
             super.dispatchDraw(canvas)
             if(liveCompactChrome && naturalRow) for(i in 1 until childCount) {

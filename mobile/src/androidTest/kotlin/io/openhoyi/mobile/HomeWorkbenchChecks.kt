@@ -66,6 +66,25 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                     return bounds
                 }
                 main {
+                    val style = TaskProductVisualStyle(activity)
+                    val root = home.requireView()
+                    check((root.background as android.graphics.drawable.ColorDrawable).color == style.homePage)
+                    val dials = descendants(root).filterIsInstance<BoilerTemperatureDial>()
+                    val homeConfig = activity.resources.configuration
+                    val compact = TaskLayoutPolicy.compactHome(homeConfig.screenHeightDp,
+                        homeConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                    check(dials.size == if (compact) 0 else 2)
+                    dials.forEach { dial ->
+                        check((dial.background as android.graphics.drawable.GradientDrawable).color?.defaultColor == style.surface)
+                        descendants(dial).filterIsInstance<TextView>().forEach { text ->
+                            check(text.currentTextColor == style.homeDialInk)
+                        }
+                    }
+                    for (slot in 1..5) {
+                        val preset = requireNotNull(root.findViewWithTag<View>("product/home/direct-preset/$slot"))
+                        val color = (preset.background as android.graphics.drawable.GradientDrawable).color?.defaultColor
+                        check(color == style.surface || color == style.homeSelected)
+                    }
                     check(kotlin.math.abs(activity.resources.configuration.fontScale-expectedFontScale)<.01f)
                     val action=page.viewField<TextView>(home,"quickLaunch")
                     val bounds=complete(action);val config=activity.resources.configuration

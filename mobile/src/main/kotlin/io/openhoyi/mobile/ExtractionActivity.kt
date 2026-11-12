@@ -623,7 +623,7 @@ class ExtractionActivity : ThemedActivity() {
         start.isEnabled = true
         val startProtected = blocked != null || studioBlocked != null || settingBusy || sleepBusy
         start.backgroundTintList = android.content.res.ColorStateList.valueOf(
-            if (startProtected) style.disabled else 0xff009e48.toInt())
+            if (startProtected) style.disabled else visual.liveStart)
         start.setTextColor(if (startProtected) style.onDisabled else android.graphics.Color.WHITE)
         start.contentDescription = listOfNotNull(start.text.toString(), blocked ?: studioBlocked).joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)

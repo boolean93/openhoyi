@@ -127,7 +127,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var doseStateSummary: TextView
     private lateinit var doseQuantity: TextView
     private lateinit var doseUnit: TextView
-    private val homeAccent = android.graphics.Color.rgb(0, 158, 72)
+    private val homeAccent get() = productStyle.homeAccent
     private val productStyle by lazy { TaskProductVisualStyle(host) }
     private lateinit var temperatureSummary: TextView
     private lateinit var usageSummary: TextView
@@ -142,7 +142,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(android.graphics.Color.rgb(250,252,250))
+            setBackgroundColor(productStyle.homePage)
         }
         val phoneHome = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
         val shortHome = TaskLayoutPolicy.compactHome(resources.configuration.screenHeightDp, phoneHome)
@@ -1096,10 +1096,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 if (button.text.toString() != label) button.text = label
                 val visual = directPresets[index]
                 visual.button.contentDescription = label
-                visual.button.background = productStyle.shape(if (item != null && item.id == selected?.id) android.graphics.Color.rgb(231,247,234) else android.graphics.Color.WHITE, true)
+                visual.button.background = productStyle.shape(if (item != null && item.id == selected?.id) productStyle.homeSelected else productStyle.surface, true)
                 visual.button.isEnabled = item?.let(library::canStart) == true
                 visual.name.show(item?.name ?: getString(R.string.home_slot_unconfigured))
-                visual.name.setTextColor(if (visual.button.isEnabled) 0xff087647.toInt() else productStyle.onDisabled)
+                visual.name.setTextColor(if (visual.button.isEnabled) productStyle.homePresetText else productStyle.onDisabled)
                 val thumbnail = HomePresetPreview.from(item, presetScale)
                 visual.sparkline.visibility = if (thumbnail == null) View.GONE else View.VISIBLE
                 if (thumbnail != null) {
@@ -1232,7 +1232,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         productStyle.button(HoyiUi.button(host, parent, value, primary = primary, action = action), primary).apply {
             if (primary) background = android.graphics.drawable.StateListDrawable().apply {
                 addState(intArrayOf(-android.R.attr.state_enabled), productStyle.shape(productStyle.disabled))
-                addState(intArrayOf(), productStyle.shape(homeAccent))
+                addState(intArrayOf(), productStyle.shape(productStyle.homePrimary))
             } else setTextColor(android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()), intArrayOf(productStyle.onDisabled, homeAccent)))
         }
     private fun workbenchLink(parent: LinearLayout, value: String, action: () -> Unit) =

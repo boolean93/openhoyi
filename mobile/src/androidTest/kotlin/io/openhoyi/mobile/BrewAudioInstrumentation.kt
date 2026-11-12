@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var darkThemeWindow: Boolean? = null
     private var connectionSleepChecks=false
     private var settingsVisualArguments: Bundle? = null
     private var legacyVisualArguments: Bundle? = null
@@ -54,6 +55,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        darkThemeWindow = arguments?.getString("darkThemeWindow")?.let { check(it in setOf("light", "dark")); it == "dark" }
         connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
         settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
         legacyVisualArguments = arguments?.takeIf { it.getString("legacyVisualMigration") == "true" }?.let { Bundle(it) }
@@ -95,6 +97,11 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            darkThemeWindow?.let { dark ->
+                DarkThemeWindowChecks(this).run(dark)
+                report.putString("stream", "DARK_THEME_WINDOW_PASSED actualWindows=true viewOnlyChartFixture=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if(connectionSleepChecks){
                 val count=ConnectionSleepPresentationChecks(this).run()
                 report.putString("stream","CONNECTION_SLEEP_PRESENTATION_PASSED fixtures=$count languages=2 nativeComponents=true actualShellTree=true noBle=true noMachineCommands=true\n")

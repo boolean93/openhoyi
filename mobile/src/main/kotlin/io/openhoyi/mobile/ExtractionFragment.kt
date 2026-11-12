@@ -139,7 +139,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         compactElapsed = style.text("", TaskProductVisualStyle.Type(17,400,24), "product/extraction/elapsed")
         compactMode = style.text(if(BuildConfig.MOCK_MODE) "Mock" else "",TaskProductVisualStyle.Type(15,400,22),"product/extraction/mode",true).apply { visibility=if(BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE }
         listOf(compactClock,compactElapsed,compactMode).forEach { field ->
-            val divider=android.graphics.drawable.GradientDrawable().apply {setColor(0xffdfe5e1.toInt());setBounds(0,0,dp(1),dp(18))}
+            val divider=android.graphics.drawable.GradientDrawable().apply {setColor(visual.liveSeparator);setBounds(0,0,dp(1),dp(18))}
             field.setCompoundDrawablesRelative(divider,null,null,null);field.compoundDrawablePadding=dp(12)
         }
         compactGuidance = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/inline-guidance", true)
@@ -241,7 +241,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         flowValue = text(details, "", 14)
         chartHost = FrameLayout(host).apply { tag = "product/extraction/chart-host" }
         chart = ExtractionOverlayView(host, visual).apply {
-            tag = "product/extraction/chart"; setBackgroundColor(android.graphics.Color.WHITE)
+            tag = "product/extraction/chart"; setBackgroundColor(style.surface)
             liveCompactChrome = true
         }
         chartHost.addView(chart, FrameLayout.LayoutParams(-1, -1))
@@ -330,7 +330,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             orientation = if(portraitLive) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             minimumHeight = dp(64)
-            setBackgroundColor(android.graphics.Color.WHITE)
+            setBackgroundColor(style.surface)
         }
         chart.attachLiveReadouts(if(portraitLive) plotColumn else actionDock)
         val actionButtons = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
@@ -357,7 +357,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             it.setPadding(dp(8), dp(8), dp(8), dp(8))
         }
         style.button(start, primary = true)
-        start.backgroundTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),intArrayOf(style.disabled,0xff009e48.toInt()))
+        start.backgroundTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),intArrayOf(style.disabled,visual.liveStart))
         start.tag = "product/extraction/start"
         listOf(start,stop).forEach { it.layoutParams=LinearLayout.LayoutParams(-1,-2); it.minHeight=dp(54); it.minimumHeight=dp(54) }
         visual.stopButton(stop); listOf(start,stop).forEach { it.textSize=if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 18f else 21f }; stop.tag = "product/extraction/stop"
@@ -727,7 +727,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         start.isEnabled = true
         val startProtected = blocked != null || studioBlocked != null || settingBusy || sleepBusy
         start.backgroundTintList = android.content.res.ColorStateList.valueOf(
-            if (startProtected) style.disabled else 0xff009e48.toInt())
+            if (startProtected) style.disabled else visual.liveStart)
         start.setTextColor(if (startProtected) style.onDisabled else android.graphics.Color.WHITE)
         start.contentDescription = listOfNotNull(start.text.toString(), blocked ?: studioBlocked).joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
