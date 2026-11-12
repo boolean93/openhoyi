@@ -65,6 +65,32 @@ class HomeLastCurveTest {
             resolve(recentObserved = CurveUsage("shot-3", profile.id, 3000)))
     }
 
+    @Test fun historicalIdentityChangeRevokesEvenWhenReadyCurveIsIdentical() {
+        var reference = HomeLastCurve.Reference(use, use)
+        val tapped = reference
+        val permit = ShortcutStartPermit(0, { 0 }) { reference == tapped }
+        assertEquals(true, permit.claim())
+        val next = use.copy(shotId = "shot-3", startedAtMs = 3000)
+        assertEquals(resolve(use), resolve(next))
+        reference = HomeLastCurve.Reference(next, next)
+        assertEquals(false, permit.allows())
+        reference = tapped
+        assertEquals(false, permit.allows())
+    }
+
+    @Test fun missingOrNewerRecentObservationInvalidatesHistoricalReference() {
+        val tapped = HomeLastCurve.Reference(use, use)
+        val latest = use.copy(shotId = "shot-3", startedAtMs = 3000)
+        var current: HomeLastCurve.Reference? = tapped
+        val permit = ShortcutStartPermit(0, { 0 }) { current == tapped }
+        current = tapped.copy(recentObserved = latest)
+        assertEquals(HomeLastCurve.DataUnavailable, resolve(recentObserved = latest))
+        assertEquals(false, permit.claim())
+        val unreadable = ShortcutStartPermit(0, { 0 }) { current == tapped }
+        current = null
+        assertEquals(false, unreadable.claim())
+    }
+
     @Test fun editableDraftNeverMasqueradesAsHistoricalParameters() {
         val draft = CustomCurveDocument("draft-00000000-0000-4000-8000-000000000001", "Now edited", 92, 0,
             CustomCurveDocument.ControlMode.PRESSURE,

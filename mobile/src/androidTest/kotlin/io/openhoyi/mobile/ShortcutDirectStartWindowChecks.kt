@@ -35,6 +35,11 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         val curves = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val oldSelected = curves.getString("selected", null)
         val history = app.history.entries
+        val ledger = app.curveUsageResult.getOrThrow()
+        val usesField = ledger.javaClass.getDeclaredField("uses").apply { isAccessible = true }
+        val originalUses = usesField.get(ledger)
+        val usageFile = File(context.filesDir, "curve_usage_v1.tsv")
+        val usageBytes = usageFile.takeIf { it.exists() }?.readBytes()
         val curveFile = File(context.filesDir, "custom_curves_v1.json")
         val originalBytes = curveFile.takeIf { it.exists() }?.readBytes()
         val document = CustomCurveDocument(CustomCurveDocument.newId(), "Shortcut direct QA", 105, 3600,
@@ -113,6 +118,48 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             clickSlot()
             await("cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
             noShot(); capture("temperature-gated")
+            // The previous-shot entry is the same explicit tap path, never a preheat request.
+            main {
+                val at = maxOf(System.currentTimeMillis(), (ledger.latest()?.startedAtMs ?: 0) + 1)
+                ledger.record("last-shot-direct-window", document.id, at)
+                ledger.attachFingerprint("last-shot-direct-window", CustomCurveFingerprint.of(document))
+                host.select(TaskDestination.BREW)
+                check(prefs.edit().putBoolean("direct_start", false).commit())
+            }
+            fun lastUse() = page.active("root:BREW").requireView()
+                .findViewWithTag<View>("product/home/quick-launch")
+            await("previous curve shown") {
+                host.resolveLastCurve() is HomeLastCurve.Ready &&
+                    page.active("root:BREW").requireView().findViewWithTag<android.widget.TextView>("product/home/quick-recipe").text.toString() == document.name
+            }
+            main { check(lastUse().performClick()) }
+            await("previous off navigates only") { runCatching { page.active("extraction") }.isSuccess }
+            main {
+                noShot()
+                check(curves.getString("selected", null) == document.id)
+                host.select(TaskDestination.BREW)
+                check(prefs.edit().putBoolean("direct_start", true).commit())
+            }
+            await("previous direct preference") { homeToggle(host).isChecked }
+            main {
+                check(lastUse().performClick())
+            }
+            await("previous cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
+            main { noShot() }
+            capture("previous-temperature-gated")
+            // A stale history identity cannot navigate or create a permit for another shot.
+            main {
+                host.select(TaskDestination.BREW)
+                val reference = checkNotNull(host.lastCurveReference())
+                val ready = host.resolveLastCurve(reference) as HomeLastCurve.Ready
+                ledger.record("last-shot-direct-window-new", document.id, checkNotNull(reference.latest).startedAtMs + 1)
+                ledger.attachFingerprint("last-shot-direct-window-new", CustomCurveFingerprint.of(document))
+                host.openLastCurve(ready, reference)
+                check(host.supportFragmentManager.findFragmentByTag("extraction")?.isVisible != true)
+                noShot()
+                // Restore a gated extraction page for the existing recreation checks.
+                host.openShortcut(5)
+            }
             val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
             try {
                 main { host.recreate() }
@@ -166,11 +213,21 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 noShot()
             } finally { test.removeMonitor(monitor) }
         } finally {
-            try { main {
+            // Finish first: live switches can write their rendered choice back during restoration.
+            main { activity?.finish() }
+            await("fixture Activity destroyed before restoring preferences") { activity?.isDestroyed != false }
+            val idle = java.util.concurrent.CountDownLatch(1)
+            val queue = android.os.Looper.getMainLooper().queue
+            val idleHandler = android.os.MessageQueue.IdleHandler { idle.countDown(); false }
+            main { queue.addIdleHandler(idleHandler) }
+            try {
+                check(idle.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Fixture main queue did not become idle" }
+            } finally { main { queue.removeIdleHandler(idleHandler) } }
+            main {
                 mockRuntime?.let { runtime -> runtime.javaClass.getDeclaredField("settings").apply { isAccessible = true }.set(runtime, originalMockSettings) }
-                curveFixture.restore(); activity?.finish()
-            } }
-            finally {
+                curveFixture.restore()
+                usesField.set(ledger, originalUses)
+                if (usageBytes == null) usageFile.delete() else usageFile.writeBytes(usageBytes)
                 if (darkTheme != null) check(appearance.edit().apply {
                     if (oldDark == null) remove("dark") else putBoolean("dark", oldDark)
                 }.commit())
@@ -179,9 +236,11 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 }.commit())
                 check(slots.edit().apply { if (oldSlot == null) remove(PresetSlots.key(5)) else putString(PresetSlots.key(5), oldSlot) }.commit())
                 check(curves.edit().apply { if (oldSelected == null) remove("selected") else putString("selected", oldSelected) }.commit())
-                check(app.history.entries == history)
-                check(if (originalBytes == null) !curveFile.exists() else curveFile.readBytes().contentEquals(originalBytes))
             }
+            // Cross another main-queue barrier and verify the exact original key/value survived.
+            main { check(prefs.all["direct_start"] == oldDirect) { "Fixture changed the saved direct-start preference" } }
+            check(app.history.entries == history)
+            check(if (originalBytes == null) !curveFile.exists() else curveFile.readBytes().contentEquals(originalBytes))
         }
     }
 }
