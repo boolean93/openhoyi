@@ -5,7 +5,7 @@
 - 工作树：`/Users/boolean93/workspace/hoyi_app/openhoyi-curve-delete`
 - 分支：`feature/curve-delete`，基线 `df108928b2f1aa88f3ba662c60320101cfde0359`。
 - 仅本地实现；未推送、未创建 PR、未合并、未发版、未安装；未操作共享平板、机器、秤或 AVD。
-- 规划：[curve-delete](../plans/curve-delete.md)。Astra 独立审查由协调会话安排，本记录仅为实现者自查。
+- 规划：[curve-delete](../plans/curve-delete.md)。协调会话已转达 Astra 对 `a5648127` 独立审查无阻断；本记录中的自查和测试由实现者完成。
 
 ## 行为和实现
 
@@ -42,7 +42,7 @@ git diff --check
 
 Gradle：`BUILD SUCCESSFUL`。共 29 项 JVM 测试，0 失败；其中新增 7 项涵盖原子失败、历史名称、缓存 profile 失效、首页上次/最近、快捷槽、不覆盖撤销、原生只读 document、旧编辑窗口、同 ID 重导及 v1 迁移/校验。资源测试 25 项通过，目录/生成校验无 drift。
 
-Gradle 原始日志：`/tmp/curve-delete-build.log`。JUnit XML 与 HTML 位于本工作树 `mobile/build/test-results/testMockUnitTest/`、`mobile/build/reports/tests/testMockUnitTest/index.html`。
+Gradle 原始日志：`/tmp/curve-delete-build.log`。JUnit XML 与 HTML 位于本工作树 `mobile/build/test-results/testMockUnitTest/`、`mobile/build/reports/tests/testMockUnitTest/index.html`；后续过滤运行会替换该报告，当前最新报告为新增的 3 项离线兼容测试，原 29 项结果以本记录与原始构建日志为准。补充证据见 [升级与验收准备](curve-delete-upgrade-readiness.md)。
 
 Mock APK：`mobile/build/outputs/apk/mock/mobile-mock.apk`。
 
@@ -57,5 +57,5 @@ Mock APK：`mobile/build/outputs/apk/mock/mobile-mock.apk`。
 - 核对活动曲线保护与实际服务状态/发包队列之间的衔接；单测验证保护策略和旧 profile 失效，未连接真实设备。
 - 撤销只保留当前进程最近一次删除；进程重启后归档和空槽仍保留，撤销入口不保留。没有搭建回收站。
 - 槽失效引用保留在原子文件中，SharedPreferences 可保留旧原始值；必须经 `PresetSlots.curveId(..., library)` 或 `route` 读取。已覆盖当前全部生产读取入口。
-- 存在 v2 归档数据时旧版本不能直接读取该文件；不得卸载/清数据或直接降级。正式上线前需安排相称升级/回退验收。
+- 存在 v2 归档数据或空槽元数据时旧版本不能直接读取该文件。当前没有通用降级迁移工具；撤销/重导入不构成通用回退方案，整项 revert 会移除 v2 支持。回退须用保留 v2 语义的前向修复；不得卸载/清数据或直接降级。补充离线边界证据及待执行实窗步骤见 [升级与验收准备](curve-delete-upgrade-readiness.md)。
 - GitHub CI、全量 lint、双包设备覆盖安装、横竖屏、真实机器/秤均未执行。本轮没有创建 PR，后续须按 create-pr 规则完成所需本地检查及必需 CI。
