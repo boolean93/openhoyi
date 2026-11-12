@@ -60,7 +60,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             check(root.getGlobalVisibleRect(viewport) && !viewport.isEmpty)
             val tags = listOf("machine-status", "connect", "brew-boiler", "steam-boiler",
                 "brew-boiler/toggle", "steam-boiler/toggle") +
-                (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
+                (if (activeCup) emptyList() else listOf("quick-launch", "shortcuts/direct-start") + (1..5).flatMap {
                     listOf("direct-preset/$it", "direct-preset/$it/preview")
                 }) + (if (lastCurveRecorded) listOf("last-curve/preview", "quick-recipe") else emptyList())
             val bounds = tags.associateWith { name ->
