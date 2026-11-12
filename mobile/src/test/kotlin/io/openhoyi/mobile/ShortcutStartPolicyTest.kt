@@ -4,24 +4,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShortcutStartPolicyTest {
-    @Test fun safeDefaultsAndCancelledPromptDoNotConfigureOrStart() {
+    @Test fun defaultOffAndStoredOnUseOnlyTheCurrentSwitchChoice() {
         val initial = ShortcutStartPolicy.Preference()
-        assertTrue(initial.showPrompt)
         assertFalse(initial.startsOnTap)
         assertFalse(initial.directStart)
-        // Checking the draft checkbox changes nothing until a valid action is chosen.
-        val uncheckedStoredValue = initial
-        assertEquals(initial, uncheckedStoredValue)
-        assertFalse(ShortcutStartPolicy.Preference(false, true).startsOnTap)
+        assertTrue(ShortcutStartPolicy.Preference(true).startsOnTap)
     }
 
-    @Test fun bothValidActionsAndSettingsStoreAnExplicitChoice() {
+    @Test fun eitherSwitchCanEnableAndRevokeTheSharedChoice() {
         val initial = ShortcutStartPolicy.Preference()
-        assertEquals(ShortcutStartPolicy.Preference(true, false), initial.choose(false))
+        assertEquals(ShortcutStartPolicy.Preference(false), initial.choose(false))
         val on = initial.choose(true)
-        assertTrue(on.startsOnTap); assertFalse(on.showPrompt)
+        assertTrue(on.startsOnTap)
         val off = on.choose(false)
-        assertFalse(off.startsOnTap); assertFalse(off.showPrompt)
+        assertFalse(off.startsOnTap)
     }
 
     @Test fun oneTapClaimsOnlyOnceButKeepsCheckingUntilDispatch() {
@@ -76,7 +72,7 @@ class ShortcutStartPolicyTest {
     }
 
     @Test fun saveFailureSuppressesAllInstancesEvenWhenBothWritesFailUntilExplicitSuccess() {
-        var current = ShortcutStartPolicy.Preference(true, true)
+        var current = ShortcutStartPolicy.Preference(true)
         val safety = ShortcutPreferenceSafety()
         var successful = false
         val write: (ShortcutStartPolicy.Preference) -> Boolean = { value ->
@@ -84,10 +80,9 @@ class ShortcutStartPolicyTest {
             current = value; successful
         }
         val prefs = ShortcutStartPreferences({ current }, write, safety)
-        val otherScreen = ShortcutStartPreferences({ ShortcutStartPolicy.Preference(true, true) }, write, safety)
+        val otherScreen = ShortcutStartPreferences({ ShortcutStartPolicy.Preference(true) }, write, safety)
         assertFalse(prefs.choose(false)); assertTrue(prefs.suppressed)
         assertFalse(prefs.read().startsOnTap); assertFalse(otherScreen.read().startsOnTap)
-        assertFalse(prefs.read().showPrompt)
         assertFalse(prefs.choose(true)); assertFalse(otherScreen.read().startsOnTap)
         successful = true
         assertTrue(prefs.choose(false)); assertFalse(prefs.suppressed)
@@ -97,9 +92,47 @@ class ShortcutStartPolicyTest {
 
     @Test fun thrownPersistenceFailureAlsoKeepsOldEnabledValueSuppressed() {
         val safety = ShortcutPreferenceSafety()
-        val prefs = ShortcutStartPreferences({ ShortcutStartPolicy.Preference(true, true) }, { error("disk") }, safety)
+        val prefs = ShortcutStartPreferences({ ShortcutStartPolicy.Preference(true) }, { error("disk") }, safety)
         assertFalse(prefs.choose(false)); assertTrue(prefs.suppressed)
         assertFalse(prefs.read().startsOnTap)
+    }
+
+    @Test fun failedAndRecoveredWritesNotifyEveryScreenWithoutDependingOnStoredKeyChanges() {
+        var stored = ShortcutStartPolicy.Preference(true)
+        var diskWorks = false
+        val safety = ShortcutPreferenceSafety()
+        val writer = ShortcutStartPreferences({ stored }, { value ->
+            if (diskWorks) stored = value
+            diskWorks
+        }, safety)
+        val reader = ShortcutStartPreferences({ stored }, { false }, safety)
+        var homeOn = reader.read().startsOnTap
+        var settingsOn = writer.read().startsOnTap
+        val stopHome = reader.observe { homeOn = reader.read().startsOnTap }
+        val stopSettings = writer.observe { settingsOn = writer.read().startsOnTap }
+        val stopBrokenObserver = reader.observe { error("one screen cannot block the others") }
+        assertFalse(writer.choose(false))
+        assertTrue(stored.startsOnTap) // Both disk writes failed; there was no key-change callback.
+        assertFalse(homeOn); assertFalse(settingsOn)
+        diskWorks = true
+        assertTrue(writer.choose(true))
+        assertTrue(homeOn); assertTrue(settingsOn)
+        stopHome(); stopSettings(); stopBrokenObserver()
+        assertTrue(writer.choose(false))
+        assertTrue(homeOn); assertTrue(settingsOn) // Detached views receive no more callbacks.
+    }
+
+    @Test fun removingHomeObserverDuringNavigationDoesNotRevokeANewExtractionPermit() {
+        val safety = ShortcutPreferenceSafety()
+        val prefs = ShortcutStartPreferences({ ShortcutStartPolicy.Preference(true) }, { true }, safety)
+        var notifications = 0
+        val stop = prefs.observe { notifications++ }
+        val revision = prefs.revision
+        stop()
+        val permit = ShortcutStartPermit(0, { 0 }, { prefs.revision == revision && prefs.read().startsOnTap })
+        assertTrue(permit.claim()); assertEquals(0, notifications)
+        assertTrue(prefs.choose(false)); assertEquals(0, notifications)
+        assertFalse(permit.allows()) // Cleanup is inert; a later real choice revokes the old tap.
     }
 
 }

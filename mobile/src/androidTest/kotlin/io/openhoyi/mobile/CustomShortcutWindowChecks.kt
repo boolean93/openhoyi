@@ -52,7 +52,6 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
         val curvePrefs = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val slotPrefs = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
         val shortcutPrefs = context.getSharedPreferences("shortcut_start", Context.MODE_PRIVATE)
-        val shortcutConfigured = shortcutPrefs.all["configured"] as? Boolean
         val shortcutDirect = shortcutPrefs.all["direct_start"] as? Boolean
         val selected = curvePrefs.getString("selected", null)
         val stored = slotPrefs.getString(PresetSlots.key(5), null)
@@ -75,7 +74,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             finally { bitmap.recycle() }
         }
         try {
-            check(shortcutPrefs.edit().putBoolean("configured", true).putBoolean("direct_start", false).commit())
+            check(shortcutPrefs.edit().putBoolean("direct_start", false).commit())
             main { put(document) }
             val page = MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
@@ -142,7 +141,6 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             try { main { docs.set(store, originalDocs); activity?.finish() } }
             finally {
                 check(shortcutPrefs.edit().apply {
-                    if (shortcutConfigured == null) remove("configured") else putBoolean("configured", shortcutConfigured)
                     if (shortcutDirect == null) remove("direct_start") else putBoolean("direct_start", shortcutDirect)
                 }.commit())
                 check(curvePrefs.edit().apply { if (selected == null) remove("selected") else putString("selected", selected) }.commit())

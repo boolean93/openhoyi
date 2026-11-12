@@ -106,6 +106,25 @@ class ShortcutStartDispatchTest {
         }
     }
 
+    @Test fun offThenOnThroughTheOtherSwitchCannotReviveAQueuedStart() {
+        var stored = ShortcutStartPolicy.Preference(true)
+        val safety = ShortcutPreferenceSafety()
+        val home = ShortcutStartPreferences({ stored }, { stored = it; true }, safety)
+        val settings = ShortcutStartPreferences({ stored }, { stored = it; true }, safety)
+        val expectedRevision = home.revision
+        val coffee = Coffee(); val scale = Scale()
+        val permit = ShortcutStartPermit(0, { 0 }, { home.read().startsOnTap && home.revision == expectedRevision })
+        val stopRootObserver = home.observe(permit::revoke)
+        val controller = ExtractionController(coffee, scale, { 0 })
+        assertTrue(permit.claim())
+        assertTrue(controller.start(CurveCatalog.profiles[1].parameters, 0, 0, permit::allows))
+        assertTrue(settings.choose(false)); assertTrue(home.choose(true))
+        assertTrue(home.read().startsOnTap)
+        coffee.dispatch!!()
+        assertEquals(0, coffee.sent); assertEquals(ExtractionState.IDLE, controller.state)
+        stopRootObserver()
+    }
+
     @Test fun revocationAfterSubmissionDoesNotInventCancellationOrClearUnknownOutcome() {
         val f = Fixture(); f.start(); f.coffee.dispatch!!()
         assertEquals(1, f.coffee.sent)

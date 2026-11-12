@@ -25,12 +25,14 @@ class AppSettingsFragment : Fragment() {
     private var updatingTheme = false
     private var shortcutToggle: Switch? = null
     private var updatingShortcut = false
+    private var stopShortcutPreferenceObserver: (() -> Unit)? = null
     private var shortcutError: TextView? = null
     private var shortcutRetry: android.widget.Button? = null
     private fun refreshShortcutChoice() {
         val prefs = ShortcutStartPreferences(requireContext())
         updatingShortcut = true
-        shortcutToggle?.isChecked = prefs.read().startsOnTap
+        val checked = prefs.read().startsOnTap
+        if (shortcutToggle?.isChecked != checked) shortcutToggle?.isChecked = checked
         updatingShortcut = false
         shortcutError?.visibility = if (prefs.suppressed) View.VISIBLE else View.GONE
         shortcutRetry?.visibility = if (prefs.suppressed) View.VISIBLE else View.GONE
@@ -171,6 +173,7 @@ class AppSettingsFragment : Fragment() {
             visual.switch(this, 52)
             setOnCheckedChangeListener { _, checked ->
                 if (!updatingShortcut) {
+                    activity.revokeShortcutStart()
                     if (!shortcutPreferences.choose(checked)) {
                         android.widget.Toast.makeText(activity, R.string.shortcut_start_save_failed, android.widget.Toast.LENGTH_LONG).show()
                     }
@@ -183,6 +186,7 @@ class AppSettingsFragment : Fragment() {
             setTextColor(activity.getColor(R.color.mobile_danger)); visibility = View.GONE
         }.also { style.add(shortcutSection, it, 8) }
         shortcutRetry = HoyiUi.button(activity, shortcutSection, getString(R.string.shortcut_start_retry_off)) {
+            activity.revokeShortcutStart()
             if (!shortcutPreferences.choose(false)) {
                 android.widget.Toast.makeText(activity, R.string.shortcut_start_save_failed, android.widget.Toast.LENGTH_LONG).show()
             }
@@ -260,6 +264,8 @@ class AppSettingsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        stopShortcutPreferenceObserver?.invoke()
+        stopShortcutPreferenceObserver = ShortcutStartPreferences(requireContext()).observe(::refreshShortcutChoice)
         refreshShortcutChoice()
         (requireActivity() as MainActivity).observeService(serviceObserver)
         refreshHandler.post(refreshCapabilities)
@@ -267,6 +273,7 @@ class AppSettingsFragment : Fragment() {
         feedbackCard?.start(); feedbackCard?.refresh()
     }
     override fun onPause() {
+        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
         refreshHandler.removeCallbacks(refreshCapabilities)
         deviceControls?.close()
         machineControls?.stop()
@@ -280,6 +287,7 @@ class AppSettingsFragment : Fragment() {
         super.onStop()
     }
     override fun onDestroyView() {
+        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
         feedbackCard?.stop(); languageCard?.close()
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         documentState=Bundle().also { document?.save(it) }

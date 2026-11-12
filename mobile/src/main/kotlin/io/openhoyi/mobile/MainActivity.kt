@@ -16,7 +16,6 @@ import android.view.WindowInsets
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Toast
-import android.widget.CheckBox
 import android.content.SharedPreferences
 import android.app.AlertDialog
 import androidx.activity.OnBackPressedCallback
@@ -71,10 +70,10 @@ class MainActivity : ThemedActivity() {
         }
     }
     private var shortcutStart: ShortcutStartPermit? = null
-    private var shortcutPrompt: AlertDialog? = null
     private val shortcutPreferences by lazy { ShortcutStartPreferences(this) }
+    private var stopShortcutPreferenceObserver: (() -> Unit)? = null
     private val shortcutPreferenceFiles by lazy {
-        listOf("presets", "curves", "devices", ShortcutStartPolicy.PREFERENCES).map { getSharedPreferences(it, MODE_PRIVATE) }
+        listOf("presets", "curves", "devices").map { getSharedPreferences(it, MODE_PRIVATE) }
     }
     private val shortcutPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         revokeShortcutStart()
@@ -238,6 +237,7 @@ class MainActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         shortcutPreferenceFiles.forEach { it.registerOnSharedPreferenceChangeListener(shortcutPreferenceListener) }
+        stopShortcutPreferenceObserver = shortcutPreferences.observe(::revokeShortcutStart)
         destination = (savedInstanceState?.getString(STATE_DESTINATION)
             ?: intent.getStringExtra(EXTRA_INITIAL_DESTINATION))?.let { runCatching { TaskDestination.valueOf(it) }.getOrNull() }
             ?: TaskDestination.BREW
@@ -309,7 +309,6 @@ class MainActivity : ThemedActivity() {
     }
     override fun onPause() {
         revokeShortcutStart()
-        shortcutPrompt?.dismiss(); shortcutPrompt = null
         foreground = false
         handler.removeCallbacks(manualPresentation)
         dismissTransientDialogs()
@@ -319,6 +318,7 @@ class MainActivity : ThemedActivity() {
     override fun onDestroy() {
         revokeShortcutStart()
         shortcutPreferenceFiles.forEach { it.unregisterOnSharedPreferenceChangeListener(shortcutPreferenceListener) }
+        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
         super.onDestroy()
     }
 
@@ -379,50 +379,11 @@ class MainActivity : ThemedActivity() {
         PresetSlots.requireSlot(slot)
         if (!foreground || supportFragmentManager.isStateSaved || extractionVisible || destination != TaskDestination.BREW) return
         revokeShortcutStart()
-        if (shortcutPrompt?.isShowing == true) return
         val stored = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null)
         val library = (application as MobileApplication).curves
         val route = PresetSlots.route(slot, stored, library) as? PresetSlots.Route.Ready
             ?: run { Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show(); return }
-        val item = library.find(route.curveId)
-        fun unchanged() = foreground && !supportFragmentManager.isStateSaved && !extractionVisible &&
-            destination == TaskDestination.BREW &&
-            getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null) == stored &&
-            PresetSlots.route(slot, stored, library) == route && library.find(route.curveId) == item
-        fun choose(startNow: Boolean, remember: Boolean?) {
-            if (!unchanged()) {
-                Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show()
-                return
-            }
-            if (remember != null && !shortcutPreferences.choose(remember)) {
-                Toast.makeText(this, R.string.shortcut_start_save_failed, Toast.LENGTH_LONG).show()
-                return
-            }
-            launchShortcut(slot, stored, route, startNow)
-        }
-        val preference = shortcutPreferences.read()
-        if (!preference.showPrompt) { choose(preference.startsOnTap, null); return }
-        val style = TaskProductVisualStyle(this)
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(style.dp(24), style.dp(8), style.dp(24), style.dp(8))
-        }
-        body.addView(style.text(getString(R.string.shortcut_start_prompt_message), TaskProductVisualStyle.body))
-        val direct = CheckBox(this).apply {
-            text = getString(R.string.shortcut_start_remember)
-            isChecked = false
-            minHeight = style.dp(48)
-            tag = "product/home/shortcut/direct-start"
-        }
-        body.addView(direct)
-        val dialog = AppDialog.show(AlertDialog.Builder(this)
-            .setTitle(R.string.shortcut_start_prompt_title).setView(body)
-            .setPositiveButton(R.string.extraction_start) { _, _ -> choose(true, direct.isChecked) }
-            .setNeutralButton(R.string.shortcut_start_view) { _, _ -> choose(false, direct.isChecked) }
-            .setNegativeButton(android.R.string.cancel, null).create())
-        shortcutPrompt = dialog
-        dialog.setOnDismissListener { if (shortcutPrompt === dialog) shortcutPrompt = null }
-        trackDialog(dialog)
+        launchShortcut(slot, stored, route, shortcutPreferences.read().startsOnTap)
     }
 
     private fun launchShortcut(sourceSlot: Int, stored: String?, route: PresetSlots.Route.Ready, startNow: Boolean) {
@@ -437,6 +398,7 @@ class MainActivity : ThemedActivity() {
         val settings = owner?.snapshot?.settings
         val device = owner?.shortcutDeviceIdentity
         val preference = shortcutPreferences.read()
+        val preferenceRevision = shortcutPreferences.revision
         showExtraction(sourceSlot)
         if (!startNow) return
         val fragment = supportFragmentManager.primaryNavigationFragment as? ExtractionFragment ?: return
@@ -452,7 +414,8 @@ class MainActivity : ThemedActivity() {
                 device != null && owner.snapshot.settings == settings &&
                 owner.shortcutConfigurationRevision == configurationRevision &&
                 app.customCurvesResult.getOrNull()?.revision == curveRevision &&
-                shortcutPreferences.read() == preference &&
+                preference.startsOnTap && shortcutPreferences.read() == preference &&
+                shortcutPreferences.revision == preferenceRevision &&
                 getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(sourceSlot), null) == stored &&
                 PresetSlots.route(sourceSlot, stored, library) == route &&
                 (route.wireSlot != 7 || getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null) == route.curveId) &&

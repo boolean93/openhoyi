@@ -28,7 +28,6 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         val documents = store.javaClass.getDeclaredField("documents").apply { isAccessible = true }
         val originalDocs = documents.get(store)
         val prefs = context.getSharedPreferences("shortcut_start", Context.MODE_PRIVATE)
-        val oldConfigured = prefs.all["configured"] as? Boolean
         val oldDirect = prefs.all["direct_start"] as? Boolean
         val slots = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
         val oldSlot = slots.getString(PresetSlots.key(5), null)
@@ -55,7 +54,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 @Suppress("UNCHECKED_CAST") val old = originalDocs as Map<String, CustomCurveDocument>
                 documents.set(store, LinkedHashMap(old).apply { put(document.id, document) })
                 check(slots.edit().putString(PresetSlots.key(5), document.id).commit())
-                check(prefs.edit().remove("configured").remove("direct_start").commit())
+                check(prefs.edit().remove("direct_start").commit())
             }
             val page = MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
@@ -76,29 +75,36 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(service.shotState == oldState && app.history.entries == history)
                 check(MobileService::class.java.getDeclaredField("hub").apply { isAccessible = true }.get(service) == null)
             }
-            fun dialog(): android.app.AlertDialog? = MainActivity::class.java.getDeclaredField("shortcutPrompt")
-                .apply { isAccessible = true }.get(host) as? android.app.AlertDialog
+            fun homeToggle(host: MainActivity) = host.findViewById<View>(android.R.id.content)
+                .findViewWithTag<CompoundButton>("product/home/shortcuts/direct-start")
+            fun visible(view: View): Boolean {
+                val rect = android.graphics.Rect()
+                return view.getGlobalVisibleRect(rect) && rect.height() >= view.height
+            }
             fun clickSlot() = main {
                 val current = service.currentCorrectedBrewTemperature()
                 check(current == null || kotlin.math.abs(current - 10500) > 100) { "Unsafe temperature fixture" }
                 check(page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/5").performClick())
             }
-            clickSlot()
-            await("first prompt") { dialog()?.isShowing == true }
-            capture("first-prompt")
-            main { dialog()!!.cancel(); noShot() }
-            check(!prefs.contains("configured") && !prefs.getBoolean("direct_start", false))
-            clickSlot()
-            await("second prompt") { dialog()?.isShowing == true }
             main {
-                dialog()!!.findViewById<View>(android.R.id.content)
-                    .findViewWithTag<CompoundButton>("product/home/shortcut/direct-start").isChecked = true
-                // View-only action commits the future preference but never starts this click.
-                dialog()!!.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).performClick()
+                check(!homeToggle(host).isChecked)
+                homeToggle(host).requestRectangleOnScreen(android.graphics.Rect(0, 0, homeToggle(host).width, homeToggle(host).height), true)
             }
-            await("view") { runCatching { page.active("extraction") }.isSuccess }
-            check(prefs.getBoolean("configured", false) && prefs.getBoolean("direct_start", false)); noShot()
+            await("home toggle visible") { visible(homeToggle(host)) }
+            capture("home-off")
+            clickSlot()
+            await("off navigates without dialog") { runCatching { page.active("extraction") }.isSuccess }
+            check(!prefs.getBoolean("direct_start", false)); noShot()
             main { host.select(TaskDestination.BREW) }
+            main {
+                check(!homeToggle(host).isChecked)
+                homeToggle(host).performClick()
+                homeToggle(host).requestRectangleOnScreen(android.graphics.Rect(0, 0, homeToggle(host).width, homeToggle(host).height), true)
+                noShot()
+            }
+            check(prefs.getBoolean("direct_start", false))
+            await("home toggle enabled") { homeToggle(host).isChecked && visible(homeToggle(host)) }
+            capture("home-on")
             clickSlot()
             await("cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
             noShot(); capture("temperature-gated")
@@ -148,7 +154,9 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                     check(toggle.isChecked); toggle.performClick()
                 }
                 check(!prefs.getBoolean("direct_start", true)); noShot()
-                main { recreated.select(TaskDestination.BREW); recreated.openShortcut(5) }
+                main { recreated.select(TaskDestination.BREW) }
+                await("settings off reflected at Home") { !homeToggle(recreated).isChecked }
+                main { recreated.openShortcut(5) }
                 await("disabled navigates only") { recreated.supportFragmentManager.findFragmentByTag("extraction")?.isVisible == true }
                 noShot()
             } finally { test.removeMonitor(monitor) }
@@ -159,7 +167,6 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             } }
             finally {
                 check(prefs.edit().apply {
-                    if (oldConfigured == null) remove("configured") else putBoolean("configured", oldConfigured)
                     if (oldDirect == null) remove("direct_start") else putBoolean("direct_start", oldDirect)
                 }.commit())
                 check(slots.edit().apply { if (oldSlot == null) remove(PresetSlots.key(5)) else putString(PresetSlots.key(5), oldSlot) }.commit())

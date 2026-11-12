@@ -3,14 +3,12 @@ package io.openhoyi.mobile
 /** Local shortcut behavior only. No stored permission can bypass the service's start gates. */
 internal object ShortcutStartPolicy {
     const val PREFERENCES = "shortcut_start"
-    const val CONFIGURED = "configured"
     const val DIRECT_START = "direct_start"
     const val REQUEST_LIFETIME_MS = 5_000L
 
-    data class Preference(val configured: Boolean = false, val directStart: Boolean = false) {
-        val showPrompt get() = !configured
-        val startsOnTap get() = configured && directStart
-        fun choose(directStart: Boolean) = Preference(true, directStart)
+    data class Preference(val directStart: Boolean = false) {
+        val startsOnTap get() = directStart
+        fun choose(directStart: Boolean) = Preference(directStart)
     }
 }
 
@@ -52,6 +50,16 @@ internal class ShortcutContentRevision<T>(initial: T) {
 internal class ShortcutPreferenceSafety {
     @Volatile var suppressed = false
         private set
-    fun failed() { suppressed = true }
-    fun saved() { suppressed = false }
+    var revision = 0L
+        private set
+    private val observers = mutableSetOf<() -> Unit>()
+    fun observe(observer: () -> Unit): () -> Unit {
+        observers += observer
+        return { observers -= observer }
+    }
+    private fun publish() { observers.toList().forEach { runCatching(it) } }
+    /** Announce every explicit choice before persistence, including off -> on in one loop. */
+    fun changing() { revision++; publish() }
+    fun failed() { if (!suppressed) revision++; suppressed = true; publish() }
+    fun saved() { if (suppressed) revision++; suppressed = false; publish() }
 }

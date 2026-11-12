@@ -105,7 +105,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             if (shortcutDirectStartChecks) {
                 ShortcutDirectStartWindowChecks(this).run()
-                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED cancel=true remembered=true settings=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
+                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED defaultOff=true homeToggle=true settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (machineLeverRecipeChecks) {
