@@ -51,6 +51,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var live: TextView
     private lateinit var elapsedValue: TextView
     private lateinit var pressureValue: TextView
+    private lateinit var scaleReadout: ExtractionScaleReadoutView
     private lateinit var weightValue: TextView
     private lateinit var quantityLabel: TextView
     private lateinit var temperatureValue: TextView
@@ -277,6 +278,8 @@ class ExtractionActivity : ThemedActivity() {
         }
         val actionDock = TaskActionDock(this, edgeInsetDp = 0)
         workspace.setFooter(actionDock)
+        scaleReadout = ExtractionScaleReadoutView(this, visual)
+        actionDock.addView(scaleReadout, LinearLayout.LayoutParams(-1, -2))
         start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
         (weightTarget.parent as? android.view.ViewGroup)?.removeView(weightTarget)
         actionDock.addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
@@ -542,6 +545,8 @@ class ExtractionActivity : ThemedActivity() {
             is IdleTelemetry -> String.format(Locale.ROOT, "%.1f", frame.brewPressureTenthsBar / 10.0)
             else -> "—"
         }))
+        scaleReadout.present(owner?.extractionScaleValue(now)
+            ?: ExtractionScaleReadout.live(snapshot.scaleObservation, snapshot.scaleState, now))
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
         // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
         val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY

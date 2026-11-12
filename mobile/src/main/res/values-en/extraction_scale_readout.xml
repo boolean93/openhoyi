@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="extraction_scale_raw">Scale reading</string>
+    <string name="extraction_scale_no_data">No reading</string>
+    <string name="extraction_scale_disconnected">Scale disconnected</string>
+    <string name="extraction_scale_unavailable">Reading unavailable</string>
+    <string name="extraction_scale_stale">Reading stale</string>
+    <string name="extraction_scale_end_unavailable">No end reading</string>
+    <string name="extraction_scale_unknown">End unconfirmed</string>
+    <string name="extraction_scale_ended">Reading at end</string>
+    <string name="extraction_scale_target">Shot target %1$s g</string>
+</resources>

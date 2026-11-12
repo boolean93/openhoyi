@@ -60,6 +60,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var live: TextView
     private lateinit var elapsedValue: TextView
     private lateinit var pressureValue: TextView
+    private lateinit var scaleReadout: ExtractionScaleReadoutView
     private lateinit var weightValue: TextView
     private lateinit var quantityLabel: TextView
     private lateinit var temperatureValue: TextView
@@ -333,6 +334,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             setBackgroundColor(style.surface)
         }
         chart.attachLiveReadouts(if(portraitLive) plotColumn else actionDock)
+        scaleReadout = ExtractionScaleReadoutView(host, visual)
+        actionDock.addView(scaleReadout, LinearLayout.LayoutParams(if(portraitLive) -1 else dp(180), -2).apply { marginStart = dp(8) })
         val actionButtons = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         actionDock.addView(actionButtons, LinearLayout.LayoutParams(if(portraitLive) -1 else dp(190), -2).apply { if(portraitLive) topMargin=dp(12) else marginStart=dp(12) })
         workspace.setFooter(actionDock)
@@ -642,6 +645,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             is IdleTelemetry -> String.format(Locale.ROOT, "%.1f", frame.brewPressureTenthsBar / 10.0)
             else -> "—"
         }))
+        scaleReadout.present(owner?.extractionScaleValue(now)
+            ?: ExtractionScaleReadout.live(snapshot.scaleObservation, snapshot.scaleState, now))
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
         chart.unavailableLiveMetrics = buildSet {
             if (frame == null) addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
