@@ -36,6 +36,11 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         val curves = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val oldSelected = curves.getString("selected", null)
         val history = app.history.entries
+        val ledger = app.curveUsageResult.getOrThrow()
+        val usesField = ledger.javaClass.getDeclaredField("uses").apply { isAccessible = true }
+        val originalUses = usesField.get(ledger)
+        val usageFile = File(context.filesDir, "curve_usage_v1.tsv")
+        val usageBytes = usageFile.takeIf { it.exists() }?.readBytes()
         val curveFile = File(context.filesDir, "custom_curves_v1.json")
         val originalBytes = curveFile.takeIf { it.exists() }?.readBytes()
         val document = CustomCurveDocument(CustomCurveDocument.newId(), "Shortcut direct QA", 105, 3600,
@@ -115,6 +120,48 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             clickSlot()
             await("cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
             noShot(); capture("temperature-gated")
+            // The previous-shot entry is the same explicit tap path, never a preheat request.
+            main {
+                val at = maxOf(System.currentTimeMillis(), (ledger.latest()?.startedAtMs ?: 0) + 1)
+                ledger.record("last-shot-direct-window", document.id, at)
+                ledger.attachFingerprint("last-shot-direct-window", CustomCurveFingerprint.of(document))
+                host.select(TaskDestination.BREW)
+                check(prefs.edit().putBoolean("direct_start", false).commit())
+            }
+            fun lastUse() = page.active("root:BREW").requireView()
+                .findViewWithTag<View>("product/home/last-curve/use")
+            await("previous curve shown") {
+                host.resolveLastCurve() is HomeLastCurve.Ready &&
+                    page.active("root:BREW").requireView().findViewWithTag<android.widget.TextView>("product/home/quick-recipe").text.toString() == document.name
+            }
+            main { check(lastUse().performClick()) }
+            await("previous off navigates only") { runCatching { page.active("extraction") }.isSuccess }
+            main {
+                noShot()
+                check(curves.getString("selected", null) == document.id)
+                host.select(TaskDestination.BREW)
+                check(prefs.edit().putBoolean("direct_start", true).commit())
+            }
+            await("previous direct preference") { homeToggle(host).isChecked }
+            main {
+                check(lastUse().performClick())
+            }
+            await("previous cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
+            main { noShot() }
+            capture("previous-temperature-gated")
+            // A stale history identity cannot navigate or create a permit for another shot.
+            main {
+                host.select(TaskDestination.BREW)
+                val reference = checkNotNull(host.lastCurveReference())
+                val ready = host.resolveLastCurve(reference) as HomeLastCurve.Ready
+                ledger.record("last-shot-direct-window-new", document.id, checkNotNull(reference.latest).startedAtMs + 1)
+                ledger.attachFingerprint("last-shot-direct-window-new", CustomCurveFingerprint.of(document))
+                host.openLastCurve(ready, reference)
+                check(host.supportFragmentManager.findFragmentByTag("extraction")?.isVisible != true)
+                noShot()
+                // Restore a gated extraction page for the existing recreation checks.
+                host.openShortcut(5)
+            }
             val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
             try {
                 main { host.recreate() }
@@ -170,7 +217,10 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         } finally {
             try { main {
                 mockRuntime?.let { runtime -> runtime.javaClass.getDeclaredField("settings").apply { isAccessible = true }.set(runtime, originalMockSettings) }
-                documents.set(store, originalDocs); activity?.finish()
+                documents.set(store, originalDocs)
+                usesField.set(ledger, originalUses)
+                if (usageBytes == null) usageFile.delete() else usageFile.writeBytes(usageBytes)
+                activity?.finish()
             } }
             finally {
                 if (darkTheme != null) check(appearance.edit().apply {

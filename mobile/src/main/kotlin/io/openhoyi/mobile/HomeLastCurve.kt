@@ -7,6 +7,9 @@ internal sealed interface HomeLastCurve {
     data class Unavailable(val reason: Reason) : HomeLastCurve
     data class Ready(val item: CurveLibraryItem, val preview: CurveStageParameters.Preview?) : HomeLastCurve
 
+    /** Keep the historical shot identity, even when two uses resolve to the same curve. */
+    data class Reference(val latest: CurveUsage?, val recentObserved: CurveUsage?)
+
     companion object {
         fun from(latest: CurveUsage?, items: List<CurveLibraryItem>,
                  recentObserved: CurveUsage? = null,

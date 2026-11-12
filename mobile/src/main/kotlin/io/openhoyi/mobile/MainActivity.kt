@@ -374,7 +374,7 @@ class MainActivity : ThemedActivity() {
         }
     }
 
-    /** Only the five local Home shortcuts enter here. All other navigation remains inert. */
+    /** Explicit Home shortcut taps only. All other navigation remains inert. */
     internal fun openShortcut(slot: Int) {
         PresetSlots.requireSlot(slot)
         if (!foreground || supportFragmentManager.isStateSaved || extractionVisible || destination != TaskDestination.BREW) return
@@ -383,10 +383,44 @@ class MainActivity : ThemedActivity() {
         val library = (application as MobileApplication).curves
         val route = PresetSlots.route(slot, stored, library) as? PresetSlots.Route.Ready
             ?: run { Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show(); return }
-        launchShortcut(slot, stored, route, shortcutPreferences.read().startsOnTap)
+        launchHomeCurve(slot, route) {
+            getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(slot), null) == stored &&
+                PresetSlots.route(slot, stored, library) == route
+        }
     }
 
-    private fun launchShortcut(sourceSlot: Int, stored: String?, route: PresetSlots.Route.Ready, startNow: Boolean) {
+    internal fun lastCurveReference(): HomeLastCurve.Reference? {
+        val app = application as MobileApplication
+        // Loading history migrates positively observed uses into the permanent ledger first.
+        val history = runCatching { app.history }.getOrNull() ?: return null
+        val ledger = app.curveUsageResult.getOrNull() ?: return null
+        val recent = history.entries.firstOrNull { it.curveId != "manual" && it.observedRunning }
+            ?.let { CurveUsage(it.id, it.curveId, it.startedAtMs) }
+        return HomeLastCurve.Reference(ledger.latest(), recent)
+    }
+
+    internal fun resolveLastCurve(reference: HomeLastCurve.Reference? = lastCurveReference()): HomeLastCurve {
+        val app = application as MobileApplication
+        return reference?.let { HomeLastCurve.from(it.latest, app.curves.items, it.recentObserved, app.curves::canStart) }
+            ?: HomeLastCurve.DataUnavailable
+    }
+
+    internal fun openLastCurve(ready: HomeLastCurve.Ready, reference: HomeLastCurve.Reference) {
+        if (!foreground || supportFragmentManager.isStateSaved || extractionVisible || destination != TaskDestination.BREW) return
+        revokeShortcutStart()
+        if (lastCurveReference() != reference || resolveLastCurve(reference) != ready) return
+        // Slot 7 re-resolves the committed selection in the fragment and service.
+        if (!getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", ready.item.id).commit()) {
+            Toast.makeText(this, R.string.task_brew_usage_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
+        launchHomeCurve(7, PresetSlots.Route.Ready(ready.item.id, 7, true)) {
+            lastCurveReference() == reference && resolveLastCurve(reference) == ready
+        }
+    }
+
+    /** Shared one-tap path: the source must remain the exact curve/history reference tapped. */
+    private fun launchHomeCurve(sourceSlot: Int, route: PresetSlots.Route.Ready, sourceValid: () -> Boolean) {
         val requestedAt = MobileMonotonicClock.elapsedRealtime()
         val owner = service
         val library = (application as MobileApplication).curves
@@ -400,7 +434,7 @@ class MainActivity : ThemedActivity() {
         val preference = shortcutPreferences.read()
         val preferenceRevision = shortcutPreferences.revision
         showExtraction(sourceSlot)
-        if (!startNow) return
+        if (!preference.startsOnTap) return
         val fragment = supportFragmentManager.primaryNavigationFragment as? ExtractionFragment ?: return
         if (owner == null || expected == null) {
             Toast.makeText(this, if (owner == null) R.string.service_unavailable else R.string.extraction_choose_startable, Toast.LENGTH_LONG).show()
@@ -416,8 +450,7 @@ class MainActivity : ThemedActivity() {
                 app.customCurvesResult.getOrNull()?.revision == curveRevision &&
                 preference.startsOnTap && shortcutPreferences.read() == preference &&
                 shortcutPreferences.revision == preferenceRevision &&
-                getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(sourceSlot), null) == stored &&
-                PresetSlots.route(sourceSlot, stored, library) == route &&
+                sourceValid() &&
                 (route.wireSlot != 7 || getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null) == route.curveId) &&
                 library.resolve(route.curveId, owner.snapshot.scaleState == DeviceState.READY, route.wireSlot) == expected &&
                 library.find(route.curveId) == expectedItem && library.validated(expected) &&

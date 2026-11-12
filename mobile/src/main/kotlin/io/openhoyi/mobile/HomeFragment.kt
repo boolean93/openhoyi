@@ -71,6 +71,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var lastCurveName: TextView
     private lateinit var lastCurvePreview: CurveLibrarySparklineView
     private lateinit var lastCurveDivider: View
+    private var lastCurveReference: HomeLastCurve.Reference? = null
     private var lastCurveState: HomeLastCurve = HomeLastCurve.Empty
     private var lastCurveDirty = true
     private var previousCupActive = false
@@ -454,6 +455,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickLaunch = button(lastCurveRow, getString(R.string.home_curve_select), primary = true) {
             useLastCurve()
         }.apply {
+            tag = "product/home/last-curve/use"
             textSize=21f
             setSingleLine(true)
             if (shortWideHome) setPadding(dp(4), paddingTop, dp(4), paddingBottom)
@@ -1205,18 +1207,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         DeviceState.UNSUPPORTED -> getString(R.string.device_state_unsupported); else -> getString(R.string.device_state_connecting)
     }
     private fun resolveLastCurve(): HomeLastCurve {
-        val app = application as MobileApplication
-        // Loading history also migrates positively observed recent uses into the permanent ledger.
-        val history = runCatching { app.history }.getOrNull() ?: return HomeLastCurve.DataUnavailable
-        val ledger = app.curveUsageResult.getOrNull() ?: return HomeLastCurve.DataUnavailable
-        val recentObserved = history.entries.firstOrNull { it.curveId != "manual" && it.observedRunning }
-            ?.let { CurveUsage(it.id, it.curveId, it.startedAtMs) }
-        return HomeLastCurve.from(ledger.latest(), app.curves.items, recentObserved) {
-            app.curves.canStart(it)
-        }
+        return host.resolveLastCurve()
     }
+
     private fun showLastCurve(state: HomeLastCurve) {
         lastCurveState = state
+        lastCurveReference = host.lastCurveReference()
         val ready = state as? HomeLastCurve.Ready
         val label = when (state) {
             HomeLastCurve.Empty -> getString(R.string.task_brew_usage_empty)
@@ -1238,8 +1234,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickLaunch.contentDescription = getString(R.string.home_last_heading) + " · " + label + " · " + quickLaunch.text
     }
     private fun useLastCurve() {
-        val latest = resolveLastCurve()
-        if (latest != lastCurveState) {
+        val reference = host.lastCurveReference()
+        val latest = host.resolveLastCurve(reference)
+        if (latest != lastCurveState || reference != lastCurveReference) {
             showLastCurve(latest)
             return
         }
@@ -1247,11 +1244,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             host.select(TaskDestination.CURVES)
             return
         }
-        // slot 7 resolves the persisted selection again in ExtractionFragment and MobileService.
-        val saved = getSharedPreferences("curves", MODE_PRIVATE).edit()
-            .putString("selected", ready.item.id).commit()
-        if (!saved) { toast(getString(R.string.task_brew_usage_unavailable)); return }
-        host.showExtraction(slot = 7)
+        if (reference == null) return
+        host.openLastCurve(ready, reference)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun String.compactTemperature() = substringBefore(' ').toFloatOrNull()?.let { String.format(Locale.ROOT, "%.1f °C", it) } ?: this
