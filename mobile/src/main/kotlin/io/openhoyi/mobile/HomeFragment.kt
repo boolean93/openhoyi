@@ -444,6 +444,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             })
             val button = productStyle.button(Button(host), outline = spaciousHome).apply {
                 tag = "product/home/direct-preset/$slot"
+                // Static theme chrome belongs to view creation, not the 250ms telemetry render.
+                if (slot == 0) background = productStyle.shape(productStyle.surface, true)
                 setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.showExtraction(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
@@ -476,6 +478,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 ellipsize = if(phoneHome || shortHome) null else android.text.TextUtils.TruncateAt.END
                 if(phoneHome) minimumHeight=dp(48)
             }
+            if (slot == 0) name.setTextColor(productStyle.homePresetText)
             contents.addView(name, if(phoneHome || shortHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(-1, 0, 1f))
             DirectPresetVisual(button, name, sparkline)
         }
@@ -1098,13 +1101,15 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             else -> getString(R.string.lever_empty)
         }
         directPresets.first().apply {
-            button.background = productStyle.shape(productStyle.surface, true)
-            name.setTextColor(productStyle.homePresetText)
             name.show(leverName)
-            button.contentDescription = "${getString(R.string.lever_title)} · ${getString(R.string.lever_recent)} · $leverName"
+            val description = "${getString(R.string.lever_title)} · ${getString(R.string.lever_recent)} · $leverName"
+            if (button.contentDescription?.toString() != description) button.contentDescription = description
             val preview = if (leverUnknown) null else leverRecord?.snapshot?.frameHex?.let(MachineLeverRecipePreview::from)
-            sparkline.visibility = if (preview == null) View.GONE else View.VISIBLE
-            if (preview != null) sparkline.preview = preview
+            val visibility = if (preview == null) View.GONE else View.VISIBLE
+            if (sparkline.visibility != visibility) sparkline.visibility = visibility
+            // Clear old-device/uncertain previews as well; no cached machine identity is trusted.
+            val desiredPreview = preview ?: CurveStageParameters.Preview(emptyList())
+            if (sparkline.preview != desiredPreview) sparkline.preview = desiredPreview
         }
         if (presetVisualsDirty) {
             val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
