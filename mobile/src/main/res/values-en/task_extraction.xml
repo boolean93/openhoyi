@@ -1,5 +1,5 @@
 <resources>
-    <string name="task_extraction_elapsed">Elapsed</string>
+    <string name="task_extraction_elapsed">Machine timer</string>
     <string name="task_extraction_scale">Scale reading</string>
     <string name="task_extraction_water">Total water</string>
     <string name="task_extraction_pressure">Pressure %1$s bar</string>

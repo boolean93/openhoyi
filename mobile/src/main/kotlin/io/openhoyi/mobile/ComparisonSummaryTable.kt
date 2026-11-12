@@ -10,7 +10,7 @@ import java.util.Locale
 internal class ComparisonSummaryTable(private val activity: ThemedActivity, private val visual: ExtractionHistoryVisualStyle? = null) : LinearLayout(activity) {
     private val headers = mutableListOf<TextView>()
     private val values = List(2) { mutableListOf<TextView>() }
-    private val labels = listOf(R.string.history_duration, R.string.history_end_scale, R.string.journal_taste)
+    private val labels = listOf(R.string.history_record_elapsed, R.string.history_end_scale, R.string.journal_taste)
     init {
         orientation = VERTICAL
         tag = "comparison-summary-table"

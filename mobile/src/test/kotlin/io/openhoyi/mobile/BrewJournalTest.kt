@@ -12,6 +12,54 @@ class BrewJournalTest {
     }
     private fun shot(id: String = "shot") = BrewJournal.Observation(id, "curve", 100, null, null, "UNKNOWN", "Disconnected", null)
     private fun rejects(block: () -> Unit) = assertTrue(runCatching(block).isFailure)
+    @Test fun legacySchemaOneObservationRemainsReadableAndExportsAsSchemaThree() {
+        val store = Store()
+        val original = BrewJournal(store)
+        original.observe(shot().copy(status="ENDED", endedAtMs=31200, elapsedMs=31100))
+        val root = org.json.JSONObject(original.exportJson())
+        val entries = root.getJSONArray("entries")
+        entries.getJSONObject(0).getJSONObject("shot").apply {
+            remove("observedMachineElapsedSeconds"); remove("timingEvidenceVersion"); remove("observedSampleCoverageMs")
+        }
+        val checksum = BrewJournal::class.java.getDeclaredMethod("checksum", org.json.JSONArray::class.java)
+            .apply { isAccessible = true }.invoke(original, entries)
+        store.document = root.put("schema", 1).put("checksum", checksum).toString()
+        val journal = BrewJournal(store)
+        assertNull(journal.entries().single().observation.observedMachineElapsedSeconds)
+        assertEquals(0, journal.entries().single().observation.timingEvidenceVersion)
+        assertEquals(31100L, journal.entries().single().observation.elapsedMs)
+        assertEquals(3, org.json.JSONObject(journal.exportJson()).getInt("schema"))
+    }
+    @Test fun schemaTwoMachineEvidenceRemainsReadableWithoutCoverage() {
+        val store = Store()
+        val original = BrewJournal(store)
+        original.observe(shot().copy(observedMachineElapsedSeconds=27, timingEvidenceVersion=1))
+        val root = org.json.JSONObject(original.exportJson())
+        val entries = root.getJSONArray("entries")
+        entries.getJSONObject(0).getJSONObject("shot").remove("observedSampleCoverageMs")
+        val checksum = BrewJournal::class.java.getDeclaredMethod("checksum", org.json.JSONArray::class.java)
+            .apply { isAccessible = true }.invoke(original, entries)
+        store.document = root.put("schema", 2).put("checksum", checksum).toString()
+        val observation = BrewJournal(store).entries().single().observation
+        assertEquals(27, observation.observedMachineElapsedSeconds)
+        assertNull(observation.observedSampleCoverageMs)
+        assertEquals(1, observation.timingEvidenceVersion)
+    }
+    @Test fun terminalTimingReplayRepairsMissedWriteWithoutOverwritingNotes() {
+        val store = Store()
+        var journal = BrewJournal(store)
+        val ended = shot().copy(status="ENDED", endedAtMs=31200, elapsedMs=31100, timingEvidenceVersion=1)
+        journal.observe(ended)
+        journal.edit("shot", BrewJournal.Notes(taste="Keep"))
+        val evidence = ended.copy(observedMachineElapsedSeconds=27, observedSampleCoverageMs=20000)
+        store.fail=true; rejects { journal.observe(evidence) }; store.fail=false
+        journal=BrewJournal(store)
+        journal.reconcileRecent(listOf(evidence))
+        assertEquals(evidence, journal.find("shot")!!.observation)
+        assertEquals("Keep", journal.find("shot")!!.notes.taste)
+        journal.reconcileRecent(listOf(ended))
+        assertEquals(27, journal.find("shot")!!.observation.observedMachineElapsedSeconds)
+    }
     @Test fun replayRepairsMissedTerminalWriteWithoutLosingNotesOrDowngradingKnownEnd() {
         val store=Store();var journal=BrewJournal(store)
         journal.observe(shot().copy(status="RUNNING",reason=null))

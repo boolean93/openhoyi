@@ -12,7 +12,7 @@ class ShotHistoryArchiveTest {
             ShotHistory.Entry("../shot-1", "curve-1", 1_000, null, null, ShotHistory.Status.UNKNOWN,
                 "link, \"lost\"\ncheck machine", null, 7),
             ShotHistory.Entry("shot-2", "curve-2", 2_000, 3_000, 1_000, ShotHistory.Status.ENDED,
-                null, 2534, 1),
+                null, 2534, 1, observedMachineElapsedSeconds = 27, timingEvidenceVersion = 1, observedSampleCoverageMs = 20000),
         )
         val output = ByteArrayOutputStream()
         val report = ShotHistoryArchive.write(entries, { id ->
@@ -28,6 +28,10 @@ class ShotHistoryArchiveTest {
             }
         }
         assertEquals(setOf("README.txt", "history.csv", "shots/0001.tsv"), files.keys)
+        assertTrue(files.getValue("history.csv").contains("observedMachineElapsedSeconds,timingEvidenceVersion"))
+        assertTrue(files.getValue("history.csv").contains(",27,1,20000"))
+        assertTrue(files.getValue("README.txt").contains("机器遥测整数秒"))
+        assertTrue(files.getValue("README.txt").contains("采样覆盖"))
         assertTrue(files.getValue("history.csv").contains("UNKNOWN"))
         assertTrue(files.getValue("history.csv").contains("\"link, \"\"lost\"\"\ncheck machine\""))
         assertTrue(files.getValue("history.csv").contains("shots/0001.tsv"))
