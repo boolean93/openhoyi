@@ -20,6 +20,7 @@ class MobileApplication : Application() {
     private lateinit var languageContext: AppLanguageContextProvider
     internal lateinit var releaseUpdates: ReleaseUpdateOwner
         private set
+    internal val diagnosticStorage by lazy { DiagnosticStorageOwner(this) }
     internal val visibility = AppVisibility()
     internal val serviceAvailability = ServiceAvailability()
     internal lateinit var autoConnect:DeviceAutoConnectOwner

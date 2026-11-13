@@ -1,0 +1,11 @@
+<resources>
+    <string name="diagnostic_storage_calculating">正在统计诊断日志…</string>
+    <string name="diagnostic_storage_size">诊断日志 · %1$s</string>
+    <string name="diagnostic_storage_clear">清理日志</string>
+    <string name="diagnostic_storage_scope">自动压缩，上限 8 MB，最多保留 7 天。清理后日志不可恢复，不影响配方与萃取历史。</string>
+    <string name="diagnostic_storage_clearing">正在清理…</string>
+    <string name="diagnostic_storage_unavailable">诊断日志 · 暂不可用</string>
+    <string name="diagnostic_storage_cleared">诊断日志已清理，后续操作会继续记录。</string>
+    <string name="diagnostic_storage_failed">部分日志未能清理，请稍后重试。</string>
+    <string name="diagnostic_storage_read_failed">暂时无法读取日志占用，请稍后重试。</string>
+</resources>
