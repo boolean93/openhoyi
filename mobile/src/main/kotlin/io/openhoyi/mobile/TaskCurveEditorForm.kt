@@ -17,12 +17,12 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private fun cell() = style.visual.column("bean-full-field")
     private fun panel() = cell().apply {
         background = style.visual.shape(style.visual.surface, true)
-        setPadding(dp(16), dp(12), dp(16), dp(12))
+        setPadding(dp(16), dp(8), dp(16), dp(8))
     }
     private inner class MetadataCell : LinearLayout(activity) {
         init { tag = "bean-full-field"; orientation = HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
             background = style.visual.shape(style.visual.surface, true)
-            setPadding(dp(16), dp(10), dp(16), dp(10))
+            setPadding(dp(16), dp(6), dp(16), dp(6))
         }
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val vertical = MeasureSpec.getSize(widthMeasureSpec) < dp((210 * resources.configuration.fontScale).toInt())
@@ -44,11 +44,13 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     val stageRows = List(4) { panel() }
     val stageHeader = style.visual.row()
     val stageModes = List(4) { style.visual.text("", TaskProductVisualStyle.body).apply {
-        gravity = android.view.Gravity.CENTER; setPadding(dp(8), dp(6), dp(8), dp(6))
+        gravity = android.view.Gravity.CENTER; setPadding(dp(8), dp(2), dp(8), dp(2))
         background = style.visual.shape(style.visual.selected, false, 8)
         tag = "curve-stage-mode-$it"
     } }
-    val firstModeHost = cell()
+    val firstModeHost = cell().apply {
+        background = style.visual.shape(style.visual.selected, false, 8)
+    }
     val waterLimit = cell()
     val modeControls = cell()
     val configurationFields = cell()
@@ -114,9 +116,9 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         metadata.forEach(metaGrid::addView)
         column.addView(metaGrid, LinearLayout.LayoutParams(-1, -2))
         modeControls.background = style.visual.shape(style.visual.surface, true)
-        modeControls.setPadding(dp(16), dp(8), dp(16), dp(8))
-        column.addView(modeControls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
-        column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        modeControls.setPadding(dp(16), dp(4), dp(16), dp(4))
+        column.addView(modeControls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val grid = CardGrid(188, 4).apply { tag = "curve-stage-cards" }
         stageRows.forEachIndexed { index, card ->
             card.tag = "curve-editor-stage-$index"
@@ -134,7 +136,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             }
             removes += remove
             card.addView(heading, LinearLayout.LayoutParams(-1, -2))
-            card.addView(stageModes[index], LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            card.addView(stageModes[index], LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
             if (index == 0) card.addView(firstModeHost, LinearLayout.LayoutParams(-1, -2))
             grid.addView(card)
         }
@@ -147,7 +149,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         settingsBody.addView(waterLimit, LinearLayout.LayoutParams(-1, -2))
         settingsBody.addView(configurationFields, LinearLayout.LayoutParams(-1, -2))
         lower.addView(settingsBody)
-        column.addView(lower, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        column.addView(lower, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
     }
     fun onStageCountChanged(action: (Int) -> Unit) { changeCount = action }
     fun setStageCount(count: Int) {

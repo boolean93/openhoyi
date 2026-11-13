@@ -97,6 +97,10 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
             await("flow-only controls visible") { tag(newEditor, "first-mode").visibility == View.VISIBLE && tag(newEditor, "pressure-logic").visibility == View.VISIBLE }
             main {
                 check((tag(newEditor, "pressure-logic") as Switch).isChecked)
+                val firstMode = tag(newEditor, "first-mode") as Spinner
+                check(firstMode.isClickable && firstMode.isEnabled && firstMode.height >= HoyiUi.dp(newEditor, 48))
+                check((firstMode.selectedView as TextView).text.toString() == context.getString(R.string.curve_editor_mode_first_pressure))
+                check(root(newEditor).findViewWithTag<View>("curve-stage-mode-0").visibility == View.GONE)
                 (tag(newEditor, "control-mode") as Switch).isChecked = false
             }
             await("pressure controls restored") {

@@ -1107,4 +1107,7 @@
     <string name="curve_editor_mode_pressure_follow">压力 · 跟随</string>
     <string name="curve_editor_mode_flow_slow">流量 · 慢速</string>
     <string name="curve_editor_mode_flow_fast">流量 · 快速</string>
+    <string name="curve_editor_bloom_short">闷蒸</string>
+    <string name="curve_editor_duration_short">首段限时</string>
+    <string name="curve_editor_compensation_short">重量补偿</string>
 </resources>

@@ -512,8 +512,18 @@ internal object ChineseFormWindowChecks {
                         descendants(card).filterIsInstance<TextView>().single { it.text.toString() == activity.getString(R.string.profiles_stage, index + 1) }
                     }
                     check(titles.all { it.width > 0 && it.height > 0 }) { "$name zero-sized stage title" }
-                    val modes = (0..3).map { requireNotNull(content.findViewWithTag<TextView>("curve-stage-mode-$it")) }
-                    check(modes.all { it.text.isNotBlank() }) { "$name missing stage control-mode labels" }
+                    val modes: List<View> = (0..3).map { index ->
+                        val selector = content.findViewWithTag<android.widget.Spinner>("product/form/curve-editor/first-mode")
+                        if (index == 0 && selector?.visibility == View.VISIBLE) {
+                            check(selector.isEnabled && selector.isClickable && selector.height >= HoyiUi.dp(activity, 48))
+                            check((selector.selectedView as? TextView)?.text?.isNotBlank() == true)
+                            check(selector.contentDescription.toString().startsWith(activity.getString(R.string.flow_editor_first)))
+                            check(content.findViewWithTag<View>("curve-stage-mode-0").visibility == View.GONE)
+                            selector
+                        } else requireNotNull(content.findViewWithTag<TextView>("curve-stage-mode-$index")).also {
+                            check(it.text.isNotBlank()) { "$name missing stage control-mode labels" }
+                        }
+                    }
                     val remove = requireNotNull(content.findViewWithTag<Button>("curve-stage-remove-3"))
                     check(remove.isEnabled && remove.width >= HoyiUi.dp(activity, 48) && remove.height >= HoyiUi.dp(activity, 48))
                     val localActions = listOf(R.string.profiles_preview, R.string.ui_full_details).map { action ->

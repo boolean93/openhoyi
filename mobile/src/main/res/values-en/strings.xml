@@ -98,6 +98,9 @@
     <string name="curve_details_proof_available">"Start packet comparison passed; pending real-machine acceptance"</string>
     <string name="curve_details_proof_missing">"Packet verification unavailable; browse only"</string>
     <string name="curve_editor_add_stage">"Add stage"</string>
+    <string name="curve_editor_bloom_short">"Bloom"</string>
+    <string name="curve_editor_compensation_short">"Weight offset"</string>
+    <string name="curve_editor_duration_short">"First-stage time"</string>
     <string name="curve_editor_mode_first_pressure">"Pressure"</string>
     <string name="curve_editor_mode_flow_fast">"Flow · Fast"</string>
     <string name="curve_editor_mode_flow_slow">"Flow · Slow"</string>

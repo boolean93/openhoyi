@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "62489416c71cbf9228900d2d0e756235217db6f095b1abd4c143dd69021c405a",
+  "sha256": "87732503767e276ead0fd6f9305ce4112d892fdd1435ce465dcd6fc2d6f3e0f6",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -1080,6 +1080,9 @@
     "curve_editor_mode_pressure_constant": "压力 · 恒压",
     "curve_editor_mode_pressure_follow": "压力 · 跟随",
     "curve_editor_mode_flow_slow": "流量 · 慢速",
-    "curve_editor_mode_flow_fast": "流量 · 快速"
+    "curve_editor_mode_flow_fast": "流量 · 快速",
+    "curve_editor_bloom_short": "闷蒸",
+    "curve_editor_duration_short": "首段限时",
+    "curve_editor_compensation_short": "重量补偿"
   }
 }

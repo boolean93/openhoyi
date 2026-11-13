@@ -1077,5 +1077,8 @@
   "curve_editor_mode_pressure_constant": "Pressure · Constant",
   "curve_editor_mode_pressure_follow": "Pressure · Follow",
   "curve_editor_mode_flow_slow": "Flow · Slow",
-  "curve_editor_mode_flow_fast": "Flow · Fast"
+  "curve_editor_mode_flow_fast": "Flow · Fast",
+  "curve_editor_bloom_short": "Bloom",
+  "curve_editor_duration_short": "First-stage time",
+  "curve_editor_compensation_short": "Weight offset"
 }

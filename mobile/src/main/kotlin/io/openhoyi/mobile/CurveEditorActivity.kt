@@ -70,6 +70,7 @@ class CurveEditorActivity : ThemedActivity() {
                 }
             }
             style.input(input, "curve-editor", key)
+            input.minimumHeight = style.dp(48); input.minHeight = style.dp(48)
             input.contentDescription = getString(label)
             input.tooltipText = getString(label)
             fields[key] = input
@@ -89,7 +90,7 @@ class CurveEditorActivity : ThemedActivity() {
                     isBaselineAligned = false
                     gravity = android.view.Gravity.CENTER_VERTICAL
                     addView(style.visual.text(getString(label), TaskProductVisualStyle.auxiliary, tag, true), LayoutParams(-2, -2))
-                    container.addView(this, LayoutParams(-1, -2).apply { topMargin = style.dp(6) })
+                    container.addView(this, LayoutParams(-1, -2).apply { topMargin = style.dp(4) })
                 }
                 override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                     val title = getChildAt(0)
@@ -144,19 +145,6 @@ class CurveEditorActivity : ThemedActivity() {
             "product/form/curve-editor/assigned-water", true)
         style.visual.add(sections.waterLimit, assignedWater, 8)
         var previewChanged: () -> Unit = {}
-        fun picker(parent: LinearLayout, label: Int, options: List<String>, selection: Int, changed: (Int) -> Unit): android.widget.Spinner {
-            style.visual.add(parent, style.visual.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true).apply { tag = "flow-picker-label-$label" })
-            return android.widget.Spinner(this).apply {
-                id = View.generateViewId(); contentDescription = getString(label); minimumHeight = style.dp(48)
-                adapter = style.choiceAdapter(options)
-                setSelection(selection)
-                parent.addView(this, LinearLayout.LayoutParams(-1, -2))
-                onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) { changed(position) }
-                }
-            }
-        }
         lateinit var firstModePicker: android.widget.Spinner
         lateinit var controlSwitch: android.widget.Switch
         lateinit var logicSwitch: android.widget.Switch
@@ -185,7 +173,10 @@ class CurveEditorActivity : ThemedActivity() {
             }
             firstModePicker.isEnabled = flowMode
             firstModePicker.visibility = if (flowMode) View.VISIBLE else View.GONE
-            sections.firstModeHost.findViewWithTag<View>("flow-picker-label-${R.string.flow_editor_first}")?.visibility = if (flowMode) View.VISIBLE else View.GONE
+            sections.firstModeHost.visibility = if (flowMode) View.VISIBLE else View.GONE
+            sections.stageModes[0].visibility = if (flowMode) View.GONE else View.VISIBLE
+            firstModePicker.contentDescription = getString(R.string.flow_editor_first) + " · " + sections.stageModes[0].text
+            (firstModePicker.adapter as? android.widget.BaseAdapter)?.notifyDataSetChanged()
             controlSwitch.text = getString(if (flowMode) R.string.curve_control_flow else R.string.curve_control_pressure)
             controlSwitch.contentDescription = getString(R.string.flow_editor_control) + " · " + controlSwitch.text
             logicSwitch.text = getString(when {
@@ -232,10 +223,37 @@ class CurveEditorActivity : ThemedActivity() {
                 units()
             }
         }
-        firstModePicker = picker(sections.firstModeHost, R.string.flow_editor_first,
-            listOf(getString(R.string.flow_editor_first_pressure), getString(R.string.flow_editor_first_flow)), if (firstFlow) 1 else 0) { position ->
-            firstFlow = position == 1; units()
-        }.apply { tag = "product/form/curve-editor/first-mode"; isEnabled = flowMode }
+        firstModePicker = android.widget.Spinner(this).apply {
+            id = View.generateViewId()
+            tag = "product/form/curve-editor/first-mode"
+            minimumHeight = style.dp(48)
+            adapter = object : android.widget.ArrayAdapter<String>(this@CurveEditorActivity,
+                android.R.layout.simple_spinner_dropdown_item, listOf("pressure", "flow")) {
+                private fun present(view: View, position: Int): View = (view as android.widget.TextView).apply {
+                    style.visual.apply(this, TaskProductVisualStyle.body)
+                    text = getString(if (position == 0) R.string.curve_editor_mode_first_pressure
+                        else if (pressureLogic) R.string.curve_editor_mode_flow_fast else R.string.curve_editor_mode_flow_slow)
+                    gravity = android.view.Gravity.CENTER
+                    setSingleLine(false)
+                    // Native dropdown templates otherwise keep a fixed preferred height at large font sizes.
+                    layoutParams = (layoutParams ?: android.view.ViewGroup.LayoutParams(-1, -2)).apply { height = -2 }
+                    minimumHeight = style.dp(48); minHeight = style.dp(48)
+                    setPadding(style.dp(8), style.dp(4), style.dp(8), style.dp(4))
+                }
+                override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                    present(super.getView(position, convertView, parent), position)
+                override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                    present(super.getDropDownView(position, convertView, parent), position)
+            }
+            setSelection(if (firstFlow) 1 else 0)
+            sections.firstModeHost.addView(this, LinearLayout.LayoutParams(-1, -2))
+            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    if (firstFlow != (position == 1)) { firstFlow = position == 1; units() }
+                }
+            }
+        }
         logicSwitch = HoyiSwitch(this).apply {
             textSize = 16f; minimumHeight = style.dp(48)
             typeface = TaskTypography.face(this@CurveEditorActivity, 400)
@@ -248,11 +266,11 @@ class CurveEditorActivity : ThemedActivity() {
                 units()
             }
         }
-        val bloom = field(settingRow(sections.configurationFields, R.string.flow_editor_preinfusion), "preinfusion", R.string.flow_editor_preinfusion,
+        val bloom = field(settingRow(sections.configurationFields, R.string.curve_editor_bloom_short), "preinfusion", R.string.flow_editor_preinfusion,
             (source.configuration?.preinfusionSeconds ?: 0).toString(), tableCell = true).apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER }
-        val duration = field(settingRow(sections.configurationFields, R.string.flow_editor_first_duration), "first-duration", R.string.flow_editor_first_duration,
+        val duration = field(settingRow(sections.configurationFields, R.string.curve_editor_duration_short), "first-duration", R.string.flow_editor_first_duration,
             (source.configuration?.firstDurationSeconds ?: 0).toString(), tableCell = true).apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER }
-        val compensation = field(settingRow(sections.configurationFields, R.string.flow_editor_compensation), "compensation", R.string.flow_editor_compensation,
+        val compensation = field(settingRow(sections.configurationFields, R.string.curve_editor_compensation_short), "compensation", R.string.flow_editor_compensation,
             CurveDraftNumber.format(source.configuration?.compensationHundredthsGram ?: 0, 2), tableCell = true).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED
         }
