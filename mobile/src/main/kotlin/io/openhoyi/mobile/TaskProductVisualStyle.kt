@@ -180,7 +180,7 @@ internal class TaskProductVisualStyle(val context: Context) {
     fun styleHeader(view: View) {
         if (view is Button) button(view)
         else if (view is TextView) apply(view,
-            if (view.textSize / context.resources.displayMetrics.scaledDensity >= 20f) title else auxiliary)
+            if (view.textSize >= AppTextUnits.pixels(context.resources, 20f)) title else auxiliary)
         if (view.tag == "task-tools-menu") {
             // This TextView owns the real tools PopupMenu, including short-window fallback.
             view.minimumHeight = maxOf(view.minimumHeight, dp(48))

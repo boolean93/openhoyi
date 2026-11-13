@@ -10,7 +10,7 @@ import java.util.Locale
 internal class LiveEndpointLabelLayer(context:Context,private val colorFor:(ChartMetric)->Int) {
     private val density=context.resources.displayMetrics.density
     private val text=Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface=TaskTypography.face(context,500);textSize=14*context.resources.displayMetrics.scaledDensity
+        typeface=TaskTypography.face(context,500);textSize=AppTextUnits.pixels(context.resources, 14f)
     }
     private val background=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=(TaskProductVisualStyle(context).surface and 0x00ffffff) or 0xf2000000.toInt()}
     private val line=Paint(Paint.ANTI_ALIAS_FLAG).apply {style=Paint.Style.STROKE;strokeWidth=density}

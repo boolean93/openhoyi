@@ -83,7 +83,7 @@ internal class TwoCupChartView(context: Context, private val visual: ExtractionH
         init { tag = "comparison-plot" }
         private val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = TaskTypography.face(context)
-            textSize = 12f * resources.displayMetrics.scaledDensity
+            textSize = AppTextUnits.pixels(resources, 12.0f)
             color = context.getColor(R.color.chart_label)
         }
         private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply {

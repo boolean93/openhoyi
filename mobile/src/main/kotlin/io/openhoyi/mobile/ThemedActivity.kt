@@ -4,13 +4,13 @@ import androidx.fragment.app.FragmentActivity
 import android.content.Context
 import android.content.res.Configuration
 
-/** A per-app theme override; it does not change the user's system theme. */
+/** App-owned appearance. System density/window geometry stay intact; font size is independent. */
 abstract class ThemedActivity : FragmentActivity() {
     internal var redirectedRoot = false
     override fun attachBaseContext(newBase: Context) {
         val dark = newBase.getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
         val language = (newBase.applicationContext as MobileApplication).languagePreferences.current
-        super.attachBaseContext(AppLanguageContext.wrap(newBase, language, dark))
+        super.attachBaseContext(AppLanguageContext.wrap(newBase, language, dark, (newBase.applicationContext as MobileApplication).fontSizePreferences.current))
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -25,6 +25,7 @@ abstract class ThemedActivity : FragmentActivity() {
             Configuration.UI_MODE_NIGHT_YES
         val language = (application as MobileApplication).languagePreferences.current
         val currentLanguage = resources.configuration.locales[0]
-        if (preferredDark != currentDark || currentLanguage != language.locale) recreate()
+        if (preferredDark != currentDark || currentLanguage != language.locale ||
+            resources.configuration.fontScale != (application as MobileApplication).fontSizePreferences.current.scale) recreate()
     }
 }

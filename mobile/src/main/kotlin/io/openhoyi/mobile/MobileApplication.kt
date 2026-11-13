@@ -14,6 +14,8 @@ import java.io.File
 class MobileApplication : Application() {
     internal lateinit var languagePreferences: AppLanguagePreference
         private set
+    internal lateinit var fontSizePreferences: AppFontSizePreference
+        private set
     private lateinit var languageContext: AppLanguageContextProvider
     internal lateinit var releaseUpdates: ReleaseUpdateOwner
         private set
@@ -50,7 +52,12 @@ class MobileApplication : Application() {
             override fun read(): String? = prefs.getString("tag", null)
             override fun write(tag: String): Boolean = prefs.edit().putString("tag", tag).commit()
         })
-        languageContext = AppLanguageContextProvider(base) { languagePreferences.current }
+        val fontPrefs = base.getSharedPreferences("app_typography", MODE_PRIVATE)
+        fontSizePreferences = AppFontSizePreference(object : AppFontSizePreference.Storage {
+            override fun read(): String? = fontPrefs.getString("size", null)
+            override fun write(key: String): Boolean = fontPrefs.edit().putString("size", key).commit()
+        })
+        languageContext = AppLanguageContextProvider(base, { fontSizePreferences.current }) { languagePreferences.current }
         super.attachBaseContext(base)
     }
     override fun getResources(): Resources =
