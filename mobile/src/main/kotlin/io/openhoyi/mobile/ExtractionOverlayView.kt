@@ -117,6 +117,24 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     private var inspectedTime: Long? = null
     private var inspectionDialog: AlertDialog? = null
+    private val axisPreferences = context.getSharedPreferences(FixedChartAxes.PREFERENCES, Context.MODE_PRIVATE)
+    private var fixedAxes = axisPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
+    private val axisPreferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == null || key == FixedChartAxes.KEY) refreshAxisPreference()
+    }
+    private fun refreshAxisPreference() {
+        val next = axisPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
+        if (next == fixedAxes) return
+        fixedAxes = next
+        if (!liveChart) return
+        stopRenderTransition()
+        previousRanges = emptyMap()
+        previousSteps = emptyMap()
+        yExpansionStarted = false
+        lastYExpansionAt = 0L
+        snapAxisOnNextBuild = true
+        rebuildProjection()
+    }
     private var previousRanges: Map<ChartMetric, ChartRange> = emptyMap()
     private var data = FourMetricChartProjection.build(emptyList(), emptyList())
     private var selected: ChartMetric? = null
@@ -337,6 +355,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt(), dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt())
         visibility = GONE
     }
+    private val fixedAxisNotice = TextView(context).apply {
+        tag = "product/extraction/fixed-axis-notice"
+        textSize = TaskVisualTokens.SUPPORTING_SP.toFloat()
+        setTextColor(context.getColor(R.color.chart_label))
+        setPadding(dp(6f).toInt(), 0, dp(6f).toInt(), dp(4f).toInt())
+        visibility = GONE
+    }
     private val headerContent = LinearLayout(context).apply {
         orientation = VERTICAL
         addView(compactNotice, LayoutParams(-1, -2))
@@ -368,9 +393,15 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     fun liveHeightForPlotAspect(width:Int,ratio:Float):Int {
         val probeHeight=dp(1000f).toInt()
         val box=productRenderer?.bounds(width,probeHeight,displayedData(data),focusMetric,false) ?: return dp(320f).toInt()
-        return kotlin.math.ceil(liveHeaderHeightPx+probeHeight-box.height()+box.width()*ratio).toInt().coerceAtLeast(dp(260f).toInt())
+        return kotlin.math.ceil(liveHeaderHeightPx+fixedAxisNoticeHeight(width)+probeHeight-box.height()+box.width()*ratio).toInt().coerceAtLeast(dp(260f).toInt())
     }
-    fun minimumLiveHeight(): Int = liveHeaderHeightPx + (productRenderer?.minimumHeightForPlot(160f) ?: dp(220f).toInt())
+    private fun fixedAxisNoticeHeight(width: Int = measuredWidth): Int {
+        if (fixedAxisNotice.visibility != VISIBLE) return 0
+        fixedAxisNotice.measure(MeasureSpec.makeMeasureSpec(width.coerceAtLeast(dp(96f).toInt()), MeasureSpec.AT_MOST),
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+        return fixedAxisNotice.measuredHeight
+    }
+    fun minimumLiveHeight(): Int = liveHeaderHeightPx + fixedAxisNoticeHeight() + (productRenderer?.minimumHeightForPlot(160f) ?: dp(220f).toInt())
     /** Reparents the same interactive metric controls, preserving telemetry and accessibility. */
     fun attachLiveReadouts(parent: LinearLayout) {
         check(liveCompactChrome)
@@ -412,9 +443,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         orientation = VERTICAL
         setBackgroundColor(visual?.palette?.surface ?: context.getColor(R.color.mobile_surface))
         addView(header, LayoutParams(-1, -2))
+        addView(fixedAxisNotice, LayoutParams(-1, -2))
         addView(plot, LayoutParams(-1, 0, 1f))
         visual?.palette?.let { style ->
-            listOf(compactNotice, explanation, referenceCaption).forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
+            listOf(compactNotice, explanation, referenceCaption, fixedAxisNotice).forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
         }
         if (visual != null && embeddedHistory) {
             explanation.tag = "product/history/chart-explanation"
@@ -434,7 +466,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
         val plotMinimum = plot.minimumAxisHeight()
         val headerMinimum = standaloneHeaderMinimumHeightPx ?: dp(48f).toInt()
-        val compact = height < plotMinimum + headerMinimum
+        val noticeHeight = fixedAxisNoticeHeight(MeasureSpec.getSize(widthMeasureSpec))
+        val compact = height < plotMinimum + headerMinimum + noticeHeight
         if (compact != compactMode) {
             compactMode = compact
             compactNotice.visibility = if (compact) VISIBLE else GONE
@@ -443,7 +476,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             if (compact) header.scrollTo(0, 0)
         }
         // The notice replaces an unusable plot; only the native header scrolls.
-        val cap = if (compact) height else height - plotMinimum
+        val cap = (height - noticeHeight - if (compact) 0 else plotMinimum).coerceAtLeast(0)
         header.measure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST))
         val wanted = header.measuredHeight.coerceAtMost(cap)
         if (header.layoutParams.height != wanted) header.layoutParams.height = wanted
@@ -456,9 +489,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         fun project(expandAllLiveAxes: Boolean) = FourMetricChartProjection.build(points, reference,
             previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart,
             allowLiveExpansion = allowYExpansion, expectedLiveRanges = expectedRanges,
-            previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes, includeLiveWeight = liveChart)
+            previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes, includeLiveWeight = liveChart,
+            fixedLiveAxes = liveChart && fixedAxes)
         var projected = project(false)
-        if (liveChart && !yExpansionStarted && points.isNotEmpty() && projected.series.filter { it.metric in liveMetrics }.any { series ->
+        if (liveChart && !fixedAxes && !yExpansionStarted && points.isNotEmpty() && projected.series.filter { it.metric in liveMetrics }.any { series ->
                 val before = previousRanges[series.metric] ?: ChartAxisScale.yAxis(
                     series.metric.initialLow, series.metric.initialHigh, targetDivisions = 5).range
                 series.range != before
@@ -484,7 +518,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         if (expanded) lastYExpansionAt = now
         // Snap for static contexts, unattached probes, identity/selection changes and the first
         // observation; progress-driven live changes animate.
-        val snap = !liveChart || !isAttachedToWindow || snapAxisOnNextBuild ||
+        val snap = !liveChart || fixedAxes || !isAttachedToWindow || snapAxisOnNextBuild ||
             data.observedThroughMs == null || target.observedThroughMs == null
         snapAxisOnNextBuild = false
         if (snap) snapAxis(target) else animateAxis(target)
@@ -663,11 +697,26 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             samples.any { it.brewing == false }
     }
 
+    private fun fixedAxisWarning(): String {
+        if (!liveChart || !fixedAxes) return ""
+        val current = FixedChartAxes.overflow(data, visibleMetrics)
+        val reference = FixedChartAxes.overflow(data, visibleMetrics, reference = true)
+        return listOfNotNull(
+            if (current.any) context.getString(R.string.fixed_chart_overflow,
+                (listOfNotNull(context.getString(R.string.fixed_chart_time_overflow).takeIf { current.time }) +
+                    current.metrics.map(::metricName)).joinToString(" · ")) else null,
+            context.getString(R.string.fixed_chart_reference_overflow).takeIf { reference.any },
+        ).joinToString("\n")
+    }
     private fun updateDescription() {
+        val axisWarning = fixedAxisWarning()
+        if (fixedAxisNotice.text.toString() != axisWarning) fixedAxisNotice.text = axisWarning
+        fixedAxisNotice.visibility = if (axisWarning.isEmpty()) GONE else VISIBLE
         val notes = mutableListOf(
             data.observedThroughMs?.let { context.getString(R.string.task_chart_summary_observed, seconds(it)) }
                 ?: context.getString(R.string.task_chart_summary_waiting),
         )
+        if (axisWarning.isNotEmpty()) notes += axisWarning
         val referenceNotes = if (reference.isNotEmpty()) listOfNotNull(
             referenceLabel?.takeIf { it.isNotBlank() },
             context.getString(R.string.task_chart_reference, metricName(focusMetric)).takeUnless { liveCompactChrome },
@@ -702,7 +751,15 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         contentDescription = null
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (liveChart) {
+            axisPreferences.registerOnSharedPreferenceChangeListener(axisPreferenceListener)
+            refreshAxisPreference()
+        }
+    }
     override fun onDetachedFromWindow() {
+        axisPreferences.unregisterOnSharedPreferenceChangeListener(axisPreferenceListener)
         dismissInspection()
         finishAxisAnimation()
         super.onDetachedFromWindow()
@@ -992,7 +1049,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
                     if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))
-                if(liveChart && liveCompactChrome && endpointLabels.draw(canvas,plotBounds,rendered,revealThroughMs,unavailableLiveMetrics,traceIdentity)) postInvalidateOnAnimation()
+                if(liveChart && liveCompactChrome && !(fixedAxes && (data.observedThroughMs ?: 0L) > FixedChartAxes.TIME_END_MS) && endpointLabels.draw(canvas,plotBounds,rendered,revealThroughMs,unavailableLiveMetrics,traceIdentity)) postInvalidateOnAnimation()
                 return
             }
             val fm = labels.fontMetrics

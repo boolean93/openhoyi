@@ -89,6 +89,7 @@ internal object FourMetricChartProjection {
         /** First expansion of a cup: expand every recipe-targeted live axis in this one pass. */
         expandAllLiveAxes: Boolean = false,
         includeLiveWeight: Boolean = false,
+        fixedLiveAxes: Boolean = false,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
@@ -112,7 +113,7 @@ internal object FourMetricChartProjection {
             if (old != null) {
                 require(old.low.isFinite() && old.high.isFinite() && old.low < old.high)
             }
-            val axis = axis(metric, values, old, live = liveFlow,
+            val axis = if (liveFlow && fixedLiveAxes) FixedChartAxes.axis(metric) else axis(metric, values, old, live = liveFlow,
                 allowLiveExpansion = allowLiveExpansion,
                 expected = expectedLiveRanges[metric],
                 previousStep = previousSteps[metric],
@@ -132,7 +133,7 @@ internal object FourMetricChartProjection {
             // the end continuously follows the observed duration, so the whole cup stays visible
             // and is smoothly compressed instead of the window scrolling.
             timeStart = 0L
-            timeEnd = if (referenceDrivesLiveAxes)
+            timeEnd = if (fixedLiveAxes) FixedChartAxes.TIME_END_MS else if (referenceDrivesLiveAxes)
                 maxOf(10_000L, reference.lastOrNull()?.elapsedMs ?: 0L)
             else maxOf(10_000L, points.lastOrNull()?.elapsedMs ?: 0L)
         } else {

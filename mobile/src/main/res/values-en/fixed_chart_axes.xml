@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fixed_chart_section">Live chart</string>
+    <string name="fixed_chart_axes">Fixed axes</string>
+    <string name="fixed_chart_axes_hint">Keep fixed scales. Out-of-range data is indicated; all data is retained.</string>
+    <string name="fixed_chart_overflow">Out-of-range data: %1$s. Full data retained</string>
+    <string name="fixed_chart_reference_overflow">Reference partly outside fixed range</string>
+    <string name="fixed_chart_time_overflow">time over 40 s</string>
+</resources>
