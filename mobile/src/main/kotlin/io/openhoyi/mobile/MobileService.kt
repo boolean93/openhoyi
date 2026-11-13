@@ -2151,7 +2151,10 @@ class MobileService : Service() {
         }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "curve.usage_observation_failed") }
         observeBrewFeedback(frame, atMs)
-        ScaleBusinessReading.recordMachine(series, frame, atMs, snapshot.scaleObservation, snapshot.scaleState)
+        // Reuse confirmed per-shot proof when present; ShotSeries separately labels a fresh
+        // fallback baseline as estimated. Neither path changes tare/start commands.
+        val beverage = extractionScaleValue(atMs).confirmedBeverageSample()
+        ScaleBusinessReading.recordMachine(series, frame, atMs, snapshot.scaleObservation, snapshot.scaleState, beverage, scaleConnectionEpoch)
         saveSeriesCheckpoint(atMs)
     }
     private fun saveSeriesCheckpoint(atElapsedMs: Long = MobileMonotonicClock.elapsedRealtime(), force: Boolean = false) {

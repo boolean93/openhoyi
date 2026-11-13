@@ -34,18 +34,21 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
         ChartMetric.PRESSURE -> palette.pressure
         ChartMetric.WATER -> water
         ChartMetric.WEIGHT, ChartMetric.FLOW -> weight
+        ChartMetric.YIELD -> pick("#C33F78", "#FF8DB9")
         ChartMetric.TEMPERATURE -> temperature
     }
     /** The live four-line palette; History keeps its established metric colors. */
     fun liveMetric(metric: ChartMetric) = pick(when (metric) {
         ChartMetric.PRESSURE -> "#176BD1"
         ChartMetric.WATER -> "#C05A13"
-        ChartMetric.WEIGHT, ChartMetric.FLOW -> "#168A55"
+        ChartMetric.WEIGHT, ChartMetric.YIELD -> "#C33F78"
+        ChartMetric.FLOW -> "#168A55"
         ChartMetric.TEMPERATURE -> "#654ACC"
     }, when (metric) {
         ChartMetric.PRESSURE -> "#80B4FF"
         ChartMetric.WATER -> "#FFAE78"
-        ChartMetric.WEIGHT, ChartMetric.FLOW -> "#64DEA3"
+        ChartMetric.WEIGHT, ChartMetric.YIELD -> "#FF8DB9"
+        ChartMetric.FLOW -> "#64DEA3"
         ChartMetric.TEMPERATURE -> "#A994FF"
     })
     fun choiceAdapter(activity: ThemedActivity, labels: List<String>) = object : android.widget.ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, labels) {
@@ -110,6 +113,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     private fun metricName(metric: ChartMetric) = context.getString(when (metric) {
         ChartMetric.PRESSURE -> R.string.task_chart_pressure
         ChartMetric.WATER -> R.string.task_chart_water
+        ChartMetric.YIELD -> R.string.chart_series_yield
         ChartMetric.WEIGHT -> R.string.task_extraction_scale
         ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
@@ -118,6 +122,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     private fun axisTitle(metric: ChartMetric) = if (!liveMode) metric.unit else context.getString(when (metric) {
         ChartMetric.PRESSURE -> R.string.task_chart_pressure
         ChartMetric.WATER -> R.string.task_chart_water
+        ChartMetric.YIELD -> R.string.chart_series_yield
         ChartMetric.WEIGHT -> R.string.task_extraction_scale
         ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
@@ -144,14 +149,18 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     }
     private fun tickText(series: MetricChartSeries, value: Float): String =
         if (liveMode) axisNumber(value) else number(value)
-    private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode && width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f)
+    private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode &&
+        (width <= dp(600f) || width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f))
     fun allAxes(width: Int, data: FourMetricChartData) = width - data.series.sumOf { column(it).toDouble() } - dp(16f) >= dp(96f)
+    private fun showAllAxes(width: Int, data: FourMetricChartData): Boolean =
+        if (liveMode && data.series.size > 4) width - data.series.sumOf { column(it, true).toDouble() } - dp(16f) >= dp(120f)
+        else liveMode || allAxes(width, data)
     fun bounds(width: Int, height: Int, data: FourMetricChartData, focused: ChartMetric, comparison: Boolean): RectF {
         val compactAxes = compactAxes(width, data)
         val selected = data.series.filter { comparison && it.metric == focused || !comparison }
-        val all = !comparison && (liveMode || allAxes(width, data))
+        val all = !comparison && showAllAxes(width, data)
         val leftAxes = if (all) selected.filter { it.metric == ChartMetric.TEMPERATURE || it.metric == ChartMetric.PRESSURE } else selected.filter { it.metric == focused }
-        val rightAxes = if (all) selected.filter { it.metric == ChartMetric.WEIGHT || it.metric == ChartMetric.FLOW || it.metric == ChartMetric.WATER } else emptyList()
+        val rightAxes = if (all) selected.filter { it.metric == ChartMetric.WEIGHT || it.metric == ChartMetric.YIELD || it.metric == ChartMetric.FLOW || it.metric == ChartMetric.WATER } else emptyList()
         val left = dp(8f) + leftAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat()
         val tailWidth = 0f // Live endpoint names live in the persistent metric tiles.
         val right = width - dp(8f) - rightAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat() - tailWidth
@@ -183,10 +192,10 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val timeEnd = data.timeEndMs
         val box = bounds(width, height, data, focused, comparison)
         if (box.width() < dp(96f) || box.height() < line + dp(8f)) return RectF()
-        val all = !comparison && (liveMode || allAxes(width, data))
+        val all = !comparison && showAllAxes(width, data)
         val series = if (comparison || !all) data.series.filter { it.metric == focused } else data.series
         val leftAxes = if (all) listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE).mapNotNull { m -> series.firstOrNull { it.metric == m } } else series
-        val rightAxes = if (all) listOf(if (liveMode) ChartMetric.FLOW else ChartMetric.WEIGHT, ChartMetric.WATER).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
+        val rightAxes = if (all) (if (liveMode) listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WATER) else listOf(ChartMetric.WEIGHT, ChartMetric.YIELD, ChartMetric.WATER)).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
         val texts = mutableListOf<Label>()
         val fm = labels.fontMetrics
         // Main rows are labeled only where the number still fits; extra minor grid lines keep
@@ -259,8 +268,9 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
             }
         }
         if (!comparison && !liveMode) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
-        if (data.observedThroughMs == null && data.series.all { it.reference.isEmpty() }) {
-            val empty = context.getString(if(simpleLivePresentation) R.string.live_chart_no_data else R.string.chart_empty_title)
+        if ((data.observedThroughMs == null && data.series.all { it.reference.isEmpty() }) || data.series.isEmpty()) {
+            val empty = context.getString(if (simpleLivePresentation && data.series.isEmpty()) R.string.chart_series_yield_unavailable
+                else if(simpleLivePresentation) R.string.live_chart_no_data else R.string.chart_empty_title)
             if (extent(empty) <= box.width()) texts += Label(empty, box.centerX(), box.centerY() - (fm.ascent + fm.descent) / 2,
                 Paint.Align.CENTER, style.palette.muted, "empty-notice")
         }

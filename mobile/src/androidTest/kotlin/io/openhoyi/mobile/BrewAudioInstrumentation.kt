@@ -43,6 +43,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var expectedHomeFontScale = 1f
     private var homeWorkbenchChecks = false
     private var fourMetricChartChecks = false
+    private var chartSeriesSelectorChecks = false
     private var liveStatusChromeChecks = false
     private var taskFrameChecks = false
     private var homeNavigationOnly = false
@@ -82,6 +83,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         twoCupChartChecks = arguments?.getString("twoCupChartChecks") == "true"
         expectedHomeFontScale = arguments?.getString("expectedFontScale")?.toFloatOrNull() ?: 1f
         homeWorkbenchChecks = arguments?.getString("homeWorkbenchChecks") == "true"
+        chartSeriesSelectorChecks = arguments?.getString("chartSeriesSelectorChecks") == "true"
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
         liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
@@ -246,6 +248,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                 LiveStatusChromeChecks(this).run()
                 report.putString("stream","LIVE_STATUS_CHROME_CHECKS_PASSED normal=true syntheticCritical=true reopened=2 noBle=true noBusinessWrites=true\n")
                 finish(Activity.RESULT_OK,report)
+                return
+            }
+            if (chartSeriesSelectorChecks) {
+                ChartSeriesSelectorChecks(this).run()
+                report.putString("stream", "CHART_SERIES_SELECTOR_CHECKS_PASSED noBle=true drawing=true\n")
+                finish(Activity.RESULT_OK, report)
                 return
             }
             if (fourMetricChartChecks) {

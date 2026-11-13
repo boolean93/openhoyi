@@ -5,7 +5,7 @@ import android.view.Gravity
 import android.widget.LinearLayout
 
 /** A fixed-width, quiet readout, separate from the unchanged four-metric strip. */
-internal class ExtractionScaleReadoutView(context: Context, visual: ExtractionHistoryVisualStyle) : LinearLayout(context) {
+internal class ExtractionScaleReadoutView(context: Context, visual: ExtractionHistoryVisualStyle, compact: Boolean = false) : LinearLayout(context) {
     private val style = visual.palette
     private val heading = style.text(context.getString(R.string.extraction_scale_raw), TaskProductVisualStyle.Type(11, 400, 16), secondary = true)
     private val reading = style.text("— g", TaskProductVisualStyle.Type(22, 500, 28))
@@ -22,14 +22,14 @@ internal class ExtractionScaleReadoutView(context: Context, visual: ExtractionHi
         val secondary = LinearLayout(context).apply { gravity = Gravity.CENTER; orientation = HORIZONTAL }
         listOf(heading, reading).forEach {
             it.gravity = Gravity.CENTER; it.maxLines = 1; it.ellipsize = android.text.TextUtils.TruncateAt.END
-            primary.addView(it, LayoutParams(if (it === reading) (112 * resources.displayMetrics.density).toInt() else 0, -2, if (it === heading) 1f else 0f).apply { marginEnd = (4 * resources.displayMetrics.density).toInt() })
+            primary.addView(it, LayoutParams(if (it === reading) (if (compact) 94 else 112).times(resources.displayMetrics.density).toInt() else 0, -2, if (it === heading) 1f else 0f).apply { marginEnd = (4 * resources.displayMetrics.density).toInt() })
         }
         listOf(detail, target).forEach {
             it.gravity = Gravity.CENTER; it.maxLines = 1; it.ellipsize = android.text.TextUtils.TruncateAt.END
             secondary.addView(it, LayoutParams(-2, -2).apply { marginEnd = (4 * resources.displayMetrics.density).toInt() })
         }
-        addView(primary, LayoutParams((180 * resources.displayMetrics.density).toInt(), -2))
-        addView(secondary, LayoutParams((180 * resources.displayMetrics.density).toInt(), (18 * resources.displayMetrics.density).toInt()))
+        addView(primary, LayoutParams(if (compact) -1 else (180 * resources.displayMetrics.density).toInt(), -2))
+        addView(secondary, LayoutParams(if (compact) -1 else (180 * resources.displayMetrics.density).toInt(), (18 * resources.displayMetrics.density).toInt()))
     }
     fun present(value: ExtractionScaleReadout.Value) {
         val net = value.source == ExtractionScaleReadout.Source.BEVERAGE
