@@ -252,6 +252,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (chartSeriesSelectorChecks) {
                 ChartSeriesSelectorChecks(this).run()
+                FixedChartAxesChecks(this).run()
                 report.putString("stream", "CHART_SERIES_SELECTOR_CHECKS_PASSED noBle=true drawing=true\n")
                 finish(Activity.RESULT_OK, report)
                 return

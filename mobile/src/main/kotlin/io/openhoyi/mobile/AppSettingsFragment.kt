@@ -133,6 +133,7 @@ class AppSettingsFragment : Fragment() {
             "schedule" to root.section("schedule", getString(R.string.settings_section_schedule)),
             "scale" to root.section("scale", getString(R.string.scale_title)),
             "shortcuts" to root.section("shortcuts", getString(R.string.shortcut_start_settings_title)),
+            "chart" to root.section("chart", getString(R.string.fixed_chart_section)),
             "appearance" to root.section("appearance", getString(R.string.settings_appearance_language)),
             "feedback" to root.section("feedback", getString(R.string.settings_section_feedback)),
             "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)),
@@ -197,6 +198,17 @@ class AppSettingsFragment : Fragment() {
             refreshShortcutChoice()
         }.apply { tag = "product/settings/shortcuts/retry"; visibility = View.GONE }
         style.add(shortcutSection, style.text(getString(R.string.shortcut_start_settings_hint),
+            TaskProductVisualStyle.auxiliary, secondary = true), 8)
+        val chartSection = sections.getValue("chart")
+        val chartPreferences = activity.getSharedPreferences(FixedChartAxes.PREFERENCES, android.content.Context.MODE_PRIVATE)
+        chartSection.addView(HoyiSwitch(activity).apply {
+            text = getString(R.string.fixed_chart_axes)
+            isChecked = chartPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
+            tag = "product/settings/chart/fixed-axes"
+            visual.switch(this, 52)
+            setOnCheckedChangeListener { _, checked -> chartPreferences.edit().putBoolean(FixedChartAxes.KEY, checked).apply() }
+        }, LinearLayout.LayoutParams(-1, -2))
+        style.add(chartSection, style.text(getString(R.string.fixed_chart_axes_hint),
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val theme = sections.getValue("appearance")
         val appearance = activity.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE)
