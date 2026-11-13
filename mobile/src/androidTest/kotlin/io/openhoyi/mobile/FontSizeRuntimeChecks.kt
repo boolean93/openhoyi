@@ -140,7 +140,14 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         fun choose(dialog: AlertDialog) {
             main {
                 val choices = dialog.window!!.decorView.findViewWithTag<RadioGroup>("product/settings/app/font-size/choices")
-                check((choices.getChildAt(other.ordinal) as RadioButton).performClick())
+                val choice = choices.getChildAt(other.ordinal) as RadioButton
+                // CompoundButton toggles before View.performClick; without an OnClickListener
+                // that return value may be false even though the real radio action succeeded.
+                choice.performClick()
+                check(choice.isChecked && choices.checkedRadioButtonId == choice.id)
+                for (index in 0 until choices.childCount) {
+                    check((choices.getChildAt(index) as RadioButton).isChecked == (index == other.ordinal))
+                }
             }
             await("Preview selection layout pending") {
                 val preview = dialog.window!!.decorView.findViewWithTag<LinearLayout>("product/settings/app/font-size/preview")
