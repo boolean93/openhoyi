@@ -6,6 +6,9 @@ import io.openhoyi.session.DeviceState
 
 /** User-facing connection state shared by device screens. */
 internal object DeviceStatusText {
+    /** Keep current state separate from the last successfully remembered identity. */
+    fun settingsSummary(status: String, rememberedIdentity: String): String = "$status\n$rememberedIdentity"
+
     fun label(context: Context, state: DeviceState): String = context.getString(resource(state))
 
     /** Coffee status line; the failure reason only changes display text, never control eligibility. */
