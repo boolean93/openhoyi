@@ -80,6 +80,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private var statusDetailsDialog: AlertDialog? = null
     private var statusMenuButton: Button? = null
     private lateinit var chartToolsButton: Button
+    private var seriesSelector: ChartSeriesSelector? = null
     private var toolsDialog: AlertDialog? = null
     private val toolsMenuButtons = linkedMapOf<Button, Button>()
     private val transientDialogs = mutableListOf<AlertDialog>()
@@ -250,6 +251,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         content.removeView(pageHeader)
         chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = 0 })
         pageHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> chart.liveHeaderHeightPx = pageHeader.height }
+        seriesSelector = ChartSeriesSelector(chart)
+        (portraitIdentityRow ?: pageHeader).addView(seriesSelector!!.button,
+            LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(4) })
         val chartTools = object : Button(host) {
             private val badge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
             override fun onDraw(canvas: android.graphics.Canvas) {
@@ -377,6 +381,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         host.revokeShortcutStart()
         feedbackUi.leave(host.isChangingConfigurations)
         visible=false;handler.removeCallbacks(refresh)
+        seriesSelector?.close()
         if (::chart.isInitialized) chart.dismissInspection()
         toolsDialog?.dismiss();toolsDialog=null
         statusDetailsDialog?.dismiss();statusDetailsDialog=null
@@ -677,8 +682,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
         chart.unavailableLiveMetrics = buildSet {
             if (frame == null) addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
-            if (scale == null) add(ChartMetric.FLOW)
+            if (scale == null) addAll(listOf(ChartMetric.FLOW, ChartMetric.YIELD))
         }
+        seriesSelector?.refreshReadings()
         // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
         val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY
         quantityLabel.show(getString(if (scaleQuantity) R.string.task_extraction_scale else R.string.task_extraction_water))

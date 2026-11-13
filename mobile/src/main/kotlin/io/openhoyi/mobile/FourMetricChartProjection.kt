@@ -20,9 +20,9 @@ internal enum class ChartMetric(
 ) {
     PRESSURE("bar", 4f, 0f, 2f, 0f, 10f, true),
     WATER("ml", 10f, 0f, 10f, 0f, 40f, true),
-    // WEIGHT is history-only; liveMetrics has no weight axis, so its initial range is unused
-    // there but kept uniform with the other metrics' policy fields.
+    // Weight retains independent grams, never inferred from machine water volume.
     WEIGHT("g", 10f, 0f, 10f, 0f, 40f, true),
+    YIELD("g", 10f, 0f, 10f, 0f, 40f, true),
     TEMPERATURE("°C", 5f, 90f, 95f, 88f, 98f, false),
     FLOW("g/s", 2f, 0f, 1f, 0f, 4f, true),
 }
@@ -38,7 +38,9 @@ internal const val LIVE_MAX_OBSERVED_FRACTION = 0.92f
 internal val historicalMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.WEIGHT, ChartMetric.TEMPERATURE)
 internal val liveMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.FLOW, ChartMetric.TEMPERATURE)
 
-internal data class ChartValue(val elapsedMs: Long, val value: Float)
+internal val selectableLiveMetrics = liveMetrics + ChartMetric.YIELD
+
+internal data class ChartValue(val elapsedMs: Long, val value: Float, val estimated: Boolean = false)
 internal data class ChartRange(val low: Float, val high: Float)
 internal data class MetricChartSeries(
     val metric: ChartMetric,
@@ -86,6 +88,7 @@ internal object FourMetricChartProjection {
         previousSteps: Map<ChartMetric, Float> = emptyMap(),
         /** First expansion of a cup: expand every recipe-targeted live axis in this one pass. */
         expandAllLiveAxes: Boolean = false,
+        includeLiveWeight: Boolean = false,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
@@ -97,10 +100,10 @@ internal object FourMetricChartProjection {
         // A live cup with no observations yet previews the reference cup; once the current cup
         // has any point, its own progress alone drives both axes.
         val referenceDrivesLiveAxes = liveFlow && points.isEmpty()
-        val series = (if (liveFlow) liveMetrics else historicalMetrics).mapNotNull { metric ->
+        val series = (if (liveFlow) { if (includeLiveWeight) selectableLiveMetrics else liveMetrics } else historicalMetrics + listOfNotNull(ChartMetric.YIELD.takeIf { points.any { it.beverageHundredthsGram != null } || reference.any { it.beverageHundredthsGram != null } })).mapNotNull { metric ->
             val current = segments(points, metric, livePauseBaseline)
             val historic = segments(reference, metric)
-            if (metric == ChartMetric.WEIGHT && current.isEmpty() && historic.isEmpty()) {
+            if (metric in setOf(ChartMetric.WEIGHT, ChartMetric.YIELD) && current.isEmpty() && historic.isEmpty()) {
                 return@mapNotNull null
             }
             val axisValues = if (!liveFlow || referenceDrivesLiveAxes) current + historic else current
@@ -311,6 +314,7 @@ internal object FourMetricChartProjection {
         ChartMetric.PRESSURE -> (point.pressureTenthsBar / 10f).takeUnless { point.brewing == false }
         ChartMetric.WATER -> point.waterTenthsMl / 10f
         ChartMetric.WEIGHT -> point.weightHundredthsGram?.div(100f)
+        ChartMetric.YIELD -> point.beverageHundredthsGram?.div(100f)
         ChartMetric.FLOW -> null // Derived from the complete sample timeline in segments().
         ChartMetric.TEMPERATURE -> point.temperatureHundredthsC / 100f
     }
@@ -356,7 +360,7 @@ internal object FourMetricChartProjection {
                 active = mutableListOf()
                 result.add(active)
             }
-            active.add(ChartValue(point.elapsedMs, actual))
+            active.add(ChartValue(point.elapsedMs, actual, metric == ChartMetric.YIELD && point.beverageSource == BeverageWeightSource.ESTIMATED))
             previous = point
         }
         return result.map { it.toList() }

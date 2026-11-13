@@ -13,6 +13,9 @@ internal class ExtractionScaleReadout {
     enum class Reason { NO_SCALE, DISCONNECTED, UNAVAILABLE, STALE, END_UNAVAILABLE, UNKNOWN }
     data class Value(val hundredthsGram: Int?, val reason: Reason? = null,
         val targetHundredthsGram: Int? = null, val ended: Boolean = false, val source: Source = Source.RAW_SCALE) {
+        fun confirmedBeverageSample(): Int? = hundredthsGram?.takeIf {
+            source == Source.BEVERAGE && !ended && reason == null
+        }?.coerceAtLeast(0)
         val number: String get() = hundredthsGram?.let { String.format(Locale.ROOT, "%.1f", it / 100.0) } ?: "—"
     }
     private var trace: String? = null

@@ -13,9 +13,9 @@ internal object ScaleBusinessReading {
         live(observation, state, now)?.hundredthsGram
 
     fun recordMachine(series: ShotSeries, frame: ExtractionTelemetry, atMs: Long,
-        observation: ScaleObservation?, state: DeviceState) {
+        observation: ScaleObservation?, state: DeviceState, beverageHundredthsGram: Int? = null, beverageEpoch: Long? = null) {
         val live = live(observation, state, atMs)
         series.machine(frame, atMs, live?.hundredthsGram, live?.receivedAtMs,
-            live?.deviceFlowHundredths?.takeIf { live.capabilities.deviceFlow })
+            live?.deviceFlowHundredths?.takeIf { live.capabilities.deviceFlow }, beverageHundredthsGram, beverageEpoch)
     }
 }

@@ -1471,7 +1471,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             main {
                 val label=activity.getString(when(metric) {
                     ChartMetric.PRESSURE->R.string.task_comparison_pressure; ChartMetric.WATER->R.string.task_comparison_water
-                    ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.FLOW->R.string.task_chart_flow; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
+                    ChartMetric.YIELD->R.string.chart_series_yield; ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.FLOW->R.string.task_chart_flow; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
                 check(nodes(root(activity)).filterIsInstance<TextView>().single { it.isClickable && it.text.toString()==label }.performClick())
                 check((field(activity,"chart") as TwoCupChartView).metric==metric)
             }
@@ -2532,7 +2532,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun chartMetricAction(activity: Activity, metric: ChartMetric) {
         val label=activity.getString(when(metric) {
             ChartMetric.PRESSURE->R.string.task_comparison_pressure; ChartMetric.WATER->R.string.task_comparison_water
-            ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.FLOW->R.string.task_chart_flow; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
+            ChartMetric.YIELD->R.string.chart_series_yield; ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.FLOW->R.string.task_chart_flow; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
         main { check(nodes(root(activity)).filterIsInstance<TextView>().single { it.isClickable && it.text.toString()==label }.performClick()) }
     }
     /** Additional real page states, never another contribution to the four-page/16-profile main matrix. */

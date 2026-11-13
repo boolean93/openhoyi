@@ -120,7 +120,28 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var previousRanges: Map<ChartMetric, ChartRange> = emptyMap()
     private var data = FourMetricChartProjection.build(emptyList(), emptyList())
     private var selected: ChartMetric? = null
-    private val focusMetric get() = selected ?: ChartMetric.PRESSURE
+    private val seriesPreferences = context.getSharedPreferences("chart_series", Context.MODE_PRIVATE)
+    var visibleMetrics: Set<ChartMetric> = ChartSeriesSelection.decode(seriesPreferences.getStringSet("visible", null))
+        private set
+    fun toggleMetric(metric: ChartMetric): Boolean {
+        val next = ChartSeriesSelection.toggle(visibleMetrics, metric)
+        if (next == visibleMetrics) return false
+        visibleMetrics = next
+        seriesPreferences.edit().putStringSet("visible", next.map { it.name }.toSet()).apply()
+        if (selected !in next) selected = null
+        updateSelection()
+        plot.invalidate()
+        updateDescription()
+        return true
+    }
+    fun metricReadout(metric: ChartMetric): String {
+        val latest = data.series.firstOrNull { it.metric == metric }?.current?.lastOrNull()?.lastOrNull()
+            ?.takeIf { it.elapsedMs == data.observedThroughMs && metric !in unavailableLiveMetrics }
+        return "${latest?.let { (if (it.estimated) "≈ " else "") + format(it.value) } ?: "—"} ${displayUnit(metric)}"
+    }
+    private fun displayedData(source: FourMetricChartData): FourMetricChartData =
+        if (liveChart) source.copy(series = source.series.filter { it.metric in visibleMetrics }) else source
+    private val focusMetric get() = selected?.takeIf { !liveChart || it in visibleMetrics } ?: (if (liveChart) selectableLiveMetrics.firstOrNull { it in visibleMetrics } else null) ?: ChartMetric.PRESSURE
     private val buttons = linkedMapOf<ChartMetric, Button>()
     private val focusIndicators=linkedMapOf<ChartMetric,Drawable>()
     private val liveTiles = linkedMapOf<ChartMetric, android.widget.FrameLayout>()
@@ -205,17 +226,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         plot.invalidate()
     }
 
+    private fun animationState(state: LiveAxisAnimation.AxisState) =
+        ChartSeriesSelection.animationState(state, visibleMetrics)
+
     private fun animateAxis(target: FourMetricChartData) {
-        val to = LiveAxisAnimation.state(target)
+        val to = animationState(LiveAxisAnimation.state(target))
         // A later observation usually repeats the same axis target; let the running animation
         // finish instead of cancelling and restarting on every frame of data.
-        if (axisAnimator != null && LiveAxisAnimation.sameTarget(axisTargetState, to)) {
+        if (axisAnimator != null && LiveAxisAnimation.sameTarget(axisTargetState?.let(::animationState), to)) {
             axisLatestTarget = target
             data = LiveAxisAnimation.apply(target, renderedAxisState())
             plot.invalidate()
             return
         }
-        val from = renderedAxisState()
+        val from = animationState(renderedAxisState())
         if (axisAnimator != null) cancelAxisAnimation()
         if (LiveAxisAnimation.sameTarget(from, to)) { snapAxis(target); return }
         val plan = LiveAxisAnimation.transition(from, to, lastUpdateGapMs)
@@ -342,7 +366,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     /** Presentation budget only: query unchanged renderer gutters, never alter an axis or range. */
     fun liveHeightForPlotAspect(width:Int,ratio:Float):Int {
         val probeHeight=dp(1000f).toInt()
-        val box=productRenderer?.bounds(width,probeHeight,data,focusMetric,false) ?: return dp(320f).toInt()
+        val box=productRenderer?.bounds(width,probeHeight,displayedData(data),focusMetric,false) ?: return dp(320f).toInt()
         return kotlin.math.ceil(liveHeaderHeightPx+probeHeight-box.height()+box.width()*ratio).toInt().coerceAtLeast(dp(260f).toInt())
     }
     /** Reparents the same interactive metric controls, preserving telemetry and accessibility. */
@@ -430,9 +454,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         fun project(expandAllLiveAxes: Boolean) = FourMetricChartProjection.build(points, reference,
             previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart,
             allowLiveExpansion = allowYExpansion, expectedLiveRanges = expectedRanges,
-            previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes)
+            previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes, includeLiveWeight = liveChart)
         var projected = project(false)
-        if (liveChart && !yExpansionStarted && points.isNotEmpty() && projected.series.any { series ->
+        if (liveChart && !yExpansionStarted && points.isNotEmpty() && projected.series.filter { it.metric in liveMetrics }.any { series ->
                 val before = previousRanges[series.metric] ?: ChartAxisScale.yAxis(
                     series.metric.initialLow, series.metric.initialHigh, targetDivisions = 5).range
                 series.range != before
@@ -449,7 +473,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         // previousRanges tracks the committed target only; animation frames never feed back.
         // An expansion (optional or clipping) starts a new 3 s batch window so the next optional
         // expansion is evaluated for every live metric at once.
-        val expanded = liveChart && points.isNotEmpty() && target.series.any { series ->
+        val expanded = liveChart && points.isNotEmpty() && target.series.filter { it.metric in liveMetrics }.any { series ->
             val before = previousRanges[series.metric]
             before == null || before != series.range
         }
@@ -463,7 +487,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         snapAxisOnNextBuild = false
         if (snap) snapAxis(target) else animateAxis(target)
         if (target.series.none { it.metric == selected }) selected = null
-        val metrics = if (embeddedHistory) target.series.map { it.metric } else if (liveChart) liveMetrics else historicalMetrics
+        val metrics = if (embeddedHistory) target.series.map { it.metric } else if (liveChart) liveMetrics else historicalMetrics + listOfNotNull(ChartMetric.YIELD.takeIf { target.series.any { it.metric == ChartMetric.YIELD } })
         buttons.keys.filter { it !in metrics }.toList().forEach { metric ->
             legend.removeView(buttons.remove(metric))
         }
@@ -561,7 +585,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val latest = series?.current?.lastOrNull()?.lastOrNull()?.takeIf {
                 it.elapsedMs == data.observedThroughMs && metric !in unavailableLiveMetrics }
             val paused = metric == ChartMetric.PRESSURE && latest != null && latest.elapsedMs in data.pauseBaselineMs
-            val value = if (paused) "—" else latest?.let { format(it.value) } ?: "—"
+            val value = if (paused) "—" else latest?.let { (if (it.estimated) "≈ " else "") + format(it.value) } ?: "—"
             if (metric == ChartMetric.PRESSURE) gauge?.present(if (paused) null else latest?.value,
                 series?.range?.high ?: 12f,paused)
             val range = series?.range?.let { "${format(it.low)}–${format(it.high)} ${displayUnit(metric)}" }
@@ -588,7 +612,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val range = series.range
         val latest = series.current.lastOrNull()?.lastOrNull()
             ?.takeIf { it.elapsedMs == data.observedThroughMs }
-        val name = "${metricName(metric)} ${latest?.let { format(it.value) } ?: "—"} ${metric.unit}"
+        val name = "${metricName(metric)} ${latest?.let { (if (it.estimated) "≈ " else "") + format(it.value) } ?: "—"} ${metric.unit}"
         val fullTitle = "$name\n${format(range.low)}–${format(range.high)} ${metric.unit}"
         val visibleTitle = if (embeddedHistory) "${metricName(metric)} ${metric.unit}" else fullTitle
         if (button.text.toString() != visibleTitle) button.text = visibleTitle
@@ -662,7 +686,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         explanation.visibility = if (liveCompactChrome || !liveChart && compact && warnings.isEmpty()) GONE else VISIBLE
         plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
             context.getString(R.string.task_chart_independent, metricName(focusMetric), displayUnit(focusMetric)) +
-            referenceNotes + data.series.map { series ->
+            referenceNotes + displayedData(data).series.map { series ->
             val latest = series.current.lastOrNull()?.lastOrNull()
                 ?.takeIf { it.elapsedMs == data.observedThroughMs &&
                     (!liveChart || series.metric !in unavailableLiveMetrics) }
@@ -670,7 +694,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 context.getString(R.string.task_extraction_scale) else metricName(series.metric)
             context.getString(R.string.task_chart_latest, name,
                 if (liveChart && series.metric == ChartMetric.PRESSURE && latest?.elapsedMs in data.pauseBaselineMs) "—"
-                    else latest?.let { format(it.value) } ?: "—", displayUnit(series.metric))
+                    else latest?.let { (if (it.estimated) "≈ " else "") + format(it.value) } ?: "—", displayUnit(series.metric))
         }).joinToString("; ")
         // Do not group the native clickable legend into one accessibility node.
         contentDescription = null
@@ -723,8 +747,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             inspectedTime = point.elapsedMs
             val title = context.getString(R.string.task_chart_sample_time,
                 String.format(Locale.ROOT, "%.2f", point.elapsedMs / 1000.0))
-            readout.text = (listOf(title) + ChartInspection.values(point, liveChart, inspectedFlow.getOrNull(index)).map { (metric, value) ->
-                val displayed = value?.let { String.format(Locale.ROOT,
+            readout.text = (listOf(title) + ChartInspection.values(point, liveChart, inspectedFlow.getOrNull(index), includeLiveWeight = liveChart).filterKeys { !liveChart || it in visibleMetrics }.map { (metric, value) ->
+                val displayed = value?.let { (if (metric == ChartMetric.YIELD && point.beverageSource == BeverageWeightSource.ESTIMATED) "≈ " else "") + String.format(Locale.ROOT,
                     if (metric == ChartMetric.WEIGHT || metric == ChartMetric.FLOW || metric == ChartMetric.TEMPERATURE) "%.2f" else "%.1f", it) + " " + metric.unit }
                     ?: context.getString(when (metric) {
                         ChartMetric.PRESSURE -> R.string.task_chart_not_brewing
@@ -754,6 +778,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private fun metricName(metric: ChartMetric) = context.getString(when (metric) {
         ChartMetric.PRESSURE -> R.string.task_chart_pressure
         ChartMetric.WATER -> R.string.task_chart_water
+        ChartMetric.YIELD -> R.string.chart_series_yield
         ChartMetric.WEIGHT -> R.string.task_chart_weight
         ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
@@ -765,7 +790,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         return Color.parseColor(when (metric) {
             ChartMetric.PRESSURE -> if (dark) "#80B4FF" else "#176BD1"
             ChartMetric.WATER -> if (dark) "#FFAE78" else "#C05A13"
-            ChartMetric.WEIGHT, ChartMetric.FLOW -> if (dark) "#64DEA3" else "#168A55"
+            ChartMetric.WEIGHT, ChartMetric.YIELD -> if (dark) "#FF8DB9" else "#C33F78"
+            ChartMetric.FLOW -> if (dark) "#64DEA3" else "#168A55"
             ChartMetric.TEMPERATURE -> if (dark) "#A994FF" else "#654ACC"
         })
     }
@@ -949,7 +975,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             series.metric to (strings.maxOf { labels.measureText(it) } + dp(8f))
         }
         fun showsAllAxes(availableWidth: Int): Boolean {
-            productRenderer?.let { return it.allAxes(availableWidth, data) }
+            productRenderer?.let { return it.allAxes(availableWidth, displayedData(data)) }
             val gutters = axisColumns().values.sum() + dp(10f)
             return TaskLayoutPolicy.chartAxes((availableWidth / resources.displayMetrics.density).toInt(),
                 ceil(gutters / resources.displayMetrics.density).toInt()) == TaskChartAxisMode.ALL_SCALES
@@ -960,7 +986,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 // While the axis animates, keep the gutter width on the target labels.
                 it.layoutAxis = if (liveChart && axisAnimator != null) axisTargetState else null
                 val rendered = if (liveChart)
-                    data.copy(timeStartMs = renderTimeStart, timeEndMs = renderTimeEnd.coerceAtLeast(1))
+                    displayedData(data.copy(timeStartMs = renderTimeStart, timeEndMs = renderTimeEnd.coerceAtLeast(1)))
                 else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
                     if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))

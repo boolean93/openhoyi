@@ -15,7 +15,7 @@ internal object LiveEndpointLabelGeometry {
         private var controls:List<LiveChartGeometry.Cubic> = emptyList()
         fun clear() { source=null;controls=emptyList() }
         fun resolve(series:MetricChartSeries,data:FourMetricChartData,reveal:Long?,unavailable:Set<ChartMetric>):Head? {
-            if(series.metric !in liveMetrics || series.metric in unavailable) return null
+            if(series.metric !in selectableLiveMetrics || series.metric in unavailable) return null
             val observed=data.observedThroughMs ?: return null
             val segment=series.current.lastOrNull {it.isNotEmpty()} ?: return null
             val newest=segment.last()

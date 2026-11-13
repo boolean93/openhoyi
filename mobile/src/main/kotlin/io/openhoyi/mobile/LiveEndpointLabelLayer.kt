@@ -17,14 +17,14 @@ internal class LiveEndpointLabelLayer(context:Context,private val colorFor:(Char
     private val dot=Paint(Paint.ANTI_ALIAS_FLAG)
     private val rect=RectF()
     private class Label(val metric:ChartMetric) {
-        var value=Float.NaN;var caption="";var width=0f
+        var value=Float.NaN;var estimated=false;var caption="";var width=0f
         var anchor=LiveEndpointLabelGeometry.Anchor(0f,0f)
         val sampler=LiveEndpointLabelGeometry.HeadSampler()
         var leftSide:Boolean?=null
         var offsetY:Float?=null
         fun resetPlacement() {leftSide=null;offsetY=null}
     }
-    private val cache=liveMetrics.map {Label(it)}
+    private val cache=selectableLiveMetrics.map {Label(it)}
     private val visible=ArrayList<Label>(4)
     private val occupied=ArrayList<LiveEndpointLabelGeometry.Box>(4)
     private var observedThrough:Long?=null
@@ -53,10 +53,10 @@ internal class LiveEndpointLabelLayer(context:Context,private val colorFor:(Char
             val point=head.caption
             val anchor=LiveEndpointLabelGeometry.anchor(head.position,series.range,data,mapping) ?: continue
             label.anchor=anchor
-            if(label.value!=point.value) {
-                label.value=point.value
+            if(label.value!=point.value || label.estimated != point.estimated) {
+                label.value=point.value;label.estimated=point.estimated
                 val unit=if(label.metric==ChartMetric.WATER) "mL" else label.metric.unit
-                label.caption=String.format(Locale.ROOT,"%.1f %s",point.value,unit)
+                label.caption=(if(point.estimated) "≈ " else "")+String.format(Locale.ROOT,"%.1f %s",point.value,unit)
                 label.width=text.measureText(label.caption)+12*density
             }
             visible.add(label)
