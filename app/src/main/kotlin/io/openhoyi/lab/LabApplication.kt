@@ -7,10 +7,13 @@ import android.os.Looper
 import android.widget.Toast
 import java.io.File
 import io.openhoyi.trace.TraceStore
+import io.openhoyi.trace.TraceAppInfo
 
 /** Process-wide writer: stopped/restarted services cannot race over the same journal files. */
 class LabApplication : Application() {
-    val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
+    val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces"), appInfo = TraceAppInfo(
+        BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toLong(), BuildConfig.BUILD_TYPE,
+    )) }
     fun export(uri: Uri) {
         logs.record("ui.export")
         try {

@@ -1,6 +1,7 @@
 plugins { id("com.android.application"); kotlin("android") }
 android {
     namespace="io.openhoyi.lab"
+    buildFeatures { buildConfig = true }
     compileSdk=35
     defaultConfig {
         applicationId="io.openhoyi.lab"

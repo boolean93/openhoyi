@@ -10,6 +10,17 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
+/** Build identity only: no device IDs, user data, paths or credentials. */
+data class TraceAppInfo(
+    val versionName: String,
+    val versionCode: Long,
+    val buildType: String,
+) {
+    init {
+        require(versionName.length <= 256 && buildType.length <= 64 && versionCode >= 0)
+    }
+}
+
 /**
  * Asynchronous, bounded diagnostic journal. Callers MUST redact credentials, passwords and raw
  * authentication packets before calling record; exports contain the supplied fields verbatim.
@@ -21,6 +32,7 @@ class TraceStore(
     queueCapacity: Int = 512,
     private val maxFileBytes: Long = 4L * 1024 * 1024,
     private val maxFiles: Int = 8,
+    private val appInfo: TraceAppInfo? = null,
 ) : AutoCloseable {
     init { require(queueCapacity > 0 && maxFileBytes > 0 && maxFiles > 0) }
     private val sessionId = java.util.UUID.randomUUID().toString()
@@ -55,7 +67,7 @@ class TraceStore(
                 try {
                     sequence++
                     val json = "{\"sessionId\":${quote(sessionId)},\"seq\":$sequence,\"wallclockMs\":$wallclock,\"monotonicNs\":$monotonic," +
-                        "\"kind\":${quote(kind)},\"fields\":{" +
+                        "\"app\":${appJson()},\"kind\":${quote(kind)},\"fields\":{" +
                         copied.entries.joinToString(",") { "${quote(it.key)}:${quote(it.value)}" } + "}}\n"
                     val bytes = json.toByteArray(Charsets.UTF_8)
                     if (bytes.size > maxFileBytes) { dropped.incrementAndGet(); return@execute }
@@ -83,7 +95,7 @@ class TraceStore(
                 ZipOutputStream(output).use { zip ->
                     zip.putNextEntry(ZipEntry("metadata.json"))
                     zip.write(("{\"schema\":1,\"sessionId\":${quote(sessionId)},\"retentionEvictedFiles\":${retentionEvictedFiles.get()},\"dropped\":${dropped.get()},\"errors\":${errors.get()}," +
-                        "\"lastError\":${quote(lastError)},\"lastSequence\":$sequence}").toByteArray(Charsets.UTF_8))
+                        "\"lastError\":${quote(lastError)},\"lastSequence\":$sequence,\"exporterApp\":${appJson()}}").toByteArray(Charsets.UTF_8))
                     zip.closeEntry()
                     files().forEach { file ->
                         zip.putNextEntry(ZipEntry(file.name))
@@ -96,6 +108,12 @@ class TraceStore(
             try { done(failure) } catch (error: Throwable) { failed(error) }
         }
     }
+
+    // Repeated per record so rotation cannot discard the only version marker. Old records
+    // are copied verbatim on export; exporterApp never describes historical sessions.
+    private fun appJson(): String = appInfo?.let {
+        "{\"versionName\":${quote(it.versionName)},\"versionCode\":${it.versionCode},\"buildType\":${quote(it.buildType)}}"
+    } ?: "null"
 
     private fun prepare() {
         if (initialized) return
