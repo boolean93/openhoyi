@@ -116,3 +116,11 @@ if (updateChecks) {
 if (updateChecks) {
     kotlin.sourceSets.getByName("androidTest").kotlin.setSrcDirs(listOf("src/updateFixtureTest/kotlin"))
 }
+
+// Source guards read text/XML, not only bytecode. Comments/resources must invalidate cached results too.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    inputs.files(fileTree("src/main/kotlin") { include("**/*.kt") })
+        .withPropertyName("appTypographySourceGuard").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    inputs.files(file("src/main/AndroidManifest.xml"), fileTree("src/main/res") { include("**/*.xml") })
+        .withPropertyName("appTypographyResourceGuard").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+}
