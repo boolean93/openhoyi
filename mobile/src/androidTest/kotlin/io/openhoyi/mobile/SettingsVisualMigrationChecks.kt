@@ -1309,8 +1309,12 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 check(MobileMonotonicClock.mockOwnerIdentity()==null)
                 when(activity) {
                     is MainActivity -> {
-                        check((tagged(activity,"product/settings/app/info/package/value") as TextView).text.toString()==BuildConfig.APPLICATION_ID)
-                        check((tagged(activity,"product/settings/app/info/mode/value") as TextView).text.toString()==activity.getString(R.string.application_mode_mock))
+                        val root=activity.findViewById<View>(android.R.id.content)
+                        check(root.findViewWithTag<View>("product/settings/app/info/package/value")==null)
+                        check(root.findViewWithTag<View>("product/settings/app/info/mode/value")==null)
+                        val website=tagged(activity,"product/settings/app/project-home") as TextView
+                        check(website.text.toString()==activity.getString(R.string.settings_project_home) && website.hasOnClickListeners())
+                        check(website.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
                         check(!(field(requireNotNull(field(activity,"feedbackCard")),"audioOwner") as Lazy<*>).isInitialized()) {"Main screenshot started preview audio"}
                     }
                     is MachineSettingsActivity -> {

@@ -333,9 +333,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val updateBudget=View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                 val available=scroll.height
                 if(available>0) {
+                    // Weighted cards may differ by a pixel. Use one shared portrait budget so
+                    // they cannot alternately resize the same hero and request another layout.
+                    val portraitWidth = boilerDials.minOfOrNull { dial ->
+                        val card = dial.parent as View
+                        (card.width-card.paddingLeft-card.paddingRight-dp(4)).coerceAtLeast(0)
+                    } ?: 0
+                    val portraitBudget = if (phoneHome && portraitWidth > 0) HomePortraitBudget.fit(
+                        (portraitWidth/resources.displayMetrics.density).toInt(),
+                        (available/resources.displayMetrics.density).toInt(), resources.configuration.fontScale) else null
+                    portraitBudget?.let { boilerRow.setPortraitHeroHeight(dp(it.hero)) }
                     boilerDials.forEach { dial ->
                         val parent=dial.parent as View
-                        val diameter=minOf(dp(216),(parent.width-parent.paddingLeft-parent.paddingRight-dp(4)).coerceAtLeast(dp(112)))
+                        val cardWidth=(parent.width-parent.paddingLeft-parent.paddingRight-dp(4)).coerceAtLeast(0)
+                        if (cardWidth == 0) return@forEach
+                        val diameter=portraitBudget?.let { dp(it.dial) } ?: minOf(dp(216),cardWidth.coerceAtLeast(dp(112)))
                         if(dial.layoutParams.width!=diameter) dial.layoutParams=(dial.layoutParams as LinearLayout.LayoutParams).apply {width=diameter;height=diameter}
                     }
                 }
@@ -400,7 +412,25 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
         }
         quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
-        lastCurveRow = productStyle.row("product/home/last-curve").apply {
+        lastCurveRow = object : LinearLayout(host) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                if (phoneHome && childCount == 4) {
+                    val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+                    val inline = HomePortraitBudget.inlineLastCurve((available / resources.displayMetrics.density).toInt(), resources.configuration.fontScale)
+                    orientation = if (inline) HORIZONTAL else VERTICAL
+                    (getChildAt(0).layoutParams as LayoutParams).apply { width = if (inline) dp(96) else -1; height = dp(44) }
+                    // Portrait keeps the quiet gap rather than a divider; render does not fight layout.
+                    (getChildAt(2).layoutParams as LayoutParams).apply { width = if (inline) 0 else -1; weight = if (inline) 1f else 0f; marginStart = if (inline) dp(12) else 0 }
+                    (getChildAt(3).layoutParams as LayoutParams).apply {
+                        width = if (inline) (dp(124) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() else -1
+                        marginStart = if (inline) dp(8) else 0; topMargin = if (inline) 0 else dp(8)
+                    }
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            tag = "product/home/last-curve"
+            orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             minimumHeight = dp(if(spaciousHome) 76 else 48)
             setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0),

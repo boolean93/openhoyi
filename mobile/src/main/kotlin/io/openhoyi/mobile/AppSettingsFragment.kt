@@ -244,8 +244,18 @@ class AppSettingsFragment : Fragment() {
             style.add(info, pair)
         }
         infoRow("name", R.string.settings_info_name, getString(R.string.app_name))
-        infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
-        infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
+        HoyiUi.button(activity, info, getString(R.string.settings_project_home)) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://boolean93.github.io/openhoyi/")))
+            } catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }.apply {
+            tag = "product/settings/app/project-home"
+            asTaskTextAction()
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            minimumHeight = (48 * resources.displayMetrics.density).toInt()
+        }
         updateCard = ReleaseUpdateCard(activity, info, visual)
         val diagnostics = sections.getValue("maintenance")
         diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/diagnostic-state",secondary=true).also {style.add(diagnostics,it,16)}
