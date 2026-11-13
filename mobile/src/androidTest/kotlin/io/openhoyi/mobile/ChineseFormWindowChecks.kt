@@ -481,34 +481,52 @@ internal object ChineseFormWindowChecks {
                 }
                 waitForDraw()
             }
-            if (activity is CurveEditorActivity && activity.resources.configuration.let {
-                    it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
-                }) {
+            if (activity is CurveEditorActivity) {
+                var inputs = emptyList<EditText>()
+                var reachable = emptyList<View>()
+                var drafts = emptyMap<EditText, String>()
                 main {
-                    val inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
+                    inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
                     check(inputs.size == 15) { "$name missing metadata, configuration or four-stage fields: ${inputs.size}" }
-                    inputs.filter { it.tag != "product/form/curve-editor/total-water-limit" }.forEach(::fullyVisible)
-                    val topPositions = listOf(R.string.profiles_name, R.string.profiles_temperature, R.string.profiles_cup).map { label ->
-                        val field = inputs.single { it.contentDescription?.toString() == activity.getString(label) }
-                        val location = IntArray(2); field.getLocationOnScreen(location); location[1]
+                    drafts = inputs.associateWith { it.text.toString() }
+                    check(descendants(content).none { it is CurveStageCountTabs }) { "$name still hides stages behind tabs" }
+                    val cards = (0..3).map { requireNotNull(content.findViewWithTag<View>("curve-editor-stage-$it")) }
+                    check(cards.all { it.isShown && it.width > 0 && it.height > 0 })
+                    val bounds = cards.map { card ->
+                        val xy = IntArray(2); card.getLocationOnScreen(xy)
+                        Rect(xy[0], xy[1], xy[0] + card.width, xy[1] + card.height)
                     }
-                    check(requireNotNull(topPositions.maxOrNull()) - requireNotNull(topPositions.minOrNull()) <= 1) {
-                        "$name metadata inputs are not aligned: $topPositions"
+                    for (i in bounds.indices) for (j in i + 1 until bounds.size)
+                        check(!Rect.intersects(bounds[i], bounds[j])) { "$name overlapping stage cards $i/$j" }
+                    val modes = (0..3).map { requireNotNull(content.findViewWithTag<TextView>("curve-stage-mode-$it")) }
+                    check(modes.all { it.text.isNotBlank() }) { "$name missing stage control-mode labels" }
+                    val remove = requireNotNull(content.findViewWithTag<Button>("curve-stage-remove-3"))
+                    check(remove.isEnabled && remove.width >= HoyiUi.dp(activity, 48) && remove.height >= HoyiUi.dp(activity, 48))
+                    val localActions = listOf(R.string.profiles_preview, R.string.ui_full_details).map { action ->
+                        descendants(content).filterIsInstance<Button>().single { it.text.toString() == activity.getString(action) }
                     }
-                    fullyVisible(requireNotNull(stageSelector))
-                    val remove = content.findViewWithTag<Button>("curve-stage-remove-3")
-                    fullyVisible(remove)
-                    check(remove.width >= HoyiUi.dp(activity, 48) && remove.height >= HoyiUi.dp(activity, 48))
-                    listOf(R.string.profiles_preview, R.string.ui_full_details).forEach { action ->
-                        descendants(content).filterIsInstance<Button>().single {
-                            it.text.toString() == activity.getString(action)
-                        }.let(::fullyVisible)
+                    reachable = inputs + modes + remove + localActions
+                    if (activity.resources.configuration.let { it.screenWidthDp >= 1000 && it.fontScale <= 1.05f }) {
+                        val topPositions = listOf("name", "temperature", "cup").map { key ->
+                            val input = content.findViewWithTag<EditText>("product/form/curve-editor/$key")
+                            val xy = IntArray(2); input.getLocationOnScreen(xy); xy[1]
+                        }
+                        check(topPositions.max() - topPositions.min() <= 1) { "$name metadata inputs misaligned: $topPositions" }
                     }
-                    descendants(content).filterIsInstance<TextView>().single {
-                        it.text.toString() == activity.getString(R.string.task_form_stage_caption)
-                    }.let(::fullyVisible)
                 }
-                capture("four-stage-table")
+                // Every actual field/label/action must be reachable with full, unclipped bounds.
+                // The approved cards intentionally scroll on small windows; being below the fold is not failure.
+                reachable.forEach { view ->
+                    main { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), true) }
+                    waitForDraw()
+                    main { fullyVisible(view) }
+                }
+                main {
+                    drafts.forEach { (field, value) -> check(field.text.toString() == value) { "$name scrolling changed draft" } }
+                    descendants(content).filterIsInstance<android.widget.ScrollView>().forEach { it.scrollTo(0, 0) }
+                }
+                waitForDraw()
+                capture("four-stage-cards")
             }
             main { sectionCount = if (activity is CurveEditorActivity) 6 else if (activity is BeanEntryActivity) 3 else reviewLabels.size }
             for (position in 0 until sectionCount) {
