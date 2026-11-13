@@ -11,6 +11,7 @@ class BrewPreparation {
     var targetC: Int? = null
         private set
     private var serial = 0L
+    val requestId: Long get() = serial
     private var afterSample = 0L
 
     val active: Boolean get() = state != State.IDLE

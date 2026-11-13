@@ -23,7 +23,7 @@ internal object TaskShellDeviceStatus {
         !running -> R.string.device_state_disconnected
         connection != DeviceState.READY -> DeviceStatusText.coffeeResource(connection, failure)
         sleepRaw!=1 && preparation in setOf(BrewPreparation.State.WRITING,BrewPreparation.State.WAITING_TEMP) ->
-            R.string.task_shell_machine_preheating
+            R.string.auto_preheat_heating
         sleepRaw!=1 && preparation==BrewPreparation.State.READY -> if(preparationAtTarget)
             R.string.task_shell_machine_preheat_ready else R.string.home_boiler_preheat_occupied
         else -> SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)

@@ -24,7 +24,8 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    private enum class CheckMode { OUTCOMES, BLOCKED, QUEUED_MANUAL, QUEUED_OWNER, QUEUED_PREP, TIMEOUT_OWNER }
+    private enum class CheckMode { OUTCOMES, BLOCKED, QUEUED_MANUAL, QUEUED_OWNER, QUEUED_PREP, TIMEOUT_OWNER, AUTO }
+    fun runAuto() = runChecks(CheckMode.AUTO)
     fun run() = runChecks(CheckMode.OUTCOMES)
     fun runBlocked() = runChecks(CheckMode.BLOCKED)
     fun runQueuedManual() = runChecks(CheckMode.QUEUED_MANUAL)
@@ -53,7 +54,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
         var fakeWrites=0
         var blockedCancels=0
         var fakeBarriers=0
-        for (ready in listOf(false,true)) for (mode in if(checkMode==CheckMode.OUTCOMES)(0..4).toList() else if(checkMode==CheckMode.TIMEOUT_OWNER)(0..2).toList() else listOf(0)) {
+        for (ready in if(checkMode==CheckMode.AUTO) listOf(false) else listOf(false,true)) for (mode in if(checkMode==CheckMode.AUTO)(0..9).toList() else if(checkMode==CheckMode.OUTCOMES)(0..4).toList() else if(checkMode==CheckMode.TIMEOUT_OWNER)(0..2).toList() else listOf(0)) {
             val kind=MachineWriteRecoveryState.Kind.BREW_WAIT
             val id = UUID.randomUUID().toString()
             val fixtures = names.associateWith { "service_preheat_cancel_${id}_$it" }
@@ -102,7 +103,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                         }
                         val instance = attach()
                         val scheduledPreheat=mutableListOf<Pair<Long,()->Unit>>()
-                        if(checkMode==CheckMode.TIMEOUT_OWNER) {
+                        if(checkMode==CheckMode.TIMEOUT_OWNER || checkMode==CheckMode.AUTO) {
                             val schedule:(Long,()->Unit)->Unit={ delay,action->scheduledPreheat+=delay to action }
                             field(instance,"preheatTimeoutScheduler").set(instance,schedule)
                         }
@@ -123,7 +124,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                                 calls += Triple(generation, token, operation)
                                 recordsAtDispatch += prefs.all.toMap()
                                 statesAtDispatch += requireNotNull(field(tracker, "state").get(tracker)).toString()
-                                if(mode==4 && calls.size==2)throw IllegalStateException("Injected cancel dispatch uncertainty")
+                                if(checkMode==CheckMode.OUTCOMES && mode==4 && calls.size==2)throw IllegalStateException("Injected cancel dispatch uncertainty")
                                 return true
                             }
                             override fun close(generation: Long) { coffeeCloses++ }
@@ -164,6 +165,108 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                                 it[4]=0x2E;it[5]=0xE0.toByte();it[14]=(settings.cupCount shr 8).toByte();it[15]=settings.cupCount.toByte()
                             }
                             session.onNotification(queues[0].generation,KnownGatt.coffeeNotify,bytes)
+                        }
+                        if(checkMode==CheckMode.AUTO) {
+                            // Reuse the detached service, isolated storage and guarded fake transport above.
+                            // Reflection seeded snapshot above; mirror its production setter's content observation.
+                            // Otherwise the first event changes revision after intent capture and rejects its own write.
+                            @Suppress("UNCHECKED_CAST")
+                            val configuration=field(instance,"shortcutConfiguration").get(instance) as ShortcutContentRevision<List<Any?>>
+                            val initial=instance.snapshot
+                            configuration.observe(listOf(initial.settings,initial.coffeeState,initial.scaleState,initial.scaleCapabilities))
+                            check(instance.shortcutDeviceIdentity != null)
+                            fun diagnostics() = "auto mode=$mode calls=${calls.size} state=${preparation.state} " +
+                                "message=${instance.autoPreheatMessage} actual=${instance.currentCorrectedBrewTemperature()} " +
+                                "target=${selected.temperatureC} revision=${instance.shortcutConfigurationRevision} " +
+                                "settingsAvailable=${instance.machineBrewSettingsAvailable} flags=${settings.flags}"
+                            val rejection=instance.useCurveForPreheat(selected.id,selected.scaleMode,7)
+                            check(rejection==null) { "${diagnostics()} rejected=$rejection" }
+                            check(calls.size==1 && preparation.state==BrewPreparation.State.WRITING) { diagnostics() }
+                            val positive=calls.single()
+                            val positiveWrite=positive.third as GattOperation.Write
+                            check(positiveWrite.bytes.contentEquals(CoffeeCommands.brewWait(selected.temperatureC).frame.toByteArray()))
+                            check(instance.useCurveForPreheat(selected.id,selected.scaleMode,7)==null && calls.size==1)
+                            session.onComplete(positive.first,positive.second,OperationResult.Success())
+                            check(preparation.state==BrewPreparation.State.WAITING_TEMP && recovery(instance).pending && prefs.all==saved)
+                            val base=instance.snapshot
+                            val passive=field(instance,"passiveShot").get(instance) as PassiveShotDetector
+                            val queued=mode in 3..6 || mode in 8..9
+                            var barrier:Triple<Long,Long,GattOperation>?=null
+                            if(queued) {
+                                queues[0].enqueue(GattOperation.Discover,5000) {
+                                    check(it is OperationResult.Success)
+                                    if(mode==4) field(queues[0],"generation").setLong(queues[0],queues[0].generation+1)
+                                }
+                                barrier=calls.last()
+                            }
+                            if(mode==1) field(instance,"snapshot").set(instance,base.copy(coffeeState=DeviceState.DISCONNECTED))
+                            if(mode==2) passive.let { field(it,"active").setBoolean(it,true) }
+                            if(mode==7) {
+                                // A successfully started shot consumes preparation before page teardown.
+                                preparation.consumed()
+                                field(owner.extraction,"state").set(owner.extraction,ExtractionState.RUNNING)
+                            }
+                            if(mode==9) {
+                                check(scheduledPreheat.size==1)
+                                scheduledPreheat.single().second() // Actual automatic timeout entry queues cancellation.
+                            } else instance.leaveAutoPreheat()
+                            if(queued) {
+                                check(calls.size==2 && preparation.state==BrewPreparation.State.CANCELLING)
+                                if(mode==8) {
+                                    val intent=field(instance,"autoPreheatIntent").get(instance)
+                                    val other=ServiceCurveFixtures.profile(app,excluding=selected.id)
+                                    check(instance.useCurveForPreheat(other.id,other.scaleMode,7)!=null)
+                                    check(instance.useCurveForPreheat(selected.id,selected.scaleMode,7)!=null)
+                                    check(field(instance,"autoPreheatIntent").get(instance)===intent && calls.size==2)
+                                }
+                                if(mode==9) {
+                                    // Machine manual-flow telemetry followed by idle must not revive the old intent.
+                                    readback.invoke(instance,ExtractionTelemetry(6,1,90,10,8000,20,64,0,ByteFrame(byteArrayOf())))
+                                    check(instance.snapshot.coffee is ExtractionTelemetry)
+                                    notifyIdle(8000)
+                                    check(instance.snapshot.coffee is IdleTelemetry && !instance.manualShotActive)
+                                }
+                                when(mode) {
+                                    3 -> field(passive,"active").setBoolean(passive,true)
+                                    5 -> {
+                                        val revision=field(instance,"shortcutConfiguration").get(instance)
+                                        field(revision,"revision").setLong(revision,instance.shortcutConfigurationRevision+1)
+                                    }
+                                    6 -> {
+                                        val intent=field(instance,"autoPreheatIntent").get(instance)!!
+                                        field(intent,"leftAt").set(intent,SystemClock.elapsedRealtime()-2000)
+                                    }
+                                }
+                                val blocked=requireNotNull(barrier)
+                                // Change generation inside the barrier callback, immediately before dequeue.
+                                session.onComplete(blocked.first,blocked.second,OperationResult.Success())
+                                if(mode==8) {
+                                    check(calls.size==3)
+                                    val cancel=calls.last()
+                                    check((cancel.third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.brewWait(0).frame.toByteArray()))
+                                    session.onComplete(cancel.first,cancel.second,OperationResult.Success())
+                                    check(preparation.state==BrewPreparation.State.CANCEL_WRITTEN)
+                                } else {
+                                    check(calls.size==2 && calls.count { it.third is GattOperation.Write }==1)
+                                    check(preparation.state==BrewPreparation.State.UNKNOWN)
+                                }
+                                check(recovery(instance).pending && prefs.all==saved)
+                            } else if(mode==0) {
+                                check(calls.size==2)
+                                val cancel=calls.last();val write=cancel.third as GattOperation.Write
+                                check(write.bytes.contentEquals(CoffeeCommands.brewWait(0).frame.toByteArray()))
+                                session.onComplete(cancel.first,cancel.second,OperationResult.Success())
+                                check(preparation.state==BrewPreparation.State.CANCEL_WRITTEN && recovery(instance).pending && prefs.all==saved)
+                            } else check(calls.size==1)
+                            val count=calls.size
+                            field(instance,"snapshot").set(instance,base)
+                            field(passive,"active").setBoolean(passive,false)
+                            field(session,"activeAddress").set(session,address)
+                            instance.leaveAutoPreheat();session.tick()
+                            check(calls.size==count) // No repeated leave, reconnect replay, or positive retry.
+                            check(systemLookups==0 && permissionChecks==0 && componentCalls==0 && scaleExecutions==0)
+                            checkedFixtures++;fakeWrites+=calls.count { it.third is GattOperation.Write }
+                            return@runOnMainSync
                         }
                         if(checkMode==CheckMode.QUEUED_PREP) {
                             queues[0].enqueue(GattOperation.Discover,5000) { check(it is OperationResult.Success) }
@@ -438,7 +541,8 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                 cleanupFailure?.let { throw it }
             }
         }
-        if(checkMode==CheckMode.TIMEOUT_OWNER)check(checkedFixtures==6 && fakeWrites==8 && fakeBarriers==0 && blockedEntries==0)
+        if(checkMode==CheckMode.AUTO)check(checkedFixtures==10 && fakeWrites==12)
+        else if(checkMode==CheckMode.TIMEOUT_OWNER)check(checkedFixtures==6 && fakeWrites==8 && fakeBarriers==0 && blockedEntries==0)
         else if(checkMode==CheckMode.QUEUED_PREP)check(checkedFixtures==2 && fakeWrites==0 && fakeBarriers==2 && blockedEntries==0)
         else if(checkMode in setOf(CheckMode.QUEUED_MANUAL,CheckMode.QUEUED_OWNER))check(checkedFixtures==2 && blockedEntries==24 && fakeWrites==2 && fakeBarriers==2 &&
             recoveredAcknowledgements==0 && retainedDisconnected==0)

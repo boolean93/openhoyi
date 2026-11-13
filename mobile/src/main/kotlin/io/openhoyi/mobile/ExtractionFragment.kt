@@ -761,7 +761,18 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         start.backgroundTintList = android.content.res.ColorStateList.valueOf(
             if (startProtected) style.disabled else visual.liveStart)
         start.setTextColor(if (startProtected) style.onDisabled else android.graphics.Color.WHITE)
-        start.contentDescription = listOfNotNull(start.text.toString(), blocked ?: studioBlocked).joinToString(" · ")
+        val showPreheatStatus = AutoPreheatPresentation.showStudioStatus(snapshot.settings?.flags,
+            owner?.autoPreheatInitialTemperature != null && preparation != BrewPreparation.State.IDLE,
+            owner?.autoPreheatMessage)
+        val preheatModel = AutoPreheatPresentation.describe(AutoPreheatPresentation.Facts(
+            showPreheatStatus, owner?.running == true && snapshot.coffeeState == DeviceState.READY,
+            preparation, profile?.id, profile?.temperatureC,
+            owner?.brewPreparationProfileId, owner?.brewPreparationTargetC,
+            corrected, owner?.autoPreheatInitialTemperature))
+        AutoPreheatButton.bind(start, preheatModel, corrected, profile?.temperatureC,
+            if (showPreheatStatus) owner?.autoPreheatMessage else null)
+        start.contentDescription = listOfNotNull(start.contentDescription?.toString(), blocked ?: studioBlocked)
+            .joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE

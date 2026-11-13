@@ -8,7 +8,7 @@ import android.view.View
 import android.widget.CompoundButton
 import java.io.File
 
-/** Actual Mock windows. The out-of-range recipe guarantees these flows cannot start a shot. */
+/** Actual Mock windows. Each tap starts cold; reaching target never starts a deferred shot. */
 internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation) {
     private fun main(action: () -> Unit) = BoundedInstrumentationMain.run("shortcut direct", 5000, action)
     private fun await(stage: String, condition: () -> Boolean) {
@@ -48,6 +48,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         var activity: MainActivity? = null
         var mockRuntime: Any? = null
         var originalMockSettings: Any? = null
+        var originalMockTemperature: Int? = null
         val directory = File(context.getExternalFilesDir(null), "shortcut-direct-checks").apply { mkdirs() }
         fun capture(name: String) {
             SystemClock.sleep(400)
@@ -74,6 +75,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             main {
                 val runtime = checkNotNull(MobileService::class.java.getDeclaredField("mock").apply { isAccessible = true }.get(service))
                 mockRuntime = runtime
+                originalMockTemperature = runtime.javaClass.getDeclaredField("brewTemperatureHundredths").apply { isAccessible=true }.getInt(runtime)
                 val field = runtime.javaClass.getDeclaredField("settings").apply { isAccessible = true }
                 val settings = field.get(runtime) as io.openhoyi.protocol.Settings
                 originalMockSettings = settings
@@ -91,7 +93,17 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 val rect = android.graphics.Rect()
                 return view.getGlobalVisibleRect(rect) && rect.height() >= view.height
             }
+            // Auto preheat can now reach 105 C, so every independent tap needs a fresh cold fixture.
+            fun resetCold() {
+                service.leaveAutoPreheat()
+                val runtime = checkNotNull(mockRuntime)
+                runtime.javaClass.getDeclaredField("brewTemperatureHundredths").apply { isAccessible=true }.setInt(runtime,7500)
+                MobileService::class.java.getDeclaredMethod("refreshMock",MockDeviceRuntime::class.java,java.lang.Long.TYPE)
+                    .apply { isAccessible=true }.invoke(service,runtime,MobileMonotonicClock.elapsedRealtime())
+                noShot()
+            }
             fun clickSlot() = main {
+                resetCold()
                 val current = service.currentCorrectedBrewTemperature()
                 check(current == null || kotlin.math.abs(current - 10500) > 100) { "Unsafe temperature fixture" }
                 check(page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/5").performClick())
@@ -118,7 +130,11 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             clickSlot()
             await("cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
             noShot(); capture("temperature-gated")
-            // The previous-shot entry is the same explicit tap path, never a preheat request.
+            await("temperature target without deferred start") {
+                service.brewPreparationState==io.openhoyi.session.BrewPreparation.State.READY
+            }
+            main { noShot() } // The next extraction still requires an explicit start tap.
+            // The previous-shot entry is the same explicit tap and automatic-preheat path.
             main {
                 val at = maxOf(System.currentTimeMillis(), (ledger.latest()?.startedAtMs ?: 0) + 1)
                 ledger.record("last-shot-direct-window", document.id, at)
@@ -132,7 +148,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 host.resolveLastCurve() is HomeLastCurve.Ready &&
                     page.active("root:BREW").requireView().findViewWithTag<android.widget.TextView>("product/home/quick-recipe").text.toString() == document.name
             }
-            main { check(lastUse().performClick()) }
+            main { resetCold(); check(lastUse().performClick()) }
             await("previous off navigates only") { runCatching { page.active("extraction") }.isSuccess }
             main {
                 noShot()
@@ -142,6 +158,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             }
             await("previous direct preference") { homeToggle(host).isChecked }
             main {
+                resetCold()
                 check(lastUse().performClick())
             }
             await("previous cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
@@ -158,6 +175,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(host.supportFragmentManager.findFragmentByTag("extraction")?.isVisible != true)
                 noShot()
                 // Restore a gated extraction page for the existing recreation checks.
+                resetCold()
                 host.openShortcut(5)
             }
             val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
@@ -208,7 +226,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(!prefs.getBoolean("direct_start", true)); noShot()
                 main { recreated.select(TaskDestination.BREW) }
                 await("settings off reflected at Home") { !homeToggle(recreated).isChecked }
-                main { recreated.openShortcut(5) }
+                main { resetCold(); recreated.openShortcut(5) }
                 await("disabled navigates only") { recreated.supportFragmentManager.findFragmentByTag("extraction")?.isVisible == true }
                 noShot()
             } finally { test.removeMonitor(monitor) }
@@ -224,7 +242,10 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(idle.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Fixture main queue did not become idle" }
             } finally { main { queue.removeIdleHandler(idleHandler) } }
             main {
-                mockRuntime?.let { runtime -> runtime.javaClass.getDeclaredField("settings").apply { isAccessible = true }.set(runtime, originalMockSettings) }
+                mockRuntime?.let { runtime ->
+                    runtime.javaClass.getDeclaredField("settings").apply { isAccessible = true }.set(runtime, originalMockSettings)
+                    originalMockTemperature?.let { runtime.javaClass.getDeclaredField("brewTemperatureHundredths").apply { isAccessible=true }.setInt(runtime,it) }
+                }
                 curveFixture.restore()
                 usesField.set(ledger, originalUses)
                 if (usageBytes == null) usageFile.delete() else usageFile.writeBytes(usageBytes)
