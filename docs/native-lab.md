@@ -55,3 +55,9 @@ adb shell am instrument -w io.openhoyi.lab.test/io.openhoyi.lab.LabSmokeInstrume
 ```
 
 该测试覆盖未知数据、Activity重建、前后台服务保持和停止服务后的进程内ZIP导出；不验证真实BLE保持、物理旋转或SAF文件选择器。启动测试会重启Lab进程，若已有设备操作，先手动停止再执行。
+
+## 日志中的应用版本
+
+Mobile（含 Debug、Mock、Release）与 Lab 均从各自 `BuildConfig` 向进程级 `TraceStore` 传入 `TraceAppInfo`。新 JSONL 记录顶层的 `app` 包含 `versionName`、数值 `versionCode` 与 `buildType`，描述**产生该条记录的应用构建**；每条重复携带是为了日志轮转后仍能归属版本。不要在各个日志调用点硬编码版本。
+
+ZIP 的 `metadata.json.exporterApp` 只描述**导出时的应用构建**，不能据此给所有历史记录标注同一版本。原有日志按原始字节导出；没有 `app` 或 `app: null` 的记录版本未知，不回填、不推测。新增字段为 schema 1 的可选扩展，已有 `fields`、时序及 ZIP 文件名不变。版本信息不包含设备标识、用户资料、路径或签名凭据。
