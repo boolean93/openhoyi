@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import io.openhoyi.session.*
 import java.util.UUID
 
@@ -21,7 +22,7 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
     private val handler=Handler(Looper.getMainLooper())
     private var gatt:BluetoothGatt?=null
     private var generation=0L
-    private data class Pending(val token:Long,val op:GattOperation)
+    private data class Pending(val token:Long,val op:GattOperation,val startedAtMs:Long)
     private var pending:Pending?=null
     private fun owner()=check(Looper.myLooper()==Looper.getMainLooper()){"BLE access must use main looper"}
     private fun allowed()=Build.VERSION.SDK_INT<31||context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED
@@ -46,7 +47,7 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
         if(operation !is GattOperation.Connect && (this.generation!=generation||gatt==null)){
             record("rejected",generation,token,operation,"inactive_generation");return false
         }
-        this.generation=generation;pending=Pending(token,operation)
+        this.generation=generation;pending=Pending(token,operation,SystemClock.elapsedRealtime())
         val accepted=try {
             when(operation) {
                 is GattOperation.Connect -> {
@@ -71,6 +72,8 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
                     // First-release controls fit default ATT payload. Larger protocols need explicit framing/MTU support.
                     if(ch==null||operation.bytes.size>20)false else {
                         val type=if(operation.withResponse)BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT else BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                        record("write_config",generation,token,operation,
+                            "properties=${ch.properties} withResponse=${operation.withResponse} writeType=$type")
                         if(Build.VERSION.SDK_INT>=33)gatt!!.writeCharacteristic(ch,operation.bytes,type)==BluetoothStatusCodes.SUCCESS
                         else {ch.writeType=type; @Suppress("DEPRECATION") ch.value=operation.bytes; @Suppress("DEPRECATION") gatt!!.writeCharacteristic(ch)}
                     }
@@ -92,12 +95,12 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
         private fun dispatch(g:BluetoothGatt,block:()->Unit){handler.post {if(g===gatt&&gen==generation)block()}}
         private fun finish(status:Int,extra:List<CharacteristicInfo> = emptyList()) {
             val p=pending?:return;pending=null
-            record("completed",gen,p.token,p.op,"status=$status")
+            record("completed",gen,p.token,p.op,"status=$status elapsedMs=${(SystemClock.elapsedRealtime()-p.startedAtMs).coerceAtLeast(0)}")
             events.complete(gen,p.token,GattCallbackResult.fromStatus(p.op,status,extra))
         }
         override fun onConnectionStateChange(g:BluetoothGatt,status:Int,newState:Int)=dispatch(g){
             if(status!=BluetoothGatt.GATT_SUCCESS||newState==BluetoothProfile.STATE_DISCONNECTED){
-                record("disconnected",gen,pending?.token,pending?.op,"status=$status")
+                record("disconnected",gen,pending?.token,pending?.op,"status=$status newState=$newState")
                 events.disconnected(gen,"GATT disconnected: $status")
             }
             else if(newState==BluetoothProfile.STATE_CONNECTED&&pending?.op is GattOperation.Connect)finish(status)
