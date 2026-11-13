@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="font_size_title">字体大小</string>
+    <string name="font_size_small">小</string><string name="font_size_medium">中</string><string name="font_size_large">大</string>
+    <string name="font_size_preview">今日好咖啡</string><string name="font_size_preview_detail">当前温度 · 92 °C</string>
+    <string name="font_size_apply">应用</string><string name="font_size_cancel">取消</string>
+    <string name="font_size_save_failed">保存失败，请重试</string>
+</resources>

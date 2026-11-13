@@ -956,7 +956,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
         val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = TaskTypography.face(context)
-            textSize = 11f * resources.displayMetrics.scaledDensity
+            textSize = AppTextUnits.pixels(resources, 11.0f)
             color = context.getColor(R.color.chart_label)
         }
         private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply {

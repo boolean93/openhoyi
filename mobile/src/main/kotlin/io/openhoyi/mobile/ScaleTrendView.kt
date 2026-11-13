@@ -28,7 +28,7 @@ internal class ScaleTrendView(context: Context, visual: ScaleVisualStyle? = null
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         productRenderer?.let {it.draw(canvas,width,height,points,nowMs);return}
-        paint.textSize = 12 * resources.displayMetrics.scaledDensity
+        paint.textSize = AppTextUnits.pixels(resources, 12.0f)
         paint.style = Paint.Style.FILL
         val low = floor(minOf(0.0, points.minOfOrNull { it.hundredthsGram / 100.0 } ?: 0.0))
         val high = ceil(maxOf(low + 1.0, points.maxOfOrNull { it.hundredthsGram / 100.0 } ?: 1.0))

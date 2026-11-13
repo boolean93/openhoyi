@@ -62,6 +62,7 @@ class AppSettingsFragment : Fragment() {
     }
     private var updateCard: ReleaseUpdateCard? = null
     private var feedbackCard: BrewFeedbackPreferencesCard? = null
+    private var fontSizeCard: AppFontSizePreferencesCard? = null
     private var languageCard: AppLanguagePreferencesCard? = null
     private var exportStatus: TextView? = null
     private var exportGeneration = 0L
@@ -234,6 +235,7 @@ class AppSettingsFragment : Fragment() {
         languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
+        fontSizeCard = AppFontSizePreferencesCard(activity, theme, visual) { activity.recreate() }
         feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual)
         val info = sections.getValue("about")
         // Keep identity, link and updates in one aligned surface rather than floating blocks.
@@ -292,7 +294,7 @@ class AppSettingsFragment : Fragment() {
         refreshHandler.removeCallbacks(refreshCapabilities)
         deviceControls?.close()
         machineControls?.stop()
-        feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close()
+        feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
         updateCard?.pause()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
         service = null
@@ -304,13 +306,13 @@ class AppSettingsFragment : Fragment() {
     }
     override fun onDestroyView() {
         stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
-        feedbackCard?.stop(); languageCard?.close()
+        feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         documentState=Bundle().also { document?.save(it) }
         shortcutToggle = null; shortcutError = null; shortcutRetry = null
         document=null; deviceControls?.close(); deviceControls=null
         machineControls = null
-        feedbackCard = null; languageCard = null; exportStatus = null
+        feedbackCard = null; languageCard = null; fontSizeCard = null; exportStatus = null
         updateCard?.close(); updateCard = null
         super.onDestroyView()
     }

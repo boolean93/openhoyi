@@ -23,7 +23,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private val headingLine=heading.lineHeight
     private val valueLine=value.lineHeight
     private val valueMin=value.minimumHeight
-    private val valueMaxSp=(value.autoSizeMaxTextSize/resources.displayMetrics.scaledDensity).toInt()
+    private val valueMaxSp=kotlin.math.round(AppTextUnits.sp(resources, value.autoSizeMaxTextSize.toFloat())).toInt()
     private val targetSize=target.textSize
     private val targetLine=target.lineHeight
     private val words=LinearLayout(context).apply {orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
@@ -84,8 +84,8 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         if(smallLabels!=small || small && lastSmallDiameter!=MeasureSpec.getSize(widthMeasureSpec)) {
             lastSmallDiameter=MeasureSpec.getSize(widthMeasureSpec)
             smallLabels=small
-            val scaled=resources.displayMetrics.scaledDensity
-            heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) 12*scaled else headingSize)
+            val compactHeadingPx=AppTextUnits.pixels(resources, 12f)
+            heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) compactHeadingPx else headingSize)
             if(small) {
                 heading.setSingleLine(true);heading.setLineSpacing(0f,1f)
                 heading.setAutoSizeTextTypeUniformWithConfiguration(10,12,1,android.util.TypedValue.COMPLEX_UNIT_SP)
@@ -107,7 +107,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
                 setMargins(inset,if(small) (diameter*.17f).toInt() else (25*density).toInt(),inset,if(small) 0 else inset)
             }
             spacer.layoutParams=LinearLayout.LayoutParams(1,if(small) 0 else targetLine)
-            targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) 12*scaled else targetSize)
+            targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) compactHeadingPx else targetSize)
             if(small) {
                 targetBand.setSingleLine(true);targetBand.setLineSpacing(0f,1f)
                 targetBand.setAutoSizeTextTypeUniformWithConfiguration(10,12,1,android.util.TypedValue.COMPLEX_UNIT_SP)
@@ -141,7 +141,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             canvas.drawLine(cx+cos(angle).toFloat()*inner,cy+sin(angle).toFloat()*inner,
                 cx+cos(angle).toFloat()*outer,cy+sin(angle).toFloat()*outer,paint)
         }
-        paint.style=Paint.Style.FILL; paint.textSize=(if(smallLabels==true) 9 else 10)*density*resources.configuration.fontScale
+        paint.style=Paint.Style.FILL; paint.textSize=AppTextUnits.pixels(resources, if(smallLabels==true) 9f else 10f)
         val endpointX=if(smallLabels==true) .62f else .69f
         val endpointY=if(smallLabels==true) .98f else .85f
         paint.textAlign=Paint.Align.CENTER

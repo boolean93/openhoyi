@@ -61,7 +61,7 @@ class LegacyShotChartView(context: Context) : View(context) {
     }
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = TaskTypography.face(context)
-        color = context.getColor(R.color.chart_label); textSize = 12f * resources.displayMetrics.scaledDensity
+        color = context.getColor(R.color.chart_label); textSize = AppTextUnits.pixels(resources, 12.0f)
     }
     private val path = Path()
 

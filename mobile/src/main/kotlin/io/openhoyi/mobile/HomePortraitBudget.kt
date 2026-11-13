@@ -11,7 +11,18 @@ internal data class HomePortraitBudget(val dial: Int, val hero: Int) {
         // A machine column comparable to one dial prevents the product becoming a tiny icon.
         fun machineWidth(contentWidth: Int): Int = (contentWidth * .34f).toInt().coerceIn(160, 260)
 
-        fun inlineDialLimit(contentWidth: Int): Int = (machineWidth(contentWidth) * .82f).toInt()
+        fun inlineDialLimit(contentWidth: Int, tight: Boolean = false): Int =
+            (machineWidth(contentWidth) * if (tight) .88f else .82f).toInt()
+
+        // Spend decorative whitespace before adding a whole extra vertical row. Keep the
+        // machine width and the font-scaled minimum dial intact; narrow phones still stack.
+        fun tightInlineMachine(contentWidth: Int, fontScale: Float): Boolean {
+            if (inlineMachine(contentWidth, fontScale)) return false
+            val minimumDial = (140 * fontScale.coerceAtLeast(1f)).toInt()
+            // 8 machine gap + 4 boiler gap + two (8 card padding + 4 dial safety inset).
+            return inlineDialLimit(contentWidth, tight = true) >= minimumDial &&
+                contentWidth >= machineWidth(contentWidth) + 36 + 2 * minimumDial
+        }
 
         fun compactTypography(width: Int, height: Int): Boolean =
             width >= 480 && height > 0 && width.toFloat() / height in .8f..1.25f

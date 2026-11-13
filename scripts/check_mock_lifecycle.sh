@@ -33,7 +33,7 @@ run_instrumentation() {
 from pathlib import Path
 import subprocess,sys
 output,mode=sys.argv[1:]
-if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle", "navigation", "shortcutsLight", "shortcutsDark"):
+if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle", "navigation", "shortcutsLight", "shortcutsDark", "fontSize"):
     raise SystemExit("Unsupported Mock instrumentation mode")
 command=["adb", "shell", "am", "instrument", "-w"]
 if mode in ("shortcutsLight", "shortcutsDark"):
@@ -42,6 +42,8 @@ if mode == "navigation":
     command += ["-e", "mainNavigationChecks", "true"]
 if mode == "idle":
     command += ["-e", "idleEvents", "true"]
+if mode == "fontSize":
+    command += ["-e", "fontSizeChecks", "true"]
 if mode == "language":
     command += ["-e", "languageChecks", "true"]
 if mode in ("pagesLandscape", "pagesWideFont"):
@@ -196,6 +198,10 @@ grep -F 'LOCAL_FEEDBACK_UI_CHECKS_PASSED switchPersisted=true recreatedWithoutRe
 grep -F 'LOCAL_AUDIO_FOCUS_CHECKS_PASSED interrupted=true sequenceSuppressed=true' "$output_dir/audio-instrumentation.txt" > /dev/null
 grep -F 'LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true' "$output_dir/audio-instrumentation.txt" > /dev/null
 
+# App-owned typography: all choices, isolated preview and unchanged running cup/preheat on recreation.
+run_instrumentation "$output_dir/font-size-instrumentation.txt" fontSize
+grep -F 'FONT_SIZE_CHECKS_PASSED independentSystemScale=true previewCancelApply=true preheatRequestPreserved=true navigationCancel=true sameCup=true sameService=true retainedDraft=true noBle=true' "$output_dir/font-size-instrumentation.txt" >/dev/null
+
 # Language context checks run separately, still guarded to the isolated Mock target.
 adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS
 run_instrumentation "$output_dir/language-instrumentation.txt" language
@@ -250,6 +256,7 @@ for profile in landscape wideFont; do
     mode=pagesLandscape
   else
     adb shell wm size 1600x1000
+    # Keep the OS enlarged: instrumentation selects app LARGE (1.1) and asserts both values.
     adb shell settings put system font_scale 1.3
     mode=pagesWideFont
   fi

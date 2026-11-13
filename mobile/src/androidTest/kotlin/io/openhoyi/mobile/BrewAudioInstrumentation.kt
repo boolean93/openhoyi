@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference
 class BrewAudioInstrumentation : Instrumentation() {
     private var autoPreheatChecks = false
     private var unifiedSwitchChecks = false
+    private var fontSizeChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
     private var shortcutTheme: Boolean? = null
@@ -65,6 +66,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     override fun onCreate(arguments: Bundle?) {
         autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
+        fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
         darkThemeWindow = arguments?.getString("darkThemeWindow")?.let { check(it in setOf("light", "dark")); it == "dark" }
         connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
         settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
@@ -115,6 +117,11 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (fontSizeChecks) {
+                FontSizeRuntimeChecks(this).run()
+                report.putString("stream", "FONT_SIZE_CHECKS_PASSED independentSystemScale=true previewCancelApply=true preheatRequestPreserved=true navigationCancel=true sameCup=true sameService=true retainedDraft=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if (autoPreheatChecks) {
                 ServicePreheatCancellationChecks(this).runAuto()
                 sendStatus(0, Bundle().apply { putString("stream", "SERVICE_AUTO_PREHEAT_CHECKS_PASSED fixtures=10 guardedFakeGatt=true noBle=true\n") })
@@ -519,7 +526,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (formVisualArguments != null) "FORM_VISUAL_MIGRATION_FAILED" else if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (mainNavigationChecks) "MAIN_NAVIGATION_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (historyFooterArguments != null) "HISTORY_FOOTER_FOCUSED_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (fontSizeChecks) "FONT_SIZE_CHECKS_FAILED" else if (formVisualArguments != null) "FORM_VISUAL_MIGRATION_FAILED" else if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (mainNavigationChecks) "MAIN_NAVIGATION_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (historyFooterArguments != null) "HISTORY_FOOTER_FOCUSED_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
