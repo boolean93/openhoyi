@@ -9,10 +9,10 @@ import java.security.MessageDigest
 class BeverageSamplesStoreTest {
     private fun points() = listOf(
         ShotPoint(0, 90, 20, 0, 9200, 12000, brewing=true, beverageHundredthsGram=null),
-        ShotPoint(500, 90, 20, 10, 9200, 12050, brewing=true, beverageHundredthsGram=50, beverageSource=BeverageWeightSource.CONFIRMED),
+        ShotPoint(500, 90, 20, 10, 9200, 12050, brewing=true, beverageHundredthsGram=50, beverageSource=BeverageWeightSource.CONFIRMED, beverageSegmentId=0),
         ShotPoint(1000, 90, 20, 20, 9200, null, brewing=true, beverageHundredthsGram=null),
-        ShotPoint(1500, 90, 20, 30, 9200, 12100, brewing=true, beverageHundredthsGram=100, beverageSource=BeverageWeightSource.ESTIMATED))
-    private fun raw(points: List<ShotPoint>) = points.map { it.copy(beverageHundredthsGram=null, beverageSource=null) }
+        ShotPoint(1500, 90, 20, 30, 9200, 12100, brewing=true, beverageHundredthsGram=100, beverageSource=BeverageWeightSource.ESTIMATED, beverageSegmentId=1))
+    private fun raw(points: List<ShotPoint>) = points.map { it.copy(beverageHundredthsGram=null, beverageSource=null, beverageSegmentId=null) }
     private fun inDirectory(block: (File, ShotSamplesStore) -> Unit) {
         val dir=Files.createTempDirectory("beverage-samples-test").toFile()
         try { block(dir,ShotSamplesStore(dir)) } finally { dir.deleteRecursively() }
@@ -57,6 +57,10 @@ class BeverageSamplesStoreTest {
             valid.replace("500\t50\tCONFIRMED", "500\t\tCONFIRMED"), valid.replace("500\t50", "500\t-1"), valid.replace("500\t50", "500\t2147483648"),
             valid.replace("500\t50", "0\t50"), valid.replace("500\t50", "501\t50"),
             valid.replace("500\t50", "500\t50\textra"), valid + "2000\t200\n",
+            valid.replace("CONFIRMED\t0", "CONFIRMED\t-1"),
+            valid.replace("CONFIRMED\t0", "CONFIRMED\t2147483648"),
+            valid.replace("CONFIRMED\t0", "CONFIRMED\t"),
+            valid.replace("0\t\t\t\n", "0\t\t\t1\n"),
             lines.dropLast(2).joinToString("\n") + "\n", "x".repeat(512*1024+1))
         corruptions.forEach { broken ->
             sidecar(dir).writeText(broken)
@@ -83,7 +87,7 @@ class BeverageSamplesStoreTest {
     }
     @Test fun netRequiresAnObservedRawWeightAndUnknownFileIsNotOverwritten() = inDirectory { dir,store ->
         assertThrows(IllegalArgumentException::class.java) {
-            store.save("cup",listOf(points()[0].copy(weightHundredthsGram=null,beverageHundredthsGram=10,beverageSource=BeverageWeightSource.ESTIMATED)))
+            store.save("cup",listOf(points()[0].copy(weightHundredthsGram=null,beverageHundredthsGram=10,beverageSource=BeverageWeightSource.ESTIMATED, beverageSegmentId=1)))
         }
         assertThrows(IllegalArgumentException::class.java) {
             store.save("cup",listOf(points()[1].copy(beverageSource=null)))
@@ -94,12 +98,29 @@ class BeverageSamplesStoreTest {
         assertThrows(IllegalArgumentException::class.java) {
             store.save("cup",listOf(points()[1].copy(beverageHundredthsGram=-1)))
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            store.save("cup",listOf(points()[1].copy(beverageSegmentId=null)))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            store.save("cup",listOf(points()[1].copy(beverageSegmentId=-1)))
+        }
         val points=points();store.save("cup",points)
-        val before=dir.resolve("samples-cup.tsv").readBytes()
         sidecar(dir).writeText("# future-format\nkeep\n")
-        assertThrows(IllegalStateException::class.java) { store.save("cup",raw(points)) }
+        val newer = points.map { it.copy(pressureTenthsBar=95) }
+        store.save("cup",newer)
         assertEquals("# future-format\nkeep\n",sidecar(dir).readText())
-        assertArrayEquals(before,dir.resolve("samples-cup.tsv").readBytes())
+        assertEquals(raw(newer), store.load("cup"))
+        store.save("cup",raw(points))
+        assertEquals(raw(points),store.load("cup"))
+    }
+    @Test fun corruptSidecarDoesNotBlockNewRawCheckpoint() = inDirectory { dir,store ->
+        store.save("cup",points())
+        sidecar(dir).writeText("corrupt optional bytes\n")
+        val next = points() + ShotPoint(2000,80,10,40,9200,12200,brewing=true,
+            beverageHundredthsGram=200,beverageSource=BeverageWeightSource.ESTIMATED,beverageSegmentId=1)
+        store.save("cup",next)
+        assertEquals(raw(next),store.load("cup"))
+        assertEquals("corrupt optional bytes\n",sidecar(dir).readText())
     }
     @Test fun pruneOnlyRemovesExpiredOwnedEvidenceAndKeepsRecentOrUnknownFiles() = inDirectory { dir,_ ->
         val now=System.currentTimeMillis();val old=now-31L*24*60*60*1000

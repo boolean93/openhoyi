@@ -353,7 +353,8 @@ internal object FourMetricChartProjection {
             }
             val prior = previous
             if (prior == null || point.elapsedMs - prior.elapsedMs > 1500 ||
-                (metric == ChartMetric.WATER && point.waterTenthsMl < prior.waterTenthsMl)) {
+                (metric == ChartMetric.WATER && point.waterTenthsMl < prior.waterTenthsMl) ||
+                (metric == ChartMetric.YIELD && point.beverageSegmentId != prior.beverageSegmentId)) {
                 active = null
             }
             if (active == null) {

@@ -5,4 +5,5 @@
     <string name="chart_series_keep_one">至少保留一条曲线</string>
     <string name="chart_series_hint">即时生效 · ≈ 为估算，重连或归零后分段</string>
     <string name="chart_series_yield">出液重</string>
+    <string name="chart_series_yield_unavailable">出液重暂无数据</string>
 </resources>

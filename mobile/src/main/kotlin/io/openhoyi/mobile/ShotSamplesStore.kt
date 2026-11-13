@@ -17,7 +17,9 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
         require(points.all { it.elapsedMs >= 0 && (it.statusBits == null || it.statusBits in 0..255) })
         require(points.all {
             (it.beverageHundredthsGram == null) == (it.beverageSource == null) &&
-                (it.beverageHundredthsGram == null || (it.beverageHundredthsGram >= 0 && it.weightHundredthsGram != null))
+                (it.beverageHundredthsGram == null) == (it.beverageSegmentId == null) &&
+                (it.beverageHundredthsGram == null || (it.beverageHundredthsGram >= 0 &&
+                    it.beverageSegmentId!! >= 0 && it.weightHundredthsGram != null))
         })
         require(points.zipWithNext().all { (a, b) -> a.elapsedMs < b.elapsedMs })
         if (!directory.isDirectory && !directory.mkdirs()) error("Cannot create sample directory")
@@ -38,12 +40,14 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
             // A same-raw overwrite may revoke net values. Invalidate before changing raw, so a
             // crash cannot resurrect an old sidecar whose raw hash happens to be unchanged.
             val sidecar = beverageFile(id)
-            if (sidecar.exists()) {
-                check(isOwnedBeverageFile(sidecar)) { "Unknown beverage sample format" }
+            val canWriteBeverage = !sidecar.exists() || isOwnedBeverageFile(sidecar)
+            if (sidecar.exists() && canWriteBeverage)
                 check(sidecar.delete()) { "Cannot invalidate beverage samples" }
-            }
+            // Optional unknown/corrupt evidence must not block saving authoritative raw data.
+            // Preserve it for recovery/future readers, and do not replace it with a new sidecar.
             replace(temporary, target)
-            if (points.any { it.beverageHundredthsGram != null }) saveBeverage(sidecar, digest, points)
+            if (canWriteBeverage && points.any { it.beverageHundredthsGram != null })
+                saveBeverage(sidecar, digest, points)
         } finally { temporary.delete() }
     }
 
@@ -99,7 +103,7 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
                 writer.appendLine(BEVERAGE_HEADER)
                 writer.appendLine(BEVERAGE_SOURCE)
                 writer.appendLine("# raw-sha256=$digest")
-                points.forEach { writer.appendLine("${it.elapsedMs}\t${it.beverageHundredthsGram ?: ""}\t${it.beverageSource?.name ?: ""}") }
+                points.forEach { writer.appendLine("${it.elapsedMs}\t${it.beverageHundredthsGram ?: ""}\t${it.beverageSource?.name ?: ""}\t${it.beverageSegmentId ?: ""}") }
             }
             replace(temporary, target)
         } finally { temporary.delete() }
@@ -117,19 +121,21 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
                 lines.getOrNull(2) != "# raw-sha256=${sha256(raw)}") return points
             val values = lines.drop(3).mapIndexed { index, line ->
                 val fields = line.split('\t')
-                if (fields.size != 3 || fields[0].toLongOrNull() != points[index].elapsedMs) return points
+                if (fields.size != 4 || fields[0].toLongOrNull() != points[index].elapsedMs) return points
                 val value = fields[1].takeIf(String::isNotEmpty)?.toIntOrNull()
                 if (fields[1].isNotEmpty() && value == null) return points
                 val source = fields[2].takeIf(String::isNotEmpty)?.let { name ->
                     BeverageWeightSource.entries.firstOrNull { it.name == name }
                 }
                 if (fields[2].isNotEmpty() && source == null) return points
-                if ((value == null) != (source == null) ||
-                    value != null && (value < 0 || points[index].weightHundredthsGram == null)) return points
-                value to source
+                val segment = fields[3].takeIf(String::isNotEmpty)?.toIntOrNull()
+                if (fields[3].isNotEmpty() && segment == null) return points
+                if ((value == null) != (source == null) || (value == null) != (segment == null) ||
+                    value != null && (value < 0 || segment!! < 0 || points[index].weightHundredthsGram == null)) return points
+                Triple(value, source, segment)
             }
             points.mapIndexed { index, point -> point.copy(beverageHundredthsGram = values[index].first,
-                beverageSource = values[index].second) }
+                beverageSource = values[index].second, beverageSegmentId = values[index].third) }
         } catch (_: IOException) { points }
         catch (_: SecurityException) { points }
     }

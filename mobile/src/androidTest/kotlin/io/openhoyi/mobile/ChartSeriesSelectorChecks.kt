@@ -18,6 +18,13 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
                 for (dark in listOf(false, true)) {
                     val context = AppLanguageContext.wrap(test.targetContext, AppLanguage.CHINESE, dark)
                     val style = ExtractionHistoryVisualStyle(context)
+                    val paused = ExtractionOverlayView(context, style).apply {
+                        this.points = listOf(ShotPoint(0,90,10,0,9300,null,brewing=true,statusBits=64),
+                            ShotPoint(500,77,10,5,9300,null,brewing=false,statusBits=0))
+                    }
+                    check(paused.metricReadout(ChartMetric.PRESSURE) == "— bar") {
+                        "Display pause baseline must not be reported as observed zero pressure"
+                    }
                     val density = context.resources.displayMetrics.density
                     val full = FourMetricChartProjection.build(points, emptyList(), liveFlow=true, includeLiveWeight=true)
                     for (widthDp in listOf(320, 568, 888)) for (metrics in listOf(liveMetrics, selectableLiveMetrics, listOf(ChartMetric.YIELD))) {

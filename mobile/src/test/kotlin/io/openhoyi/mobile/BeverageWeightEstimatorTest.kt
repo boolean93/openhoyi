@@ -39,4 +39,25 @@ class BeverageWeightEstimatorTest {
         assertNull(ExtractionScaleReadout.Value(500,ended=true,source=ExtractionScaleReadout.Source.BEVERAGE).confirmedBeverageSample())
         assertEquals(500,ExtractionScaleReadout.Value(500,source=ExtractionScaleReadout.Source.BEVERAGE).confirmedBeverageSample())
     }
+    @Test fun compressedSamplesKeepDifferentBaselinesSeparatedEvenIfTheNewDeltaIsHigher() {
+        val series = ShotSeries()
+        series.begin("long-shot", 0)
+        val frame = io.openhoyi.protocol.ExtractionTelemetry(1, 2, 93, 120, 9200, 24, 0x40, 0,
+            io.openhoyi.protocol.ByteFrame(byteArrayOf()))
+        val split = ShotSeries.MAX_POINTS / 2 + 1
+        for (index in 0..ShotSeries.MAX_POINTS + 100) {
+            val time = index * 10L
+            series.machine(frame, time, 20000, time, beverageHundredthsGram=if(index < split) 100 else 10000,
+                beverageEpoch=if(index < split) 1 else 2)
+        }
+        assertTrue(series.points.size < ShotSeries.MAX_POINTS)
+        val segments = FourMetricChartProjection.build(series.points, emptyList(), liveFlow=true, includeLiveWeight=true)
+            .series.single { it.metric==ChartMetric.YIELD }.current
+        assertEquals(2, segments.size)
+        segments.forEach { segment ->
+            val ids = segment.map { value -> series.points.single { it.elapsedMs == value.elapsedMs }.beverageSegmentId }.toSet()
+            assertEquals(1, ids.size)
+        }
+    }
+
 }

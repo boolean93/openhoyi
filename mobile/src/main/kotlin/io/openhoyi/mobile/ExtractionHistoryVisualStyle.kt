@@ -268,7 +268,8 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         }
         if (!comparison && !liveMode) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
         if ((data.observedThroughMs == null && data.series.all { it.reference.isEmpty() }) || data.series.isEmpty()) {
-            val empty = context.getString(if(simpleLivePresentation) R.string.live_chart_no_data else R.string.chart_empty_title)
+            val empty = context.getString(if (simpleLivePresentation && data.series.isEmpty()) R.string.chart_series_yield_unavailable
+                else if(simpleLivePresentation) R.string.live_chart_no_data else R.string.chart_empty_title)
             if (extent(empty) <= box.width()) texts += Label(empty, box.centerX(), box.centerY() - (fm.ascent + fm.descent) / 2,
                 Paint.Align.CENTER, style.palette.muted, "empty-notice")
         }

@@ -2151,8 +2151,8 @@ class MobileService : Service() {
         }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "curve.usage_observation_failed") }
         observeBrewFeedback(frame, atMs)
-        // Reuse the established per-shot/per-connection display proof; never derive net weight
-        // from an arbitrary first point or change tare/start commands for a chart preference.
+        // Reuse confirmed per-shot proof when present; ShotSeries separately labels a fresh
+        // fallback baseline as estimated. Neither path changes tare/start commands.
         val beverage = extractionScaleValue(atMs).confirmedBeverageSample()
         ScaleBusinessReading.recordMachine(series, frame, atMs, snapshot.scaleObservation, snapshot.scaleState, beverage, scaleConnectionEpoch)
         saveSeriesCheckpoint(atMs)

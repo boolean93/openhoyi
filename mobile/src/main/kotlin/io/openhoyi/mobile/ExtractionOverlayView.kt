@@ -136,7 +136,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
     fun metricReadout(metric: ChartMetric): String {
         val latest = data.series.firstOrNull { it.metric == metric }?.current?.lastOrNull()?.lastOrNull()
-            ?.takeIf { it.elapsedMs == data.observedThroughMs && metric !in unavailableLiveMetrics }
+            ?.takeIf { it.elapsedMs == data.observedThroughMs && metric !in unavailableLiveMetrics &&
+                !(metric == ChartMetric.PRESSURE && it.elapsedMs in data.pauseBaselineMs) }
         return "${latest?.let { (if (it.estimated) "≈ " else "") + format(it.value) } ?: "—"} ${displayUnit(metric)}"
     }
     private fun displayedData(source: FourMetricChartData): FourMetricChartData =
