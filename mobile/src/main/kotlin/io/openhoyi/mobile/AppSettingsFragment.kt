@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.LinearLayout
 import android.widget.Switch
@@ -235,18 +236,30 @@ class AppSettingsFragment : Fragment() {
         }
         feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual)
         val info = sections.getValue("about")
-        fun infoRow(key: String, label: Int, value: String) {
-            if (info.childCount > 0) settingsDivider(activity, info, visual)
-            val pair = visual.pair(
-                style.text(getString(label), TaskProductVisualStyle.auxiliary, "product/settings/app/info/$key/label", true),
-                style.text(value, TaskProductVisualStyle.body, "product/settings/app/info/$key/value"),
-                "product/settings/app/info/$key", false)
-            style.add(info, pair)
+        // Keep identity, link and updates in one aligned surface rather than floating blocks.
+        val aboutCard = style.column("product/settings/app/about/card").apply {
+            setPadding(style.dp(16), style.dp(12), style.dp(16), style.dp(12))
+            background = style.shape(style.surface, true, 16)
         }
-        infoRow("name", R.string.settings_info_name, getString(R.string.app_name))
-        infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
-        infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
-        updateCard = ReleaseUpdateCard(activity, info, visual)
+        style.add(info, aboutCard, 4)
+        val name = style.text(getString(R.string.app_name), TaskProductVisualStyle.section,
+            "product/settings/app/info/name/value")
+        val website = style.button(Button(activity)).apply {
+            text = getString(R.string.settings_project_home)
+            tag = "product/settings/app/project-home"
+            asTaskTextAction()
+            minimumHeight = style.dp(48)
+            setOnClickListener {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://boolean93.github.io/openhoyi/")))
+                } catch (_: android.content.ActivityNotFoundException) {
+                    android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        style.add(aboutCard, visual.pair(name, website, "product/settings/app/about/identity"))
+        visual.divider(aboutCard)
+        updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
         val diagnostics = sections.getValue("maintenance")
         diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/diagnostic-state",secondary=true).also {style.add(diagnostics,it,16)}
         style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))

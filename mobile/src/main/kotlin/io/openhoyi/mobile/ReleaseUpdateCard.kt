@@ -15,7 +15,6 @@ internal class ReleaseUpdateCard(private val activity: Activity, parent: LinearL
     private val downloads = actions.downloads
     private val style = visual.palette
     private val card = style.column("product/settings/app/update/card")
-    private val row = style.row("product/settings/app/update/version-row").apply { gravity = Gravity.CENTER_VERTICAL }
     private val version = style.text(activity.getString(R.string.update_current_version, BuildConfig.VERSION_NAME),
         TaskProductVisualStyle.body, "product/settings/app/update/version")
     private val check = style.button(Button(activity)).apply {
@@ -61,11 +60,11 @@ internal class ReleaseUpdateCard(private val activity: Activity, parent: LinearL
     private val downloadObserver: (ReleaseDownloadController.State) -> Unit = { render() }
     init {
         visual.switch(toggle)
-        row.addView(version, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(check, LinearLayout.LayoutParams(-2, -2))
-        style.add(card, row)
+        // Wrap naturally for long development versions and large text instead of squeezing actions.
+        style.add(card, visual.pair(version, check, "product/settings/app/update/version-row"))
         style.add(card, status, 8); style.add(card, progress, 8); style.add(card, action, 8); style.add(card, discard, 8)
-        style.add(card, toggle, 8); style.add(parent, card, 12)
+        visual.divider(card)
+        style.add(card, toggle); style.add(parent, card)
         render()
     }
     private fun render() {
