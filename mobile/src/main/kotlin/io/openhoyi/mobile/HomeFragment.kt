@@ -104,16 +104,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private var layoutDirectPresets: (Boolean) -> Unit = {}
     private var presetVisualsDirty = true
     private var customCurveRevision = -1L
-    private var shortcutToggle: Switch? = null
-    private var updatingShortcut = false
-    private var stopShortcutPreferenceObserver: (() -> Unit)? = null
-    private val shortcutPreferences by lazy { ShortcutStartPreferences(host) }
-    private fun refreshShortcutChoice() {
-        val checked = shortcutPreferences.read().startsOnTap
-        updatingShortcut = true
-        if (shortcutToggle?.isChecked != checked) shortcutToggle?.isChecked = checked
-        updatingShortcut = false
-    }
     private lateinit var candidates: LinearLayout
     private lateinit var scanButton: Button
     private lateinit var coffeeDisconnect: Button
@@ -370,36 +360,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.Type(if (compactType) 16 else if (shortHome) 18 else 22, 500, if (compactType) 24 else if (shortHome) 28 else 32), "product/home/quick-title")
-        val directStart = HoyiSwitch(host).apply {
-            text = getString(R.string.shortcut_start_setting)
-            tag = "product/home/shortcuts/direct-start"
-            productStyle.apply(this, TaskProductVisualStyle.Type(14, 400, 20))
-            isChecked = shortcutPreferences.read().startsOnTap
-            showText = false
-            switchPadding = dp(6)
-            minHeight = dp(48); minimumHeight = minHeight
-            setPadding(dp(2), 0, 0, 0)
-            background = null
-            setOnCheckedChangeListener { _, checked ->
-                if (!updatingShortcut) {
-                    host.revokeShortcutStart()
-                    if (!shortcutPreferences.choose(checked))
-                        Toast.makeText(host, R.string.shortcut_start_save_failed, Toast.LENGTH_LONG).show()
-                    refreshShortcutChoice()
-                }
-            }
-        }.also { shortcutToggle = it }
         val titleGroup = productStyle.row("product/home/shortcut-heading").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
             addView(quickTitle, LinearLayout.LayoutParams(-2, -2))
-            addView(directStart, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) })
         }
         val previewHeading = object : LinearLayout(host) {
             init { gravity = android.view.Gravity.CENTER_VERTICAL; addView(titleGroup); addView(previewLegend) }
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                quickTitle.measure(natural, natural); directStart.measure(natural, natural); previewLegend.measure(natural, natural)
-                val titleNaturalWidth = quickTitle.measuredWidth + directStart.measuredWidth + dp(12)
+                quickTitle.measure(natural, natural); previewLegend.measure(natural, natural)
+                val titleNaturalWidth = quickTitle.measuredWidth
                 val stacked = titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
                 orientation = if (stacked) VERTICAL else HORIZONTAL
                 val titleWidth = if (stacked) -1 else 0
@@ -846,14 +816,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetVisualsDirty = true
         lastCurveDirty = true
         visible = true
-        stopShortcutPreferenceObserver?.invoke()
-        stopShortcutPreferenceObserver = shortcutPreferences.observe(::refreshShortcutChoice)
-        refreshShortcutChoice()
         host.observeService(serviceObserver)
         handler.post(refresh)
     }
     override fun onPause() {
-        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
         feedbackUi.leave(host.isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
@@ -861,11 +827,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         presetDialog?.dismiss()
         recentCurves.dismiss()
         host.removeServiceObserver(serviceObserver); service=null;super.onPause()
-    }
-    override fun onDestroyView() {
-        stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
-        shortcutToggle = null
-        super.onDestroyView()
     }
     private fun missingBle(): List<String> {
         val required = if (Build.VERSION.SDK_INT >= 31) listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)

@@ -13,7 +13,8 @@ internal class ShortcutStartPreferences(
     constructor(context: Context) : this(
         readValue = {
             context.getSharedPreferences(ShortcutStartPolicy.PREFERENCES, Context.MODE_PRIVATE).let { prefs ->
-                ShortcutStartPolicy.Preference(prefs.getBoolean(ShortcutStartPolicy.DIRECT_START, false))
+                // Missing key uses the new default; an explicitly saved false stays false.
+                ShortcutStartPolicy.Preference(prefs.getBoolean(ShortcutStartPolicy.DIRECT_START, ShortcutStartPolicy.Preference().directStart))
             }
         },
         writeValue = { value ->
