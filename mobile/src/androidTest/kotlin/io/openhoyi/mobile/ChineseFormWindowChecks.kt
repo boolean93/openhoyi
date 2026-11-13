@@ -519,7 +519,17 @@ internal object ChineseFormWindowChecks {
                 reachable.forEach { view ->
                     main { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), true) }
                     waitForDraw()
-                    main { fullyVisible(view) }
+                    main {
+                        fullyVisible(view)
+                        if (view is EditText && view.tag.toString().let {
+                                it.startsWith("product/form/curve-editor/target-") || it.startsWith("product/form/curve-editor/water-") ||
+                                    it in listOf("total-water-limit", "preinfusion", "first-duration", "compensation").map { key -> "product/form/curve-editor/$key" }
+                            }) {
+                            val digits = kotlin.math.ceil(android.text.Layout.getDesiredWidth("999.0", view.paint).toDouble()).toInt()
+                            val textWidth = view.width - view.compoundPaddingLeft - view.compoundPaddingRight
+                            check(textWidth >= digits) { "$name number viewport clipped: ${view.tag} available=$textWidth required=$digits" }
+                        }
+                    }
                 }
                 main {
                     drafts.forEach { (field, value) -> check(field.text.toString() == value) { "$name scrolling changed draft" } }

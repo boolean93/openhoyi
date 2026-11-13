@@ -82,24 +82,55 @@ class CurveEditorActivity : ThemedActivity() {
             compactLabel = getString(R.string.curve_preview_weight))
         style.unit(temperature, "°C", "curve-editor", "temperature")
         style.unit(cup, "g", "curve-editor", "cup")
+        fun numericRow(container: LinearLayout, label: Int, tag: String? = null): LinearLayout = object : LinearLayout(this@CurveEditorActivity) {
+                init {
+                    isBaselineAligned = false
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    addView(style.visual.text(getString(label), TaskProductVisualStyle.auxiliary, tag, true), LayoutParams(-2, -2))
+                    container.addView(this, LayoutParams(-1, -2).apply { topMargin = style.dp(6) })
+                }
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    val title = getChildAt(0)
+                    val inputHost = if (childCount > 1) getChildAt(1) else null
+                    fun input(view: View?): EditText? = when (view) {
+                        is EditText -> view
+                        is android.view.ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { input(view.getChildAt(it)) }
+                        else -> null
+                    }
+                    val editor = input(inputHost)
+                    val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                    title.measure(free, free)
+                    // Measuring the actual unit wrapper updates the real compound padding for bar/mL/s.
+                    inputHost?.measure(free, free)
+                    val digits = editor?.let {
+                        kotlin.math.ceil(android.text.Layout.getDesiredWidth("999.0", it.paint).toDouble()).toInt() +
+                            it.compoundPaddingLeft + it.compoundPaddingRight + style.dp(4)
+                    } ?: 0
+                    val available = View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
+                    val stacked = title.measuredWidth + style.dp(8) + digits > available
+                    orientation = if (stacked) VERTICAL else HORIZONTAL
+                    (title.layoutParams as LayoutParams).apply {
+                        width = if (stacked) -1 else -2
+                        bottomMargin = if (stacked) style.dp(6) else 0
+                    }
+                    (inputHost?.layoutParams as? LayoutParams)?.apply {
+                        width = if (stacked) -1 else 0
+                        weight = if (stacked) 0f else 1f
+                        marginStart = if (stacked) 0 else style.dp(8)
+                    }
+                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                }
+            }
         (0..3).forEach { index ->
             val stage = source.allStages.getOrNull(index) ?: CustomCurveDocument.Stage(60, 100)
             val row = sections.stageRows[index]
-            fun quantity(label: Int, tag: String): LinearLayout = style.visual.row().apply {
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                addView(style.visual.text(getString(label), TaskProductVisualStyle.auxiliary, tag, true), LinearLayout.LayoutParams(-2, -2))
-                row.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(6) })
-            }
+            fun quantity(label: Int, tag: String) = numericRow(row, label, tag)
             val target = field(quantity(R.string.curve_editor_target_pressure, "curve-stage-target-label-$index"), "target-$index", R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), tableCell = true)
             val water = field(quantity(R.string.curve_editor_stage_water, "curve-stage-water-label-$index"), "water-$index", R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), tableCell = true)
             style.unit(target, "bar", "curve-editor", "target-$index")
             style.unit(water, "ml", "curve-editor", "water-$index")
         }
-        fun settingRow(parent: LinearLayout, label: Int): LinearLayout = style.visual.row().apply {
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            addView(style.visual.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-2, -2))
-            parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(6) })
-        }
+        fun settingRow(parent: LinearLayout, label: Int) = numericRow(parent, label)
         val totalLimit = field(settingRow(sections.waterLimit, R.string.profiles_total_water_limit_title), "total-water-limit", R.string.profiles_total_water_limit,
             source.totalWaterLimitMl?.toString().orEmpty(), tableCell = true).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
