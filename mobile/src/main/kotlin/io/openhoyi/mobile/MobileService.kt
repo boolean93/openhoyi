@@ -1306,7 +1306,7 @@ class MobileService : Service() {
         if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()) ||
             idle.sleepStateRaw != 0 || idle.alarmBits != 0 || !machineSettingsFresh)
             return getString(R.string.service_write_awake_idle_needed)
-        if (coffeeFirmware !in listOf(CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5)))
+        if (coffeeFirmware !in listOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5)))
             return getString(R.string.lever_firmware_unsupported)
         return null
     }

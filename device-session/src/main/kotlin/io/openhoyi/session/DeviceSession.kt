@@ -603,7 +603,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val expectedAddress=address
         fun conditions():Boolean = generation==expectedGeneration && address==expectedAddress &&
             !expectedAddress.isNullOrBlank() && canControlWithFreshSettings() &&
-            lastSettings?.firmwareInteger in setOf(CoffeeFirmwareProfiles.FW_1_1_4,CoffeeFirmwareProfiles.FW_1_1_5) &&
+            lastSettings?.firmwareInteger in setOf(CoffeeFirmwareProfiles.FW_1_1_3,CoffeeFirmwareProfiles.FW_1_1_4,CoffeeFirmwareProfiles.FW_1_1_5) &&
             sleepWrite==null && boilerRefreshTask?.let { clock()<it.deadline }!=true &&
             boilerReconnectLimit==null && knownRecipe()
         val command=runCatching { CoffeeCommands.storedLeverRecipe(parameters) }.getOrNull()
