@@ -4,6 +4,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AppFontSizePreferenceTest {
+    @Test fun choicesAreAbsoluteAppScalesNotSystemMultipliers() {
+        assertEquals(listOf("small", "medium", "large"), AppFontSize.entries.map { it.key })
+        assertEquals(listOf(.9f, 1f, 1.1f), AppFontSize.entries.map { it.scale })
+        assertEquals(AppFontSize.MEDIUM, AppFontSize.restore(null))
+    }
     private class Disk(var value: String? = null) : AppFontSizePreference.Storage {
         var reads = 0
         var writes = 0
