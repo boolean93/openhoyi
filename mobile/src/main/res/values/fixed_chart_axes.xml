@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fixed_chart_section">实时曲线</string>
+    <string name="fixed_chart_axes">固定坐标轴</string>
+    <string name="fixed_chart_axes_hint">固定显示刻度；超出范围时提示，完整数据仍保留。</string>
+    <string name="fixed_chart_overflow">部分数据超出固定范围：%1$s。完整数据保留</string>
+    <string name="fixed_chart_reference_overflow">参考曲线部分超出固定范围</string>
+    <string name="fixed_chart_time_overflow">时间超过 60 秒</string>
+</resources>
