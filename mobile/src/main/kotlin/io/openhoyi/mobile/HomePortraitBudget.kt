@@ -7,6 +7,9 @@ internal data class HomePortraitBudget(val dial: Int, val hero: Int) {
         fun inlineMachine(contentWidth: Int, fontScale: Float): Boolean =
             contentWidth >= 112 + 16 + 8 + 40 + 2 * (144 * fontScale.coerceAtLeast(1f)).toInt()
 
+        fun compactPreset(cardWidth: Int, fontScale: Float): Boolean =
+            cardWidth >= (220 * fontScale.coerceAtLeast(1f)).toInt()
+
         fun inlineLastCurve(contentWidth: Int, fontScale: Float): Boolean =
             contentWidth >= 96 + 44 + ((160 + 124) * fontScale.coerceAtLeast(1f)).toInt()
 

@@ -507,7 +507,20 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
-            val contents = LinearLayout(host).apply {
+            val contents = object : LinearLayout(host) {
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    if (phoneHome && childCount == 3) {
+                        val cardWidth = (View.MeasureSpec.getSize(widthMeasureSpec) / resources.displayMetrics.density).toInt()
+                        val compact = HomePortraitBudget.compactPreset(cardWidth, resources.configuration.fontScale)
+                        getChildAt(1).layoutParams.height = dp(if (compact) 28 else 40)
+                        // The entire tile is the touch target; its label needs no separate 48dp target.
+                        val label = getChildAt(2)
+                        val labelHeight = dp(if (compact) 32 else 48)
+                        if (label.minimumHeight != labelHeight) label.minimumHeight = labelHeight
+                    }
+                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                }
+            }.apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = android.view.Gravity.TOP
                 setPadding(dp(if (shortHome) 6 else 10), dp(if (shortHome) 1 else 6), dp(if (shortHome) 6 else 10), dp(if (shortHome) 1 else 6))

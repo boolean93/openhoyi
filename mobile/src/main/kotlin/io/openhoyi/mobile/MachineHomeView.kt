@@ -61,6 +61,7 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
             machineImage?.let { image ->
                 (image.layoutParams as LayoutParams).apply {
                     this.width = if (inlinePortrait) dp(112) else -1
+                    gravity = if (inlinePortrait) Gravity.TOP else -1
                     if (inlinePortrait) height = dp(160)
                     marginEnd = if (inlinePortrait) dp(16) else 0
                     bottomMargin = if (inlinePortrait) 0 else dp(12)
