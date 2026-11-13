@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 internal class MachineHomeView(context: Context, private val spacious: Boolean) : LinearLayout(context) {
     private var machineImage: ImageView? = null
     private var inlinePortrait = false
+    private var tightInlinePortrait = false
     private val density = resources.displayMetrics.density
     private fun dp(value: Int) = (value * density).toInt()
     private val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
@@ -45,7 +46,7 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
     }
 
     fun portraitDialLimit(): Int? = if (inlinePortrait)
-        dp(HomePortraitBudget.inlineDialLimit(((width - paddingLeft - paddingRight) / density).toInt())) else null
+        dp(HomePortraitBudget.inlineDialLimit(((width - paddingLeft - paddingRight) / density).toInt(), tightInlinePortrait)) else null
 
     fun setPortraitHeroHeight(height: Int) {
         if (!portrait || inlinePortrait) return
@@ -61,15 +62,26 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
                 resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)) {
             val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
             val contentWidthDp = (width / density).toInt()
-            inlinePortrait = HomePortraitBudget.inlineMachine(contentWidthDp, resources.configuration.fontScale)
+            tightInlinePortrait = HomePortraitBudget.tightInlineMachine(contentWidthDp, resources.configuration.fontScale)
+            inlinePortrait = HomePortraitBudget.inlineMachine(contentWidthDp, resources.configuration.fontScale) || tightInlinePortrait
+            for (index in 0 until boilers.childCount) {
+                val card = boilers.getChildAt(index)
+                val inset = dp(if (tightInlinePortrait) 4 else 8)
+                card.setPadding(inset, card.paddingTop, inset, card.paddingBottom)
+                (card.layoutParams as LayoutParams).apply {
+                    marginStart = if (index == 0) 0 else dp(if (tightInlinePortrait) 4 else 8)
+                    resolveLayoutDirection(card.layoutDirection)
+                }
+            }
             orientation = if (inlinePortrait) HORIZONTAL else VERTICAL
             machineImage?.let { image ->
                 (image.layoutParams as LayoutParams).apply {
                     this.width = if (inlinePortrait) dp(HomePortraitBudget.machineWidth(contentWidthDp)) else -1
                     gravity = if (inlinePortrait) Gravity.TOP else -1
                     if (inlinePortrait) height = this.width + dp(40)
-                    marginEnd = if (inlinePortrait) dp(16) else 0
+                    marginEnd = if (inlinePortrait) dp(if (tightInlinePortrait) 8 else 16) else 0
                     bottomMargin = if (inlinePortrait) 0 else dp(12)
+                    resolveLayoutDirection(image.layoutDirection)
                 }
             }
             (boilers.layoutParams as LayoutParams).apply {

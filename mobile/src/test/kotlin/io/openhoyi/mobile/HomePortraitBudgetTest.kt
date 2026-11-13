@@ -20,6 +20,26 @@ class HomePortraitBudgetTest {
         assertFalse(HomePortraitBudget.inlineLastCurve(508, 1.5f))
     }
 
+    @Test fun squareLargeTextUsesWhitespaceBeforeStacking() {
+        assertFalse(HomePortraitBudget.inlineMachine(524, 1.1f))
+        assertTrue(HomePortraitBudget.tightInlineMachine(524, 1.1f))
+        assertFalse(HomePortraitBudget.tightInlineMachine(519, 1.1f))
+        assertTrue(HomePortraitBudget.tightInlineMachine(520, 1.1f))
+        assertFalse(HomePortraitBudget.tightInlineMachine(524, 1f))
+        assertFalse(HomePortraitBudget.tightInlineMachine(356, 1.1f))
+        assertFalse(HomePortraitBudget.tightInlineMachine(524, 1.5f))
+        for (width in 300..1000) for (scale in listOf(.9f, 1f, 1.1f, 1.3f, 1.5f)) {
+            if (HomePortraitBudget.tightInlineMachine(width, scale)) {
+                val machine = HomePortraitBudget.machineWidth(width)
+                val minimum = (140 * scale.coerceAtLeast(1f)).toInt()
+                val available = (width - machine - 36) / 2
+                assertTrue(available >= minimum)
+                assertTrue(HomePortraitBudget.inlineDialLimit(width, tight = true) >= minimum)
+                assertTrue(machine > HomePortraitBudget.inlineDialLimit(width, tight = true))
+            }
+        }
+    }
+
     @Test fun machineRetainsVisualWeightInInlineLayout() {
         assertEquals(180, HomePortraitBudget.machineWidth(532))
         assertTrue(HomePortraitBudget.machineWidth(532) >= HomePortraitBudget.fit(145, 560, 1f).dial)
