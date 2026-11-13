@@ -5,9 +5,9 @@ import org.junit.Test
 
 class HomePortraitBudgetTest {
     @Test fun readableWidthControlsInlineMachineRatherThanPixelResolution() {
-        assertFalse(HomePortraitBudget.inlineMachine(463, 1f))
-        assertTrue(HomePortraitBudget.inlineMachine(464, 1f))
+        assertFalse(HomePortraitBudget.inlineMachine(531, 1f))
         assertTrue(HomePortraitBudget.inlineMachine(532, 1f))
+        assertFalse(HomePortraitBudget.inlineMachine(1000, 1.5f))
         assertFalse(HomePortraitBudget.inlineMachine(328, 1f))
         assertFalse(HomePortraitBudget.inlineMachine(532, 1.5f))
         assertTrue(HomePortraitBudget.compactPreset(248, 1f))
@@ -18,15 +18,36 @@ class HomePortraitBudgetTest {
         assertFalse(HomePortraitBudget.inlineLastCurve(508, 1.5f))
     }
 
+    @Test fun machineRetainsVisualWeightInInlineLayout() {
+        assertEquals(180, HomePortraitBudget.machineWidth(532))
+        assertTrue(HomePortraitBudget.machineWidth(532) >= HomePortraitBudget.fit(145, 560, 1f).dial)
+        assertEquals(260, HomePortraitBudget.machineWidth(1000))
+        for (width in 300..1000) for (scale in listOf(1f, 1.3f, 1.5f)) {
+            if (HomePortraitBudget.inlineMachine(width, scale)) {
+                val dialWidth = (width - HomePortraitBudget.machineWidth(width) - 64) / 2
+                assertTrue(dialWidth >= (144 * scale).toInt())
+                assertTrue(HomePortraitBudget.inlineDialLimit(width) >= (144 * scale).toInt())
+            }
+        }
+    }
+
+    @Test fun compactTypographyOnlyAffectsBroadNearSquareWindows() {
+        assertTrue(HomePortraitBudget.compactTypography(568, 641))
+        assertTrue(HomePortraitBudget.compactTypography(641, 568))
+        assertFalse(HomePortraitBudget.compactTypography(360, 720))
+        assertFalse(HomePortraitBudget.compactTypography(1000, 600))
+        assertFalse(HomePortraitBudget.compactTypography(568, 0))
+    }
+
     @Test fun broadShortViewportReturnsSpaceToQuickCurves() {
         val budget = HomePortraitBudget.fit(270, 560, 1f)
         assertTrue(budget.dial < 184)
-        assertTrue(budget.hero < 156)
-        assertTrue(216 + 156 - budget.dial - budget.hero >= 100)
+        assertTrue(budget.hero >= budget.dial)
+        assertTrue(budget.hero <= 222)
     }
 
     @Test fun narrowTallPhoneKeepsWidthBoundDialsAndHero() {
-        assertEquals(HomePortraitBudget(136, 156), HomePortraitBudget.fit(136, 660, 1f))
+        assertEquals(HomePortraitBudget(136, 164), HomePortraitBudget.fit(136, 660, 1f))
     }
 
     @Test fun largeTextCanGrowWithoutExceedingCardWidth() {

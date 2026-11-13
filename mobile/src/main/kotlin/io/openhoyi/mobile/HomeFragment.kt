@@ -158,6 +158,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setBackgroundColor(productStyle.homePage)
         }
         val phoneHome = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val compactType = HomePortraitBudget.compactTypography(
+            resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
         val shortHome = TaskLayoutPolicy.compactHome(resources.configuration.screenHeightDp, phoneHome)
         val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
         val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4)) }
@@ -236,7 +238,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         button(deviceCard, getString(R.string.extraction_title)) {
             host.showExtraction()
         }
-        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(18,500,26)); tag = "product/home/service-status" }
+        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(if (compactType) 16 else 18,500,if (compactType) 24 else 26)); tag = "product/home/service-status" }
         content.removeView(status)
         val machineRow = productStyle.row("product/home/machine-status").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(42)
@@ -347,7 +349,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                         val parent=dial.parent as View
                         val cardWidth=(parent.width-parent.paddingLeft-parent.paddingRight-dp(4)).coerceAtLeast(0)
                         if (cardWidth == 0) return@forEach
-                        val diameter=portraitBudget?.let { dp(it.dial) } ?: minOf(dp(216),cardWidth.coerceAtLeast(dp(112)))
+                        val diameter=portraitBudget?.let { minOf(dp(it.dial), boilerRow.portraitDialLimit() ?: Int.MAX_VALUE) } ?: minOf(dp(216),cardWidth.coerceAtLeast(dp(112)))
                         if(dial.layoutParams.width!=diameter) dial.layoutParams=(dial.layoutParams as LinearLayout.LayoutParams).apply {width=diameter;height=diameter}
                     }
                 }
@@ -367,7 +369,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
-            TaskProductVisualStyle.Type(if (shortHome) 18 else 22, 500, if (shortHome) 28 else 32), "product/home/quick-title")
+            TaskProductVisualStyle.Type(if (shortHome || compactType) 18 else 22, 500, if (shortHome || compactType) 28 else 32), "product/home/quick-title")
         val directStart = HoyiSwitch(host).apply {
             text = getString(R.string.shortcut_start_setting)
             tag = "product/home/shortcuts/direct-start"
@@ -461,7 +463,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val lastWords = productStyle.column()
         lastCurveRow.addView(lastWords, if(phoneHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(0, -2, 1f))
         val lastHeading = productStyle.text(getString(R.string.home_last_heading),
-            TaskProductVisualStyle.Type(17, 400, 24),
+            TaskProductVisualStyle.Type(if (compactType) 14 else 17, 400, if (compactType) 20 else 24),
             secondary = true).apply {
                 if (shortWideHome) {
                     setSingleLine(true)
@@ -470,7 +472,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
         lastWords.addView(lastHeading)
         lastCurveName = productStyle.text(getString(R.string.history_no_local),
-            TaskProductVisualStyle.Type(20, 500, 28),
+            TaskProductVisualStyle.Type(if (compactType) 18 else 20, 500, if (compactType) 26 else 28),
             "product/home/quick-recipe").apply {
             maxLines = if (shortWideHome) Int.MAX_VALUE else if(phoneHome) 3 else 1
             ellipsize = if (shortWideHome) null else android.text.TextUtils.TruncateAt.END

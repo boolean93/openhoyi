@@ -44,6 +44,9 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
             if (spacious) 61f else 0f))
     }
 
+    fun portraitDialLimit(): Int? = if (inlinePortrait)
+        dp(HomePortraitBudget.inlineDialLimit(((width - paddingLeft - paddingRight) / density).toInt())) else null
+
     fun setPortraitHeroHeight(height: Int) {
         if (!portrait || inlinePortrait) return
         machineImage?.let { image ->
@@ -56,13 +59,14 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         if (portrait && !spacious) {
             val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
-            inlinePortrait = HomePortraitBudget.inlineMachine((width / density).toInt(), resources.configuration.fontScale)
+            val contentWidthDp = (width / density).toInt()
+            inlinePortrait = HomePortraitBudget.inlineMachine(contentWidthDp, resources.configuration.fontScale)
             orientation = if (inlinePortrait) HORIZONTAL else VERTICAL
             machineImage?.let { image ->
                 (image.layoutParams as LayoutParams).apply {
-                    this.width = if (inlinePortrait) dp(112) else -1
+                    this.width = if (inlinePortrait) dp(HomePortraitBudget.machineWidth(contentWidthDp)) else -1
                     gravity = if (inlinePortrait) Gravity.TOP else -1
-                    if (inlinePortrait) height = dp(160)
+                    if (inlinePortrait) height = this.width + dp(40)
                     marginEnd = if (inlinePortrait) dp(16) else 0
                     bottomMargin = if (inlinePortrait) 0 else dp(12)
                 }
