@@ -158,6 +158,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setBackgroundColor(productStyle.homePage)
         }
         val phoneHome = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val compactType = HomePortraitBudget.compactTypography(
+            resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
         val shortHome = TaskLayoutPolicy.compactHome(resources.configuration.screenHeightDp, phoneHome)
         val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
         val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4)) }
@@ -236,7 +238,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         button(deviceCard, getString(R.string.extraction_title)) {
             host.showExtraction()
         }
-        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(18,500,26)); tag = "product/home/service-status" }
+        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(if (compactType) 14 else 18,500,if (compactType) 20 else 26)); tag = "product/home/service-status" }
         content.removeView(status)
         val machineRow = productStyle.row("product/home/machine-status").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(42)
@@ -304,11 +306,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
                 card.addView(target, LinearLayout.LayoutParams(-1,-2))
-                productStyle.apply(pressure, TaskProductVisualStyle.Type(if (phoneHome) 16 else 18, 400, if (phoneHome) 24 else 26))
+                productStyle.apply(pressure, TaskProductVisualStyle.Type(if (compactType) 14 else if (phoneHome) 16 else 18, 400, if (compactType) 20 else if (phoneHome) 24 else 26))
                 pressure.gravity = android.view.Gravity.CENTER
                 card.addView(pressure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
                 (toggle.parent as? android.view.ViewGroup)?.removeView(toggle)
-                productStyle.apply(toggle, TaskProductVisualStyle.Type(if (phoneHome) 16 else 20,400,if (phoneHome) 24 else 28))
+                productStyle.apply(toggle, TaskProductVisualStyle.Type(if (compactType) 14 else if (phoneHome) 16 else 20,400,if (compactType) 20 else if (phoneHome) 24 else 28))
                 toggle.setTextColor(android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),intArrayOf(productStyle.onDisabled,productStyle.ink)))
                 toggle.background = null
                 toggle.setCompoundDrawablesRelative(HomePowerDrawable(resources.displayMetrics.density, homeAccent), null, null, null)
@@ -333,9 +335,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val updateBudget=View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                 val available=scroll.height
                 if(available>0) {
+                    // Weighted cards may differ by a pixel. Use one shared portrait budget so
+                    // they cannot alternately resize the same hero and request another layout.
+                    val portraitWidth = boilerDials.minOfOrNull { dial ->
+                        val card = dial.parent as View
+                        (card.width-card.paddingLeft-card.paddingRight-dp(4)).coerceAtLeast(0)
+                    } ?: 0
+                    val portraitBudget = if (phoneHome && compactType && portraitWidth > 0) HomePortraitBudget.fit(
+                        (portraitWidth/resources.displayMetrics.density).toInt(),
+                        (available/resources.displayMetrics.density).toInt(), resources.configuration.fontScale) else null
+                    portraitBudget?.let { boilerRow.setPortraitHeroHeight(dp(it.hero)) }
                     boilerDials.forEach { dial ->
                         val parent=dial.parent as View
-                        val diameter=minOf(dp(216),(parent.width-parent.paddingLeft-parent.paddingRight-dp(4)).coerceAtLeast(dp(112)))
+                        val cardWidth=(parent.width-parent.paddingLeft-parent.paddingRight-dp(4)).coerceAtLeast(0)
+                        if (cardWidth == 0) return@forEach
+                        val diameter=portraitBudget?.let { minOf(dp(it.dial), boilerRow.portraitDialLimit() ?: Int.MAX_VALUE) } ?: minOf(dp(216),cardWidth.coerceAtLeast(dp(112)))
                         if(dial.layoutParams.width!=diameter) dial.layoutParams=(dial.layoutParams as LinearLayout.LayoutParams).apply {width=diameter;height=diameter}
                     }
                 }
@@ -355,7 +369,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
-            TaskProductVisualStyle.Type(if (shortHome) 18 else 22, 500, if (shortHome) 28 else 32), "product/home/quick-title")
+            TaskProductVisualStyle.Type(if (compactType) 16 else if (shortHome) 18 else 22, 500, if (compactType) 24 else if (shortHome) 28 else 32), "product/home/quick-title")
         val directStart = HoyiSwitch(host).apply {
             text = getString(R.string.shortcut_start_setting)
             tag = "product/home/shortcuts/direct-start"
@@ -400,7 +414,25 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
         }
         quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
-        lastCurveRow = productStyle.row("product/home/last-curve").apply {
+        lastCurveRow = object : LinearLayout(host) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                if (phoneHome && compactType && childCount == 4) {
+                    val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+                    val inline = HomePortraitBudget.inlineLastCurve((available / resources.displayMetrics.density).toInt(), resources.configuration.fontScale)
+                    orientation = if (inline) HORIZONTAL else VERTICAL
+                    (getChildAt(0).layoutParams as LayoutParams).apply { width = if (inline) dp(96) else -1; height = dp(44) }
+                    // Portrait keeps the quiet gap rather than a divider; render does not fight layout.
+                    (getChildAt(2).layoutParams as LayoutParams).apply { width = if (inline) 0 else -1; weight = if (inline) 1f else 0f; marginStart = if (inline) dp(12) else 0 }
+                    (getChildAt(3).layoutParams as LayoutParams).apply {
+                        width = if (inline) (dp(124) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() else -1
+                        marginStart = if (inline) dp(8) else 0; topMargin = if (inline) 0 else dp(8)
+                    }
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            tag = "product/home/last-curve"
+            orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             minimumHeight = dp(if(spaciousHome) 76 else 48)
             setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0),
@@ -431,7 +463,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val lastWords = productStyle.column()
         lastCurveRow.addView(lastWords, if(phoneHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(0, -2, 1f))
         val lastHeading = productStyle.text(getString(R.string.home_last_heading),
-            TaskProductVisualStyle.Type(17, 400, 24),
+            TaskProductVisualStyle.Type(if (compactType) 12 else 17, 400, if (compactType) 18 else 24),
             secondary = true).apply {
                 if (shortWideHome) {
                     setSingleLine(true)
@@ -440,7 +472,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
         lastWords.addView(lastHeading)
         lastCurveName = productStyle.text(getString(R.string.history_no_local),
-            TaskProductVisualStyle.Type(20, 500, 28),
+            TaskProductVisualStyle.Type(if (compactType) 16 else 20, 500, if (compactType) 24 else 28),
             "product/home/quick-recipe").apply {
             maxLines = if (shortWideHome) Int.MAX_VALUE else if(phoneHome) 3 else 1
             ellipsize = if (shortWideHome) null else android.text.TextUtils.TruncateAt.END
@@ -449,7 +481,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickLaunch = button(lastCurveRow, getString(R.string.home_curve_select), primary = true) {
             useLastCurve()
         }.apply {
-            textSize=21f
+            textSize=if (compactType) 16f else 21f
+            if (compactType) typeface = TaskTypography.face(context, 500)
             setSingleLine(true)
             if (shortWideHome) setPadding(dp(4), paddingTop, dp(4), paddingBottom)
             tag = "product/home/quick-launch"
@@ -477,7 +510,20 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot) }
             }
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
-            val contents = LinearLayout(host).apply {
+            val contents = object : LinearLayout(host) {
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    if (phoneHome && compactType && childCount == 3) {
+                        val cardWidth = (View.MeasureSpec.getSize(widthMeasureSpec) / resources.displayMetrics.density).toInt()
+                        val compact = HomePortraitBudget.compactPreset(cardWidth, resources.configuration.fontScale)
+                        getChildAt(1).layoutParams.height = dp(if (compact) 28 else 40)
+                        // The entire tile is the touch target; its label needs no separate 48dp target.
+                        val label = getChildAt(2)
+                        val labelHeight = dp(if (compact) 32 else 48)
+                        if (label.minimumHeight != labelHeight) label.minimumHeight = labelHeight
+                    }
+                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                }
+            }.apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = android.view.Gravity.TOP
                 setPadding(dp(if (shortHome) 6 else 10), dp(if (shortHome) 1 else 6), dp(if (shortHome) 6 else 10), dp(if (shortHome) 1 else 6))
@@ -500,7 +546,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             previewHeader.addView(sparkline, if (shortWideHome)
                 LinearLayout.LayoutParams(0, dp(24), 1f).apply { marginStart = dp(4) }
             else LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 40)))
-            val name = productStyle.text("", TaskProductVisualStyle.Type(if (shortHome) 14 else 17, 500, if (shortHome) 20 else 24)).apply {
+            val name = productStyle.text("", TaskProductVisualStyle.Type(if (compactType) 15 else if (shortHome) 14 else 17, 500, if (compactType) 22 else if (shortHome) 20 else 24)).apply {
                 gravity = android.view.Gravity.CENTER
                 maxLines = if(phoneHome || shortHome) Int.MAX_VALUE else 2
                 ellipsize = if(phoneHome || shortHome) null else android.text.TextUtils.TruncateAt.END

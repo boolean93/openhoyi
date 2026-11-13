@@ -12,6 +12,8 @@
     <string name="settings_diagnostics_devices">Diagnostics and devices</string>
     <string name="settings_enable_feedback">Enable feedback</string>
     <string name="settings_info_name">App name</string>
+    <string name="settings_project_home">Project website ↗</string>
+    <string name="settings_project_open_failed">No browser is available to open this page</string>
     <string name="settings_info_version">App version</string>
     <string name="settings_info_mode">Build mode</string>
     <string name="settings_info_package">Package</string>

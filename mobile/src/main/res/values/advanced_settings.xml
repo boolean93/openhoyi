@@ -12,6 +12,8 @@
     <string name="settings_diagnostics_devices">诊断与设备</string>
     <string name="settings_enable_feedback">启用提示</string>
     <string name="settings_info_name">应用名称</string>
+    <string name="settings_project_home">项目主页 ↗</string>
+    <string name="settings_project_open_failed">没有可打开网页的浏览器</string>
     <string name="settings_info_version">应用版本</string>
     <string name="settings_info_mode">版本描述</string>
     <string name="settings_info_package">包名</string>
