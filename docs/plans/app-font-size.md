@@ -35,3 +35,9 @@
 
 - 已完成 Mock/Debug APK打包、Mock AndroidTest APK编译、lintMock，无错误；测试仍未在设备执行。
 - 构建网络：Gradle 使用现有运行环境代理及既有 `/etc/ssl/certs/java/cacerts` 信任库解决官方 Maven TLS；未降低 TLS 校验、未改系统信任设置。
+
+## 真机首次验收后的修复
+
+- 400×640dp freeform + 大档：原生平板 Dialog 默认最小宽度溢出宿主窗口，预览与应用按钮被裁。新增局部 owner-window 宽度预算（两边16dp、最大560dp），resize更新并在dismiss清理，不改变其他弹窗/触控目标。
+- 仪器测试曾在同一主线程轮次 show 后立即点击，onShow异步监听尚未安装，导致误判。测试改为分步骤、有界等待监听与两帧布局，保留原断言，新增完整窗口/按钮/预览边界及48dp检查；主线程断言回传测试线程以保留finally恢复。
+- 独立Astra复核新增生产helper无阻断；待400dp大档真机复验及弹窗打开时resize测试，未宣称验收通过。

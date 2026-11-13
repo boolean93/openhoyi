@@ -76,7 +76,9 @@ internal class AppFontSizePreferencesCard(
             .setView(viewport).setNegativeButton(R.string.font_size_cancel, null)
             .setPositiveButton(R.string.font_size_apply, null).create().also { value ->
                 value.setOnShowListener {
+                    AppFontSizeDialogBounds.bind(activity, value)
                     visual.dialog(value, viewport)
+                    value.getButton(AlertDialog.BUTTON_POSITIVE).tag = "product/settings/app/font-size/apply"
                     value.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                         when (preferences.select(selected)) {
                             AppFontSizePreference.Selection.APPLIED -> { value.dismiss(); onApplied() }

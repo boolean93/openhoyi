@@ -20,7 +20,11 @@ import io.openhoyi.session.ExtractionState
 internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
     private val context get() = test.targetContext
     private val app get() = context.applicationContext as MobileApplication
-    private fun main(action: () -> Unit) = test.runOnMainSync(action)
+    private fun main(action: () -> Unit) {
+        var failure: Throwable? = null
+        test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
+        failure?.let { throw it }
+    }
     private fun await(label: String, condition: () -> Boolean) {
         val end = SystemClock.elapsedRealtime() + 10000
         while (true) {
@@ -77,36 +81,98 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         val home = MainPageTestHost.launch(test, timeoutMs = 10000).activity
         await("Mock owner not ready") { home.currentService != null }
         var card: AppFontSizePreferencesCard? = null
+        var parent: LinearLayout? = null
         var applies = 0
         val initial = app.fontSizePreferences.current
+        val other = AppFontSize.entries.first { it != initial }
+        fun bounds(view: View): android.graphics.Rect {
+            val location = IntArray(2); view.getLocationOnScreen(location)
+            return android.graphics.Rect(location[0], location[1], location[0] + view.width, location[1] + view.height)
+        }
+        fun assertWindow(dialog: AlertDialog) {
+            val decor = checkNotNull(dialog.window).decorView
+            val hostBounds = bounds(home.window.decorView)
+            val dialogBounds = bounds(decor)
+            check(hostBounds.contains(dialogBounds)) { "Font dialog escapes host: dialog=$dialogBounds host=$hostBounds" }
+            for (which in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE)) {
+                val button = dialog.getButton(which)
+                val visible = android.graphics.Rect()
+                check(button.isShown && button.getGlobalVisibleRect(visible))
+                check(visible.width() == button.width && visible.height() == button.height && dialogBounds.contains(bounds(button)))
+                val minimum = HoyiUi.dp(home, 48)
+                check(button.width >= minimum && button.height >= minimum) { "Font action smaller than 48dp" }
+            }
+            val preview = decor.findViewWithTag<LinearLayout>("product/settings/app/font-size/preview")
+            val previewBounds = bounds(preview)
+            check(previewBounds.left >= dialogBounds.left && previewBounds.right <= dialogBounds.right) { "Preview clipped horizontally" }
+            for (index in 0 until preview.childCount) {
+                val text = preview.getChildAt(index) as? TextView ?: continue
+                val layout = checkNotNull(text.layout)
+                val available = text.width - text.compoundPaddingLeft - text.compoundPaddingRight
+                for (line in 0 until layout.lineCount) {
+                    check(layout.getEllipsisCount(line) == 0)
+                    check(layout.getLineRight(line) - layout.getLineLeft(line) <= available + 1f) { "Preview text clipped: ${text.text}" }
+                }
+            }
+        }
+        fun open(): AlertDialog {
+            var dialog: AlertDialog? = null
+            main {
+                check(checkNotNull(parent).findViewWithTag<View>("product/settings/app/font-size/current").performClick())
+                dialog = AppFontSizePreferencesCard::class.java.getDeclaredField("dialog").apply { isAccessible = true }
+                    .get(card) as AlertDialog
+            }
+            val result = checkNotNull(dialog)
+            val frames = java.util.concurrent.CountDownLatch(1)
+            main { result.window!!.decorView.postOnAnimation {
+                result.window!!.decorView.postOnAnimation { frames.countDown() }
+            } }
+            check(frames.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Font dialog did not draw two layout frames" }
+            await("Font dialog Apply listener/layout not ready") {
+                val action = result.getButton(AlertDialog.BUTTON_POSITIVE)
+                result.isShowing && action?.tag == "product/settings/app/font-size/apply" && action.isLaidOut && action.isShown &&
+                    !action.isLayoutRequested && !result.window!!.decorView.isLayoutRequested &&
+                    result.window!!.decorView.findViewWithTag<View>("product/settings/app/font-size/preview").isLaidOut
+            }
+            main { assertWindow(result) }
+            return result
+        }
+        fun choose(dialog: AlertDialog) {
+            main {
+                val choices = dialog.window!!.decorView.findViewWithTag<RadioGroup>("product/settings/app/font-size/choices")
+                check((choices.getChildAt(other.ordinal) as RadioButton).performClick())
+            }
+            await("Preview selection layout pending") {
+                val preview = dialog.window!!.decorView.findViewWithTag<LinearLayout>("product/settings/app/font-size/preview")
+                preview.getChildAt(0).isLaidOut && !preview.isLayoutRequested
+            }
+            main { assertWindow(dialog) }
+        }
         try {
             main {
-                val parent = LinearLayout(home)
-                card = AppFontSizePreferencesCard(home, parent, SettingsVisualStyle(home)) { applies++ }
-                fun open(): AlertDialog {
-                    check(parent.findViewWithTag<View>("product/settings/app/font-size/current").performClick())
-                    return AppFontSizePreferencesCard::class.java.getDeclaredField("dialog").apply { isAccessible = true }
-                        .get(card) as AlertDialog
-                }
-                val other = AppFontSize.entries.first { it != initial }
-                val dialog = open()
-                val choices = dialog.window!!.decorView.findViewWithTag<RadioGroup>("product/settings/app/font-size/choices")
-                (choices.getChildAt(other.ordinal) as RadioButton).performClick()
-                val preview = dialog.window!!.decorView.findViewWithTag<LinearLayout>("product/settings/app/font-size/preview")
+                parent = LinearLayout(home)
+                card = AppFontSizePreferencesCard(home, checkNotNull(parent), SettingsVisualStyle(home)) { applies++ }
+            }
+            val cancelled = open()
+            choose(cancelled)
+            main {
+                val preview = cancelled.window!!.decorView.findViewWithTag<LinearLayout>("product/settings/app/font-size/preview")
                 check(preview.getChildAt(0).resources.configuration.fontScale == other.scale)
                 check(app.fontSizePreferences.current == initial && home.resources.configuration.fontScale == initial.scale)
                 check(applies == 0)
-                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
-                check(app.fontSizePreferences.current == initial && applies == 0)
-                val unchanged = open()
-                unchanged.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
-                check(applies == 0)
-                val changed = open()
-                val changedChoices = changed.window!!.decorView.findViewWithTag<RadioGroup>("product/settings/app/font-size/choices")
-                (changedChoices.getChildAt(other.ordinal) as RadioButton).performClick()
-                changed.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
-                check(app.fontSizePreferences.current == other && applies == 1)
+                check(cancelled.getButton(AlertDialog.BUTTON_NEGATIVE).performClick())
             }
+            await("Cancelled font preview still showing") { !cancelled.isShowing }
+            main { check(app.fontSizePreferences.current == initial && applies == 0) }
+            val unchanged = open()
+            main { check(unchanged.getButton(AlertDialog.BUTTON_POSITIVE).performClick()) }
+            await("Unchanged font dialog still showing") { !unchanged.isShowing }
+            main { check(applies == 0 && app.fontSizePreferences.current == initial) }
+            val changed = open()
+            choose(changed)
+            main { check(changed.getButton(AlertDialog.BUTTON_POSITIVE).performClick()) }
+            await("Font Apply did not publish exactly once") { !changed.isShowing && applies == 1 }
+            main { check(app.fontSizePreferences.current == other && applies == 1) }
         } finally { main { card?.close(); home.finish() } }
     }
     private fun preheatRecreation() {
