@@ -210,8 +210,14 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
             var request: Any? = null
             val preparation = field(owner, "brewPreparation").get(owner) as io.openhoyi.session.BrewPreparation
             main {
+                // Mirror CurveFragment's Use action: persist the selected profile before
+                // requesting preparation; service intentionally rejects a different selection.
+                check(curves.edit().putString("selected", profile.id).commit())
+                check(owner.snapshot.settings?.brewHeating == true) { "Mock brew boiler must be enabled" }
                 screen.useCurve(profile.id)
-                check(owner.brewPreparationState == io.openhoyi.session.BrewPreparation.State.WAITING_TEMP)
+                check(owner.brewPreparationState == io.openhoyi.session.BrewPreparation.State.WAITING_TEMP) {
+                    "Use curve did not preheat: state=${owner.brewPreparationState}, reason=${owner.autoPreheatMessage}, selected=${curves.getString("selected", null)}"
+                }
                 intent = checkNotNull(field(owner, "autoPreheatIntent").get(owner))
                 request = checkNotNull(preparation.requestId)
                 check(runtime.preheatActive)
@@ -246,8 +252,14 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         var screen = MainPageTestHost.launch(test, extraction = true, timeoutMs = 10000).activity
         await("Mock settings not fresh") { screen.currentService?.machineSettingsFresh == true }
         val owner = checkNotNull(screen.currentService)
+        val curves = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
+        val oldCurves = curves.all.toMap()
         try {
-            main { check(owner.startShot("factory-v3-002", owner.snapshot.scaleState == io.openhoyi.session.DeviceState.READY, 7) == null) }
+            main {
+                check(curves.edit().putString("selected", "factory-v3-002").commit())
+                val blocked = owner.startShot("factory-v3-002", owner.snapshot.scaleState == io.openhoyi.session.DeviceState.READY, 7)
+                check(blocked == null) { "Mock lifecycle shot blocked: $blocked" }
+            }
             await("Mock extraction did not begin") { owner.snapshot.coffee is ExtractionTelemetry && owner.chartPoints.isNotEmpty() && owner.shotState == ExtractionState.RUNNING }
             val identity = owner.chartTraceIdentity
             val recipe = owner.activeShotRecipe
@@ -270,7 +282,7 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 }
             }
         } finally {
-            main { owner.stopShot(); screen.finish() }
+            main { owner.stopShot(); restoreMockPreferences(curves, oldCurves); screen.finish() }
         }
     }
     @Suppress("UNCHECKED_CAST")
