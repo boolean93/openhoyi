@@ -5,7 +5,7 @@ internal object FixedChartAxes {
     const val PREFERENCES = "chart_display"
     const val KEY = "fixed_axes"
     const val DEFAULT = false
-    const val TIME_END_MS = 60_000L
+    const val TIME_END_MS = 40_000L
     fun axis(metric: ChartMetric): ChartAxisScale.YAxis = when (metric) {
         ChartMetric.PRESSURE -> ChartAxisScale.YAxis(ChartRange(0f, 12f), 2f)
         ChartMetric.WATER -> ChartAxisScale.YAxis(ChartRange(0f, 100f), 20f)
