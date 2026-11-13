@@ -57,7 +57,8 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        if (portrait && !spacious) {
+        if (portrait && !spacious && HomePortraitBudget.compactTypography(
+                resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)) {
             val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
             val contentWidthDp = (width / density).toInt()
             inlinePortrait = HomePortraitBudget.inlineMachine(contentWidthDp, resources.configuration.fontScale)

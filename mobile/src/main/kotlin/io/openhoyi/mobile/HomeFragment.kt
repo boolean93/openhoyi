@@ -238,7 +238,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         button(deviceCard, getString(R.string.extraction_title)) {
             host.showExtraction()
         }
-        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(if (compactType) 16 else 18,500,if (compactType) 24 else 26)); tag = "product/home/service-status" }
+        status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(if (compactType) 14 else 18,500,if (compactType) 20 else 26)); tag = "product/home/service-status" }
         content.removeView(status)
         val machineRow = productStyle.row("product/home/machine-status").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(42)
@@ -306,11 +306,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
                 card.addView(target, LinearLayout.LayoutParams(-1,-2))
-                productStyle.apply(pressure, TaskProductVisualStyle.Type(if (phoneHome) 16 else 18, 400, if (phoneHome) 24 else 26))
+                productStyle.apply(pressure, TaskProductVisualStyle.Type(if (compactType) 14 else if (phoneHome) 16 else 18, 400, if (compactType) 20 else if (phoneHome) 24 else 26))
                 pressure.gravity = android.view.Gravity.CENTER
                 card.addView(pressure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
                 (toggle.parent as? android.view.ViewGroup)?.removeView(toggle)
-                productStyle.apply(toggle, TaskProductVisualStyle.Type(if (phoneHome) 16 else 20,400,if (phoneHome) 24 else 28))
+                productStyle.apply(toggle, TaskProductVisualStyle.Type(if (compactType) 14 else if (phoneHome) 16 else 20,400,if (compactType) 20 else if (phoneHome) 24 else 28))
                 toggle.setTextColor(android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),intArrayOf(productStyle.onDisabled,productStyle.ink)))
                 toggle.background = null
                 toggle.setCompoundDrawablesRelative(HomePowerDrawable(resources.displayMetrics.density, homeAccent), null, null, null)
@@ -341,7 +341,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                         val card = dial.parent as View
                         (card.width-card.paddingLeft-card.paddingRight-dp(4)).coerceAtLeast(0)
                     } ?: 0
-                    val portraitBudget = if (phoneHome && portraitWidth > 0) HomePortraitBudget.fit(
+                    val portraitBudget = if (phoneHome && compactType && portraitWidth > 0) HomePortraitBudget.fit(
                         (portraitWidth/resources.displayMetrics.density).toInt(),
                         (available/resources.displayMetrics.density).toInt(), resources.configuration.fontScale) else null
                     portraitBudget?.let { boilerRow.setPortraitHeroHeight(dp(it.hero)) }
@@ -369,7 +369,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
-            TaskProductVisualStyle.Type(if (shortHome || compactType) 18 else 22, 500, if (shortHome || compactType) 28 else 32), "product/home/quick-title")
+            TaskProductVisualStyle.Type(if (compactType) 16 else if (shortHome) 18 else 22, 500, if (compactType) 24 else if (shortHome) 28 else 32), "product/home/quick-title")
         val directStart = HoyiSwitch(host).apply {
             text = getString(R.string.shortcut_start_setting)
             tag = "product/home/shortcuts/direct-start"
@@ -416,7 +416,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
         lastCurveRow = object : LinearLayout(host) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                if (phoneHome && childCount == 4) {
+                if (phoneHome && compactType && childCount == 4) {
                     val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
                     val inline = HomePortraitBudget.inlineLastCurve((available / resources.displayMetrics.density).toInt(), resources.configuration.fontScale)
                     orientation = if (inline) HORIZONTAL else VERTICAL
@@ -463,7 +463,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val lastWords = productStyle.column()
         lastCurveRow.addView(lastWords, if(phoneHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(0, -2, 1f))
         val lastHeading = productStyle.text(getString(R.string.home_last_heading),
-            TaskProductVisualStyle.Type(if (compactType) 14 else 17, 400, if (compactType) 20 else 24),
+            TaskProductVisualStyle.Type(if (compactType) 12 else 17, 400, if (compactType) 18 else 24),
             secondary = true).apply {
                 if (shortWideHome) {
                     setSingleLine(true)
@@ -472,7 +472,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
         lastWords.addView(lastHeading)
         lastCurveName = productStyle.text(getString(R.string.history_no_local),
-            TaskProductVisualStyle.Type(if (compactType) 18 else 20, 500, if (compactType) 26 else 28),
+            TaskProductVisualStyle.Type(if (compactType) 16 else 20, 500, if (compactType) 24 else 28),
             "product/home/quick-recipe").apply {
             maxLines = if (shortWideHome) Int.MAX_VALUE else if(phoneHome) 3 else 1
             ellipsize = if (shortWideHome) null else android.text.TextUtils.TruncateAt.END
@@ -481,7 +481,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickLaunch = button(lastCurveRow, getString(R.string.home_curve_select), primary = true) {
             useLastCurve()
         }.apply {
-            textSize=21f
+            textSize=if (compactType) 16f else 21f
+            if (compactType) typeface = TaskTypography.face(context, 500)
             setSingleLine(true)
             if (shortWideHome) setPadding(dp(4), paddingTop, dp(4), paddingBottom)
             tag = "product/home/quick-launch"
@@ -511,7 +512,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             tile.addView(button, FrameLayout.LayoutParams(-1, -1))
             val contents = object : LinearLayout(host) {
                 override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                    if (phoneHome && childCount == 3) {
+                    if (phoneHome && compactType && childCount == 3) {
                         val cardWidth = (View.MeasureSpec.getSize(widthMeasureSpec) / resources.displayMetrics.density).toInt()
                         val compact = HomePortraitBudget.compactPreset(cardWidth, resources.configuration.fontScale)
                         getChildAt(1).layoutParams.height = dp(if (compact) 28 else 40)
@@ -545,7 +546,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             previewHeader.addView(sparkline, if (shortWideHome)
                 LinearLayout.LayoutParams(0, dp(24), 1f).apply { marginStart = dp(4) }
             else LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 40)))
-            val name = productStyle.text("", TaskProductVisualStyle.Type(if (shortHome) 14 else 17, 500, if (shortHome) 20 else 24)).apply {
+            val name = productStyle.text("", TaskProductVisualStyle.Type(if (compactType) 15 else if (shortHome) 14 else 17, 500, if (compactType) 22 else if (shortHome) 20 else 24)).apply {
                 gravity = android.view.Gravity.CENTER
                 maxLines = if(phoneHome || shortHome) Int.MAX_VALUE else 2
                 ellipsize = if(phoneHome || shortHome) null else android.text.TextUtils.TruncateAt.END

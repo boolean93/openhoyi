@@ -41,6 +41,17 @@ class HomePortraitBudgetTest {
         assertFalse(HomePortraitBudget.compactTypography(568, 0))
     }
 
+    @Test fun squareScopePreservesOrdinaryPortraitAndLandscape() {
+        assertFalse(HomePortraitBudget.compactTypography(711, 1138))
+        assertFalse(HomePortraitBudget.compactTypography(1138, 711))
+        assertFalse(HomePortraitBudget.compactTypography(479, 479))
+        assertTrue(HomePortraitBudget.compactTypography(480, 600))
+        assertFalse(HomePortraitBudget.compactTypography(480, 601))
+        assertTrue(HomePortraitBudget.compactTypography(600, 480))
+        assertFalse(HomePortraitBudget.compactTypography(601, 480))
+        assertTrue(HomePortraitBudget.compactTypography(568, 640))
+    }
+
     @Test fun broadShortViewportReturnsSpaceToQuickCurves() {
         val budget = HomePortraitBudget.fit(270, 560, 1f)
         assertTrue(budget.dial < 184)
