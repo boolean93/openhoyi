@@ -168,9 +168,20 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                         }
                         if(checkMode==CheckMode.AUTO) {
                             // Reuse the detached service, isolated storage and guarded fake transport above.
+                            // Reflection seeded snapshot above; mirror its production setter's content observation.
+                            // Otherwise the first event changes revision after intent capture and rejects its own write.
+                            @Suppress("UNCHECKED_CAST")
+                            val configuration=field(instance,"shortcutConfiguration").get(instance) as ShortcutContentRevision<List<Any?>>
+                            val initial=instance.snapshot
+                            configuration.observe(listOf(initial.settings,initial.coffeeState,initial.scaleState,initial.scaleCapabilities))
                             check(instance.shortcutDeviceIdentity != null)
-                            check(instance.useCurveForPreheat(selected.id,selected.scaleMode,7)==null)
-                            check(calls.size==1 && preparation.state==BrewPreparation.State.WRITING)
+                            fun diagnostics() = "auto mode=$mode calls=${calls.size} state=${preparation.state} " +
+                                "message=${instance.autoPreheatMessage} actual=${instance.currentCorrectedBrewTemperature()} " +
+                                "target=${selected.temperatureC} revision=${instance.shortcutConfigurationRevision} " +
+                                "settingsAvailable=${instance.machineBrewSettingsAvailable} flags=${settings.flags}"
+                            val rejection=instance.useCurveForPreheat(selected.id,selected.scaleMode,7)
+                            check(rejection==null) { "${diagnostics()} rejected=$rejection" }
+                            check(calls.size==1 && preparation.state==BrewPreparation.State.WRITING) { diagnostics() }
                             val positive=calls.single()
                             val positiveWrite=positive.third as GattOperation.Write
                             check(positiveWrite.bytes.contentEquals(CoffeeCommands.brewWait(selected.temperatureC).frame.toByteArray()))
