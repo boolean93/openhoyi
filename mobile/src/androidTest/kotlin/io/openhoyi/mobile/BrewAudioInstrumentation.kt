@@ -115,6 +115,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             if (autoPreheatChecks) {
                 ServicePreheatCancellationChecks(this).runAuto()
+                sendStatus(0, Bundle().apply { putString("stream", "SERVICE_AUTO_PREHEAT_CHECKS_PASSED fixtures=10 guardedFakeGatt=true noBle=true\n") })
                 AutoPreheatUiChecks(this).run()
                 report.putString("stream", "SERVICE_AUTO_PREHEAT_CHECKS_PASSED fixtures=10 guardedFakeGatt=true noBle=true\nAUTO_PREHEAT_UI_CHECKS_PASSED screenshots=3 noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
