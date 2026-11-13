@@ -23,6 +23,13 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
         style.button(this)
         setTextColor(style.accent)
         minimumWidth = dp(48); minimumHeight = dp(48)
+        background = GradientDrawable().apply {
+            setColor(android.graphics.Color.TRANSPARENT); cornerRadius = dp(8).toFloat()
+            setStroke(dp(1).coerceAtLeast(1), style.accent)
+        }
+        setPadding(dp(12), dp(4), dp(12), dp(4))
+        setCompoundDrawablesRelative(CurveMark(null).apply { setBounds(0, 0, dp(20), dp(20)) }, null, null, null)
+        compoundDrawablePadding = dp(6)
         setOnClickListener { show() }
     }
     init { refresh() }
@@ -39,7 +46,7 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
         val dark = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         fun panelBackground() = GradientDrawable().apply {
             setColor(if (landscape && dark) android.graphics.Color.parseColor("#243233") else style.surface)
-            cornerRadius = dp(16).toFloat()
+            cornerRadius = dp(if (landscape) 12 else 16).toFloat()
             if (landscape) setStroke(dp(1).coerceAtLeast(1), android.graphics.Color.parseColor(
                 if (dark) "#6A8380" else "#A7B8B5"))
         }
@@ -53,12 +60,12 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
             text = context.getString(R.string.chart_series_title)
             setTextColor(style.ink); textSize = 16f; typeface = TaskTypography.face(context, 500)
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(Button(context).apply {
+        if (!landscape) heading.addView(Button(context).apply {
             text = "×"; contentDescription = context.getString(R.string.chart_series_close)
             style.button(this); minimumWidth = dp(48); minimumHeight = dp(48)
             setOnClickListener { close() }
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
-        panel.addView(heading)
+        panel.addView(heading, LinearLayout.LayoutParams(-1, if (landscape) dp(36) else -2))
         selectableLiveMetrics.forEach { metric ->
             val check = CheckBox(context).apply {
                 tag = "product/extraction/series-${metric.name.lowercase()}"
@@ -70,8 +77,10 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
                     ChartMetric.YIELD -> R.string.chart_series_yield
                     ChartMetric.WEIGHT -> R.string.task_chart_weight
                 })
-                text = "$name · ${if(metric == ChartMetric.WATER) "mL" else metric.unit}"
-                setTextColor(visual.liveMetric(metric)); textSize = 15f
+                text = name
+                setTextColor(style.ink); textSize = 15f
+                setCompoundDrawablesRelative(CurveMark(metric).apply { setBounds(0, 0, dp(24), dp(16)) }, null, null, null)
+                compoundDrawablePadding = dp(8)
                 typeface = TaskTypography.face(context, 400)
                 buttonTintList = ColorStateList.valueOf(style.accent)
                 minHeight = dp(48)
@@ -95,8 +104,11 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
             row.setOnClickListener { check.performClick() }
             panel.addView(row, LinearLayout.LayoutParams(-1, -2))
         }
+        panel.addView(View(context).apply { setBackgroundColor(style.border) },
+            LinearLayout.LayoutParams(-1, dp(1).coerceAtLeast(1)).apply { topMargin = dp(8); bottomMargin = dp(4) })
         panel.addView(TextView(context).apply {
-            text = context.getString(R.string.chart_series_hint)
+            text = context.getString(R.string.chart_series_hint_compact)
+            contentDescription = context.getString(R.string.chart_series_hint)
             setTextColor(style.muted); textSize = 12f
             setPadding(0, dp(8), 0, dp(4))
         })
@@ -121,14 +133,46 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
             dialog.window?.setLayout(-1, panelHeight(availableWidth, (availableHeight * .6f).toInt()))
             dismiss = { dialog.dismiss() }
         } else {
-            val width = dp(320).coerceAtMost(availableWidth - dp(16)).coerceAtLeast(dp(48))
+            val width = dp(288).coerceAtMost(availableWidth - dp(16)).coerceAtLeast(dp(48))
             val popup = PopupWindow(scroll, width, panelHeight(width, availableHeight - dp(64)), true).apply {
                 setBackgroundDrawable(panelBackground())
                 elevation = dp(12).toFloat(); isOutsideTouchable = true
             }
             popup.setOnDismissListener { readings.clear(); checks.clear(); dismiss = null }
-            popup.showAsDropDown(button, -dp(120), dp(4))
+            popup.showAsDropDown(button, button.width - width, dp(6))
             dismiss = { popup.dismiss() }
         }
     }
+    private inner class CurveMark(private val metric: ChartMetric?) : android.graphics.drawable.Drawable() {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = dp(2).toFloat(); strokeCap = android.graphics.Paint.Cap.ROUND
+            color = metric?.let { visual.liveMetric(it) } ?: this@ChartSeriesSelector.style.accent
+        }
+        override fun draw(canvas: android.graphics.Canvas) {
+            val b = bounds
+            paint.pathEffect = when (metric) {
+                ChartMetric.WATER -> android.graphics.DashPathEffect(floatArrayOf(dp(5).toFloat(), dp(3).toFloat()), 0f)
+                ChartMetric.TEMPERATURE -> android.graphics.DashPathEffect(floatArrayOf(dp(1).toFloat(), dp(3).toFloat()), 0f)
+                else -> null
+            }
+            if (metric != null) canvas.drawLine(b.left.toFloat(), b.exactCenterY(), b.right.toFloat(), b.exactCenterY(), paint)
+            else {
+                val path = android.graphics.Path().apply {
+                    moveTo(b.left.toFloat(), b.bottom - b.height() * .2f)
+                    cubicTo(b.left + b.width() * .3f, b.bottom - b.height() * .2f,
+                        b.left + b.width() * .28f, b.top + b.height() * .15f,
+                        b.left + b.width() * .5f, b.top + b.height() * .2f)
+                    cubicTo(b.left + b.width() * .7f, b.top + b.height() * .2f,
+                        b.left + b.width() * .7f, b.top + b.height() * .65f,
+                        b.right.toFloat(), b.top + b.height() * .65f)
+                }
+                canvas.drawPath(path, paint)
+            }
+        }
+        override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+        override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
+        @Deprecated("Drawable contract") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+    }
+
 }
