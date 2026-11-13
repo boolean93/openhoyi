@@ -118,7 +118,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             main { host.openSettingsSection("shortcuts") }
             await("default-on setting") { settingsToggle(host)?.isChecked == true && visible(settingsToggle(host)) }
             capture("settings-default-on")
-            main { check(settingsToggle(host).performClick()) }
+            main { settingsToggle(host).performClick(); check(!settingsToggle(host).isChecked) }
             check(prefs.contains("direct_start") && !prefs.getBoolean("direct_start", true))
             // A new preferences instance must preserve an explicit Off rather than applying the default.
             main { check(!ShortcutStartPreferences(host).read().startsOnTap) }
@@ -129,7 +129,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             check(!prefs.getBoolean("direct_start", true)); noShot()
             main { host.openSettingsSection("shortcuts") }
             await("saved-off setting") { settingsToggle(host)?.isChecked == false && visible(settingsToggle(host)) }
-            main { check(settingsToggle(host).performClick()); noShot() }
+            main { settingsToggle(host).performClick(); check(settingsToggle(host).isChecked); noShot() }
             check(prefs.getBoolean("direct_start", false))
             main { host.select(TaskDestination.BREW) }
             clickSlot()
