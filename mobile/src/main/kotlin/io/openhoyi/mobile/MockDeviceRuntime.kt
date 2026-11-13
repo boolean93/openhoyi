@@ -179,6 +179,7 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
         )
         return MobileSnapshot(
             coffeeState = DeviceState.READY, scaleState = if (scaleConnected) DeviceState.READY else DeviceState.DISCONNECTED,
+            scaleCapabilities = if (scaleConnected) ScaleCapabilities(weight = true, deviceFlow = true) else null,
             coffee = coffee, coffeeAt = now, alarmBits = 0, alarmAt = now,
             settings = settings, settingsAt = now, sleepFirstAt = now, sleepSecondAt = now,
             sleepFirst = SleepPart(0, schedule.days.foldIndexed(0) { index, bits, day ->

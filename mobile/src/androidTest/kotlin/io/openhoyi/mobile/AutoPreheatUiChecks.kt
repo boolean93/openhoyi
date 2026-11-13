@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import io.openhoyi.protocol.Settings
 import io.openhoyi.session.BrewPreparation
@@ -57,6 +58,16 @@ internal class AutoPreheatUiChecks(private val test: Instrumentation) {
             try { File(directory, "$name.png").outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
             finally { image.recycle() }
         }
+        fun intentDetails(): String {
+            val owner=service ?: return "intent=no-service"
+            val intent=field(owner,"autoPreheatIntent").get(owner) ?: return "intent=null"
+            val connection=field(intent,"connection").get(intent)
+            return "intentRevision=${field(intent,"revision").getLong(intent)} liveRevision=${owner.shortcutConfigurationRevision} " +
+                "intentInvalidated=${field(intent,"invalidated").getBoolean(intent)} intentLeftAt=${field(intent,"leftAt").get(intent)} " +
+                "intentConnection=$connection liveConnection=${owner.shortcutDeviceIdentity} " +
+                "sameConnection=${connection==owner.shortcutDeviceIdentity} " +
+                "mockPreheatActive=${(runtime as? MockDeviceRuntime)?.preheatActive}"
+        }
         diagnostics = {
             val owner=service
             val button=host?.window?.decorView?.findViewWithTag<TextView>("product/extraction/start")
@@ -66,7 +77,7 @@ internal class AutoPreheatUiChecks(private val test: Instrumentation) {
                 "preparationProfile=${owner?.brewPreparationProfileId} flags=${owner?.snapshot?.settings?.flags} " +
                 "coffeeState=${owner?.snapshot?.coffeeState} shot=${owner?.shotState} " +
                 "block=${owner?.studioStartBlock(profile)} " +
-                "activityHeating=${host?.getString(R.string.auto_preheat_heating)} systemHeating=${context.getString(R.string.auto_preheat_heating)}"
+                "activityHeating=${host?.getString(R.string.auto_preheat_heating)} systemHeating=${context.getString(R.string.auto_preheat_heating)} ${intentDetails()}"
         }
         timeoutCapture = { stage ->
             val name="failure-"+stage.replace(Regex("[^A-Za-z0-9]+"),"-")
@@ -113,7 +124,8 @@ internal class AutoPreheatUiChecks(private val test: Instrumentation) {
                 val prep=field(owner,"brewPreparation").get(owner) as BrewPreparation
                 prep.state==BrewPreparation.State.WAITING_TEMP && start().isShown &&
                     start().text.toString().contains(activity.getString(R.string.auto_preheat_heating)) &&
-                    owner.studioStartBlock(profile)!=null
+                    owner.studioStartBlock(profile)!=null &&
+                    (owner.currentCorrectedBrewTemperature() ?: 0) in 8500..8900
             }
             capture("01-waiting")
             await("target restores start action") {
@@ -124,10 +136,20 @@ internal class AutoPreheatUiChecks(private val test: Instrumentation) {
             capture("02-target-reached")
             main {
                 check(owner.shotState==shotState && app.history.entries==history)
+                val beforeLeave=diagnostics()
+                File(directory,"before-leave.txt").writeText(beforeLeave)
+                test.sendStatus(0,Bundle().apply { putString("stream","AUTO_PREHEAT_UI_BEFORE_LEAVE $beforeLeave\n") })
                 activity.select(TaskDestination.BREW)
+                check(owner.brewPreparationState==BrewPreparation.State.IDLE &&
+                    (runtime as? MockDeviceRuntime)?.preheatActive==false) { diagnostics() }
+                check(owner.autoPreheatMessage==activity.getString(R.string.service_shot_cancel_mock_done)) { diagnostics() }
             }
-            await("leave feedback toast") {
-                activity.window.decorView.findViewWithTag<View>("product/preheat/toast")?.isShown==true
+            fun containsText(view: View, expected: String): Boolean =
+                (view is TextView && view.text.toString()==expected) ||
+                    (view is ViewGroup && (0 until view.childCount).any { containsText(view.getChildAt(it),expected) })
+            await("successful leave feedback toast") {
+                val toast=activity.window.decorView.findViewWithTag<View>("product/preheat/toast")
+                toast?.isShown==true && containsText(toast,activity.getString(R.string.service_shot_cancel_mock_done))
             }
             capture("03-leave-cancelled-toast")
             main {

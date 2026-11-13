@@ -16,7 +16,7 @@ class PreheatStatusPresentationTest {
 
     @Test fun normalProgressIsNotDisconnectionAndLatchedReadyNeedsCurrentTemperature() {
         for(state in listOf(State.WRITING,State.WAITING_TEMP))
-            assertEquals(R.string.task_shell_machine_preheating,status(state))
+            assertEquals(R.string.auto_preheat_heating,status(state))
         assertEquals(R.string.task_shell_machine_preheat_ready,status(State.READY,true))
         assertEquals(R.string.home_boiler_preheat_occupied,status(State.READY,false))
         assertEquals(R.string.device_state_disconnected,status(State.READY,true,DeviceState.DISCONNECTED))
