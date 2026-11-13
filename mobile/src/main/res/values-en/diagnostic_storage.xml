@@ -1,0 +1,11 @@
+<resources>
+    <string name="diagnostic_storage_calculating">Measuring diagnostic logs…</string>
+    <string name="diagnostic_storage_size">Diagnostic logs · %1$s</string>
+    <string name="diagnostic_storage_clear">Clear logs</string>
+    <string name="diagnostic_storage_scope">Automatically compressed, limited to 8 MB and up to 7 days. Clearing logs cannot be undone. Recipes and shot history are not affected.</string>
+    <string name="diagnostic_storage_clearing">Clearing…</string>
+    <string name="diagnostic_storage_unavailable">Diagnostic logs · Unavailable</string>
+    <string name="diagnostic_storage_cleared">Diagnostic logs cleared. Future activity will still be recorded.</string>
+    <string name="diagnostic_storage_failed">Some logs could not be cleared. Please try again later.</string>
+    <string name="diagnostic_storage_read_failed">Log storage could not be measured. Please try again later.</string>
+</resources>

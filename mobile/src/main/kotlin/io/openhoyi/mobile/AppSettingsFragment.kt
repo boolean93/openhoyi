@@ -61,6 +61,7 @@ class AppSettingsFragment : Fragment() {
         super.onSaveInstanceState(outState)
     }
     private var updateCard: ReleaseUpdateCard? = null
+    private var diagnosticStorageCard: DiagnosticStorageCard? = null
     private var feedbackCard: BrewFeedbackPreferencesCard? = null
     private var fontSizeCard: AppFontSizePreferencesCard? = null
     private var languageCard: AppLanguagePreferencesCard? = null
@@ -273,6 +274,7 @@ class AppSettingsFragment : Fragment() {
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }.also { style.add(diagnostics, it, 8) }
+        diagnosticStorageCard = DiagnosticStorageCard(activity, diagnostics, visual)
         deviceControls?.addShutdown(diagnostics)
         pendingSection?.let { root.navigate(it); pendingSection=null }
         return root
@@ -287,7 +289,7 @@ class AppSettingsFragment : Fragment() {
         refreshHandler.post(refreshCapabilities)
         machineControls?.start()
         feedbackCard?.start(); feedbackCard?.refresh()
-        updateCard?.resume()
+        updateCard?.resume(); diagnosticStorageCard?.resume()
     }
     override fun onPause() {
         stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
@@ -295,7 +297,7 @@ class AppSettingsFragment : Fragment() {
         deviceControls?.close()
         machineControls?.stop()
         feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
-        updateCard?.pause()
+        updateCard?.pause(); diagnosticStorageCard?.pause()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
         service = null
         exportGeneration++
@@ -314,6 +316,7 @@ class AppSettingsFragment : Fragment() {
         machineControls = null
         feedbackCard = null; languageCard = null; fontSizeCard = null; exportStatus = null
         updateCard?.close(); updateCard = null
+        diagnosticStorageCard?.pause(); diagnosticStorageCard = null
         super.onDestroyView()
     }
 }

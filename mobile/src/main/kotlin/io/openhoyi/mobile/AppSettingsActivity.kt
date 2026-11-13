@@ -21,6 +21,7 @@ class AppSettingsActivity : ThemedActivity() {
     internal lateinit var feedbackCard: BrewFeedbackPreferencesCard
         private set
     private var fontSizeCard: AppFontSizePreferencesCard? = null
+    private var diagnosticStorageCard: DiagnosticStorageCard? = null
     private lateinit var languageCard: AppLanguagePreferencesCard
     internal lateinit var themeCheckBox: CompoundButton
         private set
@@ -123,6 +124,7 @@ class AppSettingsActivity : ThemedActivity() {
             visibility=View.GONE;accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         style.add(diagnostics,exportStatus,8)
+        diagnosticStorageCard = DiagnosticStorageCard(this, diagnostics, visual)
         settingsDivider(this, diagnostics, visual)
         HoyiUi.button(this, diagnostics, getString(R.string.app_settings_machine)) {
             startActivity(Intent(this, MachineSettingsActivity::class.java))
@@ -135,7 +137,7 @@ class AppSettingsActivity : ThemedActivity() {
         if (redirectedRoot) return
         exportStarted=true
         pendingExportResult?.let {showExportResult(it.first,it.second);pendingExportResult=null}
-        feedbackCard.start(); feedbackCard.refresh()
+        feedbackCard.start(); feedbackCard.refresh(); diagnosticStorageCard?.resume()
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
     }
     override fun onPause() {
@@ -147,12 +149,13 @@ class AppSettingsActivity : ThemedActivity() {
     override fun onStop() {
         if (redirectedRoot) { super.onStop(); return }
         exportStarted=false;invalidateExportResult()
-        feedbackCard.stop(); languageCard.close(); fontSizeCard?.close(); release()
+        feedbackCard.stop(); languageCard.close(); fontSizeCard?.close(); diagnosticStorageCard?.pause(); release()
         super.onStop()
     }
     override fun onDestroy() {
         if (redirectedRoot) { super.onDestroy(); return }
         exportStarted=false;invalidateExportResult()
+        diagnosticStorageCard?.pause(); diagnosticStorageCard = null
         if (::feedbackCard.isInitialized) feedbackCard.stop()
         if (::languageCard.isInitialized) languageCard.close(); fontSizeCard?.close()
         release()
