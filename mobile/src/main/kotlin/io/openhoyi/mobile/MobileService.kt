@@ -185,6 +185,10 @@ class MobileService : Service() {
     private val scheduleWrite = SleepScheduleWriteTracker()
     private val sleepNow = SleepNowTracker()
     private val brewPreparation = BrewPreparation()
+    private var autoPreheatIntent: io.openhoyi.session.AutoPreheatIntent? = null
+    private var autoPreheatResource: ResourceMessage? = null
+    val autoPreheatMessage: String? get() = autoPreheatResource?.render { id, args -> getString(id, *args) }
+    var autoPreheatInitialTemperature: Int? = null; private set
     private var idleSampleSerial = 0L
     private var recoveryAfterBrewWaitIdleSerial = 0L
     private var brewWaitShotStarted = false
@@ -430,6 +434,8 @@ class MobileService : Service() {
     var snapshot = MobileSnapshot()
         private set(value) {
             shortcutConfiguration.observe(listOf(value.settings, value.coffeeState, value.scaleState, value.scaleCapabilities))
+            if (value.coffeeState != DeviceState.READY || value.coffee is io.openhoyi.protocol.ExtractionTelemetry)
+                autoPreheatIntent?.invalidate()
             field = value
         }
     val coffeeFirmware: CoffeeFirmware? get() = if(mock != null)
@@ -1654,7 +1660,94 @@ class MobileService : Service() {
     fun studioStartBlock(profile: CurveProfile): String? = if (!machineBrewSettingsAvailable)
         getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
+    /** Explicit use only. No retry on service binding, render, settings refresh or reconnect. */
+    fun useCurveForPreheat(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
+        val old = autoPreheatIntent
+        if (old != null && old.profileId == profileId && old.targetC == selectedCurve(profileId, slot)?.temperatureC &&
+            old.slot == slot && old.requestId == brewPreparation.requestId &&
+            old.permitsStart(shortcutDeviceIdentity, shortcutConfigurationRevision) && brewPreparation.active) return null
+        leaveAutoPreheat()
+        autoPreheatResource = null
+        autoPreheatInitialTemperature = null
+        val settings = snapshot.settings ?: return autoPreheatRejected(ResourceMessage(R.string.settings_missing))
+        if (settings.flags and 0x04 == 0) return null
+        val profile = selectedCurve(profileId, slot)
+            ?: return autoPreheatRejected(ResourceMessage(R.string.start_block_curve_missing))
+        if (!machineBrewSettingsAvailable) return autoPreheatRejected(ResourceMessage(R.string.studio_settings_stale))
+        val actual = currentCorrectedBrewTemperature()
+            ?: return autoPreheatRejected(ResourceMessage(R.string.service_auto_temperature_waiting))
+        if (BrewPreparation.isAtTarget(actual, profile.temperatureC)) return null
+        // 1.1.4 clips positive 0x11 targets to 96 C. Do not wait forever for an unreachable request.
+        if (mock == null && settings.firmwareInteger == 0x114 && profile.temperatureC > 96)
+            return autoPreheatRejected(ResourceMessage(R.string.service_auto_target_unsupported))
+        if (!settings.brewHeating) return autoPreheatRejected(ResourceMessage(R.string.service_auto_boiler_off))
+        if (brewPreparation.active) return autoPreheatRejected(ResourceMessage(R.string.service_shot_preheat_pending))
+        val identity = shortcutDeviceIdentity
+            ?: return autoPreheatRejected(ResourceMessage(R.string.service_unavailable))
+        val intent = io.openhoyi.session.AutoPreheatIntent(profileId, profile.temperatureC, slot,
+            identity, shortcutConfigurationRevision)
+        autoPreheatIntent = intent
+        autoPreheatInitialTemperature = actual
+        val blocked = prepareBrewRequest(profileId, expectedScaleMode, slot) {
+            autoPreheatIntent === intent && intent.permitsStart(shortcutDeviceIdentity, shortcutConfigurationRevision)
+        }
+        if (blocked != null) {
+            intent.invalidate()
+            autoPreheatResource = ResourceMessage(R.string.service_auto_request_blocked, blocked)
+            return blocked
+        }
+        intent.requestId = brewPreparation.requestId
+        return null
+    }
+
+    private fun autoPreheatRejected(message: ResourceMessage): String? {
+        autoPreheatResource = message
+        return autoPreheatMessage
+    }
+
+    /** One best-effort cancellation on leaving. An abnormal connection never queues recovery work. */
+    fun leaveAutoPreheat(): String? {
+        val intent = autoPreheatIntent ?: return null
+        val now = MobileMonotonicClock.elapsedRealtime()
+        if (!intent.leave(now)) return null
+        if (intent.requestId == null || !brewPreparation.active) return null
+        if (intent.requestId != brewPreparation.requestId) {
+            if (brewPreparation.state == BrewPreparation.State.UNKNOWN) {
+                autoPreheatResource = ResourceMessage(R.string.service_auto_cancel_not_sent)
+                return autoPreheatMessage
+            }
+            return null
+        }
+        fun permit(): Boolean = autoPreheatIntent === intent && intent.permitsCancel(shortcutDeviceIdentity, shortcutConfigurationRevision,
+            MobileMonotonicClock.elapsedRealtime()) && snapshot.coffeeState == DeviceState.READY &&
+            !manualShotActive && !ShotGate.active(shotState)
+        autoPreheatResource = ResourceMessage(R.string.service_auto_cancel_requested)
+        val blocked = if (!permit()) ResourceMessage(R.string.service_auto_cancel_not_sent)
+            else cancelBrewPreparationMessage(::permit)
+        if (blocked != null) {
+            intent.invalidate()
+            // Invalidate the positive write and its watchdog. Never retry it after reconnect.
+            if (brewPreparation.active) brewPreparation.disconnected()
+            autoPreheatResource = ResourceMessage(R.string.service_auto_cancel_blocked, blocked)
+            event(requireNotNull(autoPreheatResource), "brew_wait.auto_cancel_skipped")
+            refreshSafetyNotification()
+        } else if (mock != null) {
+            autoPreheatResource = ResourceMessage(R.string.service_shot_cancel_mock_done)
+        }
+        return autoPreheatMessage
+    }
+
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
+        val blocked = prepareBrewRequest(profileId, expectedScaleMode, slot, null)
+        if (blocked == null) {
+            autoPreheatResource = null
+            autoPreheatInitialTemperature = null
+        }
+        return blocked
+    }
+
+    private fun prepareBrewRequest(profileId: String, expectedScaleMode: Boolean?, slot: Int,
+        automaticPermit: (() -> Boolean)?): String? {
         interruptUpdateInstallation()
         if (mock != null) {
             if (brewPreparation.active) return getString(R.string.service_shot_preheat_mock_pending)
@@ -1711,7 +1804,7 @@ class MobileService : Service() {
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested")
         current.setBrewWait(profile.temperatureC, {
-            BrewWriteDispatchPermit.allows(token,brewPreparation,profile.temperatureC,
+            (automaticPermit?.invoke() != false) && BrewWriteDispatchPermit.allows(token,brewPreparation,profile.temperatureC,
                 BrewWriteDispatchPermit.Context(machineWriteRecovery,recoveryOwner,coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,manualShotActive,shotRecovery.pending,
                     ShotGate.active(current.extraction.state),selectedCurve(profileId,slot)==profile && library.validated(profile)))
@@ -1721,9 +1814,19 @@ class MobileService : Service() {
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written")
-                    preheatTimeoutScheduler(BrewPreparationWatchdog.TIMEOUT_MS) {
+                    preheatTimeoutScheduler(BrewPreparationWatchdog.TIMEOUT_MS) timeout@{
+                        if (automaticPermit != null) {
+                            if (brewPreparation.isActive(token)) {
+                                leaveAutoPreheat()
+                                if (brewPreparation.timedOut(token)) {
+                                    autoPreheatResource = ResourceMessage(R.string.service_auto_cancel_not_sent)
+                                    refreshSafetyNotification()
+                                }
+                            }
+                            return@timeout
+                        }
                         val expiry = BrewPreparationWatchdog.expire(brewPreparation,token,{
-                            hub === current && machineWriteRecovery.owns(recoveryOwner) &&
+                            (automaticPermit?.invoke() != false) && hub === current && machineWriteRecovery.owns(recoveryOwner) &&
                                 current.coffeeAddress?.equals(coffeeAddress,ignoreCase=true)==true
                         },ResourceMessage(R.string.service_shot_cancel_original_device),::cancelBrewPreparationMessage)
                         when(expiry?.outcome) {
@@ -1745,9 +1848,14 @@ class MobileService : Service() {
         }
         return null
     }
-    fun cancelBrewPreparation(): String? = cancelBrewPreparationMessage()?.render { id, args -> getString(id, *args) }
+    fun cancelBrewPreparation(): String? {
+        autoPreheatResource = null
+        return cancelBrewPreparationMessage()?.render { id, args -> getString(id, *args) }
+    }
 
-    private fun cancelBrewPreparationMessage(): ResourceMessage? {
+    private fun cancelBrewPreparationMessage(): ResourceMessage? = cancelBrewPreparationMessage(null)
+
+    private fun cancelBrewPreparationMessage(automaticPermit: (() -> Boolean)?): ResourceMessage? {
         if (mock != null) {
             if (!brewPreparation.active) return ResourceMessage(R.string.service_shot_cancel_mock_none)
             val now = MobileMonotonicClock.elapsedRealtime()
@@ -1775,12 +1883,15 @@ class MobileService : Service() {
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         event(ResourceMessage(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
         current.setBrewWait(0, {
-            BrewWriteDispatchPermit.allows(token,brewPreparation,0,
+            (automaticPermit?.invoke() != false) && BrewWriteDispatchPermit.allows(token,brewPreparation,0,
                 BrewWriteDispatchPermit.Context(machineWriteRecovery,recoveryOwner,coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,manualShotActive,shotRecovery.pending,
                     ShotGate.active(current.extraction.state),true)) && brewWaitCancelBlockMessage == null
         }) done@{ result ->
             if (!brewPreparation.cancelled(token, result)) return@done
+            if (automaticPermit != null) autoPreheatResource = ResourceMessage(
+                if (brewPreparation.state == BrewPreparation.State.CANCEL_WRITTEN)
+                    R.string.service_shot_cancel_written else R.string.service_shot_cancel_unknown)
             when (brewPreparation.state) {
                 BrewPreparation.State.CANCEL_WRITTEN -> event(ResourceMessage(R.string.service_shot_cancel_written), "brew_wait.cancel_written")
                 BrewPreparation.State.UNKNOWN -> event(ResourceMessage(R.string.service_shot_cancel_unknown), "brew_wait.cancel_unknown")
@@ -2149,7 +2260,12 @@ class MobileService : Service() {
                 R.string.recovery_event_brew_wait_recovery_waiting,
                 R.string.recovery_event_brew_wait_recovery_clear_failed,
                 R.string.recovery_event_brew_wait_recovery_acknowledged, "brew_wait",
-                onAcknowledged = { brewPreparation.consumed() })
+                onAcknowledged = {
+                    brewPreparation.consumed()
+                    autoPreheatResource = null
+                    autoPreheatInitialTemperature = null
+                    autoPreheatIntent = null
+                })
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {

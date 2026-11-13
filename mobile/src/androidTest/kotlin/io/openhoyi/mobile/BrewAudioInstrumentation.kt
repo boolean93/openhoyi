@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var autoPreheatChecks = false
     private var unifiedSwitchChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
@@ -61,6 +62,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         darkThemeWindow = arguments?.getString("darkThemeWindow")?.let { check(it in setOf("light", "dark")); it == "dark" }
         connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
@@ -111,6 +113,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (autoPreheatChecks) {
+                ServicePreheatCancellationChecks(this).runAuto()
+                AutoPreheatUiChecks(this).run()
+                report.putString("stream", "SERVICE_AUTO_PREHEAT_CHECKS_PASSED fixtures=10 guardedFakeGatt=true noBle=true\nAUTO_PREHEAT_UI_CHECKS_PASSED screenshots=3 noBle=true noShot=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if (liveScaleReadoutChecks) {
                 ExtractionScaleWindowChecks(this).run()
                 report.putString("stream", "LIVE_SCALE_WINDOW_PASSED realMockService=true actualStopButton=true retainedTestShot=true portraitDark=true noBle=true\n")

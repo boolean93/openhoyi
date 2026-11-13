@@ -296,6 +296,7 @@ class MainActivity : ThemedActivity() {
     }
 
     override fun onStop() {
+        if (!isChangingConfigurations) leaveCurvePreparation()
         serviceBinding.stop()
         super.onStop()
     }
@@ -348,6 +349,7 @@ class MainActivity : ThemedActivity() {
     internal fun select(next: TaskDestination) {
         revokeShortcutStart()
         if (next == destination && !extractionVisible) return
+        if (extractionVisible) leaveCurvePreparation()
         scaleSettingsReturn = false
         settingsOrigin = null
         extractionOrigin = null
@@ -438,6 +440,12 @@ class MainActivity : ThemedActivity() {
         val preference = shortcutPreferences.read()
         val preferenceRevision = shortcutPreferences.revision
         showExtraction(sourceSlot)
+        if (owner != null && expected != null) {
+            owner.useCurveForPreheat(expected.id, expected.scaleMode, route.wireSlot)?.let { PreheatToast.show(this, it) }
+            // A temperature wait never becomes a deferred one-tap extraction.
+            if (owner.brewPreparationState != io.openhoyi.session.BrewPreparation.State.IDLE ||
+                owner.studioStartBlock(expected) != null) return
+        }
         if (!preference.startsOnTap) return
         val fragment = supportFragmentManager.primaryNavigationFragment as? ExtractionFragment ?: return
         if (owner == null || expected == null) {
@@ -462,6 +470,18 @@ class MainActivity : ThemedActivity() {
         }
         shortcutStart = permit
         fragment.tryShortcutStart(expected, permit)
+    }
+
+    internal fun useCurve(profileId: String, slot: Int = 7) {
+        showExtraction(slot)
+        val owner = service ?: return
+        val profile = (application as MobileApplication).curves.resolve(profileId,
+            owner.snapshot.scaleState == DeviceState.READY, extractionSlot) ?: return
+        owner.useCurveForPreheat(profile.id, profile.scaleMode, extractionSlot)?.let { PreheatToast.show(this, it) }
+    }
+
+    private fun leaveCurvePreparation() {
+        service?.leaveAutoPreheat()?.let { PreheatToast.show(this, it) }
     }
 
     fun showExtraction(slot: Int = 7) {
@@ -546,7 +566,7 @@ class MainActivity : ThemedActivity() {
         }
         if (consumed) return
         if (!extractionVisible && scaleSettingsReturn && destination == TaskDestination.SCALE) { select(TaskDestination.SETTINGS); return }
-        if (extractionVisible) { extractionVisible = false; destination=extractionOrigin ?: TaskDestination.BREW; extractionOrigin=null; showCurrent() }
+        if (extractionVisible) { leaveCurvePreparation(); extractionVisible = false; destination=extractionOrigin ?: TaskDestination.BREW; extractionOrigin=null; showCurrent() }
         else if(destination==TaskDestination.SETTINGS && settingsOrigin!=null) select(requireNotNull(settingsOrigin))
         else if (destination != TaskDestination.BREW) select(TaskDestination.BREW)
         else finish()

@@ -453,6 +453,7 @@ class CurveActivity : ThemedActivity() {
         select = HoyiUi.button(this, footer, getString(R.string.curve_use), primary = true) {
             selected?.let { item ->
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
+                setResult(RESULT_OK, Intent().putExtra("autoPreheatCurveId", item.id))
                 finish()
             }
         }.apply {

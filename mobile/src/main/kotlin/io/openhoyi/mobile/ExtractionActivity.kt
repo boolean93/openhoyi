@@ -26,6 +26,22 @@ import java.util.Locale
 
 /** A screen never owns BLE. Only an explicit start-button tap starts a cup; navigation never starts one. */
 class ExtractionActivity : ThemedActivity() {
+    private val chooseCurveResult = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val id = result.data?.getStringExtra("autoPreheatCurveId")
+            val owner = service
+            if (id != null && owner != null) {
+                val profile = (application as MobileApplication).curves.resolve(id,
+                    owner.snapshot.scaleState == DeviceState.READY, presetSlot)
+                profile?.let { owner.useCurveForPreheat(id, it.scaleMode, presetSlot)?.let { message ->
+                    PreheatToast.show(this, message)
+                } }
+            }
+            render()
+        }
+    }
     private val visual by lazy { ExtractionHistoryVisualStyle(this) }
     private val style get() = visual.palette
     private val readoutGroups = mutableMapOf<TextView, HistoryQuantity>()
@@ -242,7 +258,7 @@ class ExtractionActivity : ThemedActivity() {
                     LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
                 else LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) }
             }
-        chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { startActivity(Intent(this, CurveActivity::class.java)) }
+        chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { chooseCurveResult.launch(Intent(this, CurveActivity::class.java)) }
         connectDevices = compact(toolbar, getString(R.string.extraction_connect_devices)) {
             startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }
@@ -316,6 +332,7 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onStop() {
         if (redirectedRoot) { super.onStop(); return }
+        if (!isChangingConfigurations) service?.leaveAutoPreheat()?.let { PreheatToast.show(this, it) }
         feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         toolsDialog?.dismiss(); toolsDialog = null
@@ -630,7 +647,18 @@ class ExtractionActivity : ThemedActivity() {
         start.backgroundTintList = android.content.res.ColorStateList.valueOf(
             if (startProtected) style.disabled else visual.liveStart)
         start.setTextColor(if (startProtected) style.onDisabled else android.graphics.Color.WHITE)
-        start.contentDescription = listOfNotNull(start.text.toString(), blocked ?: studioBlocked).joinToString(" · ")
+        val showPreheatStatus = AutoPreheatPresentation.showStudioStatus(snapshot.settings?.flags,
+            owner?.autoPreheatInitialTemperature != null && preparation != BrewPreparation.State.IDLE,
+            owner?.autoPreheatMessage)
+        val preheatModel = AutoPreheatPresentation.describe(AutoPreheatPresentation.Facts(
+            showPreheatStatus, owner?.running == true && snapshot.coffeeState == DeviceState.READY,
+            preparation, profile?.id, profile?.temperatureC,
+            owner?.brewPreparationProfileId, owner?.brewPreparationTargetC,
+            corrected, owner?.autoPreheatInitialTemperature))
+        AutoPreheatButton.bind(start, preheatModel, corrected, profile?.temperatureC,
+            if (showPreheatStatus) owner?.autoPreheatMessage else null)
+        start.contentDescription = listOfNotNull(start.contentDescription?.toString(), blocked ?: studioBlocked)
+            .joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE

@@ -5,6 +5,11 @@ on:
     branches: [main, develop, 'release/**', 'hotfix/**']
   workflow_dispatch:
     inputs:
+      preheat_checks:
+        description: Run isolated studio preheat and UI evidence only
+        required: false
+        default: false
+        type: boolean
       update_checks:
         description: 'Run fixed isolated update runtime and UI acceptance instead of lifecycle'
         required: false
@@ -19,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      PREHEAT_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.preheat_checks == true && 'true' || 'false' }}
       UPDATE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_checks == true && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v7
@@ -56,7 +62,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: bash scripts/check_mock_or_update_acceptance.sh
       - name: Upload lifecycle logs
-        if: always() && env.UPDATE_CHECKS != 'true'
+        if: always() && env.UPDATE_CHECKS != 'true' && env.PREHEAT_CHECKS != 'true'
         uses: actions/upload-artifact@v6
         with:
           name: mock-lifecycle
@@ -69,5 +75,13 @@ jobs:
         with:
           name: update-acceptance-api34
           path: build/update-acceptance/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload studio preheat evidence
+        if: always() && env.PREHEAT_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: studio-preheat-${{ github.sha }}
+          path: build/studio-preheat/
           if-no-files-found: warn
           retention-days: 7

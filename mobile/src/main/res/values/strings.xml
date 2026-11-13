@@ -1060,4 +1060,24 @@
     <string name="update_download_interrupted">下载已中断，可重新下载。</string>
     <string name="update_found_compact">发现新版本：%1$s（%2$d）</string>
     <string name="update_discard_download">放弃此下载</string>
+    <string name="auto_preheat_sending">正在发送预热请求</string>
+    <string name="auto_preheat_waiting">命令已写入 · 等待温度</string>
+    <string name="auto_preheat_cooling">等待降温</string>
+    <string name="auto_preheat_temperature_missing">正在获取温度</string>
+    <string name="auto_preheat_failed">预热请求失败</string>
+    <string name="auto_preheat_unknown">预热结果未知</string>
+    <string name="auto_preheat_disconnected">设备已断连</string>
+    <string name="auto_preheat_cancelling">正在发送取消请求</string>
+    <string name="auto_preheat_cancel_written">取消已写入 · 请核对机器</string>
+    <string name="auto_preheat_target_changed">曲线已变 · 请先核对预热</string>
+    <string name="auto_preheat_not_ready">温度未达标</string>
+    <string name="auto_preheat_heating">温度准备</string>
+    <string name="auto_preheat_dismiss">关闭提示</string>
+    <string name="service_auto_temperature_waiting">正在获取温度，请稍后重新使用曲线</string>
+    <string name="service_auto_target_unsupported">当前固件不支持此预热目标</string>
+    <string name="service_auto_boiler_off">锅炉加热已关闭，请开启后重新使用曲线</string>
+    <string name="service_auto_request_blocked">预热未开始：%1$s</string>
+    <string name="service_auto_cancel_not_sent">未发送取消，请核对机器状态</string>
+    <string name="service_auto_cancel_blocked">取消未发送：%1$s</string>
+    <string name="service_auto_cancel_requested">已请求取消，请核对机器</string>
 </resources>
