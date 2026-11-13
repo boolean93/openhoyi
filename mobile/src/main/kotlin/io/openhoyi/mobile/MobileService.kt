@@ -884,6 +884,8 @@ class MobileService : Service() {
                         logs.record("coffee.auto_reconnect",mapOf("signal" to detail.removePrefix("coffee.auto_reconnect.")))
                     else if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
                     else if(detail.startsWith("coffee.auto_reconnect."))event(detail,"coffee.auto_reconnect")
+                    else if(ConnectionDiagnosticDisplay.isInformational(detail))
+                        logs.record("ble.diagnostic.info",mapOf("detail" to detail,"ownerId" to ownerId))
                     else event(ResourceMessage(R.string.service_event_communication_error), "ble.diagnostic")
                 },
                 trace = { role, trace ->
