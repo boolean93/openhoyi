@@ -91,7 +91,7 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
                             // Short-portrait production keeps duplicate readouts in the series panel.
                             workspace.setFooter(android.view.View(configured).apply { minimumHeight = (88*density).toInt() })
                             workspace.onPrimarySpaceAvailable = { width, height -> chart.liveHeightForPlotAspect(width, 1.4f)
-                                .coerceAtMost(height.coerceAtLeast(chart.minimumLiveHeight())) }
+                                .coerceAtLeast(chart.minimumLiveHeight()).coerceAtMost(height.coerceAtLeast(chart.minimumLiveHeight())) }
                             workspace.measure(android.view.View.MeasureSpec.makeMeasureSpec((400*density).toInt(), android.view.View.MeasureSpec.EXACTLY),
                                 android.view.View.MeasureSpec.makeMeasureSpec((480*density).toInt(), android.view.View.MeasureSpec.EXACTLY))
                             workspace.layout(0, 0, workspace.measuredWidth, workspace.measuredHeight)
