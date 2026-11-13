@@ -1,6 +1,7 @@
 package io.openhoyi.lab
 
 import io.openhoyi.trace.TraceStore
+import io.openhoyi.trace.TraceAppInfo
 
 import org.junit.Assert.*
 import org.junit.Test
@@ -27,6 +28,48 @@ class TraceStoreTest {
             while (true) { val entry = zip.nextEntry ?: break; entries[entry.name] = zip.readBytes().toString(Charsets.UTF_8) }
         }
         return entries
+    }
+
+    @Test fun exportSeparatesHistoricalVersionsFromExporterAndKeepsLegacyRecords() {
+        val dir = directory()
+        val legacy = "{\"kind\":\"legacy\",\"fields\":{}}\n"
+        File(dir, "trace-00000000000000000001.jsonl").writeText(legacy)
+        val old = TraceStore(dir, appInfo = TraceAppInfo("dev-100", 100, "release"))
+        old.record("old")
+        val oldArchive = snapshot(old).filterKeys { it.endsWith(".jsonl") }
+        old.close()
+        assertTrue(old.awaitTermination(5, TimeUnit.SECONDS))
+        TraceStore(dir, appInfo = TraceAppInfo("dev-101", 101, "mock")).use { current ->
+            current.record("new")
+            val archive = snapshot(current)
+            oldArchive.forEach { (name, content) -> assertEquals(content, archive[name]) }
+            assertEquals(legacy, archive["trace-00000000000000000001.jsonl"])
+            val lines = archive.filterKeys { it.endsWith(".jsonl") }.values.flatMap { it.lines() }
+            assertTrue(lines.single { it.contains("\"kind\":\"old\"") }.contains("\"versionCode\":100"))
+            assertTrue(lines.single { it.contains("\"kind\":\"new\"") }.contains("\"versionCode\":101"))
+            assertTrue(archive.getValue("metadata.json").contains("\"exporterApp\":{\"versionName\":\"dev-101\",\"versionCode\":101,\"buildType\":\"mock\"}"))
+        }
+    }
+
+    @Test fun everyRetainedRecordHasVersionAfterRotation() {
+        TraceStore(directory(), maxFileBytes = 400, maxFiles = 2,
+            appInfo = TraceAppInfo("dev-101", 101, "debug")).use { store ->
+            repeat(8) { store.record("event", mapOf("payload" to "x".repeat(80))) }
+            val archive = snapshot(store)
+            val files = archive.filterKeys { it.endsWith(".jsonl") }
+            assertEquals(2, files.size)
+            files.values.flatMap { it.lines() }.filter { it.isNotBlank() }.forEach {
+                assertTrue(it.contains("\"app\":{\"versionName\":\"dev-101\",\"versionCode\":101,\"buildType\":\"debug\"}"))
+            }
+        }
+    }
+
+    @Test fun emptyExportIncludesEscapedExporterIdentity() {
+        TraceStore(directory(), appInfo = TraceAppInfo("dev-\"test\n", 123, "release")).use { store ->
+            val archive = snapshot(store)
+            assertEquals(setOf("metadata.json"), archive.keys)
+            assertTrue(archive.getValue("metadata.json").contains("dev-\\\"test\\n"))
+        }
     }
 
     @Test fun exportIncludesOrderedRecordsAndEscapedJson() {
