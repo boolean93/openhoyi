@@ -20,6 +20,7 @@ import java.lang.ref.WeakReference
 class AppSettingsActivity : ThemedActivity() {
     internal lateinit var feedbackCard: BrewFeedbackPreferencesCard
         private set
+    private var fontSizeCard: AppFontSizePreferencesCard? = null
     private lateinit var languageCard: AppLanguagePreferencesCard
     internal lateinit var themeCheckBox: CompoundButton
         private set
@@ -87,6 +88,7 @@ class AppSettingsActivity : ThemedActivity() {
         }
         settingsDivider(this, theme, visual)
         languageCard = AppLanguagePreferencesCard(this, theme, embedded = true, visual = visual) { invalidateExportResult();service?.refreshNotificationDisplay(); recreate() }
+        fontSizeCard = AppFontSizePreferencesCard(this, theme, visual) { recreate() }
         feedbackCard = BrewFeedbackPreferencesCard(this, body, visual)
         val info = settingsGroup(this, body, getString(R.string.application_info), visual)
         fun infoRow(label: Int, value: String, description: String = value, selectable: Boolean = false) {
@@ -145,14 +147,14 @@ class AppSettingsActivity : ThemedActivity() {
     override fun onStop() {
         if (redirectedRoot) { super.onStop(); return }
         exportStarted=false;invalidateExportResult()
-        feedbackCard.stop(); languageCard.close(); release()
+        feedbackCard.stop(); languageCard.close(); fontSizeCard?.close(); release()
         super.onStop()
     }
     override fun onDestroy() {
         if (redirectedRoot) { super.onDestroy(); return }
         exportStarted=false;invalidateExportResult()
         if (::feedbackCard.isInitialized) feedbackCard.stop()
-        if (::languageCard.isInitialized) languageCard.close()
+        if (::languageCard.isInitialized) languageCard.close(); fontSizeCard?.close()
         release()
         super.onDestroy()
     }

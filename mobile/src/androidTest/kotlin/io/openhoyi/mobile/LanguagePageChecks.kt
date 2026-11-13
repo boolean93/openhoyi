@@ -59,8 +59,13 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         check(profile in listOf("compact", "landscape", "wideFont"))
         val expectedWidth = if (profile == "compact") 360 else 1280
-        val expectedScale = if (profile == "wideFont") 1.3f else 1f
+        // The system remains at 1.3 in wideFont; application typography is now an independent choice.
+        val appFontSize = if (profile == "wideFont") AppFontSize.LARGE else AppFontSize.MEDIUM
+        val expectedScale = appFontSize.scale
         val app = context.applicationContext as MobileApplication
+        val oldFontSize = app.fontSizePreferences.current
+        val fontPrefs = context.getSharedPreferences("app_typography", Context.MODE_PRIVATE)
+        val oldFontStorage = fontPrefs.all.toMap()
         val oldLanguage = app.languagePreferences.current
         val languagePrefs = context.getSharedPreferences("app_language", Context.MODE_PRIVATE)
         val oldLanguageStorage = languagePrefs.all.toMap()
@@ -110,7 +115,14 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             }
         }
         try {
-            onMain { app.registerActivityLifecycleCallbacks(parentTracker); parentTrackerRegistered = true }
+            onMain {
+                check(app.fontSizePreferences.select(appFontSize) != AppFontSizePreference.Selection.SAVE_FAILED)
+                if (profile == "wideFont") {
+                    val systemScale = android.provider.Settings.System.getFloat(context.contentResolver, "font_scale", 1f)
+                    check(kotlin.math.abs(systemScale - 1.3f) < .001f) { "wideFont must retain system 1.3 independently of app size" }
+                }
+                app.registerActivityLifecycleCallbacks(parentTracker); parentTrackerRegistered = true
+            }
             for (language in AppLanguage.entries) for (dark in listOf(false, true)) {
                 onMain {
                     check(app.languagePreferences.select(language) != AppLanguagePreference.Selection.SAVE_FAILED)
@@ -294,6 +306,8 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             cleanup { onMain { check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED) } }
             cleanup { onMain { restoreMockPreferences(languagePrefs, oldLanguageStorage) } }
             cleanup { onMain { restoreMockPreferences(appearance, oldAppearance) } }
+            cleanup { onMain { check(app.fontSizePreferences.select(oldFontSize) != AppFontSizePreference.Selection.SAVE_FAILED) } }
+            cleanup { onMain { restoreMockPreferences(fontPrefs, oldFontStorage) } }
             cleanup { rebuildHome() }
             cleanup { onMain { check(owner(home) === service) }; assertState() }
         }

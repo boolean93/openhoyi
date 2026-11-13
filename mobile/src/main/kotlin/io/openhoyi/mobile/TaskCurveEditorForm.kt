@@ -264,9 +264,10 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         productRestoreEvidence.put("savedImeVisible", savedIme ?: JSONObject.NULL)
             .put("focusedFieldKey", state.getString("form-focus") ?: JSONObject.NULL).put("requestedIme", false)
             .put("status", "WAITING_FOR_NATIVE_WINDOW")
-        val observer = host.viewTreeObserver
+        var boundObserver: android.view.ViewTreeObserver? = null
         var pending = true
         var focusRestored = false
+        var restorationStarted = false
         var hadWindowFocus = false
         val inputMethod = activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
         var showRequested = false
@@ -303,6 +304,27 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         lateinit var windowListener: android.view.ViewTreeObserver.OnWindowFocusChangeListener
         lateinit var attachListener: View.OnAttachStateChangeListener
         lateinit var lifecycle: android.app.Application.ActivityLifecycleCallbacks
+        fun removeTree(tree: android.view.ViewTreeObserver?) {
+            tree?.takeIf { it.isAlive }?.let {
+                it.removeOnPreDrawListener(drawListener); it.removeOnGlobalFocusChangeListener(focusListener)
+                it.removeOnWindowFocusChangeListener(windowListener)
+            }
+        }
+        fun unbindTree() {
+            removeTree(boundObserver)
+            if (host.viewTreeObserver !== boundObserver) removeTree(host.viewTreeObserver)
+            boundObserver = null
+        }
+        fun bindTree() {
+            val current = host.viewTreeObserver
+            if (boundObserver === current) return
+            unbindTree()
+            if (current.isAlive) {
+                current.addOnPreDrawListener(drawListener); current.addOnGlobalFocusChangeListener(focusListener)
+                current.addOnWindowFocusChangeListener(windowListener)
+                boundObserver = current
+            }
+        }
         fun finish(status: String) {
             if (!pending) return
             sessionEvent(status)
@@ -310,13 +332,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             productRestoreEvidence.put("status", status).put("activeImeAnimationsAtFinish", activeImeAnimations.size)
             if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(null)
             activeImeAnimations.clear()
-            fun remove(from: android.view.ViewTreeObserver) {
-                if (!from.isAlive) return
-                from.removeOnPreDrawListener(drawListener); from.removeOnGlobalFocusChangeListener(focusListener)
-                from.removeOnWindowFocusChangeListener(windowListener)
-            }
-            remove(observer)
-            if (host.viewTreeObserver !== observer) remove(host.viewTreeObserver)
+            unbindTree()
             host.removeOnAttachStateChangeListener(attachListener)
             activity.application.unregisterActivityLifecycleCallbacks(lifecycle)
         }
@@ -326,11 +342,23 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         windowListener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { focused ->
             sessionEvent(if (focused) "window_focus_gained" else "window_focus_lost")
             if (focused) { hadWindowFocus = true; host.invalidate() }
-            else if (hadWindowFocus) finish("CANCELLED_WINDOW_FOCUS_LOST")
+            else if (hadWindowFocus && restorationStarted) finish("CANCELLED_WINDOW_FOCUS_LOST")
         }
         attachListener = object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(view: View) { view.invalidate() }
-            override fun onViewDetachedFromWindow(view: View) { finish("CANCELLED_DETACHED") }
+            override fun onViewAttachedToWindow(view: View) {
+                if (pending) { bindTree(); view.invalidate() }
+            }
+            override fun onViewDetachedFromWindow(view: View) {
+                // TaskPageFrame reparents content while choosing its initial rail/bottom layout.
+                // No restored input session exists before the first stable draw. Await its real attach
+                // instead of losing the saved focus; genuine later detach still cancels restoration.
+                if (pending && !restorationStarted && !showRequested &&
+                    !activity.isFinishing && !activity.isDestroyed) {
+                    sessionEvent("waiting_initial_reattach")
+                    productRestoreEvidence.put("status", "WAITING_FOR_INITIAL_REATTACH")
+                    unbindTree()
+                } else finish("CANCELLED_DETACHED")
+            }
         }
         lifecycle = object : android.app.Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(owner: android.app.Activity, state: Bundle?) = Unit
@@ -345,6 +373,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             preDrawSequence++
             if (pending && host.isAttachedToWindow && activity.hasWindowFocus() && host.isLaidOut &&
                 !host.isLayoutRequested && listOf(stages, metadataScroll, contentScroll).none { it.isLayoutRequested }) {
+                restorationStarted = true
                 hadWindowFocus = true
                 if (!focusRestored) {
                     if (field != null && field.isEnabled && field.isShown) {
@@ -412,9 +441,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         }
         activity.application.registerActivityLifecycleCallbacks(lifecycle)
         host.addOnAttachStateChangeListener(attachListener)
-        observer.addOnWindowFocusChangeListener(windowListener)
-        observer.addOnGlobalFocusChangeListener(focusListener)
-        observer.addOnPreDrawListener(drawListener)
+        bindTree()
         if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(
             object : android.view.WindowInsetsAnimation.Callback(android.view.WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
                 private fun ime(animation: android.view.WindowInsetsAnimation) =
