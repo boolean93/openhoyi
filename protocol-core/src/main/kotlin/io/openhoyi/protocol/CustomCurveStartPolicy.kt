@@ -16,7 +16,7 @@ object CustomCurveStartPolicy {
             if (p.segmentCount !in 2..4 || p.firstDurationSeconds == 255 ||
                 (p.firstDurationSeconds == 0 && p.firstFlowTenths == 0)) return false
             if (water.take(p.segmentCount).any { it > 9990 } || water.take(p.segmentCount).drop(1).any { it == 0 }) return false
-        } else if (p.pressureLogic || water.take(p.segmentCount).any { it < 10 }) return false
+        } else if (water.take(p.segmentCount).any { it < 10 }) return false
         for (index in 0 until p.segmentCount) {
             val flow = p.variableFlowLogic && (index > 0 || p.firstSegmentFlowMode)
             val range = when { flow -> 10..100; p.variableFlowLogic -> 5..100; index == 0 -> 5..120; else -> 10..120 }

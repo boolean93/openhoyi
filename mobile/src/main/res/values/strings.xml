@@ -1080,4 +1080,31 @@
     <string name="service_auto_cancel_not_sent">未发送取消，请核对机器状态</string>
     <string name="service_auto_cancel_blocked">取消未发送：%1$s</string>
     <string name="service_auto_cancel_requested">已请求取消，请核对机器</string>
+
+    <string name="curve_control_pressure">变压</string>
+    <string name="curve_control_flow">变流</string>
+    <string name="curve_control_constant">恒压</string>
+    <string name="curve_control_follow">跟随</string>
+    <string name="curve_control_fast">快速</string>
+    <string name="curve_control_slow">慢速</string>
+    <string name="machine_mode_title">机器模式</string>
+    <string name="machine_mode_pressure_constant">机器模式：变压 · 恒压</string>
+    <string name="machine_mode_pressure_follow">机器模式：变压 · 跟随</string>
+    <string name="machine_mode_flow_slow">机器模式：变流 · 慢速</string>
+    <string name="machine_mode_flow_fast">机器模式：变流 · 快速</string>
+    <string name="machine_mode_missing">机器模式：尚未收到设置</string>
+    <string name="follow_firmware_required">跟随萃取需固件 1.1.4 或 1.1.5</string>
+    <string name="follow_lever_not_supported">跟随曲线暂不支持设为拨杆配方</string>
+    <string name="slow_global_firmware_required">慢速模式需固件 1.1.4 或 1.1.5</string>
+    <string name="curve_editor_add_stage">添加阶段</string>
+    <string name="curve_editor_remove_stage">移除阶段 %1$d</string>
+    <string name="curve_editor_more_settings">更多设置</string>
+    <string name="curve_editor_target_pressure">目标压力</string>
+    <string name="curve_editor_target_flow">目标流量</string>
+    <string name="curve_editor_stage_water">本段水量</string>
+    <string name="curve_editor_mode_first_pressure">压力</string>
+    <string name="curve_editor_mode_pressure_constant">压力 · 恒压</string>
+    <string name="curve_editor_mode_pressure_follow">压力 · 跟随</string>
+    <string name="curve_editor_mode_flow_slow">流量 · 慢速</string>
+    <string name="curve_editor_mode_flow_fast">流量 · 快速</string>
 </resources>

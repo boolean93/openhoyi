@@ -44,9 +44,10 @@ sealed interface MachineSettingChange {
         override fun matches(settings: Settings) =
             settings.standbyTemperatureC == celsius && settings.standbyMinutes == minutes
     }
-    /** Legacy lever control: manual, auto pressure, or auto flow. */
+    /** Global machine mode, independent from a recipe. flow selects variable-flow;
+     * pressure selects follow (pressure mode) or fast response (flow mode).
+     * Firmware execution eligibility belongs to DeviceSession, not this lossless codec. */
     data class LeverMode(val pressure: Boolean, val flow: Boolean) : MachineSettingChange {
-        init { require(!flow || pressure) }
         override fun matches(settings: Settings) =
             (settings.flags and 0x80 != 0) == pressure && (settings.flags and 0x40 != 0) == flow
     }

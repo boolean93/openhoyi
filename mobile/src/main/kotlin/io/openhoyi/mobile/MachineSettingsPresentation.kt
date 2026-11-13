@@ -22,16 +22,18 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
             text(R.string.settings_overview_standby_cups, standby, value.cupCount.toString())
     }
     fun leverMode(value: Settings?): String {
-        if (value == null) return text(R.string.settings_lever_missing)
+        if (value == null) return text(R.string.machine_mode_missing)
         val pressure = value.flags and 0x80 != 0
         val flow = value.flags and 0x40 != 0
-        return text(R.string.settings_lever_prefix) + when {
-            !pressure && flow -> text(R.string.settings_lever_unknown, "0x%02X".format(value.flags and 0xC0))
-            flow -> text(R.string.home_lever_flow)
-            pressure -> text(R.string.home_lever_pressure)
-            else -> text(R.string.home_lever_manual)
-        }
+        return text(modeResource(pressure, flow))
     }
+    private fun modeResource(pressure: Boolean, flow: Boolean): Int = when {
+        flow && pressure -> R.string.machine_mode_flow_fast
+        flow -> R.string.machine_mode_flow_slow
+        pressure -> R.string.machine_mode_pressure_follow
+        else -> R.string.machine_mode_pressure_constant
+    }
+
     fun change(value: MachineSettingChange): String = changeMessage(value).render { id, args ->
         resolve(id, args.map { requireNotNull(it) }.toTypedArray())
     }
@@ -48,11 +50,7 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
             else -> ResourceMessage(R.string.machine_settings_minutes, value.minutes.toString())
         })
         is MachineSettingChange.StandbyTemperature -> ResourceMessage(R.string.settings_change_standby_temperature, value.celsius.toString())
-        is MachineSettingChange.LeverMode -> ResourceSequence(ResourceMessage(R.string.settings_lever_prefix), ResourceMessage(when {
-            value.flow -> R.string.home_lever_flow
-            value.pressure -> R.string.home_lever_pressure
-            else -> R.string.home_lever_manual
-        }))
+        is MachineSettingChange.LeverMode -> ResourceMessage(modeResource(value.pressure, value.flow))
         is MachineSettingChange.BrewTemperature -> ResourceMessage(R.string.settings_change_brew_temperature, value.celsius.toString())
         is MachineSettingChange.BrewCompensation -> ResourceMessage(R.string.settings_change_compensation, value.celsius.toString())
         is MachineSettingChange.SteamTemperature -> ResourceMessage(R.string.settings_change_steam_temperature, value.celsius.toString())

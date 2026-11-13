@@ -47,7 +47,7 @@ internal object ChineseFormWindowChecks {
         val reviewLabels = listOf(R.string.journal_dose, R.string.journal_grind,
             R.string.journal_expectation, R.string.journal_taste, R.string.journal_next)
         val originalSection = 0
-        var stageSelector: CurveStageCountTabs? = null
+        var stageSelector: View? = null
         var originalStages = 0
         var pageWindowId = -1
         var activeEditorLabel: String? = null
@@ -475,9 +475,9 @@ internal object ChineseFormWindowChecks {
                 main { selectSection(1) }
                 waitForDraw()
                 main {
-                    stageSelector = descendants(content).filterIsInstance<CurveStageCountTabs>().single { it.isShown }
-                    originalStages = requireNotNull(stageSelector).selectedCount
-                    check(requireNotNull(stageSelector).findViewWithTag<Button>("curve-stage-count-4").performClick())
+                    stageSelector = content.findViewWithTag("curve-stage-cards")
+                    originalStages = (0..3).count { content.findViewWithTag<View>("curve-editor-stage-$it").visibility == View.VISIBLE }
+                    selectCurveStageCount(content, 4)
                 }
                 waitForDraw()
             }
@@ -486,7 +486,7 @@ internal object ChineseFormWindowChecks {
                 }) {
                 main {
                     val inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
-                    check(inputs.size == 12) { "$name missing metadata or four-stage fields" }
+                    check(inputs.size == 15) { "$name missing metadata, configuration or four-stage fields: ${inputs.size}" }
                     inputs.filter { it.tag != "product/form/curve-editor/total-water-limit" }.forEach(::fullyVisible)
                     val topPositions = listOf(R.string.profiles_name, R.string.profiles_temperature, R.string.profiles_cup).map { label ->
                         val field = inputs.single { it.contentDescription?.toString() == activity.getString(label) }
@@ -496,12 +496,9 @@ internal object ChineseFormWindowChecks {
                         "$name metadata inputs are not aligned: $topPositions"
                     }
                     fullyVisible(requireNotNull(stageSelector))
-                    (1..4).forEach { count ->
-                        val button = requireNotNull(stageSelector).findViewWithTag<Button>("curve-stage-count-$count")
-                        fullyVisible(button)
-                        check(button.width >= HoyiUi.dp(activity, 48) && button.height >= HoyiUi.dp(activity, 48))
-                        check(button.isSelected == (count == 4))
-                    }
+                    val remove = content.findViewWithTag<Button>("curve-stage-remove-3")
+                    fullyVisible(remove)
+                    check(remove.width >= HoyiUi.dp(activity, 48) && remove.height >= HoyiUi.dp(activity, 48))
                     listOf(R.string.profiles_preview, R.string.ui_full_details).forEach { action ->
                         descendants(content).filterIsInstance<Button>().single {
                             it.text.toString() == activity.getString(action)
@@ -967,7 +964,7 @@ internal object ChineseFormWindowChecks {
                 }
             }
             cleanupStep { cleanupEditor() }
-            cleanupStep { main { stageSelector?.findViewWithTag<Button>("curve-stage-count-$originalStages")?.performClick() } }
+            cleanupStep { main { if (stageSelector != null) selectCurveStageCount(content, originalStages) } }
             cleanupStep { waitForDraw() }
             cleanupStep { main { selectSection(originalSection) } }
             cleanupStep {

@@ -43,7 +43,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private lateinit var steamTemperatureUnit:TextView
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private data class ScheduleCard(val heading: TextView, val period: TextView)
-    private var leverModeValue:TextView?=null
+    private var machineModes:MachineModeControls?=null
     private var documentMode = false
     var statusChanged: (String) -> Unit = {}
     private val dialogs = mutableListOf<AlertDialog>()
@@ -302,15 +302,13 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 functionsCard.removeView(button);button.asTaskTextAction();button.gravity=Gravity.END or Gravity.CENTER_VERTICAL
                 visual.palette.add(functionsCard,visual.pair(visual.palette.text(getString(label),TaskProductVisualStyle.body),button,"settings/machine/function/$label"));visual.divider(functionsCard)
             }
-            leverModeValue=text(functionsCard,getString(R.string.settings_lever_missing),14)
-            val lever=action(functionsCard,getString(R.string.home_lever_button)) {
-                if(BuildConfig.MOCK_MODE){Toast.makeText(host,R.string.home_lever_mock,Toast.LENGTH_SHORT).show();return@action}
-                val modes=listOf(MachineSettingChange.LeverMode(false,false),MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true))
-                val dialog=AlertDialog.Builder(host).setTitle(R.string.home_lever_choose_title)
-                    .setItems(arrayOf(getString(R.string.home_lever_manual),getString(R.string.home_lever_pressure),getString(R.string.home_lever_flow))) {_,index->confirm(modes[index])}.create()
-                dialogs+=dialog;AppDialog.show(dialog)
-            }
-            controlButtons+=lever
+            text(functionsCard,getString(R.string.machine_mode_title),14)
+            machineModes = MachineModeControls(host) { change ->
+                if (MachineSettingsEditGate.allowed(service)) service?.changeMachineSetting(change)?.let {
+                    Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
+                }
+                render()
+            }.also { functionsCard.addView(it, LinearLayout.LayoutParams(-1,-2)) }
             body.addView(functionsCard,LinearLayout.LayoutParams(-1,-2))
             listOf(settingsToggle,settings).forEach { view -> (view.parent as? android.view.ViewGroup)?.removeView(view); body.addView(view) }
             listOf(standbySection,sleepSection).forEach { section -> controlsPane.removeView(section);section.visibility=View.VISIBLE;documentSections.getValue("schedule").addView(section) }
@@ -512,7 +510,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         status(lightButton,R.string.setting_light,if(snapshot.settings?.flags?.and(0x08)==0x08)R.string.setting_on else R.string.setting_off)
         status(waterSupplyButton,R.string.machine_settings_supply_label,if(snapshot.settings?.flags?.and(0x02)==0x02)R.string.setting_water_piped else R.string.setting_water_tank,R.string.setting_water_supply_status)
         status(runModeButton,R.string.machine_settings_run_mode_label,if(snapshot.settings?.flags?.and(0x04)==0x04)R.string.setting_run_studio else R.string.setting_run_cafe,R.string.setting_run_mode_status)
-        leverModeValue?.update(settingsPresentation.leverMode(snapshot.settings))
+        machineModes?.render(service)
         sleepScheduleButton.update(getString(when(snapshot.settings?.flags?.and(0x01)) {
             1->R.string.setting_sleep_schedule_on
             0->R.string.setting_sleep_schedule_off
