@@ -5,8 +5,8 @@ internal data class HomePortraitBudget(val dial: Int, val hero: Int) {
     companion object {
         // Space for the machine and two readable dials, including card padding and gaps.
         fun inlineMachine(contentWidth: Int, fontScale: Float): Boolean =
-            inlineDialLimit(contentWidth) >= (144 * fontScale.coerceAtLeast(1f)).toInt() &&
-            contentWidth >= machineWidth(contentWidth) + 16 + 8 + 40 + 2 * (144 * fontScale.coerceAtLeast(1f)).toInt()
+            inlineDialLimit(contentWidth) >= (140 * fontScale.coerceAtLeast(1f)).toInt() &&
+            contentWidth >= machineWidth(contentWidth) + 16 + 8 + 40 + 2 * (140 * fontScale.coerceAtLeast(1f)).toInt()
 
         // A machine column comparable to one dial prevents the product becoming a tiny icon.
         fun machineWidth(contentWidth: Int): Int = (contentWidth * .34f).toInt().coerceIn(160, 260)

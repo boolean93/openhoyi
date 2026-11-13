@@ -5,9 +5,11 @@ import org.junit.Test
 
 class HomePortraitBudgetTest {
     @Test fun readableWidthControlsInlineMachineRatherThanPixelResolution() {
-        assertFalse(HomePortraitBudget.inlineMachine(531, 1f))
-        assertTrue(HomePortraitBudget.inlineMachine(532, 1f))
-        assertFalse(HomePortraitBudget.inlineMachine(1000, 1.5f))
+        assertFalse(HomePortraitBudget.inlineMachine(519, 1f))
+        assertTrue(HomePortraitBudget.inlineMachine(520, 1f))
+        // A 568 dp tablet freeform window has 524 dp after home side padding.
+        assertTrue(HomePortraitBudget.inlineMachine(524, 1f))
+        assertFalse(HomePortraitBudget.inlineMachine(1000, 1.6f))
         assertFalse(HomePortraitBudget.inlineMachine(328, 1f))
         assertFalse(HomePortraitBudget.inlineMachine(532, 1.5f))
         assertTrue(HomePortraitBudget.compactPreset(248, 1f))
@@ -25,8 +27,8 @@ class HomePortraitBudgetTest {
         for (width in 300..1000) for (scale in listOf(1f, 1.3f, 1.5f)) {
             if (HomePortraitBudget.inlineMachine(width, scale)) {
                 val dialWidth = (width - HomePortraitBudget.machineWidth(width) - 64) / 2
-                assertTrue(dialWidth >= (144 * scale).toInt())
-                assertTrue(HomePortraitBudget.inlineDialLimit(width) >= (144 * scale).toInt())
+                assertTrue(dialWidth >= (140 * scale).toInt())
+                assertTrue(HomePortraitBudget.inlineDialLimit(width) >= (140 * scale).toInt())
             }
         }
     }
