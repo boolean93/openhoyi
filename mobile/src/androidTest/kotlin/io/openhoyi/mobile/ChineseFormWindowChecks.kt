@@ -47,7 +47,7 @@ internal object ChineseFormWindowChecks {
         val reviewLabels = listOf(R.string.journal_dose, R.string.journal_grind,
             R.string.journal_expectation, R.string.journal_taste, R.string.journal_next)
         val originalSection = 0
-        var stageSelector: CurveStageCountTabs? = null
+        var stageSelector: View? = null
         var originalStages = 0
         var pageWindowId = -1
         var activeEditorLabel: String? = null
@@ -475,43 +475,92 @@ internal object ChineseFormWindowChecks {
                 main { selectSection(1) }
                 waitForDraw()
                 main {
-                    stageSelector = descendants(content).filterIsInstance<CurveStageCountTabs>().single { it.isShown }
-                    originalStages = requireNotNull(stageSelector).selectedCount
-                    check(requireNotNull(stageSelector).findViewWithTag<Button>("curve-stage-count-4").performClick())
+                    stageSelector = content.findViewWithTag("curve-stage-cards")
+                    originalStages = (0..3).count { content.findViewWithTag<View>("curve-editor-stage-$it").visibility == View.VISIBLE }
+                    selectCurveStageCount(content, 4)
                 }
                 waitForDraw()
             }
-            if (activity is CurveEditorActivity && activity.resources.configuration.let {
-                    it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
-                }) {
+            if (activity is CurveEditorActivity) {
+                var inputs = emptyList<EditText>()
+                var reachable = emptyList<View>()
+                var drafts = emptyMap<EditText, String>()
                 main {
-                    val inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
-                    check(inputs.size == 12) { "$name missing metadata or four-stage fields" }
-                    inputs.filter { it.tag != "product/form/curve-editor/total-water-limit" }.forEach(::fullyVisible)
-                    val topPositions = listOf(R.string.profiles_name, R.string.profiles_temperature, R.string.profiles_cup).map { label ->
-                        val field = inputs.single { it.contentDescription?.toString() == activity.getString(label) }
-                        val location = IntArray(2); field.getLocationOnScreen(location); location[1]
+                    inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
+                    check(inputs.size == 15) { "$name missing metadata, configuration or four-stage fields: ${inputs.size}" }
+                    drafts = inputs.associateWith { it.text.toString() }
+                    listOf("name" to R.string.profiles_name, "temperature" to R.string.curve_preview_temperature,
+                        "cup" to R.string.curve_preview_weight).forEach { (key, label) ->
+                        val field = requireNotNull(content.findViewWithTag<EditText>("product/form/curve-editor/$key"))
+                        val title = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }
+                        check(title.text.toString() == activity.getString(label)) { "$name metadata compact label not applied: $key ${title.text}" }
+                        check(field.width - field.compoundPaddingLeft - field.compoundPaddingRight >=
+                            kotlin.math.ceil(android.text.Layout.getDesiredWidth(if (key == "name") "国国国国" else "99.0", field.paint).toDouble()).toInt()) {
+                            "$name metadata input viewport too narrow: $key"
+                        }
                     }
-                    check(requireNotNull(topPositions.maxOrNull()) - requireNotNull(topPositions.minOrNull()) <= 1) {
-                        "$name metadata inputs are not aligned: $topPositions"
+                    check(descendants(content).none { it is CurveStageCountTabs }) { "$name still hides stages behind tabs" }
+                    val cards = (0..3).map { requireNotNull(content.findViewWithTag<View>("curve-editor-stage-$it")) }
+                    check(cards.all { it.isShown && it.width > 0 && it.height > 0 })
+                    val bounds = cards.map { card ->
+                        val xy = IntArray(2); card.getLocationOnScreen(xy)
+                        Rect(xy[0], xy[1], xy[0] + card.width, xy[1] + card.height)
                     }
-                    fullyVisible(requireNotNull(stageSelector))
-                    (1..4).forEach { count ->
-                        val button = requireNotNull(stageSelector).findViewWithTag<Button>("curve-stage-count-$count")
-                        fullyVisible(button)
-                        check(button.width >= HoyiUi.dp(activity, 48) && button.height >= HoyiUi.dp(activity, 48))
-                        check(button.isSelected == (count == 4))
+                    for (i in bounds.indices) for (j in i + 1 until bounds.size)
+                        check(!Rect.intersects(bounds[i], bounds[j])) { "$name overlapping stage cards $i/$j" }
+                    val titles = cards.mapIndexed { index, card ->
+                        descendants(card).filterIsInstance<TextView>().single { it.text.toString() == activity.getString(R.string.profiles_stage, index + 1) }
                     }
-                    listOf(R.string.profiles_preview, R.string.ui_full_details).forEach { action ->
-                        descendants(content).filterIsInstance<Button>().single {
-                            it.text.toString() == activity.getString(action)
-                        }.let(::fullyVisible)
+                    check(titles.all { it.width > 0 && it.height > 0 }) { "$name zero-sized stage title" }
+                    val modes: List<View> = (0..3).map { index ->
+                        val selector = content.findViewWithTag<android.widget.Spinner>("product/form/curve-editor/first-mode")
+                        if (index == 0 && selector?.visibility == View.VISIBLE) {
+                            check(selector.isEnabled && selector.isClickable && selector.height >= HoyiUi.dp(activity, 48))
+                            check((selector.selectedView as? TextView)?.text?.isNotBlank() == true)
+                            check(selector.contentDescription.toString().startsWith(activity.getString(R.string.flow_editor_first)))
+                            check(content.findViewWithTag<View>("curve-stage-mode-0").visibility == View.GONE)
+                            selector
+                        } else requireNotNull(content.findViewWithTag<TextView>("curve-stage-mode-$index")).also {
+                            check(it.text.isNotBlank()) { "$name missing stage control-mode labels" }
+                        }
                     }
-                    descendants(content).filterIsInstance<TextView>().single {
-                        it.text.toString() == activity.getString(R.string.task_form_stage_caption)
-                    }.let(::fullyVisible)
+                    val remove = requireNotNull(content.findViewWithTag<Button>("curve-stage-remove-3"))
+                    check(remove.isEnabled && remove.width >= HoyiUi.dp(activity, 48) && remove.height >= HoyiUi.dp(activity, 48))
+                    val localActions = listOf(R.string.profiles_preview, R.string.ui_full_details).map { action ->
+                        descendants(content).filterIsInstance<Button>().single { it.text.toString() == activity.getString(action) }
+                    }
+                    reachable = inputs + titles + modes + remove + localActions
+                    if (activity.resources.configuration.let { it.screenWidthDp >= 1000 && it.fontScale <= 1.05f }) {
+                        val topPositions = listOf("name", "temperature", "cup").map { key ->
+                            val input = content.findViewWithTag<EditText>("product/form/curve-editor/$key")
+                            val xy = IntArray(2); input.getLocationOnScreen(xy); xy[1]
+                        }
+                        check(topPositions.max() - topPositions.min() <= 1) { "$name metadata inputs misaligned: $topPositions" }
+                    }
                 }
-                capture("four-stage-table")
+                // Every actual field/label/action must be reachable with full, unclipped bounds.
+                // The approved cards intentionally scroll on small windows; being below the fold is not failure.
+                reachable.forEach { view ->
+                    main { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), true) }
+                    waitForDraw()
+                    main {
+                        fullyVisible(view)
+                        if (view is EditText && view.tag.toString().let {
+                                it.startsWith("product/form/curve-editor/target-") || it.startsWith("product/form/curve-editor/water-") ||
+                                    it in listOf("total-water-limit", "preinfusion", "first-duration", "compensation").map { key -> "product/form/curve-editor/$key" }
+                            }) {
+                            val digits = kotlin.math.ceil(android.text.Layout.getDesiredWidth("6553.5", view.paint).toDouble()).toInt()
+                            val textWidth = view.width - view.compoundPaddingLeft - view.compoundPaddingRight
+                            check(textWidth >= digits) { "$name number viewport clipped: ${view.tag} available=$textWidth required=$digits" }
+                        }
+                    }
+                }
+                main {
+                    drafts.forEach { (field, value) -> check(field.text.toString() == value) { "$name scrolling changed draft" } }
+                    descendants(content).filterIsInstance<android.widget.ScrollView>().forEach { it.scrollTo(0, 0) }
+                }
+                waitForDraw()
+                capture("four-stage-cards")
             }
             main { sectionCount = if (activity is CurveEditorActivity) 6 else if (activity is BeanEntryActivity) 3 else reviewLabels.size }
             for (position in 0 until sectionCount) {
@@ -967,7 +1016,7 @@ internal object ChineseFormWindowChecks {
                 }
             }
             cleanupStep { cleanupEditor() }
-            cleanupStep { main { stageSelector?.findViewWithTag<Button>("curve-stage-count-$originalStages")?.performClick() } }
+            cleanupStep { main { if (stageSelector != null) selectCurveStageCount(content, originalStages) } }
             cleanupStep { waitForDraw() }
             cleanupStep { main { selectSection(originalSection) } }
             cleanupStep {

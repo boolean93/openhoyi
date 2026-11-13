@@ -175,7 +175,7 @@ fun main() {
     rejected { MachineSettingChange.StandbyTemperature(-1, 15) }
     rejected { MachineSettingChange.StandbyTemperature(101, 15) }
     rejected { MachineSettingChange.StandbyTemperature(70, 45) }
-    rejected { MachineSettingChange.LeverMode(false,true) }
+    verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(false,true)).frame.hex()=="0302000100")
     rejected { MachineSettingChange.BrewTemperature(74) }
     rejected { MachineSettingChange.BrewCompensation(-1) }
     rejected { MachineSettingChange.BrewCompensation(6) }

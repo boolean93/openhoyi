@@ -53,6 +53,7 @@ class HomeActivity : ThemedActivity() {
     private lateinit var steamPressure: TextView
     private lateinit var leverStatus: TextView
     private lateinit var leverButton: Button
+    private var dialogMachineModes: MachineModeControls? = null
     private lateinit var sleepStatus: TextView
     private lateinit var sleepButton: Button
     private lateinit var emergencyStop: Button
@@ -274,7 +275,7 @@ class HomeActivity : ThemedActivity() {
         alarmStatus = text(deviceCard, getString(R.string.home_alarm_initial), 14)
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
-        leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
+        leverButton = button(deviceCard, getString(R.string.machine_mode_title)) { chooseLeverMode() }
         sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { sleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
@@ -627,21 +628,15 @@ class HomeActivity : ThemedActivity() {
         dialog.show()
     }
     private fun chooseLeverMode() {
-        if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_lever_mock)); return }
-        val modes = listOf(
-            MachineSettingChange.LeverMode(false, false),
-            MachineSettingChange.LeverMode(true, false),
-            MachineSettingChange.LeverMode(true, true),
-        )
-        AlertDialog.Builder(this).setTitle(getString(R.string.home_lever_choose_title))
-            .setItems(arrayOf(getString(R.string.home_lever_manual),
-                getString(R.string.home_lever_pressure), getString(R.string.home_lever_flow))) { _, index ->
-                val change = modes[index]
-                AlertDialog.Builder(this).setTitle(getString(R.string.home_lever_confirm_title))
-                    .setMessage(getString(R.string.home_lever_confirmation_message, settingsPresentation.change(change)))
-                    .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ -> service?.changeMachineSetting(change)?.let(::toast); render() }
-                    .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
-            }.show()
+        val controls = MachineModeControls(this) { change ->
+            if (MachineSettingsEditGate.allowed(service)) service?.changeMachineSetting(change)?.let(::toast)
+            render()
+        }.apply { render(service); setPadding(dp(20), dp(4), dp(20), dp(4)) }
+        dialogMachineModes = controls
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.machine_mode_title).setView(controls)
+            .setPositiveButton(R.string.machine_settings_done, null).create()
+        dialog.setOnDismissListener { dialogMachineModes = null }
+        AppDialog.show(dialog)
     }
     private fun sleepNow() {
         if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_sleep_mock)); return }
@@ -696,6 +691,7 @@ class HomeActivity : ThemedActivity() {
             owner?.machineControlSafetyMessage == null && !settingBusy &&
             owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
             s.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshAwakeIdle
+        dialogMachineModes?.render(owner)
         leverStatus.show(settingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
                 is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {

@@ -65,6 +65,23 @@ class SettingsWriteTrackerTest {
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
 
+    @Test fun allFourModesRequireBothFreshReadbackBits() {
+        for (pressure in listOf(false, true)) for (flow in listOf(false, true)) {
+            val change = MachineSettingChange.LeverMode(pressure, flow)
+            val expected = (initial.flags and 0x3F) or (if (pressure) 0x80 else 0) or (if (flow) 0x40 else 0)
+            val tracker = SettingsWriteTracker()
+            val token = requireNotNull(tracker.begin(change))
+            assertTrue(tracker.written(token, OperationResult.Success(), 10))
+            assertFalse(tracker.observe(10, initial.copy(flags = expected)))
+            assertFalse(tracker.observe(11, initial.copy(flags = expected xor 0x80)))
+            assertFalse(tracker.observe(12, initial.copy(flags = expected xor 0x40)))
+            assertEquals(SettingsWriteTracker.State.WAITING_READBACK, tracker.state)
+            assertTrue(tracker.observe(13, initial.copy(flags = expected)))
+            assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+            assertFalse(tracker.observe(14, initial.copy(flags = expected)))
+        }
+    }
+
     @Test fun standbyDelayRequiresCorrectMinutesAndPreservedTemperature() {
         val tracker = SettingsWriteTracker()
         val token = requireNotNull(tracker.begin(MachineSettingChange.StandbyDelay(30, initial.standbyTemperatureC)))

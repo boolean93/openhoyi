@@ -76,7 +76,8 @@ class OutboundWritePolicyTest {
             MachineSettingChange.SleepScheduleEnabled(v),MachineSettingChange.BrewHeating(v),
             MachineSettingChange.SteamHeating(v),MachineSettingChange.Light(v))
         changes+=listOf(MachineSettingChange.LeverMode(false,false),
-            MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true))
+            MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true),
+            MachineSettingChange.LeverMode(false,true))
         changes+=(75..105).map { MachineSettingChange.BrewTemperature(it) }
         changes+=(110..145).map { MachineSettingChange.SteamTemperature(it) }
         changes+=(0..5).map { MachineSettingChange.BrewCompensation(it) }
@@ -106,7 +107,7 @@ class OutboundWritePolicyTest {
             val damaged=frame.copyOf();damaged[damaged.lastIndex]=(damaged.last().toInt() xor 1).toByte()
             assertFalse(OutboundWritePolicy.permits(DeviceRole.COFFEE,GattOperation.Write(KnownGatt.coffeeWrite,damaged)))
         }
-        for(hex in listOf("0302000100","0502000100","1402056400","0402004A00","0602009200"))
+        for(hex in listOf("0302020100","0502000100","1402056400","0402004A00","0602009200"))
             assertFalse(hex,OutboundWritePolicy.permits(DeviceRole.COFFEE,GattOperation.Write(KnownGatt.coffeeWrite,bytes(hex))))
     }
     @Test fun malformedAuthenticationAndUnknownOpcodesFailClosed() {

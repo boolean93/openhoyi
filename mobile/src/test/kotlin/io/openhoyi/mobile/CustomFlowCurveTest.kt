@@ -24,6 +24,23 @@ class CustomFlowCurveTest {
     private fun frame(document: CustomCurveDocument, scale: Boolean) =
         CoffeeCommands.start(requireNotNull(CustomCurveAdapter.profile(document, scale)).parameters).frame.hex()
 
+    @Test fun followDocumentRoundtripPreservesModesAndHasSeparateFirmwarePermission() {
+        val source=knownFlow()
+        val follow=source.copy(controlMode=CustomCurveDocument.ControlMode.PRESSURE,
+            stages=listOf(CustomCurveDocument.Stage(30,150),CustomCurveDocument.Stage(90,400)),totalWaterLimitMl=70,
+            configuration=source.configuration!!.copy(pressureLogic=true,variableFlowLogic=false,firstSegmentFlowMode=false,
+                inactiveStages=listOf(CustomCurveDocument.Stage(47,121),CustomCurveDocument.Stage(29,65001))))
+        val restored=CustomCurveDocument.decode(follow.encode())
+        assertEquals(follow,restored)
+        val disk=Disk();CustomCurveStore(disk).save(restored)
+        assertEquals(follow,CustomCurveStore(disk).find(follow.id))
+        val parameters=requireNotNull(CustomCurveAdapter.profile(restored,false)).parameters
+        assertTrue(parameters.pressureLogic);assertFalse(parameters.variableFlowLogic)
+        assertEquals(47,parameters.target3);assertEquals(121,parameters.thirdFlowTenths)
+        for(patch in listOf(3,4,5,6)) assertEquals(patch==4 || patch==5,
+            io.openhoyi.session.CustomCurveFirmwarePolicy.permits(parameters,io.openhoyi.session.CoffeeFirmware(1,1,patch)))
+    }
+
     @Test fun schema3LsAndFirstFlowLibraryCapabilitiesKeepExactFirmwareGate() {
         val source=knownFlow()
         for(pressureLogic in listOf(false,true)) for(firstFlow in listOf(false,true)) {

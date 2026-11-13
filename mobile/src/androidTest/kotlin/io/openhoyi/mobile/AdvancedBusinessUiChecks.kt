@@ -1013,9 +1013,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 "curve-editor" -> {
                     val id=activity.intent.getStringExtra(CurveEditorActivity.CURVE_ID)!!
                     onMain {
-                        val selector=views(root(activity)).filterIsInstance<CurveStageCountTabs>().single()
-                        listOf(1,4,1,4).forEach { count -> check(selector.findViewWithTag<Button>("curve-stage-count-$count").performClick()) }
-                        check(selector.selectedCount==4)
+                        listOf(1,4,1,4).forEach { count -> selectCurveStageCount(root(activity), count) }
+                        check(views(root(activity)).count { it.tag?.toString()?.startsWith("curve-editor-stage-") == true && it.visibility == View.VISIBLE } == 4)
                     }
                     roundTrip("editor-stage-hidden-values")
                     input("name","经典浓缩 四阶段 ".repeat(8)); capture(activity,"editor-long-name")
@@ -1589,9 +1588,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             fill(editor, R.string.profiles_temperature, temperature.toString())
             fill(editor, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
             onMain {
-                val selector = views(root(editor)).filterIsInstance<CurveStageCountTabs>().single()
-                check(selector.isShown && selector.isEnabled) { "Stage count selector is not visible" }
-                check(selector.findViewWithTag<Button>("curve-stage-count-4").performClick())
+                selectCurveStageCount(root(editor), 4)
             }
             test.waitForIdleSync()
             awaitMain {
@@ -1606,10 +1603,9 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(!editor.isFinishing && custom.list() == initialCurves)
             fill(editor, R.string.profiles_total_water_limit, "160")
             onMain {
-                val selector = views(root(editor)).filterIsInstance<CurveStageCountTabs>().single()
-                check(selector.findViewWithTag<Button>("curve-stage-count-2").performClick())
+                selectCurveStageCount(root(editor), 2)
                 check(!views(root(editor)).single { it.tag == "curve-editor-stage-3" }.isShown)
-                check(selector.findViewWithTag<Button>("curve-stage-count-4").performClick())
+                selectCurveStageCount(root(editor), 4)
             }
             test.waitForIdleSync()
             assertCurveFields(editor, recipeName, temperature, cup, stages, "160")

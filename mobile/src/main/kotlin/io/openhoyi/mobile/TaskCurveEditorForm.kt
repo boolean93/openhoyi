@@ -10,243 +10,154 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import org.json.JSONObject
 
-/** Permanent field hierarchy; only viewport measurement switches for a genuinely tight budget. */
+/** Stable field parents, a single scroll surface and responsive, simultaneously visible stage cards. */
 internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: LinearLayout,
     private val style: TaskProductFormStyle) {
     private fun dp(value: Int) = style.dp(value)
     private fun cell() = style.visual.column("bean-full-field")
-    /** Fields keep the same parent. Only label/input measurement changes when all cards fit. */
+    private fun panel() = cell().apply {
+        background = style.visual.shape(style.visual.surface, true)
+        setPadding(dp(16), dp(8), dp(16), dp(8))
+    }
     private inner class MetadataCell : LinearLayout(activity) {
-        var inline = false
-            set(value) { if (field != value) { field = value; forceLayout() } }
-        init { orientation = VERTICAL; tag = "bean-full-field"; isBaselineAligned = false }
+        init { tag = "bean-full-field"; orientation = HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
+            background = style.visual.shape(style.visual.surface, true)
+            setPadding(dp(16), dp(6), dp(16), dp(6))
+        }
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            orientation = if (inline) HORIZONTAL else VERTICAL
-            gravity = if (inline) android.view.Gravity.CENTER_VERTICAL else android.view.Gravity.TOP
-            for (index in 0 until childCount) {
-                val child = getChildAt(index)
+            val vertical = MeasureSpec.getSize(widthMeasureSpec) < dp((210 * resources.configuration.fontScale).toInt())
+            orientation = if (vertical) VERTICAL else HORIZONTAL
+            for (i in 0 until childCount) {
+                val child = getChildAt(i)
                 (child.layoutParams as LayoutParams).apply {
-                    width = if (!inline) -1 else if (index == 0) -2 else 0
-                    weight = if (inline && index > 0) 1f else 0f
-                    marginStart = if (inline && index > 0) dp(8) else 0; marginEnd = 0
-                    topMargin = 0; bottomMargin = 0; resolveLayoutDirection(this@MetadataCell.layoutDirection)
+                    width = if (vertical) -1 else if (i == 0) -2 else 0
+                    weight = if (!vertical && i > 0) 1f else 0f
+                    marginStart = if (!vertical && i > 0) dp(10) else 0
+                    resolveLayoutDirection(this@MetadataCell.layoutDirection)
                 }
-                if (index == 0) child.setPaddingRelative(child.paddingStart, child.paddingTop, child.paddingEnd, if (inline) 0 else dp(8))
+                if (i == 0) child.setPadding(0, 0, 0, if (vertical) dp(6) else 0)
             }
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         }
     }
     val metadata: List<LinearLayout> = List(3) { MetadataCell() }
-    val stageRows = List(4) { cell() }
+    val stageRows = List(4) { panel() }
     val stageHeader = style.visual.row()
+    val stageModes = List(4) { style.visual.text("", TaskProductVisualStyle.body).apply {
+        gravity = android.view.Gravity.CENTER; setPadding(dp(8), dp(2), dp(8), dp(2))
+        background = style.visual.shape(style.visual.selected, false, 8)
+        tag = "curve-stage-mode-$it"
+    } }
+    val firstModeHost = cell().apply {
+        background = style.visual.shape(style.visual.selected, false, 8)
+    }
     val waterLimit = cell()
     val modeControls = cell()
     val configurationFields = cell()
-    val supportingBody = cell()
-    private val stageContent = cell()
-    private val metadataContent = style.visual.row()
-    private val stagePane = cell()
-    private val portrait=activity.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT
-    private var compact = false
-    private val stages = ScrollView(activity).apply { tag = "product/form/curve-editor/stage-scroll"; addView(stageContent) }
-    private val metadataScroll = ScrollView(activity).apply { tag = "product/form/curve-editor/metadata-scroll"; addView(metadataContent) }
-    private val previewScroll = object : ScrollView(activity) {
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            supportingBody.findViewWithTag<View>("task-form-stage-preview")?.let { chart ->
-                val width = (View.MeasureSpec.getSize(widthMeasureSpec) - supportingBody.paddingLeft - supportingBody.paddingRight).coerceAtLeast(0)
-                val fixed = fixedHeight(supportingBody, chart, width)
-                chart.layoutParams.height = if (compact || View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED) dp(160)
-                    else (View.MeasureSpec.getSize(heightMeasureSpec) - fixed).coerceIn(dp(160), dp(280))
-            }
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        }
-    }.apply { tag = "product/form/curve-editor/preview-scroll"; isFillViewport = true; addView(supportingBody) }
-    private val lower = style.visual.row()
-    private val column = style.visual.column("product/form/curve-editor/content")
-    private val contentScroll = object : ScrollView(activity) {
-        override fun measureChildWithMargins(child: View, parentWidthMeasureSpec: Int, widthUsed: Int,
-            parentHeightMeasureSpec: Int, heightUsed: Int) {
-            if (compact) { super.measureChildWithMargins(child, parentWidthMeasureSpec, widthUsed, parentHeightMeasureSpec, heightUsed); return }
-            val params = child.layoutParams as ViewGroup.MarginLayoutParams
-            child.measure(getChildMeasureSpec(parentWidthMeasureSpec, paddingLeft + paddingRight + params.leftMargin + params.rightMargin + widthUsed, params.width),
-                View.MeasureSpec.makeMeasureSpec((View.MeasureSpec.getSize(parentHeightMeasureSpec) - paddingTop - paddingBottom - params.topMargin - params.bottomMargin - heightUsed).coerceAtLeast(0), View.MeasureSpec.EXACTLY))
-        }
-    }.apply { tag = "product/form/curve-editor/content-scroll"; addView(column) }
+    val supportingBody = panel()
+    private val settingsBody = panel()
+    private val column = cell()
+    private val contentScroll = ScrollView(activity).apply {
+        tag = "product/form/curve-editor/content-scroll"; isFillViewport = true; addView(column)
+    }
+    // Historical restore keys map to the same single content surface; the final key is authoritative.
+    private val stages = contentScroll
+    private val metadataScroll = contentScroll
+    private val host = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL; tag = "task-inline-form"
+        addView(contentScroll, LinearLayout.LayoutParams(-1, -1))
+    }
     var productLayoutEvidence = JSONObject()
         private set
-    private val host = object : LinearLayout(activity) {
+    private val add = style.visual.action(LinearLayout(activity), "+\n" + activity.getString(R.string.curve_editor_add_stage),
+        "curve-stage-add", top = 0) {}.apply {
+        (parent as ViewGroup).removeView(this)
+        textSize = 20f; gravity = android.view.Gravity.CENTER
+        minimumHeight = dp(180)
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(style.visual.surface); cornerRadius = dp(14).toFloat()
+            setStroke(dp(1), style.visual.accent, dp(5).toFloat(), dp(4).toFloat())
+        }
+    }
+    private val removes = mutableListOf<android.widget.Button>()
+    private var activeCount = 2
+    private var changeCount: (Int) -> Unit = {}
+    /** A measured grid: wraps cards rather than shrinking type or making stages a carousel. */
+    private inner class CardGrid(private val minimumDp: Int, private val maxColumns: Int) : ViewGroup(activity) {
+        private var columns = 1
+        private var rowHeights = emptyList<Int>()
+        override fun generateDefaultLayoutParams() = LayoutParams(-1, -2)
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = MeasureSpec.getSize(widthMeasureSpec)
-            val height = MeasureSpec.getSize(heightMeasureSpec)
-            if(portrait) {
-                compact=true
-                metadataContent.orientation=VERTICAL
-                metadata.forEachIndexed {index,panel ->
-                    (panel as MetadataCell).inline=false
-                    panel.layoutParams=LayoutParams(-1,-2).apply {if(index>0) topMargin=dp(12)}
-                }
-                metadataScroll.layoutParams=LayoutParams(-1,-2)
-                lower.orientation=VERTICAL
-                lower.layoutParams=LayoutParams(-1,-2).apply {topMargin=dp(16)}
-                stagePane.layoutParams=LayoutParams(-1,-2)
-                stages.layoutParams=LayoutParams(-1,-2)
-                previewScroll.layoutParams=LayoutParams(-1,-2).apply {topMargin=dp(20)}
-                super.onMeasure(widthMeasureSpec,heightMeasureSpec)
-                return
-            }
-            val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-            fun forceMetadataLayout(view: View) {
-                if (view is ViewGroup) for (index in 0 until view.childCount) forceMetadataLayout(view.getChildAt(index))
-                view.forceLayout()
-            }
-            fun measureMetadata(inline: Boolean): Int {
-                metadata.forEach { (it as MetadataCell).inline = inline }
-                forceMetadataLayout(metadataContent)
-                metadataContent.measure(widthMeasureSpec, free)
-                return metadataContent.measuredHeight
-            }
-            val metadataVertical = measureMetadata(false)
-            val inlineCards = org.json.JSONArray()
-            val inlineFits = metadata.mapIndexed { index, panel ->
-                val label = panel.getChildAt(0) as? android.widget.TextView
-                val inputHost = if (panel.childCount == 2) panel.getChildAt(1) else null
-                fun field(view: View?): EditText? = when (view) {
-                    is EditText -> view
-                    is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { field(view.getChildAt(it)) }
-                    else -> null
-                }
-                val input = field(inputHost)
-                label?.measure(free, free)
-                val labelWidth = label?.measuredWidth ?: 0
-                // Name text may scroll horizontally, but never receives a token-sized viewport.
-                val inputText = if (index == 0) "国".repeat(8) else input?.text?.toString().orEmpty()
-                val textWidth = input?.let { kotlin.math.ceil(android.text.Layout.getDesiredWidth(inputText, it.paint).toDouble()).toInt() } ?: 0
-                // unit() has already reserved its real unit + gap in compoundPadding.
-                // Do not count that unit a second time merely because inputHost is a wrapper.
-                val compoundPadding = input?.let { it.compoundPaddingLeft + it.compoundPaddingRight } ?: 0
-                val inputMinimum = textWidth + compoundPadding
-                val innerWidth = (panel.measuredWidth - panel.paddingLeft - panel.paddingRight).coerceAtLeast(0)
-                val fits = label != null && input != null && labelWidth + dp(8) + inputMinimum <= innerWidth
-                inlineCards.put(JSONObject().put("index", index).put("cardWidthPx", panel.measuredWidth)
-                    .put("innerWidthPx", innerWidth).put("labelNaturalWidthPx", labelWidth)
-                    .put("inputTextAdvancePx", textWidth).put("inputCompoundPaddingPx", compoundPadding)
-                    .put("inputMinimumWidthPx", inputMinimum).put("gapPx", dp(8)).put("fits", fits)
-                    .put("inputWidthBasis", if (index == 0) "same-Paint eight CJK advances plus actual compound padding" else "actual input text advances plus actual compound padding, including unit reserve"))
-                fits
-            }.all { it }
-            val stageWidth = ((width - dp(24)).coerceAtLeast(0) * 1.1f / 2.1f).toInt()
-            val previewWidth = (width - dp(24) - stageWidth).coerceAtLeast(0)
-            val stageInner = (stageWidth - stagePane.paddingLeft - stagePane.paddingRight).coerceAtLeast(0)
-            stageHeader.measure(MeasureSpec.makeMeasureSpec(stageInner, MeasureSpec.EXACTLY), free)
-            columns.measure(MeasureSpec.makeMeasureSpec(stageInner, MeasureSpec.EXACTLY), free)
-            val stageMinimum = stageHeader.measuredHeight + columns.measuredHeight +
-                stageRows.filter { it.visibility != View.GONE }.maxOfOrNull { shortMinimum(it) }.orZero() + stagePane.paddingTop + stagePane.paddingBottom
-            stageContent.measure(MeasureSpec.makeMeasureSpec(stageInner, MeasureSpec.EXACTLY), free)
-            val stageNatural = stageContent.measuredHeight + stagePane.paddingTop + stagePane.paddingBottom
-            val chart = supportingBody.findViewWithTag<View>("task-form-stage-preview")
-            val previewMinimum = fixedHeight(supportingBody, chart, (previewWidth - supportingBody.paddingLeft - supportingBody.paddingRight).coerceAtLeast(0)) + dp(160)
-            val fullVertical = metadataVertical + dp(16) + maxOf(stageNatural, previewMinimum)
-            val metadataInline = if (inlineFits) measureMetadata(true) else null
-            val inlineSelected = fullVertical > height && inlineFits
-            val metadataNatural = measureMetadata(inlineSelected)
-            val metadataMinimum = metadata.maxOf { shortMinimum(it) + it.paddingTop + it.paddingBottom }
-            val lowerMinimum = maxOf(stageMinimum, previewMinimum)
-            compact = height < metadataMinimum + dp(16) + lowerMinimum
-            (metadataScroll.layoutParams as LayoutParams).height = if (compact) -2 else minOf(metadataNatural, height / 3).coerceAtLeast(minOf(metadataMinimum, height))
-            (lower.layoutParams as LayoutParams).apply { this.height = if (compact) -2 else 0; weight = if (compact) 0f else 1f }
-            (stagePane.layoutParams as LayoutParams).height = if (compact) -2 else -1
-            (previewScroll.layoutParams as LayoutParams).height = if (compact) -2 else -1
-            (stages.layoutParams as LayoutParams).apply { this.height = if (compact) -2 else 0; weight = if (compact) 0f else 1f }
-            productLayoutEvidence = JSONObject().put("availablePx", height).put("metadataNaturalPx", metadataNatural)
-                .put("metadataVerticalNaturalPx", metadataVertical).put("metadataInlineNaturalPx", metadataInline ?: JSONObject.NULL)
-                .put("fullVerticalNaturalPx", fullVertical).put("metadataInlineFits", inlineFits)
-                .put("metadataInlineSelected", inlineSelected).put("metadataCards", inlineCards)
-                .put("metadataMinimumPx", metadataMinimum).put("stageMinimumPx", stageMinimum).put("previewMinimumPx", previewMinimum)
-                .put("compactSingleContentScroll", compact).put("stageNaturalPx", stageNatural)
-                .put("fullNaturalPx", metadataNatural + dp(16) + maxOf(stageNatural, previewMinimum))
-            // shortMinimum measures the EditText independently; replay the real wrapper/card
-            // constraints even when their incoming MeasureSpecs match the previous pass.
-            forceMetadataLayout(metadataContent)
-            column.forceLayout(); metadataScroll.forceLayout(); lower.forceLayout(); stagePane.forceLayout(); previewScroll.forceLayout(); contentScroll.forceLayout()
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            val gap = dp(12)
+            val min = dp((minimumDp * activity.resources.configuration.fontScale.coerceAtLeast(1f)).toInt())
+            val visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
+            columns = ((width + gap) / (min + gap)).coerceIn(1, maxColumns).coerceAtMost(visible.size.coerceAtLeast(1))
+            val cellWidth = ((width - gap * (columns - 1)) / columns).coerceAtLeast(0)
+            visible.forEach { it.measure(MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)) }
+            rowHeights = visible.chunked(columns).map { row -> row.maxOf { it.measuredHeight } }
+            visible.forEachIndexed { index, child -> child.measure(MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(rowHeights[index / columns], MeasureSpec.EXACTLY)) }
+            setMeasuredDimension(width, rowHeights.sum() + gap * (rowHeights.size - 1).coerceAtLeast(0))
         }
-    }.apply { orientation = LinearLayout.VERTICAL; tag = "task-inline-form" }
-    private val columns = style.visual.row()
+        override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+            val gap = dp(12); var top = 0
+            (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }.chunked(columns).forEachIndexed { rowIndex, row ->
+                row.forEachIndexed { index, child ->
+                    val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - (index + 1) * child.measuredWidth - index * gap else index * (child.measuredWidth + gap)
+                    child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
+                }
+                top += rowHeights[rowIndex] + gap
+            }
+        }
+    }
     init {
-        (metadata + listOf(stagePane, supportingBody)).forEach { panel ->
-            panel.background = style.visual.shape(style.visual.surface, true)
-            panel.setPadding(dp(16), dp(16), dp(16), dp(16))
-        }
         body.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
-        host.addView(contentScroll, LinearLayout.LayoutParams(-1, -1))
-        column.addView(metadataScroll, LinearLayout.LayoutParams(-1, -2))
-        metadata.forEachIndexed { index, panel -> metadataContent.addView(panel, LinearLayout.LayoutParams(0, -2, if (index == 0) 1.3f else 1f).apply { if (index > 0) marginStart = dp(16) }) }
-        column.addView(lower, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
-        lower.addView(stagePane, LinearLayout.LayoutParams(0, -1, 1.1f))
-        lower.addView(previewScroll, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(24) })
-        stageContent.addView(modeControls, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
-        stageContent.addView(stageHeader, LinearLayout.LayoutParams(-1, -2))
-        stageContent.addView(columns, LinearLayout.LayoutParams(-1, -2))
-        val firstWidth = maxOf(dp(80), dp(20) + kotlin.math.ceil(android.text.Layout.getDesiredWidth(activity.getString(R.string.profiles_stage, 4),
-            style.visual.text("", TaskProductVisualStyle.body).paint).toDouble()).toInt())
-        listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).forEachIndexed { index, label ->
-            val heading = style.visual.text(activity.getString(label), TaskProductVisualStyle.auxiliary, secondary = true).apply { setPadding(0, 0, 0, dp(8)) }
-            columns.addView(heading, if (index == 0) LinearLayout.LayoutParams(firstWidth, -2)
-                else LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
-        }
-        stagePane.addView(stages, LinearLayout.LayoutParams(-1, 0, 1f))
-        stageContent.foreground = object : android.graphics.drawable.Drawable() {
-            private val paint = android.graphics.Paint().apply { color = this@TaskCurveEditorForm.style.visual.border; strokeWidth = activity.resources.displayMetrics.density }
-            override fun draw(canvas: android.graphics.Canvas) {
-                fun rule(y: Float) { canvas.drawLine(0f, y, bounds.right.toFloat(), y, paint) }
-                rule(stageHeader.bottom.toFloat())
-                rule((columns.bottom - dp(4)).toFloat())
-                stageRows.filter { it.visibility != View.GONE }.zipWithNext().forEach { (row, next) ->
-                    rule((row.bottom + next.top) / 2f)
-                }
+        val metaGrid = CardGrid(205, 3)
+        metadata.forEach(metaGrid::addView)
+        column.addView(metaGrid, LinearLayout.LayoutParams(-1, -2))
+        modeControls.background = style.visual.shape(style.visual.surface, true)
+        modeControls.setPadding(dp(16), dp(4), dp(16), dp(4))
+        column.addView(modeControls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        val grid = CardGrid(188, 4).apply { tag = "curve-stage-cards" }
+        stageRows.forEachIndexed { index, card ->
+            card.tag = "curve-editor-stage-$index"
+            val heading = style.visual.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+            heading.addView(View(activity).apply { background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(style.visual.stageColors[index])
+            } }, LinearLayout.LayoutParams(dp(10), dp(10)))
+            heading.addView(style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.section), LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
+            val remove = style.visual.action(heading, "−", "curve-stage-remove-$index", top = 0) {
+                if (activeCount > 1 && index == activeCount - 1) changeCount(activeCount - 1)
+            }.apply {
+                contentDescription = activity.getString(R.string.curve_editor_remove_stage, index + 1)
+                minWidth = dp(48); minimumWidth = dp(48); setPadding(0, 0, 0, 0)
+                layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
             }
-            override fun setAlpha(alpha: Int) { paint.alpha = alpha }
-            override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
-            @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+            removes += remove
+            card.addView(heading, LinearLayout.LayoutParams(-1, -2))
+            card.addView(stageModes[index], LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
+            if (index == 0) card.addView(firstModeHost, LinearLayout.LayoutParams(-1, -2))
+            grid.addView(card)
         }
-        stageRows.forEachIndexed { index, row ->
-            row.tag = "curve-editor-stage-$index"; row.orientation = LinearLayout.HORIZONTAL; row.isBaselineAligned = false; row.gravity = android.view.Gravity.CENTER_VERTICAL
-            stageContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { if (index > 0) topMargin = dp(8) })
-            val identity = style.visual.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-            identity.addView(View(activity).apply { background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(style.visual.stageColors[index]) } }, LinearLayout.LayoutParams(dp(12), dp(12)))
-            identity.addView(style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.body), LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
-            row.addView(identity, LinearLayout.LayoutParams(firstWidth, -2))
-        }
-        stageContent.addView(waterLimit, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
-        stageContent.addView(configurationFields, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        add.setOnClickListener { if (activeCount < 4) changeCount(activeCount + 1) }
+        grid.addView(add)
+        column.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        val lower = CardGrid(320, 2)
+        lower.addView(supportingBody)
+        style.visual.add(settingsBody, style.visual.text(activity.getString(R.string.curve_editor_more_settings), TaskProductVisualStyle.section))
+        settingsBody.addView(waterLimit, LinearLayout.LayoutParams(-1, -2))
+        settingsBody.addView(configurationFields, LinearLayout.LayoutParams(-1, -2))
+        lower.addView(settingsBody)
+        column.addView(lower, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
     }
-    private fun Int?.orZero() = this ?: 0
-    private fun shortMinimum(view: View): Int {
-        if (view is EditText) {
-            view.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-            val naturalHeight = view.measuredHeight
-            view.forceLayout()
-            return naturalHeight
-        }
-        if (view !is ViewGroup) return 0
-        val minimum = (0 until view.childCount).filter { view.getChildAt(it).visibility != View.GONE }.maxOfOrNull { shortMinimum(view.getChildAt(it)) } ?: 0
-        view.forceLayout()
-        return minimum
+    fun onStageCountChanged(action: (Int) -> Unit) { changeCount = action }
+    fun setStageCount(count: Int) {
+        activeCount = count
+        stageRows.forEachIndexed { index, row -> row.visibility = if (index < count) View.VISIBLE else View.GONE }
+        removes.forEachIndexed { index, button -> button.visibility = if (index == count - 1 && count > 1) View.VISIBLE else View.INVISIBLE }
+        add.visibility = if (count < 4) View.VISIBLE else View.GONE
     }
-    private fun fixedHeight(parent: LinearLayout, except: View?, width: Int): Int {
-        var total = parent.paddingTop + parent.paddingBottom
-        for (index in 0 until parent.childCount) {
-            val child = parent.getChildAt(index)
-            if (child !== except && child.visibility != View.GONE) {
-                child.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-                val params = child.layoutParams as LinearLayout.LayoutParams
-                total += child.measuredHeight + params.topMargin + params.bottomMargin
-            }
-        }
-        return total
-    }
-    fun setStageCount(count: Int) { stageRows.forEachIndexed { index, row -> row.visibility = if (index < count) View.VISIBLE else View.GONE } }
-    fun setTargetHeading(text: String) { (columns.getChildAt(1) as android.widget.TextView).text = text }
     val productRestoreEvidence = JSONObject()
     fun save(state: Bundle, fields: Map<String, EditText>) {
         if (android.os.Build.VERSION.SDK_INT >= 30) host.rootWindowInsets?.let { insets ->

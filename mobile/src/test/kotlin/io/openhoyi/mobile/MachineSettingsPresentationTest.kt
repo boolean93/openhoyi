@@ -21,9 +21,10 @@ class MachineSettingsPresentationTest {
             io.openhoyi.protocol.MachineSettingChange.StandbyDelay(60, 70) to "自动待机：1 小时",
             io.openhoyi.protocol.MachineSettingChange.StandbyDelay(120, 70) to "自动待机：2 小时",
             io.openhoyi.protocol.MachineSettingChange.StandbyTemperature(70, 30) to "待机温度 70 °C",
-            io.openhoyi.protocol.MachineSettingChange.LeverMode(false, false) to "拨杆模式：手动",
-            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, false) to "拨杆模式：自动压力",
-            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, true) to "拨杆模式：自动流量",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(false, false) to "机器模式：变压 · 恒压",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, false) to "机器模式：变压 · 跟随",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(false, true) to "机器模式：变流 · 慢速",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, true) to "机器模式：变流 · 快速",
             io.openhoyi.protocol.MachineSettingChange.BrewTemperature(93) to "萃取温度 93 °C",
             io.openhoyi.protocol.MachineSettingChange.BrewCompensation(3) to "冲泡温差补偿 3 °C",
             io.openhoyi.protocol.MachineSettingChange.SteamTemperature(125) to "蒸汽温度 125 °C",
@@ -70,11 +71,11 @@ class MachineSettingsPresentationTest {
         assertFalse(overview.contains("已应用"))
         assertEquals("尚未收到机器设置", presentation.overview(null))
         assertEquals("尚未收到机器设置", presentation.settings(null))
-        assertEquals("拨杆模式：尚未收到设置", presentation.leverMode(null))
-        assertEquals("拨杆模式：手动", presentation.leverMode(settings))
-        assertEquals("拨杆模式：自动压力", presentation.leverMode(settings.copy(flags = 0x80)))
-        assertEquals("拨杆模式：自动流量", presentation.leverMode(settings.copy(flags = 0xC0)))
-        assertTrue(presentation.leverMode(settings.copy(flags = 0x40)).contains("未知组合"))
+        assertEquals("机器模式：尚未收到设置", presentation.leverMode(null))
+        assertEquals("机器模式：变压 · 恒压", presentation.leverMode(settings))
+        assertEquals("机器模式：变压 · 跟随", presentation.leverMode(settings.copy(flags = 0x80)))
+        assertEquals("机器模式：变流 · 快速", presentation.leverMode(settings.copy(flags = 0xC0)))
+        assertEquals("机器模式：变流 · 慢速", presentation.leverMode(settings.copy(flags = 0x40)))
     }
 
     @Test fun weeklyScheduleRequiresBothPartsAndKeepsUnknownEnabledMaskRaw() {
@@ -126,7 +127,7 @@ class MachineSettingsPresentationTest {
             assertEquals("translated[${R.string.settings_time_missing}]", day.period)
         }
         assertEquals("translated[${R.string.settings_missing}]", localized.settings(null))
-        assertEquals("translated[${R.string.settings_lever_missing}]", localized.leverMode(null))
+        assertEquals("translated[${R.string.machine_mode_missing}]", localized.leverMode(null))
         val malformedFirst = SleepPart(2, 0xFF, List(4) { SleepDay(22, 30, 7, 15) }, raw)
         assertTrue(localized.scheduleDaySummaries(malformedFirst, null).all { it.enabled == null })
     }

@@ -1222,6 +1222,9 @@ class MobileService : Service() {
         if (idle.sleepStateRaw != 0) return getString(R.string.service_write_setting_awake_block)
         val observed = snapshot.settings ?: return getString(R.string.settings_missing)
         if (!machineSettingsFresh) return getString(R.string.service_write_settings_stale)
+        if (change is MachineSettingChange.LeverMode &&
+            !io.openhoyi.session.MachineModeFirmwarePolicy.permits(change, coffeeFirmware))
+            return getString(R.string.slow_global_firmware_required)
         if (change is MachineSettingChange.SleepScheduleEnabled && change.enabled &&
             !sleepScheduleFresh)
             return getString(R.string.service_write_schedule_enable_block)
@@ -1316,6 +1319,8 @@ class MobileService : Service() {
         outcome: (String) -> Unit): String? {
         interruptUpdateInstallation()
         leverRecipeWriteBlock()?.let { return it }
+        if (CustomCurveFirmwarePolicy.isPressureFollow(profile.parameters))
+            return getString(R.string.follow_lever_not_supported)
         val app = application as MobileApplication
         if (leverDeviceAddress != expectedAddress || coffeeFirmware.toString() != expectedFirmware ||
             app.curves.resolve(profile.id, false, 7) != profile || !app.curves.validated(profile))
@@ -1636,7 +1641,8 @@ class MobileService : Service() {
     private fun customCurveFirmwareBlock(profile: CurveProfile?): String? {
         val configured = profile?.let { (application as MobileApplication).curves.find(it.id)?.customDocument?.configuration } != null
         return if (configured && !CustomCurveFirmwarePolicy.permits(requireNotNull(profile).parameters, coffeeFirmware))
-            getString(R.string.flow_editor_firmware_required) else null
+            getString(if (CustomCurveFirmwarePolicy.isPressureFollow(profile.parameters))
+                R.string.follow_firmware_required else R.string.flow_editor_firmware_required) else null
     }
     fun extractionStartBlock(profile: CurveProfile?, invalidCurve: Boolean = false): String? {
         if (!running) return getString(R.string.service_unavailable)

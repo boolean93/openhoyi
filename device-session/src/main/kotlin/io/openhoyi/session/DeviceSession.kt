@@ -479,6 +479,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             TelemetryFreshness.isFresh(observedAt,now) && idle.sleepStateRaw==0
     }
     private fun permittedStart(parameters:StartParameters):EncodedCommand? {
+        // Follow is newly reviewed only for temporary complete recipes on 1.1.4/1.1.5.
+        // This must precede captured/additional frame fast paths as well as host permits.
+        if (CustomCurveFirmwarePolicy.isPressureFollow(parameters) &&
+            (!CustomCurveStartPolicy.permits(parameters) || !CustomCurveFirmwarePolicy.permits(parameters, observedFirmware))) return null
         val command=runCatching { CoffeeCommands.start(parameters) }.getOrNull() ?: return null
         val captured=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
         return command.takeIf { it.frame.hex() in captured || it.frame.hex() in additionalStartFrames ||
@@ -582,6 +586,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         canControlWithBrewSettings() && lastSettings?.flags?.and(0x04) == 0x04
     private fun canWriteSetting(change: MachineSettingChange): Boolean =
         canControlWithFreshSettings() && when(change) {
+            // New slow-flow global writes require the exact reviewed firmware at dispatch too.
+            is MachineSettingChange.LeverMode -> MachineModeFirmwarePolicy.permits(change, observedFirmware)
             is MachineSettingChange.StandbyDelay -> lastSettings?.standbyTemperatureC == change.temperatureC
             is MachineSettingChange.StandbyTemperature -> lastSettings?.standbyMinutes == change.minutes
             is MachineSettingChange.SleepScheduleEnabled -> !change.enabled ||
@@ -596,9 +602,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,onDispatch:()->Unit,callback:(OperationResult)->Unit) {
         // Stored recipe need not be the current extraction selection. The caller must validate
         // the captured library item at dispatch; this layer still enforces known wire subsets.
-        fun knownRecipe():Boolean = permittedStart(parameters)!=null ||
+        fun knownRecipe():Boolean = !CustomCurveFirmwarePolicy.isPressureFollow(parameters) && (permittedStart(parameters)!=null ||
             CustomPressureStartPolicy.permits(parameters) ||
-            (CustomCurveStartPolicy.permits(parameters) && CustomCurveFirmwarePolicy.permits(parameters,observedFirmware))
+            (CustomCurveStartPolicy.permits(parameters) && CustomCurveFirmwarePolicy.permits(parameters,observedFirmware)))
         val expectedGeneration=generation
         val expectedAddress=address
         fun conditions():Boolean = generation==expectedGeneration && address==expectedAddress &&
@@ -661,8 +667,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             val enablingPlan = if(change is MachineSettingChange.SleepScheduleEnabled && change.enabled)
                 WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days else null
             val expected=generation
+            val expectedFirmware=observedFirmware
             send(CoffeeCommands.setting(change),DeviceRole.COFFEE,
                 beforeDispatch={beforeDispatch() && canWriteSetting(change) &&
+                    (change !is MachineSettingChange.LeverMode || observedFirmware==expectedFirmware) &&
                     (enablingPlan == null || WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == enablingPlan)}) {result->
                 // Arm before the host callback: it must enter WAITING_READBACK before requesting refresh.
                 if(result is OperationResult.Success && ownsInitialization(expected) && state==DeviceState.READY &&

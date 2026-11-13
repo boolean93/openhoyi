@@ -84,6 +84,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var steamPressure: TextView
     private lateinit var leverStatus: TextView
     private lateinit var leverButton: Button
+    private lateinit var machineModes: MachineModeControls
+    private var dialogMachineModes: MachineModeControls? = null
     private lateinit var sleepStatus: TextView
     private lateinit var sleepButton: Button
     private lateinit var emergencyStop: Button
@@ -230,18 +232,20 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(if (compactType) 14 else 18,500,if (compactType) 20 else 26)); tag = "product/home/service-status" }
         content.removeView(status)
-        val machineRow = productStyle.row("product/home/machine-status").apply {
-            gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(42)
+        val machineHeading = productStyle.row().apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
         }
+        machineModes = MachineModeControls(host, ::changeMachineMode)
+        val machineRow = MachineModeHeader(host, machineHeading, machineModes)
         val compactTopRow = if (shortWideHome) productStyle.row("product/home/compact-top").also {
             it.gravity = android.view.Gravity.CENTER_VERTICAL
             content.addView(it, LinearLayout.LayoutParams(-1, -2))
         } else null
         (compactTopRow ?: content).addView(machineRow, if (compactTopRow != null)
             LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
-        machineRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+        machineHeading.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         machineRetryIconShown=false // A rebuilt View must establish its own drawable.
-        machineConnect = button(machineRow, getString(R.string.home_connect)) {
+        machineConnect = button(machineHeading, getString(R.string.home_connect)) {
             if(service?.snapshot?.coffeeState==DeviceState.READY)showDevicePanel() else host.reconnectCoffee()
         }.apply {
             tag = "product/home/connect"
@@ -572,7 +576,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         alarmStatus = text(deviceCard, getString(R.string.home_alarm_initial), 14)
         leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
         sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
-        leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
+        leverButton = button(deviceCard, getString(R.string.machine_mode_title)) { chooseLeverMode() }
         sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { sleepNow() }.apply {setSingleLine(true);maxLines=1}
         button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(host, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
@@ -884,22 +888,18 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         AppDialog.show(dialog)
         transientDialogs += dialog
     }
+    private fun changeMachineMode(change: MachineSettingChange.LeverMode) {
+        if (!MachineSettingsEditGate.allowed(service)) { render(); return }
+        service?.changeMachineSetting(change)?.let(::toast)
+        render()
+    }
     private fun chooseLeverMode() {
-        if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_lever_mock)); return }
-        val modes = listOf(
-            MachineSettingChange.LeverMode(false, false),
-            MachineSettingChange.LeverMode(true, false),
-            MachineSettingChange.LeverMode(true, true),
-        )
-        AlertDialog.Builder(host).setTitle(getString(R.string.home_lever_choose_title))
-            .setItems(arrayOf(getString(R.string.home_lever_manual),
-                getString(R.string.home_lever_pressure), getString(R.string.home_lever_flow))) { _, index ->
-                val change = modes[index]
-                AlertDialog.Builder(host).setTitle(getString(R.string.home_lever_confirm_title))
-                    .setMessage(getString(R.string.home_lever_confirmation_message, settingsPresentation.change(change)))
-                    .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ -> service?.changeMachineSetting(change)?.let(::toast); render() }
-                    .setNegativeButton(getString(R.string.machine_settings_cancel), null).let(::showTransient)
-            }.let(::showTransient)
+        val controls = MachineModeControls(host, ::changeMachineMode).apply { render(service); setPadding(dp(20), dp(4), dp(20), dp(4)) }
+        dialogMachineModes = controls
+        val dialog = AlertDialog.Builder(host).setTitle(R.string.machine_mode_title).setView(controls)
+            .setPositiveButton(R.string.machine_settings_done, null).create()
+        dialog.setOnDismissListener { dialogMachineModes = null }
+        AppDialog.show(dialog); transientDialogs += dialog
     }
     private fun sleepNow() {
         if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_sleep_mock)); return }
@@ -991,6 +991,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             owner?.machineControlSafetyMessage == null && !settingBusy &&
             owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
             s.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshAwakeIdle
+        machineModes.render(owner)
+        dialogMachineModes?.render(owner)
         leverStatus.show(settingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
                 is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {

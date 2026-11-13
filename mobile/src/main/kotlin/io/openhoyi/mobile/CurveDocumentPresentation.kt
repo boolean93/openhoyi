@@ -57,7 +57,7 @@ internal fun Context.profileConfigurationSummary(doc: CustomCurveDocument): Stri
 
 internal fun Context.profileExecutionSummary(doc: CustomCurveDocument): String = getString(when {
     doc.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW -> R.string.flow_curve_missing_modes_short
-    doc.configuration?.let { !it.variableFlowLogic && it.pressureLogic } == true -> R.string.flow_curve_follow_read_only
+    doc.configuration?.let { !it.variableFlowLogic && it.pressureLogic } == true -> R.string.follow_firmware_required
     CustomCurveAdapter.profile(doc, false)?.parameters?.let(io.openhoyi.session.CustomCurveFirmwarePolicy::requiresReviewedFlowProfile) == true -> R.string.flow_curve_parameters_require_114
     CustomCurveAdapter.profile(doc, false) != null ->
         if (doc.configuration == null) R.string.profiles_pressure_compatible else R.string.flow_curve_parameters_compatible
