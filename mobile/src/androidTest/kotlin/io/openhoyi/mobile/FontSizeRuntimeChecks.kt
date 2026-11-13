@@ -52,10 +52,15 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         val stored = preferences.all.toMap()
         try {
             configurationConversions()
+            android.util.Log.i("FontSizeChecks", "configuration conversions passed")
             previewAndApply()
+            android.util.Log.i("FontSizeChecks", "preview/cancel/apply passed")
             preheatRecreation()
+            android.util.Log.i("FontSizeChecks", "preheat recreation and navigation cancellation passed")
             activeCupRecreation()
+            android.util.Log.i("FontSizeChecks", "active cup three-size recreation passed")
             editorDraft()
+            android.util.Log.i("FontSizeChecks", "editor raw draft/focus/selection passed")
         } finally {
             main { select(original); restoreMockPreferences(preferences, stored) }
         }
@@ -180,7 +185,10 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
             main { check(changed.getButton(AlertDialog.BUTTON_POSITIVE).performClick()) }
             await("Font Apply did not publish exactly once") { !changed.isShowing && applies == 1 }
             main { check(app.fontSizePreferences.current == other && applies == 1) }
-        } finally { main { card?.close(); home.finish() } }
+        } finally {
+            main { card?.close(); home.finish() }
+            await("Font preview host not destroyed") { home.isDestroyed }
+        }
     }
     private fun preheatRecreation() {
         var screen = MainPageTestHost.launch(test, timeoutMs = 10000).activity
@@ -229,7 +237,11 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
             await("Preheat recreation lost its service") { screen.currentService === owner }
             main {
                 check(field(owner, "autoPreheatIntent").get(owner) === intent)
-                check(preparation.requestId == request && runtime.preheatActive)
+                check(preparation.requestId == request && runtime.preheatActive) {
+                    "Preheat changed during recreation: requestBefore=$request requestNow=${preparation.requestId} " +
+                        "state=${preparation.state} active=${runtime.preheatActive} " +
+                        "leftAt=${field(checkNotNull(intent), "leftAt").get(intent)} reason=${owner.autoPreheatMessage}"
+                }
                 check(preparation.state == io.openhoyi.session.BrewPreparation.State.WAITING_TEMP)
                 check(owner.shotState == initialShotState && app.history.entries == originalHistory)
                 check(field(checkNotNull(intent), "leftAt").get(intent) == null)
@@ -246,6 +258,7 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 screen.finish()
             }
         }
+        await("Preheat test host not destroyed") { screen.isDestroyed }
         await("Mock restored settings not observed") { owner.snapshot.settings?.flags == oldSettings.flags }
     }
     private fun activeCupRecreation() {
@@ -267,7 +280,11 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
             for (size in AppFontSize.entries) {
                 main { select(size) }
                 screen = recreate(screen, MainActivity::class.java)
-                await("Recreated host lost service") { screen.currentService === owner }
+                await("Recreated host lost service/layout") {
+                    val frame = screen.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG)
+                    screen.currentService === owner && frame?.isLaidOut == true &&
+                        frame.navigation.isLaidOut && !frame.navigation.isLayoutRequested
+                }
                 main {
                     check(screen.resources.configuration.fontScale == size.scale)
                     check(app.resources.configuration.fontScale == size.scale)
@@ -279,15 +296,40 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                     val stop = fragment.requireView().findViewWithTag<View>("product/extraction/stop")
                     check(stop.isEnabled && stop.isShown)
                     check(stop.minimumHeight >= HoyiUi.dp(screen, 48))
+                    val frame = screen.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG)
+                    if (frame.mode == TaskNavigationMode.RAIL) {
+                        for (index in 0 until frame.navigation.childCount) {
+                            val item = frame.navigation.getChildAt(index) as? LinearLayout ?: continue
+                            if (item.tag?.toString()?.startsWith("task-nav:") != true) continue
+                            val label = item.getChildAt(1) as TextView
+                            check(label.lineCount == 1 && label.layout.getEllipsisCount(0) == 0) {
+                                "Rail label split or clipped at $size: ${label.text}"
+                            }
+                            check(item.height >= HoyiUi.dp(screen, 48) && item.width >= HoyiUi.dp(screen, 48))
+                        }
+                    }
                 }
             }
         } finally {
             main { owner.stopShot(); restoreMockPreferences(curves, oldCurves); screen.finish() }
+            await("Active cup test host not destroyed") { screen.isDestroyed }
         }
     }
     @Suppress("UNCHECKED_CAST")
     private fun editorDraft() {
-        var screen = test.startActivitySync(Intent(context, CurveEditorActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as CurveEditorActivity
+        // Keep a real foreground host: MIUI rejects an app-UID start after the previous
+        // scenario's Activity was destroyed. The non-exported editor must not be shell-launched.
+        val host = MainPageTestHost.launch(test, timeoutMs = 10000).activity
+        val monitor = test.addMonitor(CurveEditorActivity::class.java.name, null, false)
+        var screen = try {
+            main { host.startActivity(Intent(host, CurveEditorActivity::class.java)) }
+            test.waitForMonitorWithTimeout(monitor, 10000) as? CurveEditorActivity
+                ?: error("Editor foreground launch timed out")
+        } catch (error: Throwable) {
+            main { host.finish() }
+            await("Failed editor launch host not destroyed") { host.isDestroyed }
+            throw error
+        } finally { test.removeMonitor(monitor) }
         fun fields() = CurveEditorActivity::class.java.getDeclaredField("fields").apply { isAccessible = true }.get(screen) as Map<String, EditText>
         var key = ""
         try {
@@ -309,6 +351,9 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 check(input.text.toString() == "12.")
                 check(screen.resources.configuration.fontScale == app.fontSizePreferences.current.scale)
             }
-        } finally { main { screen.finish() } }
+        } finally {
+            main { screen.finish(); host.finish() }
+            await("Editor test hosts not destroyed") { screen.isDestroyed && host.isDestroyed }
+        }
     }
 }

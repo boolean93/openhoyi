@@ -78,6 +78,19 @@ internal class AppFontSizePreferencesCard(
                 value.setOnShowListener {
                     AppFontSizeDialogBounds.bind(activity, value)
                     visual.dialog(value, viewport)
+                    // A quiet Cancel and one primary Apply, aligned and separated even in freeform.
+                    listOf(AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_POSITIVE).forEach { which ->
+                        val action = value.getButton(which)
+                        style.button(action, primary = which == AlertDialog.BUTTON_POSITIVE)
+                        action.minHeight = style.dp(48); action.minimumHeight = style.dp(48)
+                        action.minWidth = style.dp(88); action.minimumWidth = style.dp(88)
+                        action.setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(8))
+                        (action.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.let { params ->
+                            params.topMargin = style.dp(8); params.bottomMargin = style.dp(8)
+                            params.marginStart = if (which == AlertDialog.BUTTON_POSITIVE) style.dp(12) else 0
+                            action.layoutParams = params
+                        }
+                    }
                     value.getButton(AlertDialog.BUTTON_POSITIVE).tag = "product/settings/app/font-size/apply"
                     value.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                         when (preferences.select(selected)) {

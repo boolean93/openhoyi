@@ -12,6 +12,19 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
     private val onDestination: (TaskDestination) -> Unit = { open(activity, it) }) : LinearLayout(activity) {
     private val chrome = TaskShellVisualStyle(activity)
     private var rendered: Triple<TaskNavigationMode, Boolean, Boolean>? = null
+    /** Keep translated labels intact at the selected app text size, without shrinking text. */
+    fun requiredRailWidth(): Int {
+        val paint = android.text.TextPaint().apply {
+            textSize = AppTextUnits.pixels(activity.resources, 16f)
+            typeface = TaskTypography.face(activity, 500)
+        }
+        val widest = (TaskNavigationModel.primary + TaskNavigationModel.tools).maxOf { destination ->
+            val id = if (activity is MainActivity && destination == TaskDestination.BREW)
+                R.string.task_home_tab else label(destination)
+            paint.measureText(activity.getString(id))
+        }
+        return kotlin.math.ceil(widest + HoyiUi.dp(activity, 24 + 8 + 16)).toInt()
+    }
     fun refreshSelection() { rendered = null; requestLayout() }
     fun render(mode: TaskNavigationMode, includeTools: Boolean, compactRail: Boolean = false) {
         val next = Triple(mode, includeTools, compactRail)

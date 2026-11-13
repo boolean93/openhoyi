@@ -30,6 +30,7 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
     } else onDestination).apply { tag = "task-tools-fallback"; productVisualStyle?.styleHeader(this) }
     private var fullRailHeight = -1
     private var measuredFontScale = -1f
+    private var measuredRailWidthDp = -1
     var mode = TaskNavigationMode.BOTTOM
         private set
     var toolsInTopBar = true
@@ -37,8 +38,13 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
     private var configuredMode: TaskNavigationMode? = null
     private var allDestinations = false
     private var secondaryPage = false
-    private val railWidthDp get() = if (allDestinations && activity is MainActivity) 104
-        else if (productVisualStyle == null) TaskLayoutPolicy.RAIL_WIDTH_DP else 80
+    private val railWidthDp: Int get() {
+        val baseline = if (allDestinations && activity is MainActivity) 104
+            else if (productVisualStyle == null) TaskLayoutPolicy.RAIL_WIDTH_DP else 80
+        val required = maxOf(navigation.requiredRailWidth(),
+            (shellStatus as? TaskShellStatusView)?.requiredRailWidth() ?: 0)
+        return maxOf(baseline, kotlin.math.ceil(required / resources.displayMetrics.density).toInt())
+    }
 
     init {
         tag = TAG
@@ -65,11 +71,12 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
         val policy = TaskLayoutPolicy.decide(widthDp.coerceAtLeast(1), (height / density).toInt(),
             portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
         // Measure actual labels at the rail width; font scaling can require the compact tool menu.
-        if (fullRailHeight < 0 || measuredFontScale != resources.configuration.fontScale) {
+        if (fullRailHeight < 0 || measuredFontScale != resources.configuration.fontScale || measuredRailWidthDp != railWidthDp) {
             navigation.render(TaskNavigationMode.RAIL, true)
             navigation.measure(MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, railWidthDp), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             fullRailHeight = navigation.measuredHeight
             measuredFontScale = resources.configuration.fontScale
+            measuredRailWidthDp = railWidthDp
         }
         val compactTools = !secondaryPage && !allDestinations &&
             (policy.toolsInTopBar || policy.navigation == TaskNavigationMode.RAIL && fullRailHeight > height)

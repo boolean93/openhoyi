@@ -176,6 +176,19 @@ internal class TaskShellStatusView(
         listOf(sleep, coffeeRetry, reconnect, disconnect).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
     }
 
+    /** Stable across connection transitions: budget all actions, not just today's visible one. */
+    fun requiredRailWidth(): Int {
+        val paint = android.text.TextPaint(disconnect.paint).apply { textSize = this@TaskShellStatusView.style.sp(16) }
+        val iconActions = listOf(R.string.task_shell_action_disconnect, R.string.task_shell_action_retry,
+            R.string.task_shell_action_connect, R.string.task_shell_action_select, R.string.coffee_connection_retry)
+        val plainActions = listOf(R.string.task_shell_action_connecting, R.string.task_shell_action_sleep,
+            R.string.task_shell_machine_asleep)
+        val widest = maxOf(iconActions.maxOf { paint.measureText(host.getString(it)) + style.dp(28) },
+            plainActions.maxOf { paint.measureText(host.getString(it)) })
+        // Status padding 16 + action margins 8 + action padding 8. No change to 48dp targets.
+        return kotlin.math.ceil(widest + style.dp(32)).toInt()
+    }
+
     /** Rail eligibility must be independent of the currently attached fallback arrangement. */
     fun requiredRailHeight(width: Int): Int {
         val inner = (width - style.dp(16)).coerceAtLeast(0)
