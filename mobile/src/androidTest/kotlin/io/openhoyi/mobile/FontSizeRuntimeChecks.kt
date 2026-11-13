@@ -103,7 +103,14 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 val button = dialog.getButton(which)
                 val visible = android.graphics.Rect()
                 check(button.isShown && button.getGlobalVisibleRect(visible))
-                check(visible.width() == button.width && visible.height() == button.height && dialogBounds.contains(bounds(button)))
+                check(visible.width() == button.width && visible.height() == button.height && dialogBounds.contains(bounds(button))) {
+                    val ancestors = generateSequence(button.parent as? View) { it.parent as? View }.joinToString("; ") {
+                        "${it.javaClass.simpleName}:rect=${bounds(it)} measured=${it.measuredWidth}x${it.measuredHeight} " +
+                            "padding=${it.paddingLeft},${it.paddingTop},${it.paddingRight},${it.paddingBottom}"
+                    }
+                    "Font action clipped: text=${button.text} visible=$visible full=${bounds(button)} " +
+                        "dialog=$dialogBounds measured=${button.measuredWidth}x${button.measuredHeight}; $ancestors"
+                }
                 val minimum = HoyiUi.dp(home, 48)
                 check(button.width >= minimum && button.height >= minimum) { "Font action smaller than 48dp" }
             }

@@ -86,7 +86,9 @@ internal class AppFontSizePreferencesCard(
                         action.minWidth = style.dp(88); action.minimumWidth = style.dp(88)
                         action.setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(8))
                         (action.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.let { params ->
-                            params.topMargin = style.dp(8); params.bottomMargin = style.dp(8)
+                            // Native AlertDialog button bars own their vertical spacing; child
+                            // margins can exceed an OEM fixed-height bar and clip the button.
+                            params.topMargin = 0; params.bottomMargin = 0
                             params.marginStart = if (which == AlertDialog.BUTTON_POSITIVE) style.dp(12) else 0
                             action.layoutParams = params
                         }
