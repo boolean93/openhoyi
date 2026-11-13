@@ -93,6 +93,14 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
         })
         refreshReadings()
         val scroll = ScrollView(context).apply { addView(panel) }
+        // Use the actual app window, not the physical screen: freeform can be much smaller.
+        val availableWidth = chart.rootView.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
+        val availableHeight = chart.rootView.height.takeIf { it > 0 } ?: context.resources.displayMetrics.heightPixels
+        fun panelHeight(width: Int, budget: Int): Int {
+            scroll.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+            return scroll.measuredHeight.coerceAtMost(budget.coerceAtLeast(dp(48)))
+        }
         if (context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
             val dialog = Dialog(context).apply { setContentView(scroll); setCanceledOnTouchOutside(true) }
             dialog.window?.apply {
@@ -101,13 +109,11 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
             }
             dialog.setOnDismissListener { readings.clear(); checks.clear(); dismiss = null }
             dialog.show()
-            val availableHeight = chart.rootView.height.takeIf { it > 0 } ?: context.resources.displayMetrics.heightPixels
-            scroll.measure(View.MeasureSpec.makeMeasureSpec(chart.rootView.width, View.MeasureSpec.AT_MOST),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-            dialog.window?.setLayout(-1, scroll.measuredHeight.coerceAtMost((availableHeight * .6f).toInt()))
+            dialog.window?.setLayout(-1, panelHeight(availableWidth, (availableHeight * .6f).toInt()))
             dismiss = { dialog.dismiss() }
         } else {
-            val popup = PopupWindow(scroll, dp(292), -2, true).apply {
+            val width = dp(320).coerceAtMost(availableWidth - dp(16)).coerceAtLeast(dp(48))
+            val popup = PopupWindow(scroll, width, panelHeight(width, availableHeight - dp(64)), true).apply {
                 setBackgroundDrawable(GradientDrawable().apply { setColor(style.surface); cornerRadius=dp(16).toFloat() })
                 elevation = dp(8).toFloat(); isOutsideTouchable = true
             }

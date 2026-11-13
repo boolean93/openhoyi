@@ -13,10 +13,10 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
             try {
                 val points = (0..12).map { index ->
                     ShotPoint(index * 500L, 10 + index * 6, 10, index * 15, 9200 + index * 5,
-                        index * 180, brewing=true, beverageHundredthsGram=index * 180, beverageSource=BeverageWeightSource.ESTIMATED)
+                        index * 180, brewing=true, beverageHundredthsGram=index * 180, beverageSource=BeverageWeightSource.ESTIMATED, beverageSegmentId=0)
                 }
-                for (dark in listOf(false, true)) {
-                    val context = AppLanguageContext.wrap(test.targetContext, AppLanguage.CHINESE, dark)
+                for (fontSize in AppFontSize.entries) for (dark in listOf(false, true)) {
+                    val context = AppLanguageContext.wrap(test.targetContext, AppLanguage.CHINESE, dark, fontSize)
                     val style = ExtractionHistoryVisualStyle(context)
                     val paused = ExtractionOverlayView(context, style).apply {
                         this.points = listOf(ShotPoint(0,90,10,0,9300,null,brewing=true,statusBits=64),
@@ -33,7 +33,7 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
                         val bitmap=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888)
                         val data=full.copy(series=full.series.filter { it.metric in metrics })
                         val box=renderer.draw(Canvas(bitmap),width,height,data,metrics.first(),null,false,simpleLivePresentation=true)
-                        check(box.width() >= 96*density) { "$widthDp $metrics plot clipped: $box" }
+                        check(box.width() >= 96*density) { "$fontSize $widthDp $metrics plot clipped: $box" }
                         val evidence=(0 until renderer.evidence.length()).map { renderer.evidence.getJSONObject(it) }
                         metrics.forEach { metric -> check(evidence.any { it.optString("metric")==metric.name }) {
                             "$widthDp $metrics missing $metric"

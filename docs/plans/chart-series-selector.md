@@ -37,3 +37,9 @@
 - 首轮707项统计更正为706执行通过、1项既有跳过，不称707项全部执行通过。修复后验证仍须以实际结果为准。
 
 修复后验证：`:mobile:testMockUnitTest :mobile:compileMockAndroidTestKotlin` 成功（709项，708执行通过、1既有跳过、0失败/错误）。暂停面板仪器断言只完成编译、尚未设备运行；新APK须重新打包，不使用此前a54984d0产物冒充修复版。
+
+## 字号整合候选
+
+已合入 develop 的字号 PR #85（d246edb7）。选择面板继承应用配置的 SP，竖屏保持60%窗口高度上限，横屏弹层也按实际窗口限制宽高并可滚动，避免freeform或大字号裁切。绘图仪器检查覆盖小/中/大三档，默认四线/全五线/仅净重及窄屏/方窗/横屏代表宽度。
+
+本轮 `:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest :mobile:lintMock` 成功，718总、717执行通过、1既有跳过、0失败/错误；本地化两项检查无drift。新Mock和仪器APK已重打；仪器和真实界面仍需设备运行，不能把编译当作实测。
