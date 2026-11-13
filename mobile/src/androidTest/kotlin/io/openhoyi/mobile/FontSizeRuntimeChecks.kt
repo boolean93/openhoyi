@@ -340,17 +340,49 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         fun fields() = CurveEditorActivity::class.java.getDeclaredField("fields").apply { isAccessible = true }.get(screen) as Map<String, EditText>
         var key = ""
         try {
+            await("Editor native window not ready for input") {
+                screen.hasWindowFocus() && fields().values.all { it.isLaidOut || !it.isShown } &&
+                    !screen.window.decorView.isLayoutRequested
+            }
             main {
                 val inputs = fields()
                 check(inputs.isNotEmpty())
                 key = inputs.keys.first { it != "name" }
                 inputs.getValue("name").setText("font-size-unsaved")
-                inputs.getValue(key).apply { setText("12."); requestFocus(); setSelection(1, 2) }
+                inputs.getValue(key).apply { setText("12."); check(requestFocus()); setSelection(1, 2) }
+            }
+            val inputFrames = java.util.concurrent.CountDownLatch(1)
+            main { screen.window.decorView.postOnAnimation {
+                screen.window.decorView.postOnAnimation { inputFrames.countDown() }
+            } }
+            check(inputFrames.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Editor input did not draw" }
+            await("Editor raw draft/focus precondition missing") {
+                fields().getValue(key).let { screen.hasWindowFocus() && it.text.toString() == "12." &&
+                    it.hasFocus() && it.selectionStart == 1 && it.selectionEnd == 2 }
+            }
+            main {
+                val form = CurveEditorActivity::class.java.getDeclaredField("form").apply { isAccessible = true }
+                    .get(screen) as TaskCurveEditorForm
+                val saved = android.os.Bundle().also { form.save(it, fields()) }
+                check(saved.getString("form-focus") == key && saved.getInt("form-start") == 1 && saved.getInt("form-end") == 2)
+                android.util.Log.i("FontSizeChecks", "editor ready: focus=$key selection=1..2 window=${screen.hasWindowFocus()} ime=${saved.getBoolean("editor-ime-visible")}")
                 select(if (app.fontSizePreferences.current == AppFontSize.SMALL) AppFontSize.LARGE else AppFontSize.SMALL)
             }
             screen = recreate(screen, CurveEditorActivity::class.java)
-            await("Editor draft/focus restoration pending") {
-                fields()[key]?.let { it.text.toString() == "12." && it.hasFocus() && it.selectionStart == 1 && it.selectionEnd == 2 } == true
+            try {
+                await("Editor draft/focus restoration pending") {
+                    fields()[key]?.let { it.text.toString() == "12." && it.hasFocus() && it.selectionStart == 1 && it.selectionEnd == 2 } == true
+                }
+            } catch (failure: Throwable) {
+                var detail = ""
+                main {
+                    val input = fields().getValue(key)
+                    val form = CurveEditorActivity::class.java.getDeclaredField("form").apply { isAccessible = true }
+                        .get(screen) as TaskCurveEditorForm
+                    detail = "key=$key raw=${input.text} focus=${input.hasFocus()} selection=${input.selectionStart}..${input.selectionEnd} " +
+                        "windowFocus=${screen.hasWindowFocus()} restore=${form.productRestoreEvidence}"
+                }
+                throw AssertionError("Editor draft restoration failed: $detail", failure)
             }
             main {
                 check(fields().getValue("name").text.toString() == "font-size-unsaved")
