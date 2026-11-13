@@ -16,6 +16,7 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
     private val checks = linkedMapOf<ChartMetric, CheckBox>()
     private val readings = linkedMapOf<ChartMetric, TextView>()
     private var dismiss: (() -> Unit)? = null
+    val isOpen: Boolean get() = dismiss != null
     private fun dp(n: Int) = style.dp(n)
     val button = Button(context).apply {
         tag = "product/extraction/series-selector"
@@ -42,7 +43,7 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
         val heading = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         heading.addView(TextView(context).apply {
             text = context.getString(R.string.chart_series_title)
-            setTextColor(style.ink); textSize = 16f; typeface = TaskTypography.face(context, 600)
+            setTextColor(style.ink); textSize = 16f; typeface = TaskTypography.face(context, 500)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         heading.addView(Button(context).apply {
             text = "×"; contentDescription = context.getString(R.string.chart_series_close)

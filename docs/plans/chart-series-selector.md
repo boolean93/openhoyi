@@ -43,3 +43,7 @@
 已合入 develop 的字号 PR #85（d246edb7）。选择面板继承应用配置的 SP，竖屏保持60%窗口高度上限，横屏弹层也按实际窗口限制宽高并可滚动，避免freeform或大字号裁切。绘图仪器检查覆盖小/中/大三档，默认四线/全五线/仅净重及窄屏/方窗/横屏代表宽度。
 
 本轮 `:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest :mobile:lintMock` 成功，718总、717执行通过、1既有跳过、0失败/错误；本地化两项检查无drift。新Mock和仪器APK已重打；仪器和真实界面仍需设备运行，不能把编译当作实测。
+
+## 真实入口崩溃修复
+
+平板实际点击曲线选择发现标题字重600不符合项目TaskTypography仅允许300/400/500/700的契约，导致打开即崩溃。旧候选1f643ef3不通过验收。改为500，补实际Activity窗口下点击按钮打开/关闭Dialog与PopupWindow、三档字号及重复打开的仪器检查；不再只依赖renderer绘图检查。本轮Mock/AndroidTest打包、单测、lint均通过，仍待真实设备运行新增入口检查和截图复验。

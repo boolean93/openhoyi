@@ -3,6 +3,9 @@ package io.openhoyi.mobile
 import android.app.Instrumentation
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.content.res.Configuration
+import android.view.ContextThemeWrapper
+import android.widget.LinearLayout
 
 /** Display-only drawing probes; no service, BLE, preferences, or machine actions. */
 internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
@@ -44,5 +47,47 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
             } catch (error: Throwable) { failure=error }
         }
         failure?.let { throw it }
+        panelEntryPoints()
+    }
+
+    /** Invoke the actual button listener and both real window types, not just the renderer. */
+    private fun panelEntryPoints() {
+        val home = MainPageTestHost.launch(test, timeoutMs = 10000).activity
+        try {
+            for (size in AppFontSize.entries) for (orientation in listOf(
+                Configuration.ORIENTATION_PORTRAIT, Configuration.ORIENTATION_LANDSCAPE)) {
+                var failure: Throwable? = null
+                test.runOnMainSync {
+                    try {
+                        val configured = ContextThemeWrapper(home, home.theme).apply {
+                            applyOverrideConfiguration(AppLanguageContext.configuration(home, AppLanguage.CHINESE,
+                                fontSize = size).apply { this.orientation = orientation })
+                        }
+                        val chart = ExtractionOverlayView(configured, ExtractionHistoryVisualStyle(configured))
+                        val selector = ChartSeriesSelector(chart)
+                        val container = LinearLayout(configured).apply {
+                            this.orientation = LinearLayout.VERTICAL
+                            addView(selector.button)
+                            addView(chart, LinearLayout.LayoutParams(-1, 200))
+                        }
+                        home.setContentView(container)
+                        container.measure(android.view.View.MeasureSpec.makeMeasureSpec(800, android.view.View.MeasureSpec.EXACTLY),
+                            android.view.View.MeasureSpec.makeMeasureSpec(1000, android.view.View.MeasureSpec.EXACTLY))
+                        container.layout(0, 0, 800, 1000)
+                        try {
+                            repeat(2) {
+                                check(selector.button.performClick())
+                                check(selector.isOpen) { "Panel not shown: $size/$orientation" }
+                                selector.refreshReadings()
+                                selector.close()
+                                check(!selector.isOpen)
+                            }
+                        } finally { selector.close() }
+                    } catch (error: Throwable) { failure = error }
+                }
+                failure?.let { throw it }
+                test.waitForIdleSync()
+            }
+        } finally { test.runOnMainSync { home.finish() } }
     }
 }
