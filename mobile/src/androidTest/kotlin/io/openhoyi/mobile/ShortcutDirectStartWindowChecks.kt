@@ -87,8 +87,8 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(service.shotState == oldState && app.history.entries == history)
                 check(MobileService::class.java.getDeclaredField("hub").apply { isAccessible = true }.get(service) == null)
             }
-            fun homeToggle(host: MainActivity) = host.findViewById<View>(android.R.id.content)
-                .findViewWithTag<CompoundButton>("product/home/shortcuts/direct-start")
+            fun settingsToggle(host: MainActivity) = host.findViewById<View>(android.R.id.content)
+                .findViewWithTag<CompoundButton>("product/settings/shortcuts/direct-start")
             fun visible(view: View): Boolean {
                 val rect = android.graphics.Rect()
                 return view.getGlobalVisibleRect(rect) && rect.height() >= view.height
@@ -109,24 +109,29 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/5").performClick())
             }
             main {
-                check(!homeToggle(host).isChecked)
-                homeToggle(host).requestRectangleOnScreen(android.graphics.Rect(0, 0, homeToggle(host).width, homeToggle(host).height), true)
+                check(host.findViewById<View>(android.R.id.content)
+                    .findViewWithTag<View>("product/home/shortcuts/direct-start") == null)
+                check(!prefs.contains("direct_start"))
+                check(ShortcutStartPreferences(host).read().startsOnTap)
             }
-            await("home toggle visible") { visible(homeToggle(host)) }
-            capture("home-off")
+            capture("home-no-switch")
+            main { host.openSettingsSection("shortcuts") }
+            await("default-on setting") { settingsToggle(host)?.isChecked == true && visible(settingsToggle(host)) }
+            capture("settings-default-on")
+            main { settingsToggle(host).performClick(); check(!settingsToggle(host).isChecked) }
+            check(prefs.contains("direct_start") && !prefs.getBoolean("direct_start", true))
+            // A new preferences instance must preserve an explicit Off rather than applying the default.
+            main { check(!ShortcutStartPreferences(host).read().startsOnTap) }
+            capture("settings-off")
+            main { host.select(TaskDestination.BREW) }
             clickSlot()
             await("off navigates without dialog") { runCatching { page.active("extraction") }.isSuccess }
-            check(!prefs.getBoolean("direct_start", false)); noShot()
-            main { host.select(TaskDestination.BREW) }
-            main {
-                check(!homeToggle(host).isChecked)
-                homeToggle(host).performClick()
-                homeToggle(host).requestRectangleOnScreen(android.graphics.Rect(0, 0, homeToggle(host).width, homeToggle(host).height), true)
-                noShot()
-            }
+            check(!prefs.getBoolean("direct_start", true)); noShot()
+            main { host.openSettingsSection("shortcuts") }
+            await("saved-off setting") { settingsToggle(host)?.isChecked == false && visible(settingsToggle(host)) }
+            main { settingsToggle(host).performClick(); check(settingsToggle(host).isChecked); noShot() }
             check(prefs.getBoolean("direct_start", false))
-            await("home toggle enabled") { homeToggle(host).isChecked && visible(homeToggle(host)) }
-            capture("home-on")
+            main { host.select(TaskDestination.BREW) }
             clickSlot()
             await("cold direct routes only") { runCatching { page.active("extraction") }.isSuccess }
             noShot(); capture("temperature-gated")
@@ -156,7 +161,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 host.select(TaskDestination.BREW)
                 check(prefs.edit().putBoolean("direct_start", true).commit())
             }
-            await("previous direct preference") { homeToggle(host).isChecked }
+            main { check(ShortcutStartPreferences(host).read().startsOnTap) }
             main {
                 resetCold()
                 check(lastUse().performClick())
@@ -225,7 +230,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 }
                 check(!prefs.getBoolean("direct_start", true)); noShot()
                 main { recreated.select(TaskDestination.BREW) }
-                await("settings off reflected at Home") { !homeToggle(recreated).isChecked }
+                main { check(!ShortcutStartPreferences(recreated).read().startsOnTap) }
                 main { resetCold(); recreated.openShortcut(5) }
                 await("disabled navigates only") { recreated.supportFragmentManager.findFragmentByTag("extraction")?.isVisible == true }
                 noShot()

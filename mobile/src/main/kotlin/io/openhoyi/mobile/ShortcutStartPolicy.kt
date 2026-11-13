@@ -6,7 +6,7 @@ internal object ShortcutStartPolicy {
     const val DIRECT_START = "direct_start"
     const val REQUEST_LIFETIME_MS = 5_000L
 
-    data class Preference(val directStart: Boolean = false) {
+    data class Preference(val directStart: Boolean = true) {
         val startsOnTap get() = directStart
         fun choose(directStart: Boolean) = Preference(directStart)
     }

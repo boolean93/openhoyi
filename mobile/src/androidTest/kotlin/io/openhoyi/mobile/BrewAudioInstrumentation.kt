@@ -141,7 +141,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (shortcutDirectStartChecks) {
                 ShortcutDirectStartWindowChecks(this).run(shortcutTheme)
-                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED defaultOff=true homeToggle=true settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
+                report.putString("stream", "SHORTCUT_DIRECT_WINDOW_PASSED defaultOn=true homeToggle=false settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (machineLeverRecipeChecks) {

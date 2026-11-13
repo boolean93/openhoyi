@@ -2,9 +2,9 @@
 <resources>
     <string name="curve_slot_invalid">"Curve unavailable"</string>
     <string name="curve_slot_unavailable">"This shortcut curve is missing or cannot run. Choose another curve."</string>
-    <string name="shortcut_start_settings_title">"Home quick slots"</string>
+    <string name="shortcut_start_settings_title">"Quick brewing"</string>
     <string name="shortcut_start_setting">"One-tap brew"</string>
-    <string name="shortcut_start_settings_hint">"For the five local Home quick slots and Use on the last shot, not the machine lever. Studio mode requires target temperature. All other safety checks remain."</string>
+    <string name="shortcut_start_settings_hint">"When enabled, tap a quick slot or Use on the last shot to start brewing. Studio mode requires target temperature."</string>
     <string name="shortcut_start_cancelled">"Quick start cancelled. Please start manually."</string>
     <string name="shortcut_start_save_failed">"Save failed. Direct start is temporarily off."</string>
     <string name="shortcut_start_save_failed_detail">"Retry saving Off. After a restart, the last saved setting applies."</string>

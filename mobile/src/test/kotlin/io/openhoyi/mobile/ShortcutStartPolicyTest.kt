@@ -4,14 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShortcutStartPolicyTest {
-    @Test fun defaultOffAndStoredOnUseOnlyTheCurrentSwitchChoice() {
+    @Test fun defaultOnPreservesExplicitOffAndOnChoices() {
         val initial = ShortcutStartPolicy.Preference()
-        assertFalse(initial.startsOnTap)
-        assertFalse(initial.directStart)
+        assertTrue(initial.startsOnTap)
+        assertTrue(initial.directStart)
+        assertFalse(ShortcutStartPolicy.Preference(false).startsOnTap)
         assertTrue(ShortcutStartPolicy.Preference(true).startsOnTap)
     }
 
-    @Test fun eitherSwitchCanEnableAndRevokeTheSharedChoice() {
+    @Test fun settingsCanEnableAndRevokeTheSharedChoice() {
         val initial = ShortcutStartPolicy.Preference()
         assertEquals(ShortcutStartPolicy.Preference(false), initial.choose(false))
         val on = initial.choose(true)
