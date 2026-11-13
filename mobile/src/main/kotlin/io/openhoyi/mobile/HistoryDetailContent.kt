@@ -597,6 +597,7 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
             val label = context.getString(when (metric) {
                 ChartMetric.PRESSURE -> R.string.task_chart_pressure
                 ChartMetric.WATER -> R.string.task_chart_water
+                ChartMetric.YIELD -> R.string.chart_series_yield
                 ChartMetric.WEIGHT -> R.string.task_chart_weight
                 ChartMetric.FLOW -> R.string.task_chart_flow
                 ChartMetric.TEMPERATURE -> R.string.task_chart_temperature

@@ -1,0 +1,10 @@
+<resources>
+    <string name="chart_series_count">Curves %1$d/5</string>
+    <string name="chart_series_title">Visible curves</string>
+    <string name="chart_series_close">Close</string>
+    <string name="chart_series_keep_one">Keep at least one curve</string>
+    <string name="chart_series_hint">Applies immediately · ≈ Estimated; gaps after reconnect or tare</string>
+    <string name="chart_series_yield">Beverage weight</string>
+    <string name="chart_series_yield_unavailable">No beverage weight data</string>
+    <string name="chart_series_hint_compact">Applied instantly · ≈ estimated</string>
+</resources>

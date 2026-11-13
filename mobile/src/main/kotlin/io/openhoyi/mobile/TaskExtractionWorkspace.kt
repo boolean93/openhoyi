@@ -51,7 +51,19 @@ internal class TaskExtractionWorkspace(context: Context, private val visual: Ext
         if(portraitChart) {
             tools.visibility=View.GONE
             orientation=VERTICAL
-            val chartHeight=onPrimarySpaceAvailable?.invoke(width,freeHeight) ?: dp(320)
+            // Budget the actual legend and padding before sizing the plot. Otherwise the
+            // portrait aspect request can push its time axis beneath the fixed action dock.
+            var supportingPrimaryHeight = primaryBody.paddingTop + primaryBody.paddingBottom
+            for (index in 1 until primaryBody.childCount) {
+                val child = primaryBody.getChildAt(index)
+                if (child.visibility == View.GONE) continue
+                child.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                val margins = child.layoutParams as? MarginLayoutParams
+                supportingPrimaryHeight += child.measuredHeight + (margins?.topMargin ?: 0) + (margins?.bottomMargin ?: 0)
+            }
+            val availableChartHeight = (freeHeight - supportingPrimaryHeight).coerceAtLeast(0)
+            val chartHeight=onPrimarySpaceAvailable?.invoke(width,availableChartHeight) ?: dp(320)
             primaryBody.getChildAt(0)?.let {chart ->
                 val params=chart.layoutParams as LayoutParams
                 if(params.height!=chartHeight || params.weight!=0f) chart.layoutParams=LayoutParams(-1,chartHeight)

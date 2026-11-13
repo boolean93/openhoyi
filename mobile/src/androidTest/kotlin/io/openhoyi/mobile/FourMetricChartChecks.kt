@@ -233,6 +233,7 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     val nameId = when (metric) {
                         ChartMetric.PRESSURE -> R.string.task_chart_pressure
                         ChartMetric.WATER -> R.string.task_chart_water
+                        ChartMetric.YIELD -> R.string.chart_series_yield
                         ChartMetric.WEIGHT -> R.string.task_extraction_scale
                         ChartMetric.FLOW -> R.string.task_chart_flow
                         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature

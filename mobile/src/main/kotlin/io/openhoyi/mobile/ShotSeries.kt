@@ -15,6 +15,10 @@ data class ShotPoint(
     val brewing: Boolean? = null,
     /** Original phase bits; null for legacy records, never inferred from brewing. */
     val statusBits: Int? = null,
+    /** Current-shot delta with explicit confirmed/estimated provenance; old samples remain null. */
+    val beverageHundredthsGram: Int? = null,
+    val beverageSource: BeverageWeightSource? = null,
+    val beverageSegmentId: Int? = null,
 )
 
 class ShotSeries {
@@ -32,6 +36,7 @@ class ShotSeries {
     private var startedAtMs = 0L
     private var minimumGapMs = 0L
     private var lastCheckpointAtMs: Long? = null
+    private var beverageEstimator = BeverageWeightEstimator()
     private val recorded = mutableListOf<ShotPoint>()
     val points: List<ShotPoint> get() = recorded.toList()
 
@@ -45,6 +50,7 @@ class ShotSeries {
         minimumGapMs = 0
         lastCheckpointAtMs = null
         recorded.clear()
+        beverageEstimator = BeverageWeightEstimator()
         observedMachineElapsedSeconds = null
         firstBrewingElapsedMs = null
         lastBrewingElapsedMs = null
@@ -72,7 +78,7 @@ class ShotSeries {
     }
 
     fun machine(frame: ExtractionTelemetry, atElapsedMs: Long, weightHundredthsGram: Int?,
-        weightAtElapsedMs: Long?, scaleFlowHundredths: Int? = null) {
+        weightAtElapsedMs: Long?, scaleFlowHundredths: Int? = null, beverageHundredthsGram: Int? = null, beverageEpoch: Long? = null) {
         if (id == null || atElapsedMs < startedAtMs) return
         val elapsed = atElapsedMs - startedAtMs
         val last = recorded.lastOrNull()
@@ -85,9 +91,11 @@ class ShotSeries {
         val freshWeight = weightHundredthsGram?.takeIf {
             weightAtElapsedMs != null && weightAtElapsedMs <= atElapsedMs && atElapsedMs - weightAtElapsedMs <= 1500
         }
+        val beverage = beverageEpoch?.let { beverageEstimator.observe(elapsed, freshWeight, it, beverageHundredthsGram) }
         val point = ShotPoint(elapsed, frame.pressureTenthsBar, frame.flowTenthsMlPerSecond,
             frame.totalWaterTenthsMl, frame.brewTemperatureHundredthsC, freshWeight,
-            scaleFlowHundredths.takeIf { freshWeight != null }, frame.valveOpen && !frame.brewWait, frame.statusBits)
+            scaleFlowHundredths.takeIf { freshWeight != null }, frame.valveOpen && !frame.brewWait, frame.statusBits,
+            beverage?.hundredthsGram, beverage?.source, beverage?.segmentId)
         if (last != null && elapsed - last.elapsedMs < minimumGapMs) {
             recorded[recorded.lastIndex] = point
             return
