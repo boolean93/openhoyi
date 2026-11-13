@@ -283,6 +283,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         workspace.onPrimarySpaceAvailable = { width, height ->
             if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT)
                 chart.liveHeightForPlotAspect(width,if(width<dp(480)) 1.4f else 1.6f)
+                    .coerceAtMost(height.coerceAtLeast(chart.minimumLiveHeight()))
             else maxOf((dp(260) * resources.configuration.fontScale).toInt(), (height * .70f).toInt())
         }
         val toolbar = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }

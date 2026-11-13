@@ -30,6 +30,23 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
                     }
                     val density = context.resources.displayMetrics.density
                     val full = FourMetricChartProjection.build(points, emptyList(), liveFlow=true, includeLiveWeight=true)
+                    // Selected net weight must explain its absence, even while machine samples exist.
+                    for (emptyPoints in listOf(emptyList(), points.map { it.copy(
+                        weightHundredthsGram = null, beverageHundredthsGram = null,
+                        beverageSource = null, beverageSegmentId = null) })) {
+                        val empty = FourMetricChartProjection.build(emptyPoints, emptyList(),
+                            liveFlow = true, includeLiveWeight = true).let { projection ->
+                            projection.copy(series = projection.series.filter { it.metric == ChartMetric.YIELD })
+                        }
+                        val renderer = ProductHistoryChartRenderer(context, style, liveMode = true)
+                        val bitmap = Bitmap.createBitmap((400*density).toInt(), (320*density).toInt(), Bitmap.Config.ARGB_8888)
+                        renderer.draw(Canvas(bitmap), bitmap.width, bitmap.height, empty, ChartMetric.YIELD,
+                            null, false, simpleLivePresentation = true)
+                        val labels = (0 until renderer.evidence.length()).map { renderer.evidence.getJSONObject(it) }
+                        check(labels.any { it.optString("role") == "empty-notice" && it.optString("text") ==
+                            context.getString(R.string.chart_series_yield_unavailable) }) { "Missing yield empty notice: $fontSize/$dark" }
+                        bitmap.recycle()
+                    }
                     for (widthDp in listOf(320, 568, 888)) for (metrics in listOf(liveMetrics, selectableLiveMetrics, listOf(ChartMetric.YIELD))) {
                         val renderer = ProductHistoryChartRenderer(context, style, liveMode=true)
                         val width = (widthDp*density).toInt(); val height=(320*density).toInt()
@@ -63,7 +80,25 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
                             applyOverrideConfiguration(AppLanguageContext.configuration(home, AppLanguage.CHINESE,
                                 fontSize = size).apply { this.orientation = orientation })
                         }
-                        val chart = ExtractionOverlayView(configured, ExtractionHistoryVisualStyle(configured))
+                        val visual = ExtractionHistoryVisualStyle(configured)
+                        val chart = ExtractionOverlayView(configured, visual)
+                        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+                            val density = configured.resources.displayMetrics.density
+                            chart.liveCompactChrome = true
+                            chart.liveHeaderHeightPx = (80 * density).toInt()
+                            val workspace = TaskExtractionWorkspace(configured, visual)
+                            workspace.primaryBody.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
+                            chart.attachLiveReadouts(workspace.primaryBody)
+                            workspace.setFooter(android.view.View(configured).apply { minimumHeight = (128*density).toInt() })
+                            workspace.onPrimarySpaceAvailable = { width, height -> chart.liveHeightForPlotAspect(width, 1.4f)
+                                .coerceAtMost(height.coerceAtLeast(chart.minimumLiveHeight())) }
+                            workspace.measure(android.view.View.MeasureSpec.makeMeasureSpec((400*density).toInt(), android.view.View.MeasureSpec.EXACTLY),
+                                android.view.View.MeasureSpec.makeMeasureSpec((480*density).toInt(), android.view.View.MeasureSpec.EXACTLY))
+                            workspace.layout(0, 0, workspace.measuredWidth, workspace.measuredHeight)
+                            val scroll = workspace.getChildAt(0)
+                            check(workspace.primaryBody.height <= scroll.height + 1) { "Chart/legend clipped below fixed dock: $size" }
+                            workspace.primaryBody.removeView(chart)
+                        }
                         val selector = ChartSeriesSelector(chart)
                         val container = LinearLayout(configured).apply {
                             this.orientation = LinearLayout.VERTICAL
