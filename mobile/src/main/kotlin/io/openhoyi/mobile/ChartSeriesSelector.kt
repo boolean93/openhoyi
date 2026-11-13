@@ -35,10 +35,18 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
     fun close() { dismiss?.invoke(); dismiss = null; readings.clear(); checks.clear() }
     private fun show() {
         close()
+        val landscape = context.resources.configuration.orientation != Configuration.ORIENTATION_PORTRAIT
+        val dark = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        fun panelBackground() = GradientDrawable().apply {
+            setColor(if (landscape && dark) android.graphics.Color.parseColor("#243233") else style.surface)
+            cornerRadius = dp(16).toFloat()
+            if (landscape) setStroke(dp(1).coerceAtLeast(1), android.graphics.Color.parseColor(
+                if (dark) "#6A8380" else "#A7B8B5"))
+        }
         val panel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = GradientDrawable().apply { setColor(style.surface); cornerRadius = dp(16).toFloat() }
+            background = panelBackground()
         }
         val heading = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         heading.addView(TextView(context).apply {
@@ -115,8 +123,8 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
         } else {
             val width = dp(320).coerceAtMost(availableWidth - dp(16)).coerceAtLeast(dp(48))
             val popup = PopupWindow(scroll, width, panelHeight(width, availableHeight - dp(64)), true).apply {
-                setBackgroundDrawable(GradientDrawable().apply { setColor(style.surface); cornerRadius=dp(16).toFloat() })
-                elevation = dp(8).toFloat(); isOutsideTouchable = true
+                setBackgroundDrawable(panelBackground())
+                elevation = dp(12).toFloat(); isOutsideTouchable = true
             }
             popup.setOnDismissListener { readings.clear(); checks.clear(); dismiss = null }
             popup.showAsDropDown(button, -dp(120), dp(4))
