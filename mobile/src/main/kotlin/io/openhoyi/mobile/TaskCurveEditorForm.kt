@@ -20,7 +20,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         setPadding(dp(16), dp(12), dp(16), dp(12))
     }
     private inner class MetadataCell : LinearLayout(activity) {
-        init { orientation = HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
+        init { tag = "bean-full-field"; orientation = HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
             background = style.visual.shape(style.visual.surface, true)
             setPadding(dp(16), dp(10), dp(16), dp(10))
         }
@@ -33,6 +33,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                     width = if (vertical) -1 else if (i == 0) -2 else 0
                     weight = if (!vertical && i > 0) 1f else 0f
                     marginStart = if (!vertical && i > 0) dp(10) else 0
+                    resolveLayoutDirection(this@MetadataCell.layoutDirection)
                 }
                 if (i == 0) child.setPadding(0, 0, 0, if (vertical) dp(6) else 0)
             }
@@ -126,7 +127,11 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             heading.addView(style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.section), LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
             val remove = style.visual.action(heading, "−", "curve-stage-remove-$index", top = 0) {
                 if (activeCount > 1 && index == activeCount - 1) changeCount(activeCount - 1)
-            }.apply { contentDescription = activity.getString(R.string.curve_editor_remove_stage, index + 1); minWidth = dp(48); minimumWidth = dp(48); setPadding(0, 0, 0, 0) }
+            }.apply {
+                contentDescription = activity.getString(R.string.curve_editor_remove_stage, index + 1)
+                minWidth = dp(48); minimumWidth = dp(48); setPadding(0, 0, 0, 0)
+                layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            }
             removes += remove
             card.addView(heading, LinearLayout.LayoutParams(-1, -2))
             card.addView(stageModes[index], LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })

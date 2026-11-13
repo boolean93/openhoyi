@@ -489,6 +489,16 @@ internal object ChineseFormWindowChecks {
                     inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
                     check(inputs.size == 15) { "$name missing metadata, configuration or four-stage fields: ${inputs.size}" }
                     drafts = inputs.associateWith { it.text.toString() }
+                    listOf("name" to R.string.profiles_name, "temperature" to R.string.curve_preview_temperature,
+                        "cup" to R.string.curve_preview_weight).forEach { (key, label) ->
+                        val field = requireNotNull(content.findViewWithTag<EditText>("product/form/curve-editor/$key"))
+                        val title = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }
+                        check(title.text.toString() == activity.getString(label)) { "$name metadata compact label not applied: $key ${title.text}" }
+                        check(field.width - field.compoundPaddingLeft - field.compoundPaddingRight >=
+                            kotlin.math.ceil(android.text.Layout.getDesiredWidth(if (key == "name") "国国国国" else "99.0", field.paint).toDouble()).toInt()) {
+                            "$name metadata input viewport too narrow: $key"
+                        }
+                    }
                     check(descendants(content).none { it is CurveStageCountTabs }) { "$name still hides stages behind tabs" }
                     val cards = (0..3).map { requireNotNull(content.findViewWithTag<View>("curve-editor-stage-$it")) }
                     check(cards.all { it.isShown && it.width > 0 && it.height > 0 })
@@ -498,6 +508,10 @@ internal object ChineseFormWindowChecks {
                     }
                     for (i in bounds.indices) for (j in i + 1 until bounds.size)
                         check(!Rect.intersects(bounds[i], bounds[j])) { "$name overlapping stage cards $i/$j" }
+                    val titles = cards.mapIndexed { index, card ->
+                        descendants(card).filterIsInstance<TextView>().single { it.text.toString() == activity.getString(R.string.profiles_stage, index + 1) }
+                    }
+                    check(titles.all { it.width > 0 && it.height > 0 }) { "$name zero-sized stage title" }
                     val modes = (0..3).map { requireNotNull(content.findViewWithTag<TextView>("curve-stage-mode-$it")) }
                     check(modes.all { it.text.isNotBlank() }) { "$name missing stage control-mode labels" }
                     val remove = requireNotNull(content.findViewWithTag<Button>("curve-stage-remove-3"))
@@ -505,7 +519,7 @@ internal object ChineseFormWindowChecks {
                     val localActions = listOf(R.string.profiles_preview, R.string.ui_full_details).map { action ->
                         descendants(content).filterIsInstance<Button>().single { it.text.toString() == activity.getString(action) }
                     }
-                    reachable = inputs + modes + remove + localActions
+                    reachable = inputs + titles + modes + remove + localActions
                     if (activity.resources.configuration.let { it.screenWidthDp >= 1000 && it.fontScale <= 1.05f }) {
                         val topPositions = listOf("name", "temperature", "cup").map { key ->
                             val input = content.findViewWithTag<EditText>("product/form/curve-editor/$key")
@@ -525,7 +539,7 @@ internal object ChineseFormWindowChecks {
                                 it.startsWith("product/form/curve-editor/target-") || it.startsWith("product/form/curve-editor/water-") ||
                                     it in listOf("total-water-limit", "preinfusion", "first-duration", "compensation").map { key -> "product/form/curve-editor/$key" }
                             }) {
-                            val digits = kotlin.math.ceil(android.text.Layout.getDesiredWidth("999.0", view.paint).toDouble()).toInt()
+                            val digits = kotlin.math.ceil(android.text.Layout.getDesiredWidth("6553.5", view.paint).toDouble()).toInt()
                             val textWidth = view.width - view.compoundPaddingLeft - view.compoundPaddingRight
                             check(textWidth >= digits) { "$name number viewport clipped: ${view.tag} available=$textWidth required=$digits" }
                         }

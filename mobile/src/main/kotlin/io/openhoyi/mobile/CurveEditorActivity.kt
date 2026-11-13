@@ -16,6 +16,7 @@ class CurveEditorActivity : ThemedActivity() {
     private var firstFlow = false
     private var pressureLogic = false
     private var pressureBeforeFlow = false
+    private var modeSwitchTouched = false
     private var sourceDocument: CustomCurveDocument? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,6 +39,7 @@ class CurveEditorActivity : ThemedActivity() {
         firstFlow = savedInstanceState?.getBoolean("firstFlow") ?: (source.configuration?.firstSegmentFlowMode == true)
         pressureLogic = savedInstanceState?.getBoolean("pressureLogic") ?: (source.configuration?.pressureLogic == true)
         pressureBeforeFlow = savedInstanceState?.getBoolean("pressureBeforeFlow") ?: false
+        modeSwitchTouched = savedInstanceState?.getBoolean("modeSwitchTouched") ?: false
         if (sourceId != null && !sourceId.startsWith("draft-")) style.visual.add(body,
             style.visual.text(getString(R.string.profiles_copy_warning), TaskProductVisualStyle.auxiliary, secondary = true))
         stageCount = savedInstanceState?.getInt("stageCount") ?: source.stages.size
@@ -103,7 +105,7 @@ class CurveEditorActivity : ThemedActivity() {
                     // Measuring the actual unit wrapper updates the real compound padding for bar/mL/s.
                     inputHost?.measure(free, free)
                     val digits = editor?.let {
-                        kotlin.math.ceil(android.text.Layout.getDesiredWidth("999.0", it.paint).toDouble()).toInt() +
+                        kotlin.math.ceil(android.text.Layout.getDesiredWidth("6553.5", it.paint).toDouble()).toInt() +
                             it.compoundPaddingLeft + it.compoundPaddingRight + style.dp(4)
                     } ?: 0
                     val available = View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
@@ -117,6 +119,7 @@ class CurveEditorActivity : ThemedActivity() {
                         width = if (stacked) -1 else 0
                         weight = if (stacked) 0f else 1f
                         marginStart = if (stacked) 0 else style.dp(8)
+                        resolveLayoutDirection(this@CurveEditorActivity.resources.configuration.layoutDirection)
                     }
                     super.onMeasure(widthMeasureSpec, heightMeasureSpec)
                 }
@@ -194,6 +197,9 @@ class CurveEditorActivity : ThemedActivity() {
             logicSwitch.contentDescription = logicSwitch.text
             previewChanged()
         }
+        val modeHint = style.visual.text(getString(R.string.flow_editor_units_hint), TaskProductVisualStyle.auxiliary, secondary = true).apply {
+            visibility = if (modeSwitchTouched) View.VISIBLE else View.GONE
+        }
         val modeRow = object : LinearLayout(this) {
             init { isBaselineAligned = false }
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -202,6 +208,7 @@ class CurveEditorActivity : ThemedActivity() {
                 for (i in 0 until childCount) (getChildAt(i).layoutParams as LayoutParams).apply {
                     width = if (stacked) -1 else 0; weight = if (stacked) 0f else 1f
                     marginStart = if (i > 0 && !stacked) style.dp(24) else 0
+                    resolveLayoutDirection(this@CurveEditorActivity.resources.configuration.layoutDirection)
                 }
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
@@ -210,11 +217,13 @@ class CurveEditorActivity : ThemedActivity() {
         controlSwitch = HoyiSwitch(this).apply {
             textSize = 16f; minimumHeight = style.dp(48)
             typeface = TaskTypography.face(this@CurveEditorActivity, 400)
-            setPadding(0, style.dp(8), 0, style.dp(8))
+            setPadding(0, 0, 0, 0)
             setTextColor(getColor(R.color.mobile_text))
             isChecked = flowMode; tag = "product/form/curve-editor/control-mode"
             modeRow.addView(this, LinearLayout.LayoutParams(-1, -2))
             setOnCheckedChangeListener { _, checked ->
+                modeSwitchTouched = true
+                modeHint.visibility = View.VISIBLE
                 val next = CurveModeSelection(flowMode, pressureLogic, pressureBeforeFlow).selectFlow(checked)
                 flowMode = next.flow
                 pressureLogic = next.pressure
@@ -230,7 +239,7 @@ class CurveEditorActivity : ThemedActivity() {
         logicSwitch = HoyiSwitch(this).apply {
             textSize = 16f; minimumHeight = style.dp(48)
             typeface = TaskTypography.face(this@CurveEditorActivity, 400)
-            setPadding(0, style.dp(8), 0, style.dp(8))
+            setPadding(0, 0, 0, 0)
             setTextColor(getColor(R.color.mobile_text))
             isChecked = pressureLogic; tag = "product/form/curve-editor/pressure-logic"
             modeRow.addView(this, LinearLayout.LayoutParams(-1, -2))
@@ -250,7 +259,7 @@ class CurveEditorActivity : ThemedActivity() {
         style.unit(bloom, "s", "curve-editor", "preinfusion")
         style.unit(duration, "s", "curve-editor", "first-duration")
         style.unit(compensation, "g", "curve-editor", "compensation")
-        style.visual.add(sections.modeControls, style.visual.text(getString(R.string.flow_editor_units_hint), TaskProductVisualStyle.auxiliary, secondary = true), 4)
+        style.visual.add(sections.modeControls, modeHint, 4)
         fun visibility() {
             sections.setStageCount(stageCount)
             previewChanged()
@@ -397,6 +406,7 @@ class CurveEditorActivity : ThemedActivity() {
         sourceDocument?.let { outState.putString("sourceDocument", it.encode()) }
         outState.putBoolean("flowMode", flowMode); outState.putBoolean("firstFlow", firstFlow); outState.putBoolean("pressureLogic", pressureLogic)
         outState.putBoolean("pressureBeforeFlow", pressureBeforeFlow)
+        outState.putBoolean("modeSwitchTouched", modeSwitchTouched)
         fields.forEach { (key, field) -> outState.putString(key, field.text.toString()) }
         form?.save(outState, fields)
     }
