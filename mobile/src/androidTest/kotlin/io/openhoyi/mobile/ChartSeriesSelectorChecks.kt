@@ -88,8 +88,8 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
                             chart.liveHeaderHeightPx = (80 * density).toInt()
                             val workspace = TaskExtractionWorkspace(configured, visual)
                             workspace.primaryBody.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
-                            chart.attachLiveReadouts(workspace.primaryBody)
-                            workspace.setFooter(android.view.View(configured).apply { minimumHeight = (128*density).toInt() })
+                            // Short-portrait production keeps duplicate readouts in the series panel.
+                            workspace.setFooter(android.view.View(configured).apply { minimumHeight = (88*density).toInt() })
                             workspace.onPrimarySpaceAvailable = { width, height -> chart.liveHeightForPlotAspect(width, 1.4f)
                                 .coerceAtMost(height.coerceAtLeast(chart.minimumLiveHeight())) }
                             workspace.measure(android.view.View.MeasureSpec.makeMeasureSpec((400*density).toInt(), android.view.View.MeasureSpec.EXACTLY),
@@ -97,6 +97,13 @@ internal class ChartSeriesSelectorChecks(private val test: Instrumentation) {
                             workspace.layout(0, 0, workspace.measuredWidth, workspace.measuredHeight)
                             val scroll = workspace.getChildAt(0)
                             check(workspace.primaryBody.height <= scroll.height + 1) { "Chart/legend clipped below fixed dock: $size" }
+                            val rendered = Bitmap.createBitmap(workspace.width, workspace.height, Bitmap.Config.ARGB_8888)
+                            workspace.draw(Canvas(rendered))
+                            val plot = (0 until chart.visualEvidence.length()).map { chart.visualEvidence.getJSONObject(it) }
+                                .first { it.optString("operation") == "plot" }.getJSONArray("boundsPx")
+                            check(plot.getDouble(3) - plot.getDouble(1) >= 160*density - 2) { "Portrait plot reduced to thumbnail: $size/$plot" }
+                            check(plot.getDouble(2) - plot.getDouble(0) >= 200*density - 2) { "Portrait plot too narrow: $size/$plot" }
+                            rendered.recycle()
                             workspace.primaryBody.removeView(chart)
                         }
                         val selector = ChartSeriesSelector(chart)

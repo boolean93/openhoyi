@@ -332,21 +332,29 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             content.addView(status, content.indexOfChild(workspace))
         }
         val portraitLive=resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val compactPortrait = portraitLive && resources.configuration.screenHeightDp <= 720
         val actionDock = LinearLayout(host).apply {
             orientation = if(portraitLive) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             minimumHeight = dp(64)
             setBackgroundColor(style.surface)
         }
-        chart.attachLiveReadouts(if(portraitLive) plotColumn else actionDock)
-        scaleReadout = ExtractionScaleReadoutView(host, visual)
-        actionDock.addView(scaleReadout, LinearLayout.LayoutParams(if(portraitLive) -1 else dp(180), -2).apply { marginStart = dp(8) })
+        // The low-frequency panel and endpoint labels already expose these same readings.
+        // Do not let the duplicate two-row strip consume the short portrait plot's height.
+        if (!compactPortrait) chart.attachLiveReadouts(if(portraitLive) plotColumn else actionDock)
+        val controls = if (compactPortrait) LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+            actionDock.addView(this, LinearLayout.LayoutParams(-1, -2))
+        } else actionDock
+        scaleReadout = ExtractionScaleReadoutView(host, visual, compact = compactPortrait)
+        controls.addView(scaleReadout, LinearLayout.LayoutParams(if(compactPortrait) dp(150) else if(portraitLive) -1 else dp(180), -2).apply { marginStart = dp(8) })
         val actionButtons = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
-        actionDock.addView(actionButtons, LinearLayout.LayoutParams(if(portraitLive) -1 else dp(190), -2).apply { if(portraitLive) topMargin=dp(12) else marginStart=dp(12) })
+        controls.addView(actionButtons, if (compactPortrait) LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) }
+            else LinearLayout.LayoutParams(if(portraitLive) -1 else dp(190), -2).apply { if(portraitLive) topMargin=dp(12) else marginStart=dp(12) })
         workspace.setFooter(actionDock)
         start = HoyiUi.button(host, actionButtons, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
         (weightTarget.parent as? android.view.ViewGroup)?.removeView(weightTarget)
-        actionButtons.addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
+        (if (compactPortrait) actionDock else actionButtons).addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
         (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
         stop = HoyiUi.button(host, actionButtons, getString(R.string.extraction_stop), danger = true) {
             service?.stopShot(); render()

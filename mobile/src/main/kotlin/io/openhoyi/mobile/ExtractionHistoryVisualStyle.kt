@@ -149,7 +149,8 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     }
     private fun tickText(series: MetricChartSeries, value: Float): String =
         if (liveMode) axisNumber(value) else number(value)
-    private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode && width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f)
+    private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode &&
+        (width <= dp(600f) || width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f))
     fun allAxes(width: Int, data: FourMetricChartData) = width - data.series.sumOf { column(it).toDouble() } - dp(16f) >= dp(96f)
     private fun showAllAxes(width: Int, data: FourMetricChartData): Boolean =
         if (liveMode && data.series.size > 4) width - data.series.sumOf { column(it, true).toDouble() } - dp(16f) >= dp(120f)

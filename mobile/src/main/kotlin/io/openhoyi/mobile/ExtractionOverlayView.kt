@@ -370,7 +370,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val box=productRenderer?.bounds(width,probeHeight,displayedData(data),focusMetric,false) ?: return dp(320f).toInt()
         return kotlin.math.ceil(liveHeaderHeightPx+probeHeight-box.height()+box.width()*ratio).toInt().coerceAtLeast(dp(260f).toInt())
     }
-    fun minimumLiveHeight(): Int = liveHeaderHeightPx + (productRenderer?.minimumAxisHeight() ?: dp(120f).toInt())
+    fun minimumLiveHeight(): Int = liveHeaderHeightPx + (productRenderer?.minimumHeightForPlot(160f) ?: dp(220f).toInt())
     /** Reparents the same interactive metric controls, preserving telemetry and accessibility. */
     fun attachLiveReadouts(parent: LinearLayout) {
         check(liveCompactChrome)
