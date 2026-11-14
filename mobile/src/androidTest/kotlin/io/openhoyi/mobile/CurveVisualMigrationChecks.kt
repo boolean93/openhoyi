@@ -1980,7 +1980,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         main {
             (field(activity,"search") as EditText).setText("factory-v3")
             nodes(root(activity)).filterIsInstance<TextView>().single { it.isClickable && it.text.toString()==category.label(activity) }.let { check(it.performClick()) }
-            nodes(root(activity)).filterIsInstance<Spinner>().single().setSelection(CurveSortMode.MOST_USED.ordinal)
+            nodes(root(activity)).filterIsInstance<CurveLibraryMenu>().single().createPopup().menu.performIdentifierAction(CurveLibraryMenu.MOST_USED, 0)
         }
         stableList(activity,directory,"filtered")
         main { check(list(activity).canScrollVertically(1)) { "M3 fixture has no genuine continuous-list range" } }

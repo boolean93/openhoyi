@@ -2,6 +2,11 @@ name: Verify curve visual migration UI
 
 on:
   workflow_dispatch:
+    inputs:
+      filter_only:
+        description: Focused curve filter popup checks only
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
@@ -45,12 +50,14 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_curve_visual_migration.sh
+          script: bash scripts/check_curve_filter_popup.sh ${{ inputs.filter_only }}
       - name: Upload real curve evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: curve-visual-tablet-user-landscape
-          path: build/task-first-evidence/curve-visual-migration/
+          path: |
+            build/task-first-evidence/curve-visual-migration/
+            build/curve-filter-popup/
           if-no-files-found: warn
           retention-days: 7

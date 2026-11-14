@@ -547,7 +547,7 @@
   "curve_legacy": "Imported legacy curves",
   "curve_legacy_description": "View imported legacy curves, read-only",
   "curve_browse_only": "Browse only",
-  "curve_empty": "No matching curves found\nTry another name or category",
+  "curve_empty": "No matching curves found\nAdjust your search or filters",
   "curve_detail_title": "Curve details",
   "curve_detail_initial": "Select a curve on the left",
   "curve_detail_hint": "View parameters and availability",
