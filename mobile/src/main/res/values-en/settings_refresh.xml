@@ -1,0 +1,5 @@
+<resources>
+    <string name="lever_gate_asleep">Machine asleep</string>
+    <string name="lever_gate_alarm">Machine alarm</string>
+    <string name="lever_gate_sync">Waiting for sync</string>
+</resources>
