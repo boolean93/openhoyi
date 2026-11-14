@@ -6,6 +6,7 @@ serial=$(adb devices | awk '$2 == "device" {print $1}')
 [[ "$serial" == emulator-* && "$serial" != *$'\n'* ]] || exit 2
 out="$PWD/build/sleep-connection"
 mkdir -p "$out"
+trap 'adb -s "$serial" pull /sdcard/Android/data/io.openhoyi.mobile.mock/files/connection-sleep-presentation "$out/" || true' EXIT
 adb -s "$serial" install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb -s "$serial" install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 adb -s "$serial" shell wm size 1600x1000

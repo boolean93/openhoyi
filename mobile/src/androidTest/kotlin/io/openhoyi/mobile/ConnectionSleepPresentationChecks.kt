@@ -189,8 +189,7 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                             check(shell.findViewWithTag<Button>("task-shell-coffee-retry").visibility==View.GONE)
                             check(!shell.findViewWithTag<Button>("task-shell-coffee-retry").text.contains('\uFFFC'))
                             val readyAction=host.viewField<Button>(fragment,"machineConnect")
-                            check(readyAction.text.toString()==host.activity.getString(R.string.home_visual_change))
-                            check(readyAction.compoundDrawablesRelative.all {it==null})
+                            check(readyAction.visibility==View.GONE) {"Connected header change action must remain removed"}
                             val button=shell.findViewWithTag<Button>("task-shell-sleep")
                             val label=button.text.toString()
                             val status=shell.findViewWithTag<TextView>("task-shell-coffee-status").text.toString().removePrefix("● ")
