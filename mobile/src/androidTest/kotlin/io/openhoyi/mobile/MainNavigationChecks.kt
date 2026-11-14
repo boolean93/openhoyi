@@ -111,18 +111,22 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             isolatedModes.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.AT_MOST),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
             isolatedModes.layout(0, 0, isolatedModes.measuredWidth, isolatedModes.measuredHeight)
-            val modeLabels = descendants(isolatedModes).filterIsInstance<HoyiSwitch>()
+            val modeLabels = descendants(isolatedModes).filterIsInstance<CurveEditorSegments>()
             check(modeLabels.map { it.text.toString() } == listOf(
                 activity.getString(R.string.curve_control_pressure), activity.getString(R.string.curve_control_constant)))
-            check(modeLabels.all { !it.isEnabled && it.currentTextColor == activity.getColor(R.color.mobile_muted) })
+            check(modeLabels.all { !it.isEnabled && it.alpha < 1f })
             check(modeLabels.all { it.contentDescription == activity.getString(R.string.machine_mode_missing) })
             if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all {
                 it.stateDescription == activity.getString(R.string.machine_mode_missing)
             })
-            val labelLayouts = modeLabels.map { requireNotNull(it.layout) }
+            val labels = modeLabels.flatMap { descendants(it).filterIsInstance<android.widget.TextView>() }
+            check(labels.size == 4 && labels.all { !it.isEnabled && !it.isClickable })
+            modeLabels.forEach { it.selectFromUser(!it.checked) }
+            check(modeLabels.none { it.checked }) { "Disabled mode changed selection" }
+            val labelLayouts = labels.map { requireNotNull(it.layout) }
             repeat(20) { isolatedModes.render(null) }
             check(modeLabels.none { it.isLayoutRequested }) { "Unchanged machine labels requested layout" }
-            check(modeLabels.map { it.layout } == labelLayouts) { "Unchanged machine labels discarded their text layouts" }
+            check(labels.map { it.layout } == labelLayouts) { "Unchanged machine labels discarded their text layouts" }
             val owner = HomeFragment::class.java.getDeclaredField("service")
                 .apply { isAccessible = true }.get(home) as? MobileService
             val original = owner?.snapshot
@@ -145,7 +149,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                             snapshotField.set(owner, original.copy(settings = settings.copy(flags = bits)))
                             isolatedModes.render(owner)
                             check(modeLabels.map { it.text.toString() } == labels.map(activity::getString))
-                            check(modeLabels.map { it.isChecked } == listOf(bits and 0x40 != 0, bits and 0x80 != 0))
+                            check(modeLabels.map { it.checked } == listOf(bits and 0x40 != 0, bits and 0x80 != 0))
                             check(modeLabels.all { it.isEnabled == MachineSettingsEditGate.allowed(owner) })
                             // Switch restores its platform on/off state description when the override is cleared.
                             if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all {
@@ -196,6 +200,30 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             activity = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
                 ?: error("Home Activity launch timed out after 10s")
             test.waitForIdleSync()
+            test.runOnMainSync {
+                val page = requireNotNull(activity)
+                val controls = MachineModeControls(page) { error("Disabled controls must not dispatch") }
+                controls.render(null)
+                val width = (page.resources.displayMetrics.density * 240).toInt()
+                controls.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                controls.layout(0, 0, controls.measuredWidth, controls.measuredHeight)
+                val segments = descendants(controls).filterIsInstance<CurveEditorSegments>()
+                check(segments.size == 2 && segments.none { it.isEnabled })
+                segments.forEach { segment ->
+                    segment.selectFromUser(true)
+                    check(!segment.checked)
+                    val labels = descendants(segment).filterIsInstance<android.widget.TextView>()
+                    check(labels.size == 2 && labels.all { !it.isEnabled && !it.isClickable && it.lineCount == 1 })
+                }
+                var calls = 0
+                val segment = CurveEditorSegments(page, TaskProductVisualStyle(page), "压力", "流量")
+                segment.onSelected = { calls++ }
+                segment.selectFromUser(true); check(segment.checked && calls == 1)
+                segment.select(false); check(calls == 1)
+                segment.isEnabled = false; segment.selectFromUser(true); check(!segment.checked && calls == 1)
+                segment.isEnabled = true; segment.selectFromUser(true); check(segment.checked && calls == 2)
+            }
             compactHomeGeometry(MainPageTestHost(test, requireNotNull(activity)), activeCup = false)
         } finally {
             test.removeMonitor(monitor)

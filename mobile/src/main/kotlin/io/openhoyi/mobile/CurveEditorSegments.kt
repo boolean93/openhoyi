@@ -19,7 +19,7 @@ internal class CurveEditorSegments(context: Context, private val style: TaskProd
         gravity = Gravity.CENTER; minimumHeight = style.dp(48); minimumWidth = style.dp(48)
         setPadding(style.dp(8), style.dp(4), style.dp(8), style.dp(4))
         isClickable = true; isFocusable = true
-        setOnClickListener { if (selected != (index == 1)) { select(index == 1, true); onSelected(index == 1) } }
+        setOnClickListener { if (this@CurveEditorSegments.isEnabled && selected != (index == 1)) { select(index == 1, true); onSelected(index == 1) } }
     } }
     private var selected = false
     private var laidOutDirection = -1
@@ -38,6 +38,7 @@ internal class CurveEditorSegments(context: Context, private val style: TaskProd
     val text get() = choices[if (selected) 1 else 0].text
     fun selectFromUser(value: Boolean) { choices[if (value) 1 else 0].performClick() }
     fun colors(first: Int, second: Int) {
+        if (selectedColors[0] == first && selectedColors[1] == second) return
         selectedColors = listOf(first, second)
         thumb.background = style.shape(selectedColors[if (selected) 1 else 0], false, 7)
     }
@@ -53,7 +54,16 @@ internal class CurveEditorSegments(context: Context, private val style: TaskProd
     fun requiredWidth(): Int = choices.maxOf { label ->
         maxOf(style.dp(48), kotlin.math.ceil(android.text.Layout.getDesiredWidth(label.text, label.paint).toDouble()).toInt() + label.compoundPaddingLeft + label.compoundPaddingRight)
     } * 2 + paddingLeft + paddingRight
-    fun labels(first: String, second: String) { choices[0].text = first; choices[1].text = second }
+    fun labels(first: String, second: String) {
+        if (choices[0].text.toString() != first) choices[0].text = first
+        if (choices[1].text.toString() != second) choices[1].text = second
+    }
+    override fun setEnabled(enabled: Boolean) {
+        if (isEnabled == enabled) return
+        super.setEnabled(enabled)
+        choices.forEach { it.isEnabled = enabled; it.isClickable = enabled }
+        alpha = if (enabled) 1f else .45f
+    }
     fun select(value: Boolean, animate: Boolean = false) {
         if (selected == value && !animate && thumb.isLaidOut) return
         selected = value
