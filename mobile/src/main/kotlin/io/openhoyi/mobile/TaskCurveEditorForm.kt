@@ -24,6 +24,11 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             setPadding(0, 0, 0, 0)
         }
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            if (tag == "curve-editor-title-host") {
+                orientation = HORIZONTAL
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                return
+            }
             val vertical = MeasureSpec.getSize(widthMeasureSpec) < dp((210 * resources.configuration.fontScale).toInt())
             orientation = if (vertical) VERTICAL else HORIZONTAL
             for (i in 0 until childCount) {
@@ -131,6 +136,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         val titleIndex = header.indexOfChild(words)
         header.removeView(words)
         metadata[0].apply {
+            tag = "curve-editor-title-host"
             background = null
             setPadding(0, 0, 0, 0)
         }
