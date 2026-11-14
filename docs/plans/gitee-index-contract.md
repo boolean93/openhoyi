@@ -10,3 +10,4 @@
 
 - `:mobile:testDebugUnitTest --tests '*Release*Test'` 通过（1m07s）；严格Gitee URL、错版本/错仓库/HTTP/查询拒绝、Github源隔离、规范化缓存往返恢复与原下载重试回归通过。
 - Astra 独立只读复核无阻断；生产镜像开关仍关闭，真实Gitee索引与Android联网验证未完成。
+- 已准备显式手动云端Mock联网验收：固定匿名索引全部字段对齐（只允许downloadUrl变化）、Gitee真实APK下载验签/hash/manifest、模拟国内源失败后的GitHub同版真下载；仅CI emulator，不安装下载包/不操作BLE。测试APK编译通过，真实发布前不触发。

@@ -5,6 +5,11 @@ on:
     branches: [main, develop, 'release/**', 'hotfix/**']
   workflow_dispatch:
     inputs:
+      gitee_live_checks:
+        description: Run explicit public Gitee index/APK and GitHub fallback verification (no install)
+        required: false
+        default: false
+        type: boolean
       download_progress_checks:
         description: Run Mock download presentation routing checks
         required: false
@@ -34,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      GITEE_LIVE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.gitee_live_checks == true && 'true' || 'false' }}
       DOWNLOAD_PROGRESS_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.download_progress_checks == true && 'true' || 'false' }}
       SLEEP_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.sleep_checks == true && 'true' || 'false' }}
       PREHEAT_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.preheat_checks == true && 'true' || 'false' }}
@@ -112,4 +118,11 @@ jobs:
           name: download-routing-${{ github.sha }}
           path: build/download-routing/
           if-no-files-found: warn
+          retention-days: 7
+      - name: Upload Gitee live evidence
+        if: always() && env.GITEE_LIVE_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: gitee-live-${{ github.sha }}
+          path: build/gitee-live/
           retention-days: 7
