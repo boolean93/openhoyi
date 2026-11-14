@@ -401,6 +401,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         if (shortWideHome) {
             // Modes remain visible (and safety-gated) while quick actions hide for an
             // active cup. Reusing this row avoids adding a 48dp header to a 284dp viewport.
+            previewHeading.tag = "product/home/compact-quick-heading"
             compactQuickHeading = previewHeading
             val modeGroup = productStyle.row("product/home/compact-mode-group").apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -428,6 +429,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     }
                     (modeGroup.layoutParams as LayoutParams).apply {
                         width = if (stacked) -1 else -2; marginStart = if (stacked) 0 else gap
+                        resolveLayoutDirection(layoutDirection)
                     }
                     super.onMeasure(widthMeasureSpec, heightMeasureSpec)
                 }

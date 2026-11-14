@@ -4,6 +4,7 @@
 - 来源分支/基线提交：develop / 0cab39347a353a23bfc0c4b170411d37e78fa4fb。
 - 工作分支：fix/compact-home-mode-height；PR 目标 develop。
 - 步骤：短横屏保留原机器状态/上一杯的宽度分配，模式控件复用快捷标题行，萃取时仍保留禁用模式控件；其它屏幕保持原布局。
+- 补充根因：机器模式每250ms无条件重设相同文字会清空TextView layout；改为文字有变化才更新，并验证重复render保留layout。短横屏相对margin即时解析并断言实际16dp间距。
 - 测试契约：快捷萃取已批准为默认开启、首页无开关，脚本匹配 defaultOn=true/homeToggle=false，并增加脚本与 instrumentation 完整成功标记一致性的本地回归。
 - 验证：本地完整 scripts/create-pr 检查、独立代码复核；GitHub Mock lifecycle 完整几何断言，检查常规横屏/大字号等现有回归。不得以关闭检查解除发布阻碍。
 - 协议与设备风险：不修改编码、门禁、命令、重试或停水；不操作真实机器。
