@@ -37,7 +37,7 @@ class CustomFlowCurveTest {
         val parameters=requireNotNull(CustomCurveAdapter.profile(restored,false)).parameters
         assertTrue(parameters.pressureLogic);assertFalse(parameters.variableFlowLogic)
         assertEquals(47,parameters.target3);assertEquals(121,parameters.thirdFlowTenths)
-        for(patch in listOf(3,4,5,6)) assertEquals(patch==4 || patch==5,
+        for(patch in listOf(2,3,4,5,6)) assertEquals(patch in 3..5,
             io.openhoyi.session.CustomCurveFirmwarePolicy.permits(parameters,io.openhoyi.session.CoffeeFirmware(1,1,patch)))
     }
 
