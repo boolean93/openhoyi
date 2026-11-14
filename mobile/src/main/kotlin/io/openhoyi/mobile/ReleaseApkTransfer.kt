@@ -13,15 +13,6 @@ internal fun releaseApkUrlAllowed(value: URI, initial: URI): Boolean {
     if (initial.host == "openhoyi.ios.dog") {
         return value.host == initial.host && value.rawPath == initial.rawPath && value.rawQuery == null
     }
-    if (initial.host == "gitee.com") {
-        val filename = initial.path.substringAfterLast('/')
-        return when (value.host) {
-            "gitee.com" -> value.rawQuery == null && (value.rawPath == initial.rawPath ||
-                Regex("/boolean93/openhoyi/attach_files/[0-9]+/download/" + Regex.escape(filename)).matches(value.rawPath))
-            "foruda.gitee.com" -> Regex("/attach_file/[0-9]+/" + Regex.escape(filename)).matches(value.rawPath)
-            else -> false
-        }
-    }
     return when (value.host) {
         "github.com" -> value.path == initial.path && value.rawQuery == null
         "release-assets.githubusercontent.com" -> value.path.startsWith("/github-production-release-asset/")
@@ -51,10 +42,8 @@ internal class ReleaseApkTransfer(
     fun downloadFrom(target: ReleaseUpdate, url: String, part: File, progress: (Long) -> Unit) {
         require(target.apkSize in 1..256L * 1024 * 1024)
         val initial = URI(url)
-        val filename = URI(target.downloadUrl).path.substringAfterLast('/')
-        require(url == target.downloadUrl || url == releaseAcceleratedApkUrl(target) || (url in target.mirrorDownloadUrls &&
-            url == "https://gitee.com/boolean93/openhoyi/releases/download/dev-${target.versionCode}/$filename"))
-        require(initial.scheme == "https" && initial.host in setOf("github.com", "gitee.com", "openhoyi.ios.dog") && initial.port == -1 &&
+        require(url == target.downloadUrl || url == releaseAcceleratedApkUrl(target))
+        require(initial.scheme == "https" && initial.host in setOf("github.com", "openhoyi.ios.dog") && initial.port == -1 &&
             initial.userInfo == null && initial.rawQuery == null && initial.fragment == null &&
             initial.path == "/boolean93/openhoyi/releases/download/dev-${target.versionCode}/" + initial.path.substringAfterLast('/') &&
             initial.path.substringAfterLast('/').matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]*\\.apk")))

@@ -13,6 +13,7 @@ data class ReleaseUpdate(
     val releaseUrl: String,
     internal val indexJson: String? = null,
     val apkSize: Long = 0,
+    // Legacy cache metadata only. Never used to choose a download source.
     val mirrorDownloadUrls: List<String> = emptyList(),
 )
 
@@ -59,6 +60,7 @@ object ReleaseUpdateIndex {
         require(string("releaseUrl") == releaseUrl && string("downloadUrl") == downloadUrl)
         require(string("distributionUrl") == prefix + "distribution.json")
         require(string("checksumsUrl") == prefix + "SHA256SUMS.txt")
+        // Keep the old bounded schema readable without restoring its download transport.
         val mirrors = if (fields.containsKey("mirrorDownloadUrls")) {
             val values = fields["mirrorDownloadUrls"] as? List<*> ?: error("Expected mirror URL array")
             require(values.size <= 1)

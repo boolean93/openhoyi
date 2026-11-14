@@ -17,7 +17,7 @@ class ReleaseApkDownloadTest {
     private val bytes=byteArrayOf(1,2,3,4)
     private fun target()=ReleaseUpdate(94,"fixture","a".repeat(64),
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString(""){"%02x".format(it.toInt() and 255)},
-        github,"",apkSize=bytes.size.toLong(),mirrorDownloadUrls=listOf("https://gitee.com/boolean93/openhoyi/attach_files/123/download/update.apk"))
+        github,"",apkSize=bytes.size.toLong(),mirrorDownloadUrls=listOf("https://gitee.com/boolean93/openhoyi/releases/download/dev-94/update.apk"))
     private class Connection(address:String,val bytes:ByteArray,val code:Int=200,val headers:Map<String,String> = emptyMap()):HttpsURLConnection(URL(address)) {
         var stream:InputStream=ByteArrayInputStream(bytes)
         override fun getResponseCode()=code
@@ -90,6 +90,14 @@ class ReleaseApkDownloadTest {
             part.writeText("existing")
             rejected{ReleaseApkDownload(verify=::verify).download(target(),part){_,_->}}
             assertEquals("existing",part.readText())
+        }finally{part.parentFile!!.deleteRecursively()}
+    }
+    @Test fun legacyMirrorCannotBeRequestedEvenWhenPresentInCachedMetadata() {
+        val part=output();var opens=0
+        try {
+            val transfer=ReleaseApkTransfer({opens++;error("legacy source must not connect")})
+            rejected{transfer.downloadFrom(target(),target().mirrorDownloadUrls.single(),part){}}
+            assertEquals(0,opens);assertFalse(part.exists())
         }finally{part.parentFile!!.deleteRecursively()}
     }
     @Test fun untrustedMirrorRedirectsNeverConnectAndDiagnosticsContainNoRawMessage() {
