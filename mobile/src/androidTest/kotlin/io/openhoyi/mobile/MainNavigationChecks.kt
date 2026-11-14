@@ -89,7 +89,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     "720x360 Home $name has a touch target smaller than 48dp: ${view.width}x${view.height} density=$density"
                 }
                 if (name.startsWith("machine-mode/")) {
-                    val toggle = view as HoyiSwitch
+                    val toggle = view as CurveEditorSegments
                     check(toggle.text.isNotBlank()) { "Machine mode label missing: $name" }
                     if (activeCup) check(!toggle.isEnabled) { "Machine mode must remain disabled during a cup: $name" }
                 }
