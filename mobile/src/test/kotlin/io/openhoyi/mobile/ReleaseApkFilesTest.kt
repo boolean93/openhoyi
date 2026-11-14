@@ -41,6 +41,7 @@ class ReleaseApkFilesTest {
             store.cleanupInstalled(identity.copy(versionCode=93));assertTrue(file.exists())
             store.cleanupInstalled(identity.copy(signerSha256="f".repeat(64)));assertTrue(file.exists())
             store.cleanupInstalled(identity.copy(packageName="io.openhoyi.mobile.mock"));assertTrue(file.exists())
+            store.cleanupInstalled(identity.copy(debuggable=true,versionName="0.2.0-local.94-test"));assertTrue(file.exists())
             store.cleanupInstalled(identity);assertFalse(file.exists());assertTrue(unknown.exists())
         } finally {root.deleteRecursively()}
     }

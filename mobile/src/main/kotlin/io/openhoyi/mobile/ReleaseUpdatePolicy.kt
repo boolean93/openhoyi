@@ -131,17 +131,28 @@ data class InstalledUpdateIdentity(
     val versionCode: Long,
     val debuggable: Boolean,
     val signerSha256: String?,
+    val versionName: String? = null,
 )
+
+/** Local previews share the app identity, but are never allowed to bypass Android's downgrade rule. */
+internal fun InstalledUpdateIdentity.isLocalDebugPreview(): Boolean = debuggable &&
+    versionName?.matches(Regex("[0-9]+(?:\\.[0-9]+){1,3}-local\\.[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*")) == true
+
+internal fun releaseAutomaticCheckEligible(identity: InstalledUpdateIdentity?): Boolean = identity?.let {
+    it.packageName == "io.openhoyi.mobile" && (!it.debuggable || it.isLocalDebugPreview()) &&
+        it.versionCode > 0 && it.signerSha256?.matches(Regex("[0-9a-f]{64}")) == true
+} == true
 
 fun releaseUpdateStatus(installed: InstalledUpdateIdentity?, update: ReleaseUpdate): ReleaseUpdateStatus = when {
     installed == null -> ReleaseUpdateStatus.IDENTITY_UNAVAILABLE
     installed.packageName == "io.openhoyi.mobile.mock" -> ReleaseUpdateStatus.MOCK_PREVIEW
     installed.packageName != "io.openhoyi.mobile" -> ReleaseUpdateStatus.IDENTITY_UNAVAILABLE
-    installed.debuggable -> ReleaseUpdateStatus.DEBUG_PREVIEW
+    installed.debuggable && !installed.isLocalDebugPreview() -> ReleaseUpdateStatus.DEBUG_PREVIEW
     installed.versionCode <= 0 || installed.signerSha256 == null ||
         !Regex("[0-9a-f]{64}").matches(installed.signerSha256) -> ReleaseUpdateStatus.IDENTITY_UNAVAILABLE
     installed.signerSha256 != update.signerSha256 -> ReleaseUpdateStatus.SIGNATURE_MISMATCH
-    update.versionCode > installed.versionCode -> ReleaseUpdateStatus.AVAILABLE
+    update.versionCode > installed.versionCode ||
+        (update.versionCode == installed.versionCode && installed.isLocalDebugPreview()) -> ReleaseUpdateStatus.AVAILABLE
     update.versionCode == installed.versionCode -> ReleaseUpdateStatus.SAME_VERSION
     else -> ReleaseUpdateStatus.INSTALLED_NEWER
 }
