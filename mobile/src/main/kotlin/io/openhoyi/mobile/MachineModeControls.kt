@@ -6,7 +6,7 @@ import android.widget.LinearLayout
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.SettingsWriteTracker
 
-/** Two independent wire bits; displayed selection always comes from the last settings readback. */
+/** Two independent wire bits. Missing readback uses disabled labels, never a writable default. */
 internal class MachineModeControls(context: Context, private val submit: (MachineSettingChange.LeverMode) -> Unit) : LinearLayout(context) {
     private var rendering = false
     private var pressure = false
@@ -59,17 +59,24 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
         pressure = settings?.flags?.and(0x80) != 0 && settings != null
         flow = settings?.flags?.and(0x40) != 0 && settings != null
         mode.isChecked = flow; logic.isChecked = pressure
-        mode.showLabel(if (settings == null) "—" else context.getString(if (flow) R.string.curve_control_flow else R.string.curve_control_pressure))
-        logic.showLabel(if (settings == null) "—" else context.getString(when {
+        mode.showLabel(context.getString(if (flow) R.string.curve_control_flow else R.string.curve_control_pressure))
+        logic.showLabel(context.getString(when {
             flow && pressure -> R.string.curve_control_fast
             flow -> R.string.curve_control_slow
             pressure -> R.string.curve_control_follow
             else -> R.string.curve_control_constant
         }))
-        mode.contentDescription = context.getString(R.string.machine_mode_title) + " · " + mode.text
-        logic.contentDescription = context.getString(R.string.machine_mode_title) + " · " + logic.text
-        val enabled = MachineSettingsEditGate.allowed(owner)
-        mode.isEnabled = enabled; logic.isEnabled = enabled
+        val known = settings != null
+        val enabled = known && MachineSettingsEditGate.allowed(owner)
+        listOf(mode, logic).forEach { toggle ->
+            toggle.isEnabled = enabled
+            toggle.setTextColor(context.getColor(if (enabled) R.color.mobile_text else R.color.mobile_muted))
+            toggle.contentDescription = if (known)
+                context.getString(R.string.machine_mode_title) + " · " + toggle.text
+            else context.getString(R.string.machine_mode_missing)
+            if (android.os.Build.VERSION.SDK_INT >= 30) toggle.stateDescription =
+                if (known) null else context.getString(R.string.machine_mode_missing)
+        }
         val state = if (owner?.pendingSetting is MachineSettingChange.LeverMode) when (owner.settingWriteState) {
             SettingsWriteTracker.State.WRITING -> R.string.home_setting_writing
             SettingsWriteTracker.State.WAITING_READBACK -> R.string.home_setting_waiting
@@ -94,7 +101,7 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
     }
 }
 
-/** Keeps the existing home status/connect row intact; narrow windows put controls below it. */
+/** Keeps the machine heading in place; narrow windows put controls below it. */
 internal class MachineModeHeader(context: Context, private val heading: LinearLayout,
     private val controls: MachineModeControls) : LinearLayout(context) {
     init {
