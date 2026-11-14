@@ -2,7 +2,7 @@
 
 ## 当前边界
 
-仅有离线规划器 `scripts/gitee_mirror_plan.py`，不会访问网络、读取凭据、上传、创建发行版或更新远端清单。不是自动发布功能已完成。Gitee 公开专用仓库已由用户授权创建：<https://gitee.com/boolean93/openhoyi>。现有 GitHub APK 分发、签名和 Android 更新逻辑不改。
+已有离线规划器、可注入后端的发布事务引擎和固定仓库 HTTP 适配器。仅做离线假服务测试，未实例化真实带凭据后端、未上传或更新远端清单。不是自动发布功能已完成。Gitee 公开专用仓库已由用户授权创建：<https://gitee.com/boolean93/openhoyi>。现有 GitHub APK 分发、签名和 Android 更新逻辑不改。
 
 ```sh
 python3 -m unittest discover -s scripts -p 'test_gitee_mirror_plan.py'
@@ -11,7 +11,7 @@ python3 scripts/gitee_mirror_plan.py --index /path/to/verified-dev.json --assets
 
 输入目录包含原样 APK、distribution.json、SHA256SUMS.txt。index 应来自现有 `release_update_index.py` 验证流程，包含实际 APK 检查，不可仅凭自写 JSON 的哈希宣称通过签名校验。规划器再次验证来源、大小、哈希、元数据、附件清单、版本单调及签名身份，打印候选计划；不写生产 dev.json。首次镜像可省略 previous-index；后续真实执行器必须读取已公开状态，不能将读取失败当成首次发布。
 
-候选 manifest 保留现有 GitHub downloadUrl 等字段，增加 mirrorDownloadUrls。旧 App 仍走 GitHub；新字段还未接入 Android，不能仅发布清单就宣称国内下载生效。
+候选 manifest **只用于 Gitee main 分支 updates/dev.json**，保留现有 GitHub downloadUrl 等字段，增加 mirrorDownloadUrls。GitHub Pages dev.json 必须完全保持旧schema：旧 App 严格拒绝额外字段。Android 镜像消费由另一独立工作目录实现，未在本分支修改，不能仅发布清单就宣称国内下载生效。
 
 ## 真实执行器下一步
 
@@ -53,3 +53,15 @@ GitHub官方步骤：Settings → Environments → 指定environment → Environ
 - <https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments>
 
 离线测试已纳入 `scripts/verify-pr-checks full`。同版重跑允许已发布清单携带精确匹配本仓库的 `mirrorDownloadUrls`；仅此传输扩展被归一化，版本身份、签名及其他字段仍严格比较。新增恶意目的地址与已发布清单重跑回归。这里只运行相关 Python 检查，不代表完整 Android CI 或自动发布验收通过。
+
+## 事务引擎与 HTTP 适配器（新增，未投产）
+
+- `gitee_mirror_publish.publish`：把本地文件复制到私有临时目录后验证；真实 aapt/apksigner 是默认检验器；测试才注入替身。先校验再写，已有同名附件只匿名回读校验，绝不覆盖或删除。
+- 未知创建/上传/清单写入结果只重新读取，不盲目 POST 重试；查询失败不能当不存在。首次清单需要显式 bootstrap 标志，Gitee main 分支必须先经授权初始化。
+- 所有附件匿名回读一致后，再读取最新文件版本并进行 SHA compare-and-swap。最后验证公开 raw 清单；CDN 尚未刷新时返回未验证错误，不宣称成功、不回滚，重跑只读验证。
+- `gitee_mirror_http.GiteeBackend`：目的仓库与 main 固定；所有 GET 匿名，token只用于写请求body；认证写请求不跟随任何重定向。附件仅允许同仓库 numeric attach_files 跳转以及 foruda.gitee.com/attach_file/数字/同名文件；清单只允许同路径 raw.giteeusercontent.com。
+- 后续工作流必须使用固定 concurrency group `openhoyi-gitee-mirror` 且 cancel-in-progress=false，避免两个受权写入者同时创建相同附件。不能允许外部任意运行参数改变仓库、分支或来源。
+- 本模块没有 CLI 或自动触发 workflow；必须经独立审查、权限作用域实证和明确发布授权后再接入受保护 job。不得直接用任意 JSON 调用引擎冒充 GitHub 来源验证；job应使用现有 `release_update_index.build_index` 的真实来源/签名检查输出及其对应附件。
+- 新增18项事务与HTTP故障测试，加既有10项规划器，共28项镜像测试。覆盖未知结果、签名失败、资产冲突、并发身份变化、公开清单缓存延迟、CAS请求、匿名重定向、令牌不进URL和认证请求禁止重定向。
+
+实测重定向证据（公开非本仓库样本）：Gitee droidvm/app v1.59 APK 从 releases/download 跳转仓库 attach_files/3148237/download/同名，再至 foruda.gitee.com/attach_file/数字/同名，最终200；oschina/gitee-cli raw/main/go.mod 跳至 raw.giteeusercontent.com/oschina/gitee-cli/raw/main/go.mod 后200。实际本镜像清单仍待发布后验证。
