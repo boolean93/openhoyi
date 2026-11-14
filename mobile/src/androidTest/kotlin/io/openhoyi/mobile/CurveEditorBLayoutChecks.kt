@@ -85,6 +85,13 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
             await("initial frame") { screen.hasWindowFocus() && save.isLaidOut && !save.isLayoutRequested }
             main {
                 fullyVisible(save); fullyVisible(cancel)
+                val title = tagged("name") as EditText
+                fullyVisible(title)
+                check(title.background == null && title.isFocusable && title.isEnabled)
+                check(!descendants(scroll).contains(title))
+                check(descendants(root).filterIsInstance<TextView>().none {
+                    it !is EditText && it.text.toString() == screen.getString(R.string.curve_editor_title)
+                })
                 check(!descendants(scroll).contains(save)) { "Save must not live inside scrolling content" }
                 check(root.findViewWithTag<View>("curve-editor-light-toolbar").background == null)
                 val control = tagged("control-mode") as CurveEditorSegments
@@ -185,6 +192,34 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                     check(targetTops.max() - targetTops.min() <= 1) { "Stage target rows do not align: $targetTops" }
                 }
             }
+            val originalName = (tagged("name") as EditText).text.toString()
+            val longName = "深烘拼配 · 周末手冲与浓缩试验曲线 ".repeat(4)
+            main {
+                val title = tagged("name") as EditText
+                title.setText(longName)
+                title.requestFocus()
+                title.setSelection(title.length())
+                check(title.text.toString() == longName)
+            }
+            test.waitForIdleSync()
+            main { fullyVisible(tagged("name")); fullyVisible(save); fullyVisible(cancel) }
+            shot(args.getString("fixture", "current") + "-long-name")
+            if (args.getString("titleEditChecks") == "true") {
+                val title = tagged("name") as EditText
+                val input = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                await("title input connection") { input.isActive(title) }
+                main { input.showSoftInput(title, InputMethodManager.SHOW_IMPLICIT) }
+                await("title IME") { root.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true }
+                main { fullyVisible(title); fullyVisible(save) }
+                shot(args.getString("fixture", "current") + "-long-name-ime")
+            }
+            main {
+                val title = tagged("name") as EditText
+                title.setText(originalName)
+                title.clearFocus()
+                (screen.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(title.windowToken, 0)
+            }
+            test.waitForIdleSync()
             shot(args.getString("fixture", "current") + "-top")
             if (args.getString("semanticStates") == "true") {
                 val prefix = args.getString("fixture", "current")
@@ -255,6 +290,26 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
             }
             shot(args.getString("fixture", "current") + "-ime")
             main { imm.hideSoftInputFromWindow(root.windowToken, 0) }
+            if (args.getString("titleEditChecks") == "true") {
+                main { screen.finish() }
+                test.waitForIdleSync()
+                val existing = app.curves.items.first { it.factoryCurve != null }
+                val reopened = test.startActivitySync(Intent(context, CurveEditorActivity::class.java)
+                    .putExtra(CurveEditorActivity.CURVE_ID, existing.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                activity = reopened
+                val existingRoot = reopened.findViewById<View>(android.R.id.content)
+                await("existing name header") { reopened.hasWindowFocus() }
+                main {
+                    val title = existingRoot.findViewWithTag<EditText>("product/form/curve-editor/name")
+                    check(title.text.toString() == existing.name && title.background == null)
+                    check(existingRoot.findViewWithTag<TextView>("product/form/curve-editor/save").text.toString() == reopened.getString(R.string.curve_editor_save_copy))
+                    title.setText(longName)
+                    title.requestFocus(); title.setSelection(title.length())
+                    fullyVisible(title)
+                    check(title.text.toString() == longName)
+                }
+                shot(args.getString("fixture", "current") + "-existing-name")
+            }
             check(app.customCurvesResult.getOrThrow().list() == originalDocuments)
             check(app.history.entries == originalHistory)
         } finally {

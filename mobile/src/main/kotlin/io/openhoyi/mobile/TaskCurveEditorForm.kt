@@ -124,37 +124,18 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         // A sibling of the scrolling form: always above navigation bars and the IME insets.
         body.addView(actions, LinearLayout.LayoutParams(-1, -2))
         column.setPadding(0, 0, 0, dp(12))
-        // The name belongs to the title, not a third metadata card. Narrow windows wrap it.
+        // The curve name is the title itself; retain the back/tools/details controls.
         val header = (body.tag as BeanPageRegions).header
-        val headerParent = header.parent as ViewGroup
-        val headerIndex = headerParent.indexOfChild(header)
-        headerParent.removeView(header)
-        val info = header.getChildAt(header.childCount - 1).takeIf { it is android.widget.Button }
-        if (info != null) header.removeView(info)
-        metadata[0].background = null
-        metadata[0].setPadding(dp(8), dp(4), dp(8), dp(4))
-        val titleName = object : ViewGroup(activity) {
-            private var wide = false
-            override fun generateDefaultLayoutParams() = LayoutParams(-1, -2)
-            override fun onMeasure(w: Int, h: Int) {
-                val width = MeasureSpec.getSize(w)
-                wide = width >= dp((620 * resources.configuration.fontScale).toInt())
-                val headingWidth = if (wide) dp(240) else width - dp(48)
-                header.measure(MeasureSpec.makeMeasureSpec(headingWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                metadata[0].measure(MeasureSpec.makeMeasureSpec(if (wide) minOf(dp(340), width - headingWidth - dp(48)) else width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                info?.measure(MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                setMeasuredDimension(width, if (wide) maxOf(header.measuredHeight, metadata[0].measuredHeight) else header.measuredHeight + metadata[0].measuredHeight)
-            }
-            override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-                header.layout(0, 0, header.measuredWidth, header.measuredHeight)
-                info?.layout(width - dp(48), 0, width, info.measuredHeight)
-                val x = if (wide) header.measuredWidth else 0
-                val y = if (wide) 0 else header.measuredHeight
-                metadata[0].layout(x, y, x + metadata[0].measuredWidth, y + metadata[0].measuredHeight)
-            }
+        val words = (0 until header.childCount).map(header::getChildAt)
+            .first { it is LinearLayout }
+        val titleIndex = header.indexOfChild(words)
+        header.removeView(words)
+        metadata[0].apply {
+            background = null
+            setPadding(0, 0, 0, 0)
         }
-        titleName.addView(header); titleName.addView(metadata[0]); if (info != null) titleName.addView(info)
-        headerParent.addView(titleName, headerIndex, LinearLayout.LayoutParams(-1, -2))
+        header.addView(metadata[0], titleIndex, LinearLayout.LayoutParams(0, -2, 1f))
+        header.contentDescription = null
         val toolbarFields = CardGrid(140, 2)
         listOf(metadata[1], metadata[2]).forEach(toolbarFields::addView)
         val toolbar = object : android.widget.FrameLayout(activity) {

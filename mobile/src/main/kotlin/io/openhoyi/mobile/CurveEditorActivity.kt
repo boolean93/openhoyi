@@ -78,9 +78,23 @@ class CurveEditorActivity : ThemedActivity() {
         }
         val name = field(sections.metadata[0], "name", R.string.profiles_name, source.name, false,
             compactLabel = getString(R.string.profiles_name))
-        // The name is the editable title companion, with its accessible label retained on the field.
+        // A borderless, directly editable title. Long names scroll inside the title, never over navigation.
         (name.parent as? android.view.ViewGroup)?.let { host ->
             (0 until host.childCount).map(host::getChildAt).filter { it !== name }.forEach { it.visibility = View.GONE }
+        }
+        name.apply {
+            background = null
+            backgroundTintList = null
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24f)
+            typeface = TaskTypography.face(this@CurveEditorActivity, 600)
+            if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(AppTextUnits.pixels(resources, 32f).toInt())
+            setPaddingRelative(0, style.dp(8), style.dp(8), style.dp(8))
+            minimumHeight = style.dp(48); minHeight = style.dp(48)
+            setSingleLine(true)
+            setHorizontallyScrolling(true)
+            hint = getString(R.string.profiles_name)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            setSelectAllOnFocus(true)
         }
         val temperature = field(sections.metadata[1], "temperature", R.string.profiles_temperature, source.temperatureC.toString(),
             compactLabel = getString(R.string.curve_editor_temperature_short))
