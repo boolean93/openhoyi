@@ -83,6 +83,18 @@ class CurveEditorActivity : ThemedActivity() {
             compactLabel = getString(R.string.curve_preview_temperature))
         val cup = field(sections.metadata[2], "cup", R.string.profiles_cup, CurveDraftNumber.format(source.targetHundredthsGram, 2),
             compactLabel = getString(R.string.curve_preview_weight))
+        temperature.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        fun validateMetadata(input: EditText, label: Int, parse: (String) -> Int): Boolean {
+            val valid = runCatching { parse(input.text.toString()) }.isSuccess
+            input.error = if (valid) null else getString(label)
+            return valid
+        }
+        temperature.setOnFocusChangeListener { _, focused ->
+            if (!focused) validateMetadata(temperature, R.string.profiles_temperature, CurveMetadataInput::temperature)
+        }
+        cup.setOnFocusChangeListener { _, focused ->
+            if (!focused) validateMetadata(cup, R.string.profiles_cup, CurveMetadataInput::targetWeight)
+        }
         style.unit(temperature, "°C", "curve-editor", "temperature")
         style.unit(cup, "g", "curve-editor", "cup")
         fun numericRow(container: LinearLayout, label: Int, tag: String? = null): LinearLayout = object : LinearLayout(this@CurveEditorActivity) {
@@ -289,6 +301,10 @@ class CurveEditorActivity : ThemedActivity() {
         visibility()
         val error = style.error(beanError(body))
         fun parsed(): CustomCurveDocument {
+            val targetTemperature = try { CurveMetadataInput.temperature(temperature.text.toString()) }
+                catch (_: IllegalArgumentException) { throw FieldFailure("temperature", R.string.profiles_temperature) }
+            val targetCup = try { CurveMetadataInput.targetWeight(cup.text.toString()) }
+                catch (_: IllegalArgumentException) { throw FieldFailure("cup", R.string.profiles_cup) }
             val allStages = (0..3).map {
                 CustomCurveDocument.Stage(CurveDraftNumber.parse(fields.getValue("target-$it").text.toString(), 1),
                     CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1))
@@ -327,13 +343,12 @@ class CurveEditorActivity : ThemedActivity() {
                 if (stage.waterTenthsMl == 0 && (!flowMode || index > 0)) throw FieldFailure("water-$index", R.string.flow_editor_water_positive_error)
             }
             if (flowMode && firstDuration == 0 && stages.first().waterTenthsMl == 0) throw FieldFailure("first-duration", R.string.flow_editor_exit_error)
-            val targetCup = CurveDraftNumber.parse(cup.text.toString(), 2)
             if (complete && targetCup > 0 && compensationValue >= targetCup) throw FieldFailure("compensation", R.string.flow_editor_compensation_target_error)
             val config = if (complete)
                 CustomCurveDocument.Configuration(pressureLogic, flowMode, flowMode && firstFlow, preinfusion, firstDuration,
                     compensationValue, tail) else null
             return CustomCurveDocument(draftId, name.text.toString().trim(),
-                CurveDraftNumber.parse(temperature.text.toString(), 0), targetCup,
+                targetTemperature, targetCup,
                 if (flowMode) CustomCurveDocument.ControlMode.FLOW else CustomCurveDocument.ControlMode.PRESSURE, stages, limit, config).also { it.validate() }
         }
         fun showError(failure: Throwable) {
@@ -377,7 +392,14 @@ class CurveEditorActivity : ThemedActivity() {
         fields.values.forEach { field ->
             field.addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { previewChanged() }
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    // Allow partial input while typing; clear an old error as soon as it is corrected.
+                    if (field.error != null) when (field) {
+                        temperature -> validateMetadata(field, R.string.profiles_temperature, CurveMetadataInput::temperature)
+                        cup -> validateMetadata(field, R.string.profiles_cup, CurveMetadataInput::targetWeight)
+                    }
+                    previewChanged()
+                }
                 override fun afterTextChanged(s: android.text.Editable?) = Unit
             })
         }
