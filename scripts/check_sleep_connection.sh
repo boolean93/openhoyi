@@ -14,7 +14,7 @@ adb -s "$serial" shell wm density 200
 python3 - "$serial" "$out" <<'PY'
 import pathlib,subprocess,sys
 serial,out=sys.argv[1:]
-r=subprocess.run(['adb','-s',serial,'shell','am','instrument','-w','-e','connectionSleepChecks','true','io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],capture_output=True,text=True,timeout=180)
+r=subprocess.run(['adb','-s',serial,'shell','am','instrument','-w','-r','-e','connectionSleepChecks','true','io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],capture_output=True,text=True,timeout=180)
 text=r.stdout+r.stderr
 pathlib.Path(out,'instrumentation.txt').write_text(text)
 print(text)
