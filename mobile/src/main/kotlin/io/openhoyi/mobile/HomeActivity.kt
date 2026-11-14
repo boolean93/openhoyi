@@ -656,11 +656,11 @@ class HomeActivity : ThemedActivity() {
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
         val warning = ShotSafetyAlert.resource(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)?.let { getString(it) }
-            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage
+            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {owner?.machineModeWritePending==true}
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
-            owner?.machineWriteAcknowledgementAvailable != true) View.GONE else View.VISIBLE
+            (owner?.machineWriteAcknowledgementAvailable != true || owner?.machineModeWritePending==true)) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
             owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)
