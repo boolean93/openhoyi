@@ -9,13 +9,13 @@ internal object SleepPresentation {
         R.string.sleep_status_writing -> R.string.task_shell_sleep_sending
         R.string.sleep_status_waiting -> R.string.task_shell_sleep_pending
         R.string.sleep_status_unknown, R.string.task_shell_machine_unconfirmed -> R.string.task_shell_sleep_check
-        R.string.sleep_status_last_confirmed -> R.string.task_shell_sleep_history
+        R.string.sleep_status_last_confirmed -> R.string.task_shell_machine_asleep
         R.string.sleep_status_failed -> R.string.task_shell_sleep_unsent
         else -> resource
     }
     fun compactHint(resource:Int?):Int?=when(resource){
         R.string.sleep_status_unknown_hint -> null // The short status already says to check the machine.
-        R.string.sleep_status_last_confirmed_hint, R.string.task_shell_sleep_wake_hint -> R.string.task_shell_sleep_wake
+        R.string.sleep_status_last_confirmed_hint, R.string.task_shell_sleep_wake_hint -> null // Guidance lives in the dedicated action, not a second hint line.
         else -> resource
     }
 

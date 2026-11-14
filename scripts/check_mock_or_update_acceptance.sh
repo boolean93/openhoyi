@@ -1,6 +1,10 @@
 #!/bin/sh
 # android-emulator-runner executes each script line separately; keep its entry one fixed command.
 set -eu
+if [ "${SLEEP_CHECKS:-false}" = true ]; then
+  [ "${UPDATE_CHECKS:-false}" = false ] && [ "${PREHEAT_CHECKS:-false}" = false ] || exit 2
+  exec bash scripts/check_sleep_connection.sh
+fi
 if [ "${PREHEAT_CHECKS:-false}" = true ]; then
   [ "${UPDATE_CHECKS:-false}" = false ] || { echo 'Choose only one isolated suite' >&2; exit 2; }
   exec bash scripts/check_studio_preheat.sh

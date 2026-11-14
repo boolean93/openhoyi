@@ -5,6 +5,11 @@ on:
     branches: [main, develop, 'release/**', 'hotfix/**']
   workflow_dispatch:
     inputs:
+      sleep_checks:
+        description: Run isolated sleep UI and reconnect checks
+        required: false
+        default: false
+        type: boolean
       preheat_checks:
         description: Run isolated studio preheat and UI evidence only
         required: false
@@ -24,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      SLEEP_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.sleep_checks == true && 'true' || 'false' }}
       PREHEAT_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.preheat_checks == true && 'true' || 'false' }}
       UPDATE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_checks == true && 'true' || 'false' }}
     steps:
@@ -83,5 +89,13 @@ jobs:
         with:
           name: studio-preheat-${{ github.sha }}
           path: build/studio-preheat/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload sleep connection evidence
+        if: always() && env.SLEEP_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: sleep-connection-${{ github.sha }}
+          path: build/sleep-connection/
           if-no-files-found: warn
           retention-days: 7
