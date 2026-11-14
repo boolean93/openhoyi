@@ -58,15 +58,10 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             val root = requireNotNull(home.view)
             val viewport = Rect()
             check(root.getGlobalVisibleRect(viewport) && !viewport.isEmpty)
-            val connection = requireNotNull(root.findViewWithTag<View>("product/home/connect"))
-            val owner = HomeFragment::class.java.getDeclaredField("service")
-                .apply { isAccessible = true }.get(home) as? MobileService
-            val ready = owner?.snapshot?.coffeeState == io.openhoyi.session.DeviceState.READY
-            check(connection.visibility == if (ready) View.GONE else View.VISIBLE) {
-                "Home must hide the redundant connected-device Change action but retain disconnected retry"
+            check(root.findViewWithTag<View>("product/home/connect") == null) {
+                "Home must not duplicate the shell connection/retry controls"
             }
-            val tags = (if (ready) emptyList() else listOf("connect")) +
-                listOf("machine-status", "brew-boiler", "steam-boiler",
+            val tags = listOf("machine-status", "brew-boiler", "steam-boiler",
                 "brew-boiler/toggle", "steam-boiler/toggle", "machine-mode/control", "machine-mode/logic") +
                 (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
                     listOf("direct-preset/$it", "direct-preset/$it/preview")
@@ -117,10 +112,49 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
             isolatedModes.layout(0, 0, isolatedModes.measuredWidth, isolatedModes.measuredHeight)
             val modeLabels = descendants(isolatedModes).filterIsInstance<HoyiSwitch>()
+            check(modeLabels.map { it.text.toString() } == listOf(
+                activity.getString(R.string.curve_control_pressure), activity.getString(R.string.curve_control_constant)))
+            check(modeLabels.all { !it.isEnabled && it.currentTextColor == activity.getColor(R.color.mobile_muted) })
+            check(modeLabels.all { it.contentDescription == activity.getString(R.string.machine_mode_missing) })
+            if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all {
+                it.stateDescription == activity.getString(R.string.machine_mode_missing)
+            })
             val labelLayouts = modeLabels.map { requireNotNull(it.layout) }
             repeat(20) { isolatedModes.render(null) }
             check(modeLabels.none { it.isLayoutRequested }) { "Unchanged machine labels requested layout" }
             check(modeLabels.map { it.layout } == labelLayouts) { "Unchanged machine labels discarded their text layouts" }
+            val owner = HomeFragment::class.java.getDeclaredField("service")
+                .apply { isAccessible = true }.get(home) as? MobileService
+            val original = owner?.snapshot
+            if (owner != null && original != null) {
+                val snapshotField = MobileService::class.java.getDeclaredField("snapshot").apply { isAccessible = true }
+                try {
+                    for (state in listOf(io.openhoyi.session.DeviceState.DISCONNECTED,
+                        io.openhoyi.session.DeviceState.CONNECTING, io.openhoyi.session.DeviceState.SYNCHRONIZING)) {
+                        snapshotField.set(owner, original.copy(coffeeState = state, settings = null))
+                        isolatedModes.render(owner)
+                        check(modeLabels.all { !it.isEnabled && it.text.toString() != "—" })
+                        check(modeLabels.all { it.contentDescription == activity.getString(R.string.machine_mode_missing) })
+                    }
+                    original.settings?.let { settings ->
+                        for ((bits, labels) in listOf(
+                            0x00 to listOf(R.string.curve_control_pressure, R.string.curve_control_constant),
+                            0x80 to listOf(R.string.curve_control_pressure, R.string.curve_control_follow),
+                            0x40 to listOf(R.string.curve_control_flow, R.string.curve_control_slow),
+                            0xC0 to listOf(R.string.curve_control_flow, R.string.curve_control_fast))) {
+                            snapshotField.set(owner, original.copy(settings = settings.copy(flags = bits)))
+                            isolatedModes.render(owner)
+                            check(modeLabels.map { it.text.toString() } == labels.map(activity::getString))
+                            check(modeLabels.map { it.isChecked } == listOf(bits and 0x40 != 0, bits and 0x80 != 0))
+                            check(modeLabels.all { it.isEnabled == MachineSettingsEditGate.allowed(owner) })
+                            if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all { it.stateDescription == null })
+                        }
+                    }
+                } finally {
+                    snapshotField.set(owner, original)
+                    isolatedModes.render(owner)
+                }
+            }
             File(directory, "$fixture.txt").writeText(geometry + "\n" +
                 bounds.entries.joinToString("\n") { (tag, rect) -> "$tag=$rect" } + "\n")
             if (activeCup) {
