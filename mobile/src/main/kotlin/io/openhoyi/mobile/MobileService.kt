@@ -1321,6 +1321,8 @@ class MobileService : Service() {
         leverRecipeWriteBlock()?.let { return it }
         if (CustomCurveFirmwarePolicy.isPressureFollow(profile.parameters))
             return getString(R.string.follow_lever_not_supported)
+        if (!CustomCurveFirmwarePolicy.permitsStoredRecipe(profile.parameters, coffeeFirmware))
+            return getString(R.string.lever_flow_firmware_required)
         val app = application as MobileApplication
         if (leverDeviceAddress != expectedAddress || coffeeFirmware.toString() != expectedFirmware ||
             app.curves.resolve(profile.id, false, 7) != profile || !app.curves.validated(profile))

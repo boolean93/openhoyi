@@ -163,7 +163,7 @@ class CustomFlowStartPermitTest {
         val variants=listOf(p,hsPressureFirst.copy(pressureLogic=false),p.copy(pressureLogic=false))
         for(patch in listOf(3,4,5,6)) for(parameters in variants) {
             val f=Fixture(permit={it==parameters});f.firmware(patch);f.fresh()
-            val allowed=patch==4 || patch==5
+            val allowed=patch in 3..5
             assertEquals("$patch $parameters",allowed,f.session.captureStartContext(parameters)!=null)
             val queue=DeviceSession::class.java.getDeclaredField("queue").apply{isAccessible=true}.get(f.session) as GattQueue
             queue.enqueue(GattOperation.Discover,5000){}
@@ -183,7 +183,7 @@ class CustomFlowStartPermitTest {
     }
 
     @Test fun firmwareChangeRevokesCapturedAndQueuedFlowEvenBetweenReviewedVersions() {
-        for(from in listOf(4,5)) for(to in listOf(3,if(from==4)5 else 4,6)) {
+        for(from in listOf(3,4,5)) for(to in listOf(3,4,5,6).filter { it!=from }) {
             val f=Fixture(permit={true});f.firmware(from);f.fresh()
             val context=requireNotNull(f.session.captureStartContext(p))
             val queue=DeviceSession::class.java.getDeclaredField("queue").apply{isAccessible=true}.get(f.session) as GattQueue
@@ -221,15 +221,30 @@ class CustomFlowStartPermitTest {
         }
     }
 
+    @Test fun firmware113TemporaryFlowDoesNotAuthorizePersistentWritesEvenWithLegacyPermit() {
+        for (parameters in listOf(p,p.copy(pressureLogic=false),p.copy(pressureLogic=false,firstSegmentFlowMode=false))) {
+            val f=Fixture(permit={true},frames=setOf(CoffeeCommands.start(parameters).frame.hex()))
+            f.firmware(3);f.fresh()
+            assertNotNull(f.session.captureStartContext(parameters))
+            val before=f.calls.size;var result:OperationResult?=null
+            f.session.writeStoredLeverRecipe(parameters,{true}){result=it}
+            assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
+            f.now=1501
+            f.session.startExtraction(parameters){result=it}
+            assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
+        }
+    }
+
     @Test fun firmware113And115KeepC6BlockAndEmergencyStopWithoutFreshIdleOrNoAlarmRequirement() {
       for (patch in listOf(3,5)) {
         val f=Fixture(permit={true});f.firmware(patch);f.fresh()
+        val parameters=p.copy(pressureLogic=false)
         val c6=f.bytes("400023F02F1C770B00000000000000190321AF");c6[13]=0x20
         f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,c6)
         assertFalse(CoffeeAlarmPolicy.permitsNewControl(0x20))
-        assertNull(f.session.captureStartContext(p))
+        assertNull(f.session.captureStartContext(parameters))
         var result:OperationResult?=null;val before=f.calls.size
-        f.session.startExtraction(p){result=it};assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
+        f.session.startExtraction(parameters){result=it};assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
         f.session.writeSetting(MachineSettingChange.BrewTemperature(93)){result=it}
         assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
         f.now=1501
