@@ -163,6 +163,7 @@ class CurveEditorActivity : ThemedActivity() {
             style.unit(water, "mL", "curve-editor", "water-$index")
             attachError("target-$index", target, row)
             attachError("water-$index", water, row)
+            if (index > 0) row.addView(sections.sharedLogicHosts[index], LinearLayout.LayoutParams(-1, -2))
         }
         fun settingRow(parent: LinearLayout, label: Int) = numericRow(parent, label)
         val totalLimit = field(settingRow(sections.waterLimit, R.string.profiles_total_water_limit_title), "total-water-limit", R.string.profiles_total_water_limit,
@@ -175,10 +176,34 @@ class CurveEditorActivity : ThemedActivity() {
         val assignedWater = style.visual.text("", TaskProductVisualStyle.auxiliary,
             "product/form/curve-editor/assigned-water", true)
         style.visual.add(sections.waterLimit, assignedWater, 8)
+        val modeHint = style.visual.text("", TaskProductVisualStyle.auxiliary).apply {
+            tag = "curve-editor-mode-hint"
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        sections.stageHeader.addView(modeHint, LinearLayout.LayoutParams(-1, -2))
+        fun updateModeHint() {
+            val tail = (stageCount..3).map { index ->
+                runCatching {
+                    CustomCurveDocument.Stage(CurveDraftNumber.parse(fields.getValue("target-$index").text.toString(), 1),
+                        CurveDraftNumber.parse(fields.getValue("water-$index").text.toString(), 1)).also {
+                        require(it.target in 0..255 && it.waterTenthsMl in 0..65535)
+                    }
+                }.getOrDefault(source.allStages[index])
+            }
+            val editedTail = tail.indices.any { tail[it] != source.allStages[stageCount + it] }
+            val configured = flowMode || pressureLogic || source.configuration != null ||
+                ((sourceId != null || editedTail) && tail.any { it.target != 0 || it.waterTenthsMl != 0 }) ||
+                listOf("preinfusion", "first-duration", "compensation").any { key ->
+                    fields[key]?.text?.toString()?.trim()?.toBigDecimalOrNull()?.signum()?.let { it != 0 } == true
+                }
+            modeHint.visibility = if (stageCount == 1 && configured) View.VISIBLE else View.GONE
+            modeHint.setText(R.string.flow_editor_complete_stage_error)
+            modeHint.setTextColor(getColor(R.color.mobile_danger))
+        }
         var previewChanged: () -> Unit = {}
         lateinit var firstModePicker: CurveEditorSegments
-        lateinit var controlSwitch: CurveEditorSegments
-        lateinit var logicSwitch: CurveEditorSegments
+        val controlSwitches = mutableListOf<CurveEditorSegments>()
+        val logicSwitches = mutableListOf<CurveEditorSegments>()
         fun units() {
             (0..3).forEach { index ->
                 val flow = flowMode && (index > 0 || firstFlow)
@@ -208,28 +233,36 @@ class CurveEditorActivity : ThemedActivity() {
             sections.firstModeHost.visibility = View.VISIBLE
             sections.stageModes[0].visibility = if (flowMode) View.GONE else View.VISIBLE
             firstModePicker.contentDescription = getString(R.string.flow_editor_first) + " · " + sections.stageModes[0].text
-            // First-stage type is independent; speed remains the clearly visible shared toolbar choice.
+            // First-stage type is independent; stages 2–4 share the control and logic bits.
             firstModePicker.labels(getString(R.string.curve_editor_mode_first_pressure), getString(R.string.curve_editor_first_flow))
             firstModePicker.select(firstFlow)
-            controlSwitch.colors(colors.pressureFill, colors.flowFill)
-            controlSwitch.select(flowMode)
+            controlSwitches.forEach { picker ->
+                picker.colors(colors.pressureFill, colors.flowFill)
+                picker.select(flowMode)
+            }
             firstModePicker.colors(colors.pressureFill, colors.flowFill)
-            logicSwitch.colors(colors.fill(flowMode), colors.fill(flowMode))
-            logicSwitch.labels(getString(if (flowMode) R.string.curve_control_slow else R.string.curve_control_constant),
-                getString(if (flowMode) R.string.curve_control_fast else R.string.curve_control_follow))
-            logicSwitch.select(pressureLogic)
+            logicSwitches.forEach { picker ->
+                picker.colors(colors.fill(flowMode), colors.fill(flowMode))
+                picker.labels(getString(if (flowMode) R.string.curve_control_slow else R.string.curve_control_constant),
+                    getString(if (flowMode) R.string.curve_control_fast else R.string.curve_control_follow))
+                picker.select(pressureLogic)
+            }
+            updateModeHint()
             previewChanged()
         }
-        controlSwitch = CurveEditorSegments(this, style.visual,
-            getString(R.string.curve_control_pressure), getString(R.string.curve_control_flow)).apply {
-            tag = "product/form/curve-editor/control-mode"
-            select(flowMode)
-            sections.modeControls.addView(this, LinearLayout.LayoutParams(-1, -2))
-            onSelected = { checked ->
-                modeSwitchTouched = true
-                val next = CurveModeSelection(flowMode, pressureLogic, pressureBeforeFlow).selectFlow(checked)
-                flowMode = next.flow; pressureLogic = next.pressure; pressureBeforeFlow = next.pressureBeforeFlow
-                units()
+        (1..3).forEach { index ->
+            controlSwitches += CurveEditorSegments(this, style.visual,
+                getString(R.string.curve_control_pressure), getString(R.string.curve_control_flow)).apply {
+                tag = if (index == 1) "product/form/curve-editor/control-mode" else "product/form/curve-editor/control-mode-$index"
+                compact()
+                contentDescription = getString(R.string.curve_editor_shared_mode)
+                sections.sharedModeHosts[index].addView(this, LinearLayout.LayoutParams(-1, -2))
+                onSelected = { checked ->
+                    modeSwitchTouched = true
+                    val next = CurveModeSelection(flowMode, pressureLogic, pressureBeforeFlow).selectFlow(checked)
+                    flowMode = next.flow; pressureLogic = next.pressure; pressureBeforeFlow = next.pressureBeforeFlow
+                    units()
+                }
             }
         }
         firstModePicker = CurveEditorSegments(this, style.visual,
@@ -240,11 +273,25 @@ class CurveEditorActivity : ThemedActivity() {
             sections.firstModeHost.addView(this, LinearLayout.LayoutParams(-1, -2))
             onSelected = { firstFlow = it; units() }
         }
-        logicSwitch = CurveEditorSegments(this, style.visual, "", "").apply {
-            tag = "product/form/curve-editor/pressure-logic"
-            select(pressureLogic)
-            sections.logicControls.addView(this, LinearLayout.LayoutParams(-1, -2))
-            onSelected = { pressureLogic = it; units() }
+        (1..3).forEach { index ->
+            sections.sharedLogicHosts[index].apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(style.visual.text(getString(R.string.curve_editor_linked), TaskProductVisualStyle.auxiliary).apply {
+                    tag = "curve-stage-linked-$index"
+                    minimumHeight = style.dp(48)
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, 0, style.dp(8), 0)
+                    contentDescription = getString(R.string.curve_editor_shared_mode)
+                }, LinearLayout.LayoutParams(-2, -2))
+            }
+            logicSwitches += CurveEditorSegments(this, style.visual, "", "").apply {
+                tag = if (index == 1) "product/form/curve-editor/pressure-logic" else "product/form/curve-editor/pressure-logic-$index"
+                compact()
+                contentDescription = getString(R.string.curve_editor_shared_mode)
+                sections.sharedLogicHosts[index].addView(this, LinearLayout.LayoutParams(0, -2, 1f))
+                onSelected = { pressureLogic = it; units() }
+            }
         }
         val bloom = field(settingRow(sections.configurationFields, R.string.curve_editor_bloom_short), "preinfusion", R.string.flow_editor_preinfusion,
             (source.configuration?.preinfusionSeconds ?: 0).toString(), tableCell = true).apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER }
@@ -262,6 +309,7 @@ class CurveEditorActivity : ThemedActivity() {
         attachError("compensation", compensation, sections.configurationFields)
         fun visibility() {
             sections.setStageCount(stageCount)
+            updateModeHint()
             previewChanged()
         }
         sections.onStageCountChanged { count ->
@@ -358,6 +406,7 @@ class CurveEditorActivity : ThemedActivity() {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         previewChanged = {
+            updateModeHint()
             assignedWater.text = runCatching {
                 val tenths = (0 until stageCount).sumOf {
                     CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1).also { require(it in 0..65535) }

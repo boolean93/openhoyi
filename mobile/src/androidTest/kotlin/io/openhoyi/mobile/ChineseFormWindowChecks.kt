@@ -520,8 +520,10 @@ internal object ChineseFormWindowChecks {
                             check(selector.contentDescription.toString().startsWith(activity.getString(R.string.flow_editor_first)))
                             check(content.findViewWithTag<View>("curve-stage-mode-0").visibility == View.GONE)
                             selector
-                        } else requireNotNull(content.findViewWithTag<TextView>("curve-stage-mode-$index")).also {
-                            check(it.text.isNotBlank()) { "$name missing stage control-mode labels" }
+                        } else requireNotNull(content.findViewWithTag<CurveEditorSegments>(
+                            "product/form/curve-editor/" + if (index == 1) "control-mode" else "control-mode-$index")).also {
+                            check(it.text.isNotBlank()) { "$name missing stage control-mode selector" }
+                            check(it.checked == (content.findViewWithTag<CurveEditorSegments>("product/form/curve-editor/control-mode")).checked)
                         }
                     }
                     val remove = requireNotNull(content.findViewWithTag<Button>("curve-stage-remove-3"))

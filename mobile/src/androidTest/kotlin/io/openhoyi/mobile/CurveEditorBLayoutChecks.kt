@@ -90,7 +90,8 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                 val control = tagged("control-mode") as CurveEditorSegments
                 control.selectFromUser(true)
                 root.findViewWithTag<View>("curve-stage-add").performClick()
-                listOf("2" to "25", "4.5" to "35", "2.5" to "10").forEachIndexed { index, value ->
+                root.findViewWithTag<View>("curve-stage-add").performClick()
+                listOf("2" to "25", "4.5" to "35", "2.5" to "10", "3" to "15").forEachIndexed { index, value ->
                     (tagged("target-$index") as EditText).setText(value.first)
                     (tagged("water-$index") as EditText).setText(value.second)
                 }
@@ -102,6 +103,7 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                 (tagged("compensation") as EditText).setText("0")
             }
             test.waitForIdleSync()
+            shot(args.getString("fixture", "current") + "-four-stages")
             fun controls() = descendants(root).filterIsInstance<CurveEditorSegments>().filter { it.isShown }
             main {
                 // Every active pair has two individually reachable 48dp-wide options.
@@ -116,14 +118,50 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                         }
                     }
                 }
+                (1..3).forEach { index ->
+                    val linked = root.findViewWithTag<TextView>("curve-stage-linked-$index")
+                    check(linked.isShown && linked.text.toString() == screen.getString(R.string.curve_editor_linked))
+                }
                 val colors = CurveEditorColors(screen)
-                check(root.findViewWithTag<TextView>("curve-stage-mode-1").currentTextColor == colors.flowInk)
+                check((tagged("control-mode") as CurveEditorSegments).checked)
+                // Each downstream card is another view of the same protocol bits, never an independent mode.
+                val targetText = (tagged("target-1") as EditText).text.toString()
+                val first = tagged("first-mode") as CurveEditorSegments
+                first.selectFromUser(true)
+                val thirdControl = tagged("control-mode-2") as CurveEditorSegments
+                thirdControl.requestRectangleOnScreen(Rect(0, 0, thirdControl.width, thirdControl.height), true)
+                fullyVisible(thirdControl)
+                thirdControl.selectFromUser(false)
+                check(!(tagged("control-mode") as CurveEditorSegments).checked)
+                check(!(tagged("control-mode-3") as CurveEditorSegments).checked)
+                check(first.visibility == View.GONE)
+                check((tagged("target-1") as EditText).text.toString() == targetText)
+                val fourthControl = tagged("control-mode-3") as CurveEditorSegments
+                fourthControl.requestRectangleOnScreen(Rect(0, 0, fourthControl.width, fourthControl.height), true)
+                fullyVisible(fourthControl)
+                fourthControl.selectFromUser(true)
+                check((tagged("control-mode") as CurveEditorSegments).checked)
+                check((tagged("control-mode-2") as CurveEditorSegments).checked)
+                check(first.checked && first.visibility == View.VISIBLE)
+                (tagged("pressure-logic-2") as CurveEditorSegments).selectFromUser(false)
+                check(!(tagged("pressure-logic") as CurveEditorSegments).checked)
+                check(!(tagged("pressure-logic-3") as CurveEditorSegments).checked)
+                val fourthLogic = tagged("pressure-logic-3") as CurveEditorSegments
+                fourthLogic.requestRectangleOnScreen(Rect(0, 0, fourthLogic.width, fourthLogic.height), true)
+                fullyVisible(fourthLogic)
+                fourthLogic.selectFromUser(true)
+                check((tagged("pressure-logic") as CurveEditorSegments).checked)
+                check((tagged("pressure-logic-2") as CurveEditorSegments).checked)
                 (tagged("first-mode") as CurveEditorSegments).selectFromUser(true)
                 val firstMode = tagged("first-mode") as CurveEditorSegments
                 val firstPair = descendants(firstMode).filterIsInstance<TextView>().filter { it.isClickable }
                 check(firstPair[1].isSelected && firstPair[1].text.toString() == screen.getString(R.string.curve_editor_first_flow))
                 check(firstPair.all { it.lineCount == 1 })
+                listOf("control-mode", "control-mode-2", "control-mode-3", "pressure-logic", "pressure-logic-2", "pressure-logic-3").forEach {
+                    check((tagged(it) as CurveEditorSegments).checked) { "First-stage choice changed shared mode: $it" }
+                }
                 check((tagged("pressure-logic") as CurveEditorSegments).text.toString() == screen.getString(R.string.curve_control_fast))
+                root.findViewWithTag<View>("curve-stage-remove-3").performClick()
                 // Validate RTL layout of the actual picker, including the selected thumb placement.
                 firstMode.layoutDirection = View.LAYOUT_DIRECTION_RTL
                 firstMode.requestLayout()
@@ -169,13 +207,30 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                 modeAction { (tagged("control-mode") as CurveEditorSegments).selectFromUser(false) }
                 main {
                     val colors = CurveEditorColors(screen)
-                    check((0..2).all { root.findViewWithTag<TextView>("curve-stage-mode-$it").currentTextColor == colors.pressureInk })
+                    check(root.findViewWithTag<TextView>("curve-stage-mode-0").currentTextColor == colors.pressureInk)
+                    listOf("control-mode", "control-mode-2").forEach { key ->
+                        val picker = tagged(key) as CurveEditorSegments
+                        check(!picker.checked)
+                        val selected = descendants(picker).filterIsInstance<TextView>().single { it.isClickable && it.isSelected }
+                        check(selected.text.toString() == screen.getString(R.string.curve_control_pressure))
+                    }
                 }
                 shot(prefix + "-pressure-constant")
                 modeAction { (tagged("pressure-logic") as CurveEditorSegments).selectFromUser(true) }
                 shot(prefix + "-pressure-follow")
                 modeAction { (tagged("control-mode") as CurveEditorSegments).selectFromUser(true) }
             }
+            main {
+                root.findViewWithTag<View>("curve-stage-remove-2").performClick()
+                root.findViewWithTag<View>("curve-stage-remove-1").performClick()
+                check(root.findViewWithTag<View>("curve-editor-mode-hint").visibility == View.VISIBLE)
+                root.findViewWithTag<View>("curve-stage-add").performClick()
+                root.findViewWithTag<View>("curve-stage-add").performClick()
+                check(root.findViewWithTag<View>("curve-editor-mode-hint").visibility == View.GONE)
+                check((tagged("target-1") as EditText).text.toString() == "4.5")
+                check((tagged("water-2") as EditText).text.toString() == "10")
+            }
+            test.waitForIdleSync()
             var originalSave = Rect()
             main { save.getGlobalVisibleRect(originalSave); scroll.fullScroll(View.FOCUS_DOWN) }
             test.waitForIdleSync()

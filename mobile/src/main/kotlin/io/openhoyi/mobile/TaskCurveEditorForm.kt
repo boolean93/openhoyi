@@ -54,9 +54,9 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         tag = "curve-stage-mode-$it"
     } }
     val firstModeHost = cell()
+    val sharedModeHosts = List(4) { cell() }
+    val sharedLogicHosts = List(4) { cell() }
     val waterLimit = cell()
-    val modeControls = cell()
-    val logicControls = cell()
     val actions = cell().apply {
         tag = "product/form/curve-editor/fixed-actions"
         setPadding(0, dp(8), 0, 0)
@@ -155,13 +155,24 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         }
         titleName.addView(header); titleName.addView(metadata[0]); if (info != null) titleName.addView(info)
         headerParent.addView(titleName, headerIndex, LinearLayout.LayoutParams(-1, -2))
-        val toolbar = CardGrid(140, 4).apply { tag = "curve-editor-light-toolbar" }
-        listOf(metadata[1], metadata[2], modeControls, logicControls).forEach(toolbar::addView)
+        val toolbarFields = CardGrid(140, 2)
+        listOf(metadata[1], metadata[2]).forEach(toolbarFields::addView)
+        val toolbar = object : android.widget.FrameLayout(activity) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                // Input widths follow useful content space, not the entire tablet width.
+                toolbarFields.layoutParams.width = minOf(MeasureSpec.getSize(widthMeasureSpec),
+                    dp((560 * resources.configuration.fontScale.coerceAtLeast(1f)).toInt()))
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            tag = "curve-editor-light-toolbar"
+            addView(toolbarFields, android.widget.FrameLayout.LayoutParams(-1, -2, android.view.Gravity.START))
+        }
         column.addView(toolbar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(12) })
         column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val grid = CardGrid(222, 4) {
             // Real localized title width plus a 96dp minimum picker, not merely a nominal card width.
-            dp(32 + 6 + 11 + 48) + maxOf(dp(96), (0 until firstModeHost.childCount).mapNotNull { firstModeHost.getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0) + stageTitles.maxOf { kotlin.math.ceil(android.text.Layout.getDesiredWidth(it.text, it.paint).toDouble()).toInt() }
+            dp(32 + 6 + 11 + 48) + maxOf(dp(96), (listOf(firstModeHost) + sharedModeHosts).flatMap { host -> (0 until host.childCount).mapNotNull { host.getChildAt(it) as? CurveEditorSegments } }.maxOfOrNull { it.requiredWidth() } ?: 0) + stageTitles.maxOf { kotlin.math.ceil(android.text.Layout.getDesiredWidth(it.text, it.paint).toDouble()).toInt() }
         }.apply { tag = "curve-stage-cards" }
         stageRows.forEachIndexed { index, card ->
             card.tag = "curve-editor-stage-$index"
@@ -175,7 +186,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                     getChildAt(1).measure(free, free)
                     getChildAt(3).measure(MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY))
                     val modeBudget = width - dp(6 + 11 + 48) - getChildAt(1).measuredWidth
-                    val needed = if (index == 0) maxOf(dp(96), (0 until firstModeHost.childCount).mapNotNull { firstModeHost.getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0) else dp(96)
+                    val needed = if (index == 0) maxOf(dp(96), (0 until firstModeHost.childCount).mapNotNull { firstModeHost.getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0) else maxOf(dp(96), (0 until sharedModeHosts[index].childCount).mapNotNull { sharedModeHosts[index].getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0)
                     inline = modeBudget >= needed
                     getChildAt(2).measure(MeasureSpec.makeMeasureSpec(if (inline) modeBudget else width, MeasureSpec.EXACTLY), free)
                     val rowHeight = maxOf(dp(48), getChildAt(1).measuredHeight)
@@ -201,7 +212,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             stageDots += dot
             heading.addView(dot, LinearLayout.LayoutParams(dp(6), dp(6)))
             heading.addView(stageTitles[index])
-            val mode = if (index == 0) firstModeHost else stageModes[index]
+            val mode = if (index == 0) firstModeHost else sharedModeHosts[index]
             heading.addView(mode)
             if (index == 0) firstModeHost.addView(stageModes[0], LinearLayout.LayoutParams(-1, -2))
             val remove = style.visual.action(LinearLayout(activity), "×", "curve-stage-remove-$index", top = 0) {
