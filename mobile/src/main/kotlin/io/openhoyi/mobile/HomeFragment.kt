@@ -77,6 +77,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private var previousCupActive = false
     private lateinit var quickLaunch: Button
     private lateinit var quickRow: LinearLayout
+    private var compactQuickHeading: View? = null
     private lateinit var machineConnect: Button
     private var machineRetryIconShown=false
     private lateinit var brewPressure: TextView
@@ -144,6 +145,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     }
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
         boilerDials.clear()
+        compactQuickHeading = null
         feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
@@ -236,7 +238,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
         }
         machineModes = MachineModeControls(host, ::changeMachineMode)
-        val machineRow = MachineModeHeader(host, machineHeading, machineModes)
+        // Short landscape already shares this header with the last-curve card. Keep
+        // its original width budget; the modes reuse the quick-heading row below.
+        val machineRow = if (shortWideHome) machineHeading.apply {
+            tag = "product/home/machine-status"
+        } else MachineModeHeader(host, machineHeading, machineModes)
         val compactTopRow = if (shortWideHome) productStyle.row("product/home/compact-top").also {
             it.gravity = android.view.Gravity.CENTER_VERTICAL
             content.addView(it, LinearLayout.LayoutParams(-1, -2))
@@ -369,12 +375,17 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             addView(quickTitle, LinearLayout.LayoutParams(-2, -2))
         }
         val previewHeading = object : LinearLayout(host) {
-            init { gravity = android.view.Gravity.CENTER_VERTICAL; addView(titleGroup); addView(previewLegend) }
+            init {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(titleGroup)
+                addView(previewLegend)
+            }
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
                 quickTitle.measure(natural, natural); previewLegend.measure(natural, natural)
                 val titleNaturalWidth = quickTitle.measuredWidth
-                val stacked = titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
+                val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
+                    titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
                 orientation = if (stacked) VERTICAL else HORIZONTAL
                 val titleWidth = if (stacked) -1 else 0
                 val titleWeight = if (stacked) 0f else 1f
@@ -387,7 +398,44 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
+        if (shortWideHome) {
+            // Modes remain visible (and safety-gated) while quick actions hide for an
+            // active cup. Reusing this row avoids adding a 48dp header to a 284dp viewport.
+            previewHeading.tag = "product/home/compact-quick-heading"
+            compactQuickHeading = previewHeading
+            val modeGroup = productStyle.row("product/home/compact-mode-group").apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(productStyle.text(getString(R.string.machine_mode_title), TaskProductVisualStyle.auxiliary),
+                    LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
+                addView(machineModes, LinearLayout.LayoutParams(-2, -2))
+            }
+            val sharedHeading = object : LinearLayout(host) {
+                init {
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    isBaselineAligned = false
+                    addView(previewHeading, LayoutParams(0, -2, 1f))
+                    addView(modeGroup, LayoutParams(-2, -2))
+                }
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                    previewHeading.measure(natural, natural); modeGroup.measure(natural, natural)
+                    val previewWidth = if (previewHeading.visibility == View.GONE) 0 else previewHeading.measuredWidth
+                    val gap = if (previewHeading.visibility == View.GONE) 0 else dp(16)
+                    val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
+                        previewWidth + modeGroup.measuredWidth + gap > View.MeasureSpec.getSize(widthMeasureSpec)
+                    orientation = if (stacked) VERTICAL else HORIZONTAL
+                    (previewHeading.layoutParams as LayoutParams).apply {
+                        width = if (stacked) -1 else 0; weight = if (stacked) 0f else 1f
+                    }
+                    (modeGroup.layoutParams as LayoutParams).apply {
+                        width = if (stacked) -1 else -2; marginStart = if (stacked) 0 else gap
+                        resolveLayoutDirection(layoutDirection)
+                    }
+                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                }
+            }
+            content.addView(sharedHeading, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-1, -2))
+        } else quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
         lastCurveRow = object : LinearLayout(host) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 if (phoneHome && compactType && childCount == 4) {
@@ -1106,6 +1154,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
+        compactQuickHeading?.visibility = quickRow.visibility
         lastCurveRow.visibility = quickRow.visibility
         if (!cupActive && (lastCurveDirty || previousCupActive)) {
             showLastCurve(resolveLastCurve())

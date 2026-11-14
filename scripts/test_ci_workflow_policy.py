@@ -1,6 +1,7 @@
 """Static regressions for the fast PR gate, AVD split and release wake-up."""
 import importlib.util
 import pathlib
+import re
 import unittest
 
 SPEC = importlib.util.spec_from_file_location(
@@ -10,6 +11,16 @@ SPEC.loader.exec_module(policy)
 
 
 class WorkflowPolicyTests(unittest.TestCase):
+    def test_shortcut_lifecycle_marker_matches_instrumentation(self):
+        root = pathlib.Path(__file__).resolve().parents[1]
+        runner = (root / "scripts/check_mock_lifecycle.sh").read_text()
+        instrumentation = (root / "mobile/src/androidTest/kotlin/io/openhoyi/mobile/BrewAudioInstrumentation.kt").read_text()
+        expected = "SHORTCUT_DIRECT_WINDOW_PASSED defaultOn=true homeToggle=false settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true"
+        runner_markers = re.findall(r"grep -F '(SHORTCUT_DIRECT_WINDOW_PASSED[^']+)'", runner)
+        instrument_markers = re.findall(r'"(SHORTCUT_DIRECT_WINDOW_PASSED[^"\\]+)', instrumentation)
+        self.assertEqual(runner_markers, [expected])
+        self.assertEqual(instrument_markers, [expected])
+
     def test_no_pull_request_triggered_avd_workflow(self):
         self.assertEqual(policy.validate_pr_avd(), [])
 

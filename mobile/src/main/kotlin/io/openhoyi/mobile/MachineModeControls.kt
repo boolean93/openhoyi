@@ -50,19 +50,22 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
             }
         }
     }
+    private fun android.widget.TextView.showLabel(value: String) {
+        if (text.toString() != value) text = value
+    }
     fun render(owner: MobileService?) {
         val settings = owner?.snapshot?.settings
         rendering = true
         pressure = settings?.flags?.and(0x80) != 0 && settings != null
         flow = settings?.flags?.and(0x40) != 0 && settings != null
         mode.isChecked = flow; logic.isChecked = pressure
-        mode.text = if (settings == null) "—" else context.getString(if (flow) R.string.curve_control_flow else R.string.curve_control_pressure)
-        logic.text = if (settings == null) "—" else context.getString(when {
+        mode.showLabel(if (settings == null) "—" else context.getString(if (flow) R.string.curve_control_flow else R.string.curve_control_pressure))
+        logic.showLabel(if (settings == null) "—" else context.getString(when {
             flow && pressure -> R.string.curve_control_fast
             flow -> R.string.curve_control_slow
             pressure -> R.string.curve_control_follow
             else -> R.string.curve_control_constant
-        })
+        }))
         mode.contentDescription = context.getString(R.string.machine_mode_title) + " · " + mode.text
         logic.contentDescription = context.getString(R.string.machine_mode_title) + " · " + logic.text
         val enabled = MachineSettingsEditGate.allowed(owner)
@@ -75,7 +78,7 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
             else -> null
         } else null
         status.visibility = if (state == null) View.GONE else View.VISIBLE
-        status.text = state?.let(context::getString).orEmpty()
+        status.showLabel(state?.let(context::getString).orEmpty())
         contentDescription = context.getString(R.string.machine_mode_title) + (state?.let { " · " + context.getString(it) } ?: "")
         rendering = false
     }

@@ -67,13 +67,14 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             }
             val tags = (if (ready) emptyList() else listOf("connect")) +
                 listOf("machine-status", "brew-boiler", "steam-boiler",
-                "brew-boiler/toggle", "steam-boiler/toggle") +
+                "brew-boiler/toggle", "steam-boiler/toggle", "machine-mode/control", "machine-mode/logic") +
                 (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
                     listOf("direct-preset/$it", "direct-preset/$it/preview")
                 }) + (if (lastCurveRecorded) listOf("last-curve/preview", "quick-recipe") else emptyList())
             val bounds = tags.associateWith { name ->
-                val view = requireNotNull(descendants(root).singleOrNull { it.tag == "product/home/$name" }) {
-                    "Missing actual Home view product/home/$name"
+                val viewTag = if (name.startsWith("machine-mode/")) name else "product/home/$name"
+                val view = requireNotNull(descendants(root).singleOrNull { it.tag == viewTag }) {
+                    "Missing actual Home view $viewTag"
                 }
                 val visible = Rect()
                 val shown = view.isShown
@@ -92,8 +93,34 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 if (view.isClickable) check(view.width >= 48 * density && view.height >= 48 * density) {
                     "720x360 Home $name has a touch target smaller than 48dp: ${view.width}x${view.height} density=$density"
                 }
+                if (name.startsWith("machine-mode/")) {
+                    val toggle = view as HoyiSwitch
+                    check(toggle.text.isNotBlank()) { "Machine mode label missing: $name" }
+                    if (activeCup) check(!toggle.isEnabled) { "Machine mode must remain disabled during a cup: $name" }
+                }
                 visible
             }
+            check(!Rect.intersects(bounds.getValue("machine-mode/control"), bounds.getValue("machine-mode/logic"))) {
+                "Machine mode switches overlap"
+            }
+            if (!activeCup) {
+                val quickHeading = requireNotNull(root.findViewWithTag<View>("product/home/compact-quick-heading"))
+                val modes = requireNotNull(root.findViewWithTag<View>("product/home/compact-mode-group"))
+                val quickRect = Rect(); val modeRect = Rect()
+                check(quickHeading.getGlobalVisibleRect(quickRect) && modes.getGlobalVisibleRect(modeRect))
+                if (quickRect.top < modeRect.bottom && modeRect.top < quickRect.bottom)
+                    check(modeRect.left - quickRect.right >= 16 * density - 1) { "Compact heading groups lost their 16dp gap: $quickRect / $modeRect" }
+            }
+            val isolatedModes = MachineModeControls(activity) { error("No writes in label stability check") }
+            isolatedModes.render(null)
+            isolatedModes.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+            isolatedModes.layout(0, 0, isolatedModes.measuredWidth, isolatedModes.measuredHeight)
+            val modeLabels = descendants(isolatedModes).filterIsInstance<HoyiSwitch>()
+            val labelLayouts = modeLabels.map { requireNotNull(it.layout) }
+            repeat(20) { isolatedModes.render(null) }
+            check(modeLabels.none { it.isLayoutRequested }) { "Unchanged machine labels requested layout" }
+            check(modeLabels.map { it.layout } == labelLayouts) { "Unchanged machine labels discarded their text layouts" }
             File(directory, "$fixture.txt").writeText(geometry + "\n" +
                 bounds.entries.joinToString("\n") { (tag, rect) -> "$tag=$rect" } + "\n")
             if (activeCup) {

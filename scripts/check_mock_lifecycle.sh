@@ -299,7 +299,7 @@ for profile in compact portrait; do
   for theme in Light Dark; do
     adb shell am force-stop "$package"
     run_instrumentation "$output_dir/shortcut-$profile-$theme.txt" "shortcuts$theme"
-    grep -F 'SHORTCUT_DIRECT_WINDOW_PASSED defaultOff=true homeToggle=true settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true' "$output_dir/shortcut-$profile-$theme.txt" >/dev/null
+    grep -F 'SHORTCUT_DIRECT_WINDOW_PASSED defaultOn=true homeToggle=false settingsSync=true coldNoStart=true recreateNoReplay=true noBle=true noShot=true' "$output_dir/shortcut-$profile-$theme.txt" >/dev/null
     adb pull "/sdcard/Android/data/$package/files/shortcut-direct-checks" "$output_dir/shortcut-$profile-$theme"
   done
 done
