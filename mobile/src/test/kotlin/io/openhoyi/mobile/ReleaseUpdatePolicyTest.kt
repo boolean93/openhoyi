@@ -106,4 +106,25 @@ class ReleaseUpdatePolicyTest {
             assertEquals(ReleaseUpdateStatus.IDENTITY_UNAVAILABLE, releaseUpdateStatus(identity, update))
         }
     }
+    @Test fun localDebugCanMoveToSameOrNewerDevWithoutWeakeningIdentityOrDowngradeChecks() {
+        val update = ReleaseUpdateIndex.parse(fixture)
+        val local = InstalledUpdateIdentity("io.openhoyi.mobile", 94, true, update.signerSha256,
+            "0.2.0-local.94-dev104")
+        assertEquals(ReleaseUpdateStatus.AVAILABLE, releaseUpdateStatus(local, update))
+        assertEquals(ReleaseUpdateStatus.AVAILABLE, releaseUpdateStatus(local.copy(versionCode = 93), update))
+        assertEquals(ReleaseUpdateStatus.INSTALLED_NEWER, releaseUpdateStatus(local.copy(versionCode = 95), update))
+        assertEquals(ReleaseUpdateStatus.SAME_VERSION, releaseUpdateStatus(local.copy(debuggable = false), update))
+        assertEquals(ReleaseUpdateStatus.IDENTITY_UNAVAILABLE, releaseUpdateStatus(local.copy(signerSha256 = null), update))
+        assertEquals(ReleaseUpdateStatus.SIGNATURE_MISMATCH, releaseUpdateStatus(local.copy(signerSha256 = "f".repeat(64)), update))
+        assertEquals(ReleaseUpdateStatus.MOCK_PREVIEW, releaseUpdateStatus(local.copy(packageName = "io.openhoyi.mobile.mock"), update))
+        assertTrue(releaseAutomaticCheckEligible(local))
+        assertFalse(releaseAutomaticCheckEligible(local.copy(packageName = "io.openhoyi.mobile.mock")))
+        assertFalse(releaseAutomaticCheckEligible(local.copy(signerSha256 = null)))
+        for (name in listOf(null, "", "0.2.0", "0.2.0-dev.94", "0.2.0-local.", "0.2.0-local.94\n", "local.94")) {
+            val unknown = local.copy(versionName = name)
+            assertEquals(ReleaseUpdateStatus.DEBUG_PREVIEW, releaseUpdateStatus(unknown, update))
+            assertFalse(releaseAutomaticCheckEligible(unknown))
+        }
+    }
+
 }

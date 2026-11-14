@@ -25,6 +25,11 @@ class ReleaseApkVerifierTest {
         val installed=InstalledUpdateIdentity("io.openhoyi.mobile",93,false,cert)
         val actual=ReleaseApkIdentity("io.openhoyi.mobile",94,false,cert,26,false)
         assertTrue(releaseApkIdentityMatches(installed,target,actual,26))
+        val local = installed.copy(debuggable = true, versionName = "0.2.0-local.94-test", versionCode = 94)
+        assertTrue(releaseApkIdentityMatches(local,target,actual,26))
+        assertFalse(releaseApkIdentityMatches(local.copy(versionCode = 95),target,actual,26))
+        assertFalse(releaseApkIdentityMatches(local,target,actual.copy(debuggable = true),26))
+        assertFalse(releaseApkIdentityMatches(local.copy(signerSha256 = "f".repeat(64)),target,actual,26))
         for(bad in listOf(actual.copy(packageName="io.openhoyi.mobile.mock"),actual.copy(versionCode=95),
             actual.copy(debuggable=true),actual.copy(split=true),actual.copy(minSdk=27),actual.copy(signerSha256="f".repeat(64))))
             assertFalse(releaseApkIdentityMatches(installed,target,bad,26))
