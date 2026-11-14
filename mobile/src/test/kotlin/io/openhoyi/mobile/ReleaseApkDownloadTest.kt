@@ -13,11 +13,11 @@ import org.junit.Test
 
 class ReleaseApkDownloadTest {
     private val github="https://github.com/boolean93/openhoyi/releases/download/dev-94/update.apk"
-    private val mirror="https://gitee.com/boolean93/openhoyi/releases/download/dev-94/update.apk"
+    private val mirror="https://openhoyi.ios.dog/boolean93/openhoyi/releases/download/dev-94/update.apk"
     private val bytes=byteArrayOf(1,2,3,4)
     private fun target()=ReleaseUpdate(94,"fixture","a".repeat(64),
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString(""){"%02x".format(it.toInt() and 255)},
-        github,"",apkSize=bytes.size.toLong(),mirrorDownloadUrls=listOf(mirror))
+        github,"",apkSize=bytes.size.toLong(),mirrorDownloadUrls=listOf("https://gitee.com/boolean93/openhoyi/attach_files/123/download/update.apk"))
     private class Connection(address:String,val bytes:ByteArray,val code:Int=200,val headers:Map<String,String> = emptyMap()):HttpsURLConnection(URL(address)) {
         var stream:InputStream=ByteArrayInputStream(bytes)
         override fun getResponseCode()=code
@@ -34,19 +34,15 @@ class ReleaseApkDownloadTest {
     private fun output()=kotlin.io.path.createTempDirectory().toFile().resolve("one.part")
     private fun rejected(block:()->Unit){try{block();fail("expected rejection")}catch(_:Exception){}}
 
-    @Test fun mirrorCanonicalRedirectChainVerifiesSameBytes() {
-        val attach="https://gitee.com/boolean93/openhoyi/attach_files/123/download/update.apk"
-        val cdn="https://foruda.gitee.com/attach_file/123456/update.apk?token=secret"
-        val opened=mutableListOf<String>();val part=output()
+    @Test fun acceleratorVerifiesSameBytesEvenForPreviouslyCachedCanonicalIndex() {
+        val opened = mutableListOf<String>(); val part = output()
         try {
-            val call=ReleaseApkDownload(ReleaseApkTransfer({url->opened+=url.toString();when(url.toString()){
-                mirror->Connection(mirror,byteArrayOf(),302,mapOf("Location" to attach))
-                attach->Connection(attach,byteArrayOf(),302,mapOf("Location" to cdn))
-                else->Connection(cdn,bytes)
-            }}),::verify,pause={error("no retry expected")})
-            call.download(target(),part){_,_->}
-            assertEquals(listOf(mirror,attach,cdn),opened);assertArrayEquals(bytes,part.readBytes())
-        }finally{part.parentFile!!.deleteRecursively()}
+            val call = ReleaseApkDownload(ReleaseApkTransfer({url ->
+                opened += url.toString(); Connection(url.toString(), bytes)
+            }), ::verify, pause={error("no retry expected")})
+            call.download(target().copy(mirrorDownloadUrls=emptyList()), part){_,_->}
+            assertEquals(listOf(mirror), opened); assertArrayEquals(bytes, part.readBytes())
+        } finally { part.parentFile!!.deleteRecursively() }
     }
     @Test fun partialTransferRetriesWholeFileThenFallsBackWithBoundedAttempts() {
         val opened=mutableListOf<String>();val waits=mutableListOf<Long>();val part=output()
@@ -99,7 +95,9 @@ class ReleaseApkDownloadTest {
     @Test fun untrustedMirrorRedirectsNeverConnectAndDiagnosticsContainNoRawMessage() {
         for(bad in listOf("http://foruda.gitee.com/attach_file/1/update.apk", "https://foruda.gitee.com.evil.test/attach_file/1/update.apk",
             "https://foruda.gitee.com/attach_file/1/other.apk", "https://gitee.com/other/openhoyi/attach_files/1/download/update.apk",
-            "https://foruda.gitee.com/attach_file/1/update.apk#fragment")) {
+            "https://foruda.gitee.com/attach_file/1/update.apk#fragment",
+            mirror + "?token=secret", mirror.replace("dev-94", "dev-93"), mirror.replace("update.apk", "other.apk"),
+            mirror.replace("ios.dog/", "ios.dog:444/"), mirror.replace("https://", "https://user@"))) {
             val part=output();val opened=mutableListOf<String>()
             try {
                 val transfer=ReleaseApkTransfer({url->opened+=url.toString();Connection(mirror,byteArrayOf(),302,mapOf("Location" to bad))})
@@ -107,7 +105,7 @@ class ReleaseApkDownloadTest {
                 assertEquals(listOf(mirror),opened)
             }finally{part.parentFile!!.deleteRecursively()}
         }
-        val fields=releaseTransferEvent(ReleaseTransferStage.APK,ReleaseSource.GITEE,1,
+        val fields=releaseTransferEvent(ReleaseTransferStage.APK,ReleaseSource.CLOUDFLARE,1,
             SocketTimeoutException("https://foruda.gitee.com/x?access_token=secret")).fields()
         assertEquals("TIMEOUT",fields["failure"]);assertFalse(fields.toString().contains("secret"));assertFalse(fields.toString().contains("http:"))
     }

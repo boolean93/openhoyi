@@ -5,7 +5,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
-internal enum class ReleaseSource { GITEE, GITHUB }
+internal enum class ReleaseSource { GITEE, CLOUDFLARE, GITHUB }
 internal enum class ReleaseTransferStage { INDEX, APK, VERIFY }
 internal enum class ReleaseTransferOutcome { SUCCESS, FAILED }
 internal enum class ReleaseTransferFailure { NONE, TIMEOUT, DNS, TLS, HTTP, INTERRUPTED, REJECTED, IO }

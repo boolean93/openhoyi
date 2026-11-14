@@ -21,6 +21,8 @@
         android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
     <instrumentation android:name="io.openhoyi.mobile.PendingRecipeLabelChecks"
         android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
+    <instrumentation android:name="io.openhoyi.mobile.CloudflareDownloadLiveInstrumentation"
+        android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
     <application>
         <provider
             android:name="io.openhoyi.mobile.CurveFixtureProvider"
