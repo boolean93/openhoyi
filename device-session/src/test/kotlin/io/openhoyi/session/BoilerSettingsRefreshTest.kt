@@ -69,6 +69,43 @@ class BoilerSettingsRefreshTest {
     }
     private fun hex(value:String)=value.chunked(2).map {it.toInt(16).toByte()}.toByteArray()
 
+    @Test fun leverModesRequestBoundedReadbackWithoutControlReplayOrReconnect() {
+        for(change in listOf(MachineSettingChange.LeverMode(false,false),
+            MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true))) {
+            val f=Fixture();val before=f.driver.writes.size
+            f.begin(change);f.complete();f.advance(250);f.complete();f.advance(1250)
+            assertEquals(before+3,f.driver.writes.size)
+            f.complete();f.advance(3000)
+            assertFalse(f.session.canReconnectBoilerSettings)
+            assertFalse(f.session.boilerReconciliationReady)
+            assertFalse(f.session.reconnectBoilerSettings({true},{true}))
+            val matched=f.initial.copyOf().also {
+                it[3]=((it[3].toInt() and 0x3f) or (if(change.pressure)0x80 else 0) or
+                    (if(change.flow)0x40 else 0)).toByte()
+                it[it.lastIndex]=it.dropLast(1).fold(0){a,v->a xor (v.toInt() and 255)}.toByte()
+            }
+            f.receive(matched)
+            assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
+            f.advance(18000);assertEquals(before+3,f.driver.writes.size)
+            assertEquals(1,f.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(change).frame.toByteArray())})
+        }
+    }
+
+    @Test fun leverMissingSettingsStaysUnknownAndManualRecoveryIsSingleSync() {
+        val f=Fixture();val change=MachineSettingChange.LeverMode(false,false)
+        val token=f.begin(change);f.complete();f.advance(250);f.complete();f.advance(1250);f.complete()
+        f.advance(6000);assertTrue(f.tracker.timeout(token,f.serial))
+        f.advance(181000);val count=f.driver.writes.size
+        assertFalse(f.session.canReconnectBoilerSettings)
+        assertTrue(f.session.canRefreshUnknownBoilerSettings)
+        f.session.refreshUnknownBoilerSettings({f.tracker.permitsBoilerRecovery(token)}) {_,_->}
+        f.session.refreshUnknownBoilerSettings({true}) {_,result->assertTrue(result is OperationResult.Failed)}
+        f.advance(181250);f.complete();f.advance(187000)
+        assertEquals(count+1,f.driver.writes.size)
+        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+        f.session.disconnect();assertFalse(f.session.canRefreshUnknownBoilerSettings)
+    }
+
     @Test fun successfulGattWithoutFirstReadbackUsesSecondSyncButNeverRepeatsControl() {
         for(change in listOf(MachineSettingChange.BrewHeating(false),MachineSettingChange.SteamHeating(false))) {
             val f=Fixture();val before=f.driver.writes.size

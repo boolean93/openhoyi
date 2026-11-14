@@ -130,7 +130,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             }
         }
     }
-    private class BoilerReadback(val generation:Long,val address:String,val authentication:CoffeeAuthentication,val startedAt:Long) {
+    private class BoilerReadback(val generation:Long,val address:String,val authentication:CoffeeAuthentication,val startedAt:Long,val allowReconnect:Boolean) {
         var automaticStarted=false
         var syncAttempts=0
         var syncDispatched=false
@@ -734,9 +734,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     (enablingPlan == null || WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == enablingPlan)}) {result->
                 // Arm before the host callback: it must enter WAITING_READBACK before requesting refresh.
                 if(result is OperationResult.Success && ownsInitialization(expected) && state==DeviceState.READY &&
-                    (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating))
+                    SettingsReadbackPolicy.supports(change))
                     coffeeAuthentication?.let { authentication->address?.let { target->
-                        boilerReadback=BoilerReadback(expected,target,authentication,clock())
+                        boilerReadback=BoilerReadback(expected,target,authentication,clock(),SettingsReadbackPolicy.isBoiler(change))
                     } }
                 callback(result)
             }
@@ -805,10 +805,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
     }
     /** Typed mismatch reconciliation starts only after this transaction actually sends sync. */
-    val boilerReconciliationReady:Boolean get()=boilerReadback?.let {ownsBoilerReadback(it) && it.syncDispatched}==true ||
+    val boilerReconciliationReady:Boolean get()=boilerReadback?.let {it.allowReconnect && ownsBoilerReadback(it) && it.syncDispatched}==true ||
         boilerReconnectLimit?.let {generation==it.generation && address==it.address && state==DeviceState.READY}==true
     val canReconnectBoilerSettings:Boolean get()=boilerReadback?.let {
-        ownsBoilerReadback(it) && it.automaticStarted && !it.automaticCancelled && it.syncAttempts==2 && !it.reconnectUsed &&
+        it.allowReconnect && ownsBoilerReadback(it) && it.automaticStarted && !it.automaticCancelled && it.syncAttempts==2 && !it.reconnectUsed &&
             clock()>=it.startedAt+3000 && clock()<it.deadline && boilerRefreshTask?.inFlight!=true &&
             canControlFromIdle() && sleepWrite==null
     }==true
