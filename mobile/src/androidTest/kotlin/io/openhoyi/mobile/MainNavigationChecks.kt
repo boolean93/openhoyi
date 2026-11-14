@@ -58,7 +58,15 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             val root = requireNotNull(home.view)
             val viewport = Rect()
             check(root.getGlobalVisibleRect(viewport) && !viewport.isEmpty)
-            val tags = listOf("machine-status", "connect", "brew-boiler", "steam-boiler",
+            val connection = requireNotNull(root.findViewWithTag<View>("product/home/connect"))
+            val owner = HomeFragment::class.java.getDeclaredField("service")
+                .apply { isAccessible = true }.get(home) as? MobileService
+            val ready = owner?.snapshot?.coffeeState == io.openhoyi.session.DeviceState.READY
+            check(connection.visibility == if (ready) View.GONE else View.VISIBLE) {
+                "Home must hide the redundant connected-device Change action but retain disconnected retry"
+            }
+            val tags = (if (ready) emptyList() else listOf("connect")) +
+                listOf("machine-status", "brew-boiler", "steam-boiler",
                 "brew-boiler/toggle", "steam-boiler/toggle", "machine-mode/control", "machine-mode/logic") +
                 (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
                     listOf("direct-preset/$it", "direct-preset/$it/preview")
