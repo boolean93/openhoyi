@@ -34,6 +34,15 @@ class ReleaseApkDownloadTest {
     private fun output()=kotlin.io.path.createTempDirectory().toFile().resolve("one.part")
     private fun rejected(block:()->Unit){try{block();fail("expected rejection")}catch(_:Exception){}}
 
+    @Test fun observedCdnLowercaseIsAcceptedOnlyAtPinnedFinalHost() {
+        val initial = java.net.URI("https://gitee.com/boolean93/openhoyi/releases/download/dev-123/OpenHOYI-0.2.0-dev.123.apk")
+        fun allowed(url: String) = releaseApkUrlAllowed(java.net.URI(url), initial)
+        assertTrue(allowed("https://foruda.gitee.com/attach_file/1794661649693977776/openhoyi-0.2.0-dev.123.apk?signature=opaque"))
+        assertTrue(allowed("https://foruda.gitee.com/attach_file/1794661649693977776/OpenHOYI-0.2.0-dev.123.apk"))
+        assertFalse(allowed("https://foruda.gitee.com/attach_file/1794661649693977776/OPENHOYI-0.2.0-dev.123.apk"))
+        assertFalse(allowed("https://foruda.gitee.com/attach_file/1794661649693977776/openhoyi-0.2.0-dev.124.apk"))
+        assertFalse(allowed("https://gitee.com/boolean93/openhoyi/attach_files/3698312/download/openhoyi-0.2.0-dev.123.apk"))
+    }
     @Test fun mirrorCanonicalRedirectChainVerifiesSameBytes() {
         val attach="https://gitee.com/boolean93/openhoyi/attach_files/123/download/update.apk"
         val cdn="https://foruda.gitee.com/attach_file/123456/update.apk?token=secret"

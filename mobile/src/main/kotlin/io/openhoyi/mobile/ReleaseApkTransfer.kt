@@ -6,6 +6,7 @@ import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.URI
 import java.net.URL
+import java.util.Locale
 import javax.net.ssl.HttpsURLConnection
 
 internal fun releaseApkUrlAllowed(value: URI, initial: URI): Boolean {
@@ -15,7 +16,9 @@ internal fun releaseApkUrlAllowed(value: URI, initial: URI): Boolean {
         return when (value.host) {
             "gitee.com" -> value.rawQuery == null && (value.rawPath == initial.rawPath ||
                 Regex("/boolean93/openhoyi/attach_files/[0-9]+/download/" + Regex.escape(filename)).matches(value.rawPath))
-            "foruda.gitee.com" -> Regex("/attach_file/[0-9]+/" + Regex.escape(filename)).matches(value.rawPath)
+            "foruda.gitee.com" -> setOf(filename, filename.lowercase(Locale.ROOT)).any {
+                Regex("/attach_file/[0-9]+/" + Regex.escape(it)).matches(value.rawPath)
+            }
             else -> false
         }
     }
