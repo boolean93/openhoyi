@@ -362,7 +362,7 @@ class ProductPagesTest(unittest.TestCase):
         self.assertIs(self.provenance["appBuild"]["binaryIdentityVerified"], False)
         self.assertIsNone(self.provenance["appBuild"]["apkSha256"])
         self.assertIn("APK", self.provenance["appBuild"]["identityNotice"])
-        for text in ("云端 Android 34 模拟器", "非真实平板截图", "源码 7a22e6cb",
+        for text in ("云端 Android 14（API 34） 模拟器", "非真实平板截图", "源码 7a22e6cb",
                      "CI 源码提交与截图来源已记录",
                      "连接、配方与两杯对比区的流程和图表为功能示意",
                      "模拟数据", "不保证与下载版本一致", "展示图仅连续裁去有明确边界记录的系统栏"):

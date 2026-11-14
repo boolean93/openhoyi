@@ -92,7 +92,7 @@
         "url": "https://github.com/boolean93/openhoyi/actions/runs/43623446874",
         "headSha": "0f08a97c931b7bb5e701b1688223e28e2013ea8e",
         "conclusion": "failure",
-        "scope": "Exact same-run Mock producer succeeded; home/history per-page checks passed; full matrix later failed form-selector and final isolation checks.",
+        "scope": "Selected Chinese home/history page checks passed. The whole run failed: CurveEditorActivity predicate lookup failure; English ExtractionActivity ellipsized Scale reading text; HistoryActivity detail-return state comparison failure; AppSettingsActivity list timeout; Final isolation assertion failure. Root causes are not established here; not a whole-workflow success or hardware acceptance claim.",
         "applicationSourceMatchesBaseline": true,
         "applicationSourceObjects": {
           "app": "b62477a5f5f39d19d42c90e7f97c6dca85d4eceb",
@@ -109,7 +109,14 @@
           "gradle": "f4382d80dc0a8a9b01d7010900029620d65bab66",
           "gradlew": "f5feea6d6b116baaca5a2642d4d9fa1f47d574a7",
           "gradlew.bat": "9b42019c7915b971238526075306ffba3b666dd5"
-        }
+        },
+        "knownFailures": [
+          "CurveEditorActivity predicate lookup failure",
+          "English ExtractionActivity ellipsized Scale reading text",
+          "HistoryActivity detail-return state comparison failure",
+          "AppSettingsActivity list timeout",
+          "Final isolation assertion failure"
+        ]
       }
     ]
   },
@@ -141,7 +148,7 @@
       "captureMethod": "Android UiAutomation.takeScreenshot()",
       "capturedPageCheck": "SINGLE_SCREEN_PAGE_OK zh-Hans-light-HomeActivity",
       "sourceRunConclusion": "failure",
-      "sourceRunLimitation": "Build-mock exact producer succeeded and captured page check passed. Whole matrix later failed obsolete CurveEditorActivity form selectors and final isolation assertion; not a full visual or hardware acceptance claim."
+      "sourceRunLimitation": "Selected Chinese home/history page checks passed. The whole run failed: CurveEditorActivity predicate lookup failure; English ExtractionActivity ellipsized Scale reading text; HistoryActivity detail-return state comparison failure; AppSettingsActivity list timeout; Final isolation assertion failure. Root causes are not established here; not a whole-workflow success or hardware acceptance claim."
     },
     {
       "name": "extraction",
@@ -196,7 +203,7 @@
       "captureMethod": "Android UiAutomation.takeScreenshot()",
       "capturedPageCheck": "SINGLE_SCREEN_PAGE_OK zh-Hans-light-HistoryActivity",
       "sourceRunConclusion": "failure",
-      "sourceRunLimitation": "Build-mock exact producer succeeded and captured page check passed. Whole matrix later failed obsolete CurveEditorActivity form selectors and final isolation assertion; not a full visual or hardware acceptance claim."
+      "sourceRunLimitation": "Selected Chinese home/history page checks passed. The whole run failed: CurveEditorActivity predicate lookup failure; English ExtractionActivity ellipsized Scale reading text; HistoryActivity detail-return state comparison failure; AppSettingsActivity list timeout; Final isolation assertion failure. Root causes are not established here; not a whole-workflow success or hardware acceptance claim."
     },
     {
       "name": "editor",
