@@ -56,7 +56,7 @@
       focusY = Number(link.dataset.focusY) || 700;
       title.textContent = link.dataset.imageTitle;
       image.src = link.href;
-      image.alt = `${link.dataset.imageTitle}，使用模拟数据，非手机截图`;
+      image.alt = `${link.dataset.imageTitle}，模拟器平板尺寸界面，使用模拟数据，非真机截图`;
       original.href = link.href;
       resetScale();
       viewer.showModal();
