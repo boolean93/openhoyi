@@ -21,17 +21,23 @@ class CloudflareDownloadLiveInstrumentation : Instrumentation() {
     override fun onStart() {
         val report = Bundle()
         var directory: File? = null
+        var phase = "disposable-guard"
+        val events = mutableListOf<ReleaseTransferEvent>()
         try {
             check(allowed && BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
-            check(Build.FINGERPRINT.contains("generic") || Build.MODEL.contains("sdk"))
+            check(Build.FINGERPRINT.contains("generic") || Build.MODEL.contains("sdk", ignoreCase = true) ||
+                Build.HARDWARE in setOf("ranchu", "goldfish"))
+            phase = "canonical-index"
             val canonical = ReleaseUpdateHttpCall(acceleratedEnabled = false).execute()
-            val events = mutableListOf<ReleaseTransferEvent>()
+            phase = "accelerated-index"
             val mirror = ReleaseUpdateHttpCall(acceleratedEnabled = true,
                 installedSignerSha256 = canonical.signerSha256, diagnostic = events::add).execute()
+            phase = "accelerated-index-source"
             check(events.any { it.source == ReleaseSource.CLOUDFLARE && it.outcome == ReleaseTransferOutcome.SUCCESS })
             check(mirror.versionCode == canonical.versionCode && mirror.apkSha256 == canonical.apkSha256 &&
                 mirror.signerSha256 == canonical.signerSha256 && mirror.apkSize == canonical.apkSize &&
                 mirror.downloadUrl == canonical.downloadUrl) { "Mirror does not match current canonical release" }
+            phase = "index-metadata"
             val canonicalFields = JSONObject(checkNotNull(canonical.indexJson)).apply { remove("mirrorDownloadUrls") }
             val mirrorFields = JSONObject(checkNotNull(mirror.indexJson)).apply { remove("mirrorDownloadUrls") }
             val keys = canonicalFields.keys().asSequence().toSet()
@@ -51,11 +57,13 @@ class CloudflareDownloadLiveInstrumentation : Instrumentation() {
                     info.splitNames.isNullOrEmpty() && app.splitSourceDirs.isNullOrEmpty())
                 check(file.length() == target.apkSize && releaseApkSha256(file) == target.apkSha256)
             }
+            phase = "accelerated-apk"
             val primary = File(directory, "primary.part")
             events.clear()
             ReleaseApkDownload(verify = ::verify, diagnostic = events::add).download(mirror, primary) { _, _ -> }
             check(events.last().source == ReleaseSource.CLOUDFLARE && events.last().outcome == ReleaseTransferOutcome.SUCCESS)
             check(primary.delete())
+            phase = "github-fallback"
             var blockedMirror = 0
             val fallback = File(directory, "fallback.part")
             events.clear()
@@ -71,7 +79,7 @@ class CloudflareDownloadLiveInstrumentation : Instrumentation() {
             finish(Activity.RESULT_OK, report)
         } catch (error: Exception) {
             // Only a type/classification, never a URL, signed query or raw exception message.
-            report.putString("stream", "CLOUDFLARE_DOWNLOAD_LIVE_FAILED type=${error.javaClass.simpleName}\n")
+            report.putString("stream", "CLOUDFLARE_DOWNLOAD_LIVE_FAILED phase=$phase type=${error.javaClass.simpleName} events=${events.map { it.fields() }}\n")
             finish(Activity.RESULT_CANCELED, report)
         } finally { directory?.deleteRecursively() }
     }
