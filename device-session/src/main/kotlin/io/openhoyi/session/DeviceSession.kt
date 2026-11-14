@@ -602,7 +602,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun writeStoredLeverRecipe(parameters:StartParameters,beforeDispatch:()->Boolean,onDispatch:()->Unit,callback:(OperationResult)->Unit) {
         // Stored recipe need not be the current extraction selection. The caller must validate
         // the captured library item at dispatch; this layer still enforces known wire subsets.
-        fun knownRecipe():Boolean = !CustomCurveFirmwarePolicy.isPressureFollow(parameters) && (permittedStart(parameters)!=null ||
+        fun knownRecipe():Boolean = CustomCurveFirmwarePolicy.permitsStoredRecipe(parameters,observedFirmware) && (permittedStart(parameters)!=null ||
             CustomPressureStartPolicy.permits(parameters) ||
             (CustomCurveStartPolicy.permits(parameters) && CustomCurveFirmwarePolicy.permits(parameters,observedFirmware)))
         val expectedGeneration=generation

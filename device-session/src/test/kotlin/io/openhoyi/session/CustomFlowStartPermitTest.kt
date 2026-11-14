@@ -41,7 +41,7 @@ class CustomFlowStartPermitTest {
         }
     }
 
-    @Test fun followTemporaryExecutionIsExact113Through115OnlyAndNeverPersistentEvenWithLegacyFramePermit() {
+    @Test fun followTemporaryExecutionIsExact113Through115OnlyEvenWithLegacyFramePermit() {
         val follow=p.copy(variableFlowLogic=false,firstSegmentFlowMode=false,target1=30,target2=90,target3=60)
         assertTrue(CustomCurveStartPolicy.permits(follow))
         val frame=CoffeeCommands.start(follow).frame.hex()
@@ -51,8 +51,6 @@ class CustomFlowStartPermitTest {
             assertEquals(patch in 3..5,f.session.captureStartContext(follow)!=null)
             var result:OperationResult?=null
             val before=f.calls.size
-            f.session.writeStoredLeverRecipe(follow,{true}) {result=it}
-            assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
             f.session.startExtraction(follow) {result=it}
             if(patch in 3..5) {
                 assertEquals(before+1,f.calls.size)
@@ -163,7 +161,7 @@ class CustomFlowStartPermitTest {
         val variants=listOf(p,hsPressureFirst.copy(pressureLogic=false),p.copy(pressureLogic=false))
         for(patch in listOf(3,4,5,6)) for(parameters in variants) {
             val f=Fixture(permit={it==parameters});f.firmware(patch);f.fresh()
-            val allowed=patch==4 || patch==5
+            val allowed=patch in 3..5
             assertEquals("$patch $parameters",allowed,f.session.captureStartContext(parameters)!=null)
             val queue=DeviceSession::class.java.getDeclaredField("queue").apply{isAccessible=true}.get(f.session) as GattQueue
             queue.enqueue(GattOperation.Discover,5000){}
@@ -183,7 +181,7 @@ class CustomFlowStartPermitTest {
     }
 
     @Test fun firmwareChangeRevokesCapturedAndQueuedFlowEvenBetweenReviewedVersions() {
-        for(from in listOf(4,5)) for(to in listOf(3,if(from==4)5 else 4,6)) {
+        for(from in listOf(3,4,5)) for(to in listOf(3,4,5,6).filter { it!=from }) {
             val f=Fixture(permit={true});f.firmware(from);f.fresh()
             val context=requireNotNull(f.session.captureStartContext(p))
             val queue=DeviceSession::class.java.getDeclaredField("queue").apply{isAccessible=true}.get(f.session) as GattQueue
@@ -224,12 +222,13 @@ class CustomFlowStartPermitTest {
     @Test fun firmware113And115KeepC6BlockAndEmergencyStopWithoutFreshIdleOrNoAlarmRequirement() {
       for (patch in listOf(3,5)) {
         val f=Fixture(permit={true});f.firmware(patch);f.fresh()
+        val parameters=p.copy(pressureLogic=false)
         val c6=f.bytes("400023F02F1C770B00000000000000190321AF");c6[13]=0x20
         f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,c6)
         assertFalse(CoffeeAlarmPolicy.permitsNewControl(0x20))
-        assertNull(f.session.captureStartContext(p))
+        assertNull(f.session.captureStartContext(parameters))
         var result:OperationResult?=null;val before=f.calls.size
-        f.session.startExtraction(p){result=it};assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
+        f.session.startExtraction(parameters){result=it};assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
         f.session.writeSetting(MachineSettingChange.BrewTemperature(93)){result=it}
         assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
         f.now=1501

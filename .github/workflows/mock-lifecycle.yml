@@ -5,6 +5,11 @@ on:
     branches: [main, develop, 'release/**', 'hotfix/**']
   workflow_dispatch:
     inputs:
+      download_progress_checks:
+        description: Run Mock download presentation routing checks
+        required: false
+        default: false
+        type: boolean
       sleep_checks:
         description: Run isolated sleep UI and reconnect checks
         required: false
@@ -29,6 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      DOWNLOAD_PROGRESS_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.download_progress_checks == true && 'true' || 'false' }}
       SLEEP_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.sleep_checks == true && 'true' || 'false' }}
       PREHEAT_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.preheat_checks == true && 'true' || 'false' }}
       UPDATE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_checks == true && 'true' || 'false' }}
@@ -97,5 +103,13 @@ jobs:
         with:
           name: sleep-connection-${{ github.sha }}
           path: build/sleep-connection/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload download routing evidence
+        if: always() && env.DOWNLOAD_PROGRESS_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: download-routing-${{ github.sha }}
+          path: build/download-routing/
           if-no-files-found: warn
           retention-days: 7

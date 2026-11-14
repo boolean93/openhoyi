@@ -15,5 +15,5 @@
     <string name="flow_curve_configuration_summary">Control logic: %1$s · First stage: %2$s\nBloom %3$d s · First-stage limit %4$d s · Weight compensation %5$s g</string>
     <string name="flow_curve_parameters_compatible">Complete control parameters supported · Save to use for brewing</string>
     <string name="flow_curve_stage_flow_summary">Stage %1$d: %2$s mL/s · %3$s mL</string>
-    <string name="flow_curve_parameters_require_114">Compatible parameters · This mode requires firmware 1.1.4 or 1.1.5</string>
+    <string name="flow_curve_parameters_require_114">Compatible parameters · This mode requires firmware 1.1.3, 1.1.4 or 1.1.5</string>
 </resources>
