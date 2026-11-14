@@ -1,84 +1,229 @@
 {
-  "schema": 3,
-  "kind": "actual-tablet-screenshots",
-  "data": "Mock simulated data on a physical tablet; not hardware acceptance or a live website feed",
-  "captureMethod": "adb exec-out screencap -p",
+  "schema": 4,
+  "kind": "actual-emulator-screenshots",
+  "data": "Mock simulated data in disposable GitHub Actions Android emulators; not hardware acceptance or a live website feed",
+  "captureMethod": "Android UiAutomation.takeScreenshot()",
   "device": {
-    "model": "M2105K81AC",
-    "androidRelease": "13",
-    "captureWidth": 2560,
-    "captureHeight": 1600
+    "kind": "GitHub Actions Android emulator",
+    "androidRelease": "14",
+    "apiLevel": 34,
+    "profile": "pixel_7_pro",
+    "displayNote": "Per-screen logical display sizes and profiles are recorded below; not physical tablet capture claims."
   },
-  "installedApp": {
+  "appBuild": {
     "package": "io.openhoyi.mobile.mock",
-    "versionName": "0.2.0-preview.76",
-    "versionCode": 76,
-    "apkSha256": "ec64c35acbf549b960e0ed7d0b518b261bd3ddedba60bab388f89c08c67506ce",
-    "signerSha256": "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54"
+    "versionName": "0.1.0",
+    "versionCode": 1,
+    "versionEvidence": "Unmodified source defaults in mobile/distribution.gradle.kts; workflows build without distribution version overrides. Not a public release version.",
+    "apkSha256": null,
+    "signerSha256": null,
+    "binaryIdentityVerified": false,
+    "identityNotice": "No single installed APK was independently pulled and hashed across these separate capture runs. Some capture manifests report a per-run APK hash; editor producer does not retain one. Do not substitute old tablet or public-release APK identity."
   },
-  "sourceSha": "58bbd96ff12f6f72d47130ac6f7bade4e788eef4",
+  "sourceSha": "7a22e6cbee30322c066ff76a19cde08e7e96cbf4",
   "sourceCommitVerified": true,
   "sourceVerification": {
-    "method": "Local paired build from the merged commit with no app-source changes, then SHA-256 comparison against the installed APK pulled from the tablet",
-    "gitTreeSha": "35afc54399a8a4edcd69466de73318d20a432d52",
-    "buildArguments": [
-      ":mobile:assembleDebug",
-      ":mobile:assembleMock",
-      "-PhoyiVersionCode=76",
-      "-PhoyiVersionName=0.2.0-preview.76"
-    ],
-    "installedApkMatchesBuild": true,
-    "scope": "Source and installed binary identity only; not a reproducible-build claim, release certification, or hardware acceptance"
+    "method": "GitHub Actions exact run headSha plus versioned capture artifacts and source metadata; application/build-input Git objects compared locally across all capture commits.",
+    "scope": "Checkout and application-source equivalence only; not a reproducible-build claim, public-release certification, full workflow success, or hardware acceptance.",
+    "applicationSourceObjects": {
+      "app": "b62477a5f5f39d19d42c90e7f97c6dca85d4eceb",
+      "mobile": "f288fe1138e87c67aea44bc877d58b4ce4cfdfe2",
+      "bean-core": "e7be20b2e3ea3a889dfb227969b8410641edfad0",
+      "bluetooth-android": "7fa82bda8aabd8c23163ee8415d1a9146737e032",
+      "device-session": "60374ce7ffc37e7d60761695f3e4fde4ef87a5ba",
+      "protocol-core": "fdb573c7bcbc84ef91023b57cf1510e717f00b73",
+      "trace-core": "74285693a47761f99a915f7766403c910105f057",
+      "localization": "0da024607adf18dd2868b88b1a470899e9984269",
+      "build.gradle.kts": "bf62f9ed859a7632e94321a46edc928893370309",
+      "settings.gradle.kts": "cad69df9ebf096cdb446b643d500b1946fe72853",
+      "gradle.properties": "5654f29756cd21755ff8206e85e0882755526479",
+      "gradle": "f4382d80dc0a8a9b01d7010900029620d65bab66",
+      "gradlew": "f5feea6d6b116baaca5a2642d4d9fa1f47d574a7",
+      "gradlew.bat": "9b42019c7915b971238526075306ffba3b666dd5"
+    },
+    "runs": [
+      {
+        "url": "https://github.com/boolean93/openhoyi/actions/runs/43616673632",
+        "headSha": "7a22e6cbee30322c066ff76a19cde08e7e96cbf4",
+        "conclusion": "failure",
+        "scope": "Real extraction page; stable frame evidence captured before obsolete system/app font-scale equality assertion failed.",
+        "applicationSourceMatchesBaseline": true,
+        "applicationSourceObjects": {
+          "app": "b62477a5f5f39d19d42c90e7f97c6dca85d4eceb",
+          "mobile": "f288fe1138e87c67aea44bc877d58b4ce4cfdfe2",
+          "bean-core": "e7be20b2e3ea3a889dfb227969b8410641edfad0",
+          "bluetooth-android": "7fa82bda8aabd8c23163ee8415d1a9146737e032",
+          "device-session": "60374ce7ffc37e7d60761695f3e4fde4ef87a5ba",
+          "protocol-core": "fdb573c7bcbc84ef91023b57cf1510e717f00b73",
+          "trace-core": "74285693a47761f99a915f7766403c910105f057",
+          "localization": "0da024607adf18dd2868b88b1a470899e9984269",
+          "build.gradle.kts": "bf62f9ed859a7632e94321a46edc928893370309",
+          "settings.gradle.kts": "cad69df9ebf096cdb446b643d500b1946fe72853",
+          "gradle.properties": "5654f29756cd21755ff8206e85e0882755526479",
+          "gradle": "f4382d80dc0a8a9b01d7010900029620d65bab66",
+          "gradlew": "f5feea6d6b116baaca5a2642d4d9fa1f47d574a7",
+          "gradlew.bat": "9b42019c7915b971238526075306ffba3b666dd5"
+        }
+      },
+      {
+        "url": "https://github.com/boolean93/openhoyi/actions/runs/43617691605",
+        "headSha": "7a22e6cbee30322c066ff76a19cde08e7e96cbf4",
+        "conclusion": "success",
+        "scope": "Existing isolated editor_b entry, representative real editor screenshots.",
+        "applicationSourceMatchesBaseline": true,
+        "applicationSourceObjects": {
+          "app": "b62477a5f5f39d19d42c90e7f97c6dca85d4eceb",
+          "mobile": "f288fe1138e87c67aea44bc877d58b4ce4cfdfe2",
+          "bean-core": "e7be20b2e3ea3a889dfb227969b8410641edfad0",
+          "bluetooth-android": "7fa82bda8aabd8c23163ee8415d1a9146737e032",
+          "device-session": "60374ce7ffc37e7d60761695f3e4fde4ef87a5ba",
+          "protocol-core": "fdb573c7bcbc84ef91023b57cf1510e717f00b73",
+          "trace-core": "74285693a47761f99a915f7766403c910105f057",
+          "localization": "0da024607adf18dd2868b88b1a470899e9984269",
+          "build.gradle.kts": "bf62f9ed859a7632e94321a46edc928893370309",
+          "settings.gradle.kts": "cad69df9ebf096cdb446b643d500b1946fe72853",
+          "gradle.properties": "5654f29756cd21755ff8206e85e0882755526479",
+          "gradle": "f4382d80dc0a8a9b01d7010900029620d65bab66",
+          "gradlew": "f5feea6d6b116baaca5a2642d4d9fa1f47d574a7",
+          "gradlew.bat": "9b42019c7915b971238526075306ffba3b666dd5"
+        }
+      },
+      {
+        "url": "https://github.com/boolean93/openhoyi/actions/runs/43623446874",
+        "headSha": "0f08a97c931b7bb5e701b1688223e28e2013ea8e",
+        "conclusion": "failure",
+        "scope": "Exact same-run Mock producer succeeded; home/history per-page checks passed; full matrix later failed form-selector and final isolation checks.",
+        "applicationSourceMatchesBaseline": true,
+        "applicationSourceObjects": {
+          "app": "b62477a5f5f39d19d42c90e7f97c6dca85d4eceb",
+          "mobile": "f288fe1138e87c67aea44bc877d58b4ce4cfdfe2",
+          "bean-core": "e7be20b2e3ea3a889dfb227969b8410641edfad0",
+          "bluetooth-android": "7fa82bda8aabd8c23163ee8415d1a9146737e032",
+          "device-session": "60374ce7ffc37e7d60761695f3e4fde4ef87a5ba",
+          "protocol-core": "fdb573c7bcbc84ef91023b57cf1510e717f00b73",
+          "trace-core": "74285693a47761f99a915f7766403c910105f057",
+          "localization": "0da024607adf18dd2868b88b1a470899e9984269",
+          "build.gradle.kts": "bf62f9ed859a7632e94321a46edc928893370309",
+          "settings.gradle.kts": "cad69df9ebf096cdb446b643d500b1946fe72853",
+          "gradle.properties": "5654f29756cd21755ff8206e85e0882755526479",
+          "gradle": "f4382d80dc0a8a9b01d7010900029620d65bab66",
+          "gradlew": "f5feea6d6b116baaca5a2642d4d9fa1f47d574a7",
+          "gradlew.bat": "9b42019c7915b971238526075306ffba3b666dd5"
+        }
+      }
+    ]
   },
-  "notice": "Screenshots are a static landscape snapshot of the merged app source. Originals are unmodified adb screenshots. Display images remove only system bars with a verified contiguous crop; no UI is composited or redrawn. This does not mean every post-merge check or hardware scenario passed.",
+  "notice": "Originals are unmodified real App display screenshots. Display images either preserve the original or remove only system bars by a documented contiguous crop. No App content is composited or redrawn. Captures are static simulated examples and do not guarantee parity with any downloaded version. Failed-run limitations are retained per screen.",
   "screens": [
     {
       "name": "home",
       "original": "originals/home.png",
-      "width": 2560,
-      "height": 1600,
-      "capturedAt": "2026-11-10T12:30:41.336884+00:00",
+      "width": 1600,
+      "height": 1000,
+      "captureDate": "2026-11-14",
+      "captureDateEvidence": "GitHub Actions run date; exact screenshot wall-clock timestamp not separately recorded",
       "display": "home.png",
       "displayCropPx": [
         0,
-        60,
-        2560,
-        1564
+        0,
+        1600,
+        1000
       ],
-      "sha256": "efe488ca4bf861b9c9f7a4b6af3b642985521419476c47908519aefd4a747785",
-      "displaySha256": "1cf82c6a5a96f9344445455d4cf2ab555f7d0aaf190eb0d0e8816704054d9892"
+      "displayTreatment": "Unmodified original including system bars; precise insets not recorded by this producer",
+      "sha256": "e8830fcd312f614fef3aa3c619dc05bab0660e1e0ecf37d68968800d6ef2acf8",
+      "displaySha256": "e8830fcd312f614fef3aa3c619dc05bab0660e1e0ecf37d68968800d6ef2acf8",
+      "sourceRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/43623446874",
+      "captureSourceSha": "0f08a97c931b7bb5e701b1688223e28e2013ea8e",
+      "sourceArtifactPath": "tablet-landscape/single-screen-window-checks/visual-baselines/zh-Hans-light-HomeActivity/window.png",
+      "sourceArtifactId": 14125278024,
+      "sourceApkSha256": null,
+      "sourceProfile": "tablet-landscape/zh-Hans-light",
+      "captureMethod": "Android UiAutomation.takeScreenshot()",
+      "capturedPageCheck": "SINGLE_SCREEN_PAGE_OK zh-Hans-light-HomeActivity",
+      "sourceRunConclusion": "failure",
+      "sourceRunLimitation": "Build-mock exact producer succeeded and captured page check passed. Whole matrix later failed obsolete CurveEditorActivity form selectors and final isolation assertion; not a full visual or hardware acceptance claim."
     },
     {
       "name": "extraction",
       "original": "originals/extraction.png",
       "width": 2560,
       "height": 1600,
-      "capturedAt": "2026-11-10T12:33:53.897795+00:00",
+      "captureDate": "2026-11-14",
+      "captureDateEvidence": "GitHub Actions run date; exact screenshot wall-clock timestamp not separately recorded",
       "display": "extraction.png",
       "displayCropPx": [
         0,
-        60,
+        74,
         2560,
-        1564
+        1465
       ],
-      "sha256": "807396099ba131a2505badb3721ce176edf06b72a2da0944e62165c2b0995bea",
-      "displaySha256": "c689047962e7c6a7669fa0ea6e319d4a35b4439271f020048fa2db20bd432ea6"
+      "sha256": "681e23a1d323165a76c98aca612c537a282dd4662eae0a267d40ef66eb7a4080",
+      "displaySha256": "5e3394350a3fc0c2563aa9c385ba370cfc291561ea027800a139921040c0daa0",
+      "sourceRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/43616673632",
+      "sourceArtifactPath": "extraction-history-visual-tablet-user-landscape/raw-device/7a22e6cbee30322c066ff76a19cde08e7e96cbf4/tablet-user-landscape-light-font-1.3/extraction/window.png",
+      "sourceArtifactId": 14121993290,
+      "sourceApkSha256": "3bba9e027fac9a2b18c64d9c0718bba268778b48bd613308daa55fe06043a951",
+      "sourceProfile": "tablet-user-landscape-light-font-1.3",
+      "captureFrameSyncAccepted": true,
+      "sourceRunConclusion": "failure",
+      "sourceRunLimitation": "Screenshot captured before obsolete system-font-scale assertion failed; workflow completion is not claimed.",
+      "captureSourceSha": "7a22e6cbee30322c066ff76a19cde08e7e96cbf4",
+      "captureMethod": "Android UiAutomation.takeScreenshot()"
     },
     {
       "name": "history",
       "original": "originals/history.png",
-      "width": 2560,
-      "height": 1600,
-      "capturedAt": "2026-11-10T12:36:37.405126+00:00",
+      "width": 1600,
+      "height": 1000,
+      "captureDate": "2026-11-14",
+      "captureDateEvidence": "GitHub Actions run date; exact screenshot wall-clock timestamp not separately recorded",
       "display": "history.png",
       "displayCropPx": [
         0,
-        60,
-        2560,
-        1564
+        0,
+        1600,
+        1000
       ],
-      "sha256": "e4d173dff075336dc862a5a0868ccbfcf5c3f7c1c44ebb9298d9ae5ddecbedf6",
-      "displaySha256": "c5549d402f79e4d59f15fd2b70bfdc04ca26dd4195b4312ec767ea79ac64d538"
+      "displayTreatment": "Unmodified original including system bars; precise insets not recorded by this producer",
+      "sha256": "a0040a6645ffe908bed4375deeed9066b44be11cb4bcba9aa09b964d1a07d57a",
+      "displaySha256": "a0040a6645ffe908bed4375deeed9066b44be11cb4bcba9aa09b964d1a07d57a",
+      "sourceRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/43623446874",
+      "captureSourceSha": "0f08a97c931b7bb5e701b1688223e28e2013ea8e",
+      "sourceArtifactPath": "tablet-landscape/single-screen-window-checks/states/zh-Hans-light-HistoryActivity-populated.png",
+      "sourceArtifactId": 14125278024,
+      "sourceApkSha256": null,
+      "sourceProfile": "tablet-landscape/zh-Hans-light",
+      "captureMethod": "Android UiAutomation.takeScreenshot()",
+      "capturedPageCheck": "SINGLE_SCREEN_PAGE_OK zh-Hans-light-HistoryActivity",
+      "sourceRunConclusion": "failure",
+      "sourceRunLimitation": "Build-mock exact producer succeeded and captured page check passed. Whole matrix later failed obsolete CurveEditorActivity form selectors and final isolation assertion; not a full visual or hardware acceptance claim."
+    },
+    {
+      "name": "editor",
+      "original": "originals/editor.png",
+      "width": 1600,
+      "height": 1000,
+      "captureDate": "2026-11-14",
+      "captureDateEvidence": "GitHub Actions run date; exact screenshot wall-clock timestamp not separately recorded",
+      "display": "editor.png",
+      "displayCropPx": [
+        0,
+        0,
+        1600,
+        1000
+      ],
+      "displayTreatment": "Unmodified original including system bars; precise insets not recorded by this producer",
+      "sha256": "f8a532cf14359c260788822789b32075d818edbc3a107bf61a91d4792a753505",
+      "displaySha256": "f8a532cf14359c260788822789b32075d818edbc3a107bf61a91d4792a753505",
+      "sourceRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/43617691605",
+      "sourceArtifactPath": "curve-visual-tablet-user-landscape/task-first-evidence/editor-b/landscape-medium-light/valid.png",
+      "sourceArtifactId": 14123680036,
+      "sourceApkSha256": null,
+      "sourceProfile": "landscape-medium-light",
+      "sourceRunConclusion": "success",
+      "sourceRunLimitation": "Mock editor checks only; no hardware acceptance. APK hash not retained by this producer.",
+      "captureSourceSha": "7a22e6cbee30322c066ff76a19cde08e7e96cbf4",
+      "captureMethod": "Android UiAutomation.takeScreenshot()"
     }
   ]
 }

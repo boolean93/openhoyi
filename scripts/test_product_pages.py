@@ -14,7 +14,7 @@ RELEASES = "https://github.com/boolean93/openhoyi/releases"
 ISSUES = "https://github.com/boolean93/openhoyi/issues"
 REPO = "https://github.com/boolean93/openhoyi"
 PAGES = "https://boolean93.github.io/openhoyi/"
-APP_SOURCE_SHA = "58bbd96ff12f6f72d47130ac6f7bade4e788eef4"
+APP_SOURCE_SHA = "7a22e6cbee30322c066ff76a19cde08e7e96cbf4"
 SCREEN_REVISION = APP_SOURCE_SHA[:8]
 
 
@@ -239,22 +239,22 @@ class ProductPagesTest(unittest.TestCase):
         screens = self.section("screens")
         for text in ("平板横屏展开设备状态和曲线", "手机竖屏把日常入口放在底部",
                      "支持深浅主题与中英文界面",
-                     "首页", "萃取", "历史",
-                     "以下为在平板上运行模拟演示包的实际界面截图", "数据为模拟数据",
+                     "首页", "萃取", "历史", "编辑曲线",
+                     "以下为云端 Android 模拟器运行模拟演示包、采用平板横屏尺寸的实际界面截图", "数据为模拟数据",
                      "不代表真实设备萃取或所有场景已完成验收"):
             self.assertIn(text, screens)
-        self.assertLess(screens.index("以下为在平板上运行模拟演示包"),
+        self.assertLess(screens.index("以下为云端 Android 模拟器运行模拟演示包"),
                         screens.index('class="gallery"'))
-        for name in ("home.png", "extraction.png", "history.png"):
+        for name in ("home.png", "extraction.png", "history.png", "editor.png"):
             with self.subTest(image=name):
-                self.assertIn(f'./assets/screens/{name}?v={SCREEN_REVISION}" width="2560" height="1504"', self.html)
+                self.assertIn(f'./assets/screens/{name}?v={SCREEN_REVISION}"', self.html)
         self.assertNotIn("<picture>", self.html)
         self.assertNotIn("-detail.png", self.html)
 
     def test_lightbox_opens_unmodified_originals(self):
         shots = [(a.get("href", ""), int(a.get("data-focus-x", 0)), int(a.get("data-focus-y", 0)))
                  for tag, a in self.page.tags if tag == "a" and "data-view-image" in a]
-        self.assertEqual(len(shots), 4)
+        self.assertEqual(len(shots), 5)
         screens = {s["original"].split("/")[-1]: s for s in self.provenance["screens"]}
         for href, x, y in shots:
             name = urlsplit(href).path.rsplit("/", 1)[-1]
@@ -294,8 +294,13 @@ class ProductPagesTest(unittest.TestCase):
                 data = (SITE / relative).read_bytes()
                 self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
                 self.assertEqual(struct.unpack(">II", data[16:24]), size)
-                self.assertIn(f'src="./{relative}"', self.html)
+                self.assertTrue(any(urlsplit(asset).path == f'./{relative}' for asset in self.page.assets))
                 self.assertIn(f'width="{size[0]}" height="{size[1]}"', self.html)
+        group = SITE / "assets/community/wechat-group.png"
+        self.assertEqual(hashlib.sha256(group.read_bytes()).hexdigest(),
+                         "21f1ce43072139b8ec784a38d8054e1f9066fe768c4c6712bab2656af9073090")
+        self.assertIn('wechat-group.png?v=20261114', self.html)
+        self.assertIn("11 月 22 日前有效", self.html)
         support = self.section("support")
         for text in ("请我喝杯咖啡", "OpenHOYI 交流群", "自愿赞助", "群二维码会过期",
                      "应用版本、Android 版本、设备型号与固件、复现步骤和脱敏日志"):
@@ -331,34 +336,53 @@ class ProductPagesTest(unittest.TestCase):
 
     def test_original_screenshot_provenance_and_readable_detail(self):
         screens = SITE / "assets/screens"
-        self.assertEqual(self.provenance["schema"], 3)
-        self.assertEqual(self.provenance["kind"], "actual-tablet-screenshots")
+        self.assertEqual(self.provenance["schema"], 4)
+        self.assertEqual(self.provenance["kind"], "actual-emulator-screenshots")
         self.assertEqual(self.provenance["sourceSha"], APP_SOURCE_SHA)
         self.assertIs(self.provenance["sourceCommitVerified"], True)
         verification = self.provenance["sourceVerification"]
-        self.assertEqual(verification["gitTreeSha"], "35afc54399a8a4edcd69466de73318d20a432d52")
-        self.assertIs(verification["installedApkMatchesBuild"], True)
+        self.assertIn("GitHub Actions", verification["method"])
         self.assertIn("not a reproducible-build claim", verification["scope"])
-        self.assertEqual(self.provenance["installedApp"]["versionCode"], 76)
-        self.assertEqual(self.provenance["installedApp"]["versionName"], "0.2.0-preview.76")
-        self.assertEqual(self.provenance["installedApp"]["apkSha256"],
-                         "ec64c35acbf549b960e0ed7d0b518b261bd3ddedba60bab388f89c08c67506ce")
-        self.assertEqual(self.provenance["installedApp"]["signerSha256"],
-                         "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54")
-        self.assertEqual(self.provenance["captureMethod"], "adb exec-out screencap -p")
-        self.assertEqual(self.provenance["device"]["model"], "M2105K81AC")
-        self.assertEqual(self.provenance["installedApp"]["package"], "io.openhoyi.mobile.mock")
-        for text in ("M2105K81AC", "本页截图来自 M2105K81AC 平板", "源码提交映射已核验", "0.2.0-preview.76（76）",
+        baseline = verification["applicationSourceObjects"]
+        self.assertEqual(set(baseline), {"app", "mobile", "bean-core", "bluetooth-android", "device-session",
+                                        "protocol-core", "trace-core", "localization", "build.gradle.kts",
+                                        "settings.gradle.kts", "gradle.properties", "gradle", "gradlew", "gradlew.bat"})
+        for identity in baseline.values():
+            self.assertRegex(identity, r"^[0-9a-f]{40}$")
+        self.assertTrue(verification["runs"])
+        for run in verification["runs"]:
+            self.assertRegex(run["headSha"], r"^[0-9a-f]{40}$")
+            self.assertIs(run["applicationSourceMatchesBaseline"], True)
+            self.assertEqual(run["applicationSourceObjects"], baseline)
+            self.assertRegex(run["url"], r"^https://github.com/boolean93/openhoyi/actions/runs/[0-9]+$")
+        self.assertEqual(self.provenance["captureMethod"], "Android UiAutomation.takeScreenshot()")
+        self.assertEqual(self.provenance["device"]["androidRelease"], "14")
+        self.assertEqual(self.provenance["device"]["kind"], "GitHub Actions Android emulator")
+        self.assertEqual(self.provenance["appBuild"]["package"], "io.openhoyi.mobile.mock")
+        self.assertIs(self.provenance["appBuild"]["binaryIdentityVerified"], False)
+        self.assertIsNone(self.provenance["appBuild"]["apkSha256"])
+        self.assertIn("APK", self.provenance["appBuild"]["identityNotice"])
+        for text in ("云端 Android 34 模拟器", "非真实平板截图", "源码 7a22e6cb",
+                     "CI 源码提交与截图来源已记录",
                      "连接、配方与两杯对比区的流程和图表为功能示意",
-                     "模拟数据", "不保证与下载版本一致", "展示图仅连续裁去系统栏"):
+                     "模拟数据", "不保证与下载版本一致", "展示图仅连续裁去有明确边界记录的系统栏"):
             self.assertIn(text, self.html)
-        self.assertEqual({s["name"] for s in self.provenance["screens"]}, {"extraction", "home", "history"})
+        self.assertNotIn("0.2.0-preview.76", self.html)
+        self.assertEqual({s["name"] for s in self.provenance["screens"]}, {"extraction", "home", "history", "editor"})
         for screen in self.provenance["screens"]:
-            self.assertEqual(screen["displayCropPx"], [0, 60, 2560, 1564])
-            self.assertRegex(screen["capturedAt"], r"^2026-11-10T")
+            runs = {run["url"]: run for run in verification["runs"]}
+            self.assertIn(screen["sourceRunUrl"], runs)
+            self.assertEqual(screen["captureSourceSha"], runs[screen["sourceRunUrl"]]["headSha"])
+            self.assertTrue(screen["sourceArtifactPath"])
+            crop = screen["displayCropPx"]
+            self.assertEqual(len(crop), 4)
+            self.assertEqual(crop[0], 0)
+            self.assertEqual(crop[2], screen["width"])
+            self.assertTrue(0 <= crop[1] < crop[3] <= screen["height"])
+            self.assertEqual(screen["captureDate"], "2026-11-14")
             for file_key, hash_key, size in (
                 ("original", "sha256", (screen["width"], screen["height"])),
-                ("display", "displaySha256", (2560, 1504)),
+                ("display", "displaySha256", (crop[2] - crop[0], crop[3] - crop[1])),
             ):
                 asset = (screens / screen[file_key]).resolve()
                 self.assertTrue(asset.is_relative_to(screens.resolve()))
