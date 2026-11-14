@@ -5,10 +5,13 @@ import android.app.Instrumentation
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
+import android.view.MotionEvent
+import android.view.InputDevice
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
@@ -50,13 +53,21 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
     }
     private fun clickPopup(label: String) {
         await { popupNode(label)?.let { it.recycle(); true } == true }
-        var node = requireNotNull(popupNode(label))
-        while (!node.isClickable) {
-            val parent = requireNotNull(node.parent) { "Popup row is not clickable: $label" }
-            node.recycle(); node = parent
+        val node = requireNotNull(popupNode(label))
+        val bounds = Rect()
+        try {
+            check(node.packageName?.toString() == targetContext.packageName)
+            node.getBoundsInScreen(bounds)
+            check(!bounds.isEmpty)
+        } finally { node.recycle() }
+        // Native ListView menu rows need not advertise ACTION_CLICK. Tap the actual visible text bounds.
+        val downTime = SystemClock.uptimeMillis()
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action,
+                bounds.exactCenterX(), bounds.exactCenterY(), 0).apply { source = InputDevice.SOURCE_TOUCHSCREEN }
+            try { check(uiAutomation.injectInputEvent(event, true)) }
+            finally { event.recycle() }
         }
-        try { check(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) }
-        finally { node.recycle() }
         waitForIdleSync()
     }
     override fun onStart() {
