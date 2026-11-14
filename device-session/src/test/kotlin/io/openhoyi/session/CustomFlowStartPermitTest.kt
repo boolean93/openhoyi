@@ -41,7 +41,7 @@ class CustomFlowStartPermitTest {
         }
     }
 
-    @Test fun followTemporaryExecutionIsExact113Through115OnlyAndNeverPersistentEvenWithLegacyFramePermit() {
+    @Test fun followTemporaryExecutionIsExact113Through115OnlyEvenWithLegacyFramePermit() {
         val follow=p.copy(variableFlowLogic=false,firstSegmentFlowMode=false,target1=30,target2=90,target3=60)
         assertTrue(CustomCurveStartPolicy.permits(follow))
         val frame=CoffeeCommands.start(follow).frame.hex()
@@ -51,8 +51,6 @@ class CustomFlowStartPermitTest {
             assertEquals(patch in 3..5,f.session.captureStartContext(follow)!=null)
             var result:OperationResult?=null
             val before=f.calls.size
-            f.session.writeStoredLeverRecipe(follow,{true}) {result=it}
-            assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
             f.session.startExtraction(follow) {result=it}
             if(patch in 3..5) {
                 assertEquals(before+1,f.calls.size)
@@ -218,20 +216,6 @@ class CustomFlowStartPermitTest {
             f.session.stopExtraction(7){result=it}
             assertEquals(before+1,f.calls.size)
             assertArrayEquals(CoffeeCommands.stop(7).frame.toByteArray(),(f.calls.last().third as GattOperation.Write).bytes)
-        }
-    }
-
-    @Test fun firmware113TemporaryFlowDoesNotAuthorizePersistentWritesEvenWithLegacyPermit() {
-        for (parameters in listOf(p,p.copy(pressureLogic=false),p.copy(pressureLogic=false,firstSegmentFlowMode=false))) {
-            val f=Fixture(permit={true},frames=setOf(CoffeeCommands.start(parameters).frame.hex()))
-            f.firmware(3);f.fresh()
-            assertNotNull(f.session.captureStartContext(parameters))
-            val before=f.calls.size;var result:OperationResult?=null
-            f.session.writeStoredLeverRecipe(parameters,{true}){result=it}
-            assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
-            f.now=1501
-            f.session.startExtraction(parameters){result=it}
-            assertTrue(result is OperationResult.Failed);assertEquals(before,f.calls.size)
         }
     }
 

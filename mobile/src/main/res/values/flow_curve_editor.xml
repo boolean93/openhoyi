@@ -33,5 +33,4 @@
     <string name="flow_editor_complete_next_pressure">后段压力须为 1–12 bar。</string>
     <string name="flow_editor_complete_water_error">本段水量最多 999 mL。</string>
     <string name="flow_editor_compensation_target_error">补偿须小于目标杯重。</string>
-    <string name="lever_flow_firmware_required">此拨杆配方需固件 1.1.4 或 1.1.5。</string>
 </resources>

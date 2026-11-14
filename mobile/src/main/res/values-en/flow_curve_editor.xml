@@ -33,5 +33,4 @@
     <string name="flow_editor_complete_next_pressure">Later-stage pressure must be 1–12 bar.</string>
     <string name="flow_editor_complete_water_error">Stage water allows up to 999 mL.</string>
     <string name="flow_editor_compensation_target_error">Compensation must be less than the target cup weight.</string>
-    <string name="lever_flow_firmware_required">This lever recipe requires firmware 1.1.4 or 1.1.5.</string>
 </resources>
