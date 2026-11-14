@@ -143,17 +143,49 @@ class StoredLeverRecipeWriteTest {
         f.session.writeStoredLeverRecipe(recipe.copy(target1=255),{true}) {result=it}
         assertTrue(result is OperationResult.Failed);assertTrue(f.driver.recipeWrites.isEmpty())
     }
-    @Test fun firmware113SendsExistingBloomFrameButRejectsUnreviewedFlowCombinations() {
-        val bloom=StartParameters(true,true,3,7,92,70,false,4,20,40,22,0,200,6,400,100,0)
-        val allowed=Fixture();var result:OperationResult?=null
-        allowed.session.writeStoredLeverRecipe(bloom,{true}) {result=it}
-        assertArrayEquals(bytes("08c35c0046041428160000c806019000640000c4"),allowed.driver.recipeWrites.single().bytes)
-        allowed.complete();assertTrue(result is OperationResult.Success)
-        for(unreviewed in listOf(bloom.copy(pressureLogic=false), bloom.copy(firstSegmentFlowMode=true))) {
-            val restricted=Fixture()
-            restricted.session.writeStoredLeverRecipe(unreviewed,{true}) {result=it}
-            assertTrue(result is OperationResult.Failed);assertTrue(restricted.driver.recipeWrites.isEmpty())
+    @Test fun persistentFollowRejectsInvalidShapeAndUnknownVersionWithoutTransport() {
+        val follow=recipe.copy(pressureLogic=true)
+        for (firmware in listOf(null,CoffeeFirmware(1,1,2),CoffeeFirmware(1,1,6)))
+            assertFalse(CustomCurveFirmwarePolicy.permitsStoredRecipe(follow,firmware))
+        for (bad in listOf(follow.copy(firstSegmentFlowMode=true),follow.copy(firstDurationSeconds=255),
+            follow.copy(target1=255),follow.copy(firstFlowTenths=0))) {
+            val f=Fixture();var result:OperationResult?=null
+            f.session.writeStoredLeverRecipe(bad,{true}){result=it}
+            assertTrue(result is OperationResult.Failed);assertTrue(f.driver.recipeWrites.isEmpty())
         }
     }
 
+    @Test fun storedModesMatchOfficial126CopyEncoderOracle() {
+        val bloom=StartParameters(true,true,3,7,92,70,false,4,20,40,22,0,200,6,400,100,0)
+        val cases=listOf(
+            recipe.copy(pressureLogic=true) to "08825c0046001e5a0000009600019000000000d3",
+            bloom.copy(pressureLogic=false) to "08435c0046041428160000c80601900064000044",
+            bloom.copy(firstSegmentFlowMode=true) to "08c35c0046841428160000c80601900064000044")
+        for ((parameters,expected) in cases) {
+            val f=Fixture();f.session.writeStoredLeverRecipe(parameters,{true}){}
+            assertArrayEquals(bytes(expected),f.driver.recipeWrites.single().bytes)
+        }
+    }
+
+    @Test fun allSupportedFirmwareStoresOfficialModesWithExactBytesAndNoReplay() {
+        val bloom=StartParameters(true,true,3,7,92,70,false,4,20,40,22,0,200,6,400,100,0)
+        val follow=recipe.copy(pressureLogic=true)
+        val variants=listOf(bloom,bloom.copy(pressureLogic=false),bloom.copy(firstSegmentFlowMode=true),
+            bloom.copy(pressureLogic=false,firstSegmentFlowMode=true),follow)
+        for (firmware in listOf(0x13,0x14,0x15)) for (parameters in variants) {
+            val f=Fixture(firmware);var result:OperationResult?=null
+            f.session.writeStoredLeverRecipe(parameters,{true}){result=it}
+            assertArrayEquals(CoffeeCommands.storedLeverRecipe(parameters).frame.toByteArray(),f.driver.recipeWrites.single().bytes)
+            f.complete();assertTrue(result is OperationResult.Success)
+            f.now=10000;f.session.tick();assertEquals(1,f.driver.recipeWrites.size)
+        }
+        for (parameters in variants) for (fault in listOf("stale","alarm","unsupported")) {
+            val f=Fixture(if(fault=="unsupported")0x16 else 0x13)
+            if(fault=="stale")f.now=1501
+            if(fault=="alarm")f.idle(true)
+            var result:OperationResult?=null
+            f.session.writeStoredLeverRecipe(parameters,{true}){result=it}
+            assertTrue(result is OperationResult.Failed);assertTrue(f.driver.recipeWrites.isEmpty())
+        }
+    }
 }
