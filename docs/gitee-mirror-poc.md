@@ -6,7 +6,7 @@
 
 ```sh
 python3 -m unittest discover -s scripts -p 'test_gitee_mirror_plan.py'
-python3 scripts/gitee_mirror_plan.py --index /path/to/verified-dev.json --assets /path/to/release-assets --previous-index /path/to/previous-original-index.json
+python3 scripts/gitee_mirror_plan.py --index /path/to/verified-dev.json --assets /path/to/release-assets --previous-index /path/to/previous-published-index.json
 ```
 
 输入目录包含原样 APK、distribution.json、SHA256SUMS.txt。index 应来自现有 `release_update_index.py` 验证流程，包含实际 APK 检查，不可仅凭自写 JSON 的哈希宣称通过签名校验。规划器再次验证来源、大小、哈希、元数据、附件清单、版本单调及签名身份，打印候选计划；不写生产 dev.json。首次镜像可省略 previous-index；后续真实执行器必须读取已公开状态，不能将读取失败当成首次发布。
@@ -51,3 +51,5 @@ GitHub官方步骤：Settings → Environments → 指定environment → Environ
 - <https://help.gitee.com/repository/release/create>
 - <https://gitee.com/sdk/gitee5j/blob/main/docs/RepositoriesApi.md>
 - <https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments>
+
+离线测试已纳入 `scripts/verify-pr-checks full`。同版重跑允许已发布清单携带精确匹配本仓库的 `mirrorDownloadUrls`；仅此传输扩展被归一化，版本身份、签名及其他字段仍严格比较。新增恶意目的地址与已发布清单重跑回归。这里只运行相关 Python 检查，不代表完整 Android CI 或自动发布验收通过。

@@ -29,6 +29,22 @@ class MirrorPlanTest(unittest.TestCase):
         self.assertIn('commit-updates/dev.json-last', result['orderedSteps'][-1])
         self.assertEqual(plan(self.index, self.root, self.index), result)
 
+    def test_published_candidate_can_be_replayed_as_previous(self):
+        result = plan(self.index, self.root)
+        published = result['candidateManifest']
+        self.assertEqual(plan(self.index, self.root, published), result)
+        self.assertEqual(plan(published, self.root, published), result)
+        self.assertIn('mirrorDownloadUrls', published)  # inputs are not mutated
+
+    def test_mirror_extension_cannot_hide_identity_or_destination_changes(self):
+        published = plan(self.index, self.root)['candidateManifest']
+        for changes in ({'apkSha256': 'f' * 64},
+                        {'mirrorDownloadUrls': ['https://evil.test/app.apk']},
+                        {'mirrorDownloadUrls': []},
+                        {'unexpectedIdentityField': 'changed'}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                plan(self.index, self.root, {**published, **changes})
+
     def test_bad_apk_and_missing_attachment_fail(self):
         apk = self.root / self.index['apkFile']
         apk.write_bytes(b'wrong')

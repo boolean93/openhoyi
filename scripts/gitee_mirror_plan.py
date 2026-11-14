@@ -28,12 +28,23 @@ def local_file(directory, name, limit):
     return data
 
 
-def plan(index, directory, previous=None):
+def release_identity(index):
+    """Validate and strip only our deterministic mirror transport extension."""
     validate_index(index)
+    identity = dict(index)
+    if "mirrorDownloadUrls" in identity:
+        expected = [f"{DESTINATION}/releases/download/{index['releaseTag']}/{index['apkFile']}"]
+        if identity.pop("mirrorDownloadUrls") != expected:
+            raise ValueError("Unexpected mirror download URLs")
+    return identity
+
+
+def plan(index, directory, previous=None):
+    index = release_identity(index)
     if index["apkSize"] > MAX_ATTACHMENT:
         raise ValueError("APK exceeds Gitee attachment cap")
     if previous is not None:
-        validate_index(previous)
+        previous = release_identity(previous)
         if index["signerCertificateSha256"] != previous["signerCertificateSha256"]:
             raise ValueError("Signing identity changed")
         if index["versionCode"] < previous["versionCode"]:
