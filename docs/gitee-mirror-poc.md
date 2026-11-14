@@ -61,7 +61,16 @@ GitHub官方步骤：Settings → Environments → 指定environment → Environ
 - 所有附件匿名回读一致后，再读取最新文件版本并进行 SHA compare-and-swap。最后验证公开 raw 清单；CDN 尚未刷新时返回未验证错误，不宣称成功、不回滚，重跑只读验证。
 - `gitee_mirror_http.GiteeBackend`：目的仓库与 main 固定；所有 GET 匿名，token只用于写请求body；认证写请求不跟随任何重定向。附件仅允许同仓库 numeric attach_files 跳转以及 foruda.gitee.com/attach_file/数字/同名文件；清单只允许同路径 raw.giteeusercontent.com。
 - 后续工作流必须使用固定 concurrency group `openhoyi-gitee-mirror` 且 cancel-in-progress=false，避免两个受权写入者同时创建相同附件。不能允许外部任意运行参数改变仓库、分支或来源。
-- 本模块没有 CLI 或自动触发 workflow；必须经独立审查、权限作用域实证和明确发布授权后再接入受保护 job。不得直接用任意 JSON 调用引擎冒充 GitHub 来源验证；job应使用现有 `release_update_index.build_index` 的真实来源/签名检查输出及其对应附件。
+- 已增加 `gitee_mirror_runner.py` 和 `gitee-mirror.yml`，后者默认禁用，只有仓库变量 GITEE_MIRROR_ENABLED=true 才运行；本次未设置变量、Secret或推送。runner不接受任意index文件，直接调用现有 `release_update_index.build_index` 对最新公开GitHub release进行来源、标签预留、签名检查，并捕获其已验证原始附件字节。实际启用仍必须经过独立审查、权限作用域实证和明确发布授权。
 - 新增18项事务与HTTP故障测试，加既有10项规划器，共28项镜像测试。覆盖未知结果、签名失败、资产冲突、并发身份变化、公开清单缓存延迟、CAS请求、匿名重定向、令牌不进URL和认证请求禁止重定向。
 
 实测重定向证据（公开非本仓库样本）：Gitee droidvm/app v1.59 APK 从 releases/download 跳转仓库 attach_files/3148237/download/同名，再至 foruda.gitee.com/attach_file/数字/同名，最终200；oschina/gitee-cli raw/main/go.mod 跳至 raw.giteeusercontent.com/oschina/gitee-cli/raw/main/go.mod 后200。实际本镜像清单仍待发布后验证。
+
+## 待授权上线步骤
+
+1. 先完成代码独立审查与完整CI；本地相关镜像测试33项通过，不等于完整Android CI。
+2. 用户明确批准初始化Gitee专用镜像 main 元数据分支（空仓库不能直接作为Release目标），不修改其他仓库。
+3. 用户核实Gitee仓库级token所需Release/附件/contents API权限，自行直接存入受保护GitHub environment secret，不通过聊天中转。权限不支持时再决定是否扩大，不自动扩大。
+4. 配置环境分支限制/审批，随后由用户批准启用repo变量GITEE_MIRROR_ENABLED=true。第一次workflow_dispatch才可显式allow_first_manifest=true；自动事件永远不能bootstrap。
+5. 人工批准第一次真实镜像发布范围：最新已发布GitHub APK、distribution.json、SHA256SUMS.txt及Gitee updates/dev.json。检查公开下载及清单、Android完整下载验证和回退后，再认为投产完成。
+6. 后续Develop APK prerelease完成事件自动执行同一安全流程；镜像作业失败不破坏GitHub发布或原Pages清单。禁止随意重跑未知写入，事务引擎先回读。
