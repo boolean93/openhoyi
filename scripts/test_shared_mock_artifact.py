@@ -128,6 +128,9 @@ class SharedPairTest(unittest.TestCase):
         bad_cases = [(badging.replace('versionCode=\'\'', 'versionCode=\'2\''), xml, signing),
                      (badging.replace("compileSdkVersion='35'", "compileSdkVersion='34'"), xml, signing),
                      (badging, xml.replace(shared.TEST + '"', shared.APP + '"'), signing),
+                     (badging, xml + '\n    E: instrumentation (line=1)\n      A: android:name(0x1)="unknown"\n      A: android:targetPackage(0x2)="io.openhoyi.mobile.mock"', signing),
+                     (badging, xml + '\n' + xml, signing),
+                     (badging, xml.split('    E: instrumentation')[0], signing),
                      (badging, xml, signing.replace('CN=Android Debug', 'CN=Release')),
                      (badging, xml, signing.replace('true', 'false'))]
         for values in bad_cases:

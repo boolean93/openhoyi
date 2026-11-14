@@ -9,13 +9,10 @@ import re
 import shutil
 import subprocess
 
-APP = 'io.openhoyi.mobile.mock'
-TEST = APP + '.test'
+from mock_runner_contract import APP, TEST, RUNNERS
 COMMAND = './gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain'
 DESTINATIONS = {'app.apk': 'mobile/build/outputs/apk/mock/mobile-mock.apk',
                 'test.apk': 'mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk'}
-RUNNERS = {'io.openhoyi.mobile.BrewAudioInstrumentation': APP,
-           'io.openhoyi.mobile.MockHierarchyInstrumentation': TEST}
 
 
 def require(ok, message):
