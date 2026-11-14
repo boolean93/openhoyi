@@ -21,11 +21,11 @@ internal class ReleaseApkDownload(
     fun download(target: ReleaseUpdate, part: File, progress: (Long, Boolean) -> Unit) {
         // A caller's pre-existing file never belongs to this operation, including retries.
         require(!part.exists())
-        require(target.mirrorDownloadUrls.size <= 1)
+        // Existing cached indices may contain Gitee mirrors; routing is now fixed locally.
         var last: Exception? = null
         var rateLimit: ReleaseUpdateHttpException? = null
-        for (url in target.mirrorDownloadUrls + target.downloadUrl) {
-            val source = if (url == target.downloadUrl) ReleaseSource.GITHUB else ReleaseSource.GITEE
+        for (url in listOf(releaseAcceleratedApkUrl(target), target.downloadUrl)) {
+            val source = if (url == target.downloadUrl) ReleaseSource.GITHUB else ReleaseSource.CLOUDFLARE
             for (attempt in 1..2) {
                 active()
                 var transferred = false

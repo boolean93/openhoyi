@@ -10,6 +10,9 @@ import javax.net.ssl.HttpsURLConnection
 
 internal fun releaseApkUrlAllowed(value: URI, initial: URI): Boolean {
     if (value.scheme != "https" || value.port !in setOf(-1, 443) || value.userInfo != null || value.fragment != null) return false
+    if (initial.host == "openhoyi.ios.dog") {
+        return value.host == initial.host && value.rawPath == initial.rawPath && value.rawQuery == null
+    }
     if (initial.host == "gitee.com") {
         val filename = initial.path.substringAfterLast('/')
         return when (value.host) {
@@ -26,6 +29,17 @@ internal fun releaseApkUrlAllowed(value: URI, initial: URI): Boolean {
     }
 }
 
+/** Build the accelerator URL only from the already validated canonical identity, never from an index mirror list. */
+internal fun releaseAcceleratedApkUrl(target: ReleaseUpdate): String {
+    val canonical = URI(target.downloadUrl)
+    require(canonical.scheme == "https" && canonical.host == "github.com" && canonical.port == -1 &&
+        canonical.rawQuery == null && canonical.userInfo == null && canonical.fragment == null)
+    val filename = canonical.rawPath.substringAfterLast('/')
+    require(filename.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]*\\.apk")))
+    require(canonical.rawPath == "/boolean93/openhoyi/releases/download/dev-${target.versionCode}/$filename")
+    return "https://openhoyi.ios.dog${canonical.rawPath}"
+}
+
 /** A single explicit attempt. Redirect credentials and signed query strings are never logged. */
 internal class ReleaseApkTransfer(
     private val open: (URL) -> HttpsURLConnection = { it.openConnection() as HttpsURLConnection },
@@ -38,9 +52,9 @@ internal class ReleaseApkTransfer(
         require(target.apkSize in 1..256L * 1024 * 1024)
         val initial = URI(url)
         val filename = URI(target.downloadUrl).path.substringAfterLast('/')
-        require(url == target.downloadUrl || (url in target.mirrorDownloadUrls &&
+        require(url == target.downloadUrl || url == releaseAcceleratedApkUrl(target) || (url in target.mirrorDownloadUrls &&
             url == "https://gitee.com/boolean93/openhoyi/releases/download/dev-${target.versionCode}/$filename"))
-        require(initial.scheme == "https" && initial.host in setOf("github.com", "gitee.com") && initial.port == -1 &&
+        require(initial.scheme == "https" && initial.host in setOf("github.com", "gitee.com", "openhoyi.ios.dog") && initial.port == -1 &&
             initial.userInfo == null && initial.rawQuery == null && initial.fragment == null &&
             initial.path == "/boolean93/openhoyi/releases/download/dev-${target.versionCode}/" + initial.path.substringAfterLast('/') &&
             initial.path.substringAfterLast('/').matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]*\\.apk")))

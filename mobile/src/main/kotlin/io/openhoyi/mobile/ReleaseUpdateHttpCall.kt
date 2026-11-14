@@ -13,7 +13,7 @@ import javax.net.ssl.HttpsURLConnection
 internal class ReleaseUpdateHttpCall(
     private val installedVersionCode: Long? = null,
     private val installedSignerSha256: String? = null,
-    private val mirrorEnabled: Boolean = false,
+    private val acceleratedEnabled: Boolean = true,
     private val diagnostic: (ReleaseTransferEvent) -> Unit = {},
     private val clock: () -> Long = System::nanoTime,
     private val open: (URL) -> HttpsURLConnection = { it.openConnection() as HttpsURLConnection },
@@ -29,13 +29,13 @@ internal class ReleaseUpdateHttpCall(
         var known: ReleaseUpdate? = null
         var last: Exception? = null
         var limited: ReleaseUpdateHttpException? = null
-        val sources = if (mirrorEnabled) listOf(ReleaseSource.GITEE to ReleaseUpdateIndex.MIRROR_URL,
+        val sources = if (acceleratedEnabled) listOf(ReleaseSource.CLOUDFLARE to ReleaseUpdateIndex.ACCELERATED_URL,
             ReleaseSource.GITHUB to ReleaseUpdateIndex.URL) else listOf(ReleaseSource.GITHUB to ReleaseUpdateIndex.URL)
         for ((source, url) in sources) {
             active()
             try {
-                val result = request(url, source) { active() }
-                if (source == ReleaseSource.GITEE && installedSignerSha256 != null) {
+                val result = request(url) { active() }
+                if (source == ReleaseSource.CLOUDFLARE && installedSignerSha256 != null) {
                     require(result.signerSha256 == installedSignerSha256) { "Mirror signer mismatch" }
                 }
                 active()
@@ -55,14 +55,13 @@ internal class ReleaseUpdateHttpCall(
         known?.let { return it }
         throw (limited ?: last ?: IOException("No update index"))
     }
-    private fun request(initial: String, source: ReleaseSource, active: () -> Unit): ReleaseUpdate {
+    private fun request(initial: String, active: () -> Unit): ReleaseUpdate {
         val sourceStarted = clock()
         fun checkActive() {
             active()
             if (clock() - sourceStarted > 4_000_000_000L) throw SocketTimeoutException("Update source timed out")
         }
-        var address = initial
-        var redirected = false
+        val address = initial
         while (true) {
             checkActive()
             val current = open(URL(address))
@@ -76,11 +75,6 @@ internal class ReleaseUpdateHttpCall(
                 current.setRequestProperty("Cache-Control", "no-cache")
                 val responseCode = current.responseCode
                 checkActive()
-                if (source == ReleaseSource.GITEE && !redirected && responseCode in setOf(301, 302, 307, 308)) {
-                    val destination = current.getHeaderField("Location")
-                    require(destination == "https://raw.giteeusercontent.com/boolean93/openhoyi/raw/main/updates/dev.json")
-                    address = destination; redirected = true; continue
-                }
                 if (responseCode != 200) throw ReleaseUpdateHttpException(responseCode, current.getHeaderField("Retry-After"))
                 if (current.contentLengthLong > ReleaseUpdateIndex.MAX_BYTES) throw IOException("Update index too large")
                 val bytes = current.inputStream.use { input ->

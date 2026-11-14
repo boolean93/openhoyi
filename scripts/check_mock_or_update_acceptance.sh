@@ -1,6 +1,10 @@
 #!/bin/sh
 # android-emulator-runner executes each script line separately; keep its entry one fixed command.
 set -eu
+if [ "${CLOUDFLARE_LIVE_CHECKS:-false}" = true ]; then
+  [ "${DOWNLOAD_PROGRESS_CHECKS:-false}" = false ] && [ "${SLEEP_CHECKS:-false}" = false ] && [ "${UPDATE_CHECKS:-false}" = false ] && [ "${PREHEAT_CHECKS:-false}" = false ] || exit 2
+  exec bash scripts/check_cloudflare_live.sh
+fi
 if [ "${DOWNLOAD_PROGRESS_CHECKS:-false}" = true ]; then
   [ "${SLEEP_CHECKS:-false}" = false ] && [ "${UPDATE_CHECKS:-false}" = false ] && [ "${PREHEAT_CHECKS:-false}" = false ] || exit 2
   exec bash scripts/check_download_routing.sh

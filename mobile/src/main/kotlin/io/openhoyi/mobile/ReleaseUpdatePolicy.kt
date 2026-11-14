@@ -18,7 +18,7 @@ data class ReleaseUpdate(
 
 object ReleaseUpdateIndex {
     const val URL = "https://boolean93.github.io/openhoyi/updates/dev.json"
-    const val MIRROR_URL = "https://gitee.com/boolean93/openhoyi/raw/main/updates/dev.json"
+    const val ACCELERATED_URL = "https://openhoyi.ios.dog/boolean93.github.io/openhoyi/updates/dev.json"
     const val MAX_BYTES = 64 * 1024
     private const val REPOSITORY = "boolean93/openhoyi"
     private const val BASE = "https://github.com/$REPOSITORY"
