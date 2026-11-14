@@ -18,6 +18,7 @@ case "${1:-}" in
     python3 -m unittest discover -s scripts -p test_git_policy.py
     python3 -m unittest discover -s scripts -p test_apk_distribution.py
     python3 -m unittest discover -s scripts -p test_release_update_index.py
+    python3 -m unittest discover -s scripts -p 'test_gitee_mirror*.py'
     python3 -m unittest discover -s scripts -p test_release_list_notice.py
     python3 -m unittest discover -s scripts -p test_update_acceptance.py
     python3 -m unittest discover -s scripts -p test_product_pages.py
