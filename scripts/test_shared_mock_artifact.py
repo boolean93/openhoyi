@@ -23,7 +23,7 @@ class SharedPairTest(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.checkout = {'sha': self.sha, 'tree': 'b' * 40, 'configHashes': {'build.gradle.kts': 'c' * 64}}
-        self.tools = {'java': '17', 'gradle': '8.11.1'}
+        self.tools = {'java': '17', 'gradle': '8.13'}
         self.actual = {}
         files = {}
         for name in shared.DESTINATIONS:

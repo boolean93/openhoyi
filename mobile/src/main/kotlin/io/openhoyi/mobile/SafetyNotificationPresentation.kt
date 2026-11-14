@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 /** Display projection only: no permission, recovery storage or device operation is performed. */
+@ConsistentCopyVisibility
 data class SafetyNotificationPresentation private constructor(
     val warningResource: Int?,
     val destination: Destination,

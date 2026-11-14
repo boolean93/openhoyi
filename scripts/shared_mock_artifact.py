@@ -85,13 +85,13 @@ def inspect_apk(path, kind):
 
 def tools():
     gradle = run('./gradlew', '--version', '--no-daemon', '--console=plain')
-    require(re.search(r'^Gradle 8\.11\.1$', gradle, re.M), 'Unexpected actual Gradle version')
+    require(re.search(r'^Gradle 8\.13$', gradle, re.M), 'Unexpected actual Gradle version')
     root_build = Path('build.gradle.kts').read_text()
-    require('version "2.0.21"' in root_build and 'version "8.10.0"' in root_build, 'Plugin configuration changed')
+    require('version "2.3.10"' in root_build and 'version "8.13.2"' in root_build, 'Plugin configuration changed')
     java = subprocess.run(['java', '-version'], check=True, capture_output=True, text=True, timeout=15).stderr.strip()
     require(re.search(r'version "17[."]', java) is not None, 'Expected actual JDK17')
     sdk = Path(os.environ['ANDROID_HOME'])
-    return {'gradle': '8.11.1', 'agp': '8.10.0', 'kotlin': '2.0.21',
+    return {'gradle': '8.13', 'agp': '8.13.2', 'kotlin': '2.3.10',
             'java': java,
             'aapt': run(sdk_tool('aapt'), 'version'), 'apksigner': run(sdk_tool('apksigner'), 'version'),
             'adb': '\n'.join(line for line in run(str(sdk / 'platform-tools/adb'), '--version').splitlines() if not line.startswith(('Installed as ', 'Running on '))),

@@ -8,6 +8,7 @@ class CustomCurveStore(private val storage: Storage) {
     interface Storage { fun read(): String?; fun write(value: String) }
     enum class ImportStatus { SAVED, ALREADY_EXISTS, CONFLICT }
     data class ImportResult(val status: ImportStatus, val document: CustomCurveDocument)
+    @ConsistentCopyVisibility
     data class Deletion internal constructor(val document: CustomCurveDocument, internal val token: String,
                                              internal val bindings: Map<Int, String>)
     private data class State(val documents: LinkedHashMap<String, CustomCurveDocument> = linkedMapOf(),
