@@ -19,7 +19,7 @@
         android:targetPackage="io.openhoyi.mobile.mock.test" android:functionalTest="false" />
     <instrumentation android:name="io.openhoyi.mobile.CurveFilterPopupInstrumentation"
         android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
-    <instrumentation android:name="io.openhoyi.mobile.ManualPendingRecipeTitleChecks"
+    <instrumentation android:name="io.openhoyi.mobile.PendingRecipeLabelChecks"
         android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
     <application>
         <provider

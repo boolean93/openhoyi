@@ -94,7 +94,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var compactClock: TextView
     private lateinit var compactGuidance: TextView
     private lateinit var compactIdentity: TextView
-    private lateinit var identityBlock: ManualPendingRecipeTitle
+    private lateinit var pendingRecipeLabel: PendingRecipeLabel
     private lateinit var headerWords: LinearLayout
     private lateinit var pageHeader: LinearLayout
     private lateinit var liveHeading: TextView
@@ -145,7 +145,6 @@ class ExtractionActivity : ThemedActivity() {
         compactIdentity = style.text("", TaskProductVisualStyle.Type(14, 500, 20), "product/extraction/identity").apply {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        identityBlock = ManualPendingRecipeTitle(compactIdentity, style)
         compactClock = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/clock")
         compactGuidance = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/inline-guidance", true)
         headerWords = object : LinearLayout(this) {
@@ -156,7 +155,7 @@ class ExtractionActivity : ThemedActivity() {
                 val available = View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
                 val stacked = available < dp(112) + compactClock.measuredWidth + compactGuidance.measuredWidth + dp(16)
                 orientation = if (stacked) VERTICAL else HORIZONTAL
-                listOf(identityBlock, compactClock, compactGuidance).forEachIndexed { index, child ->
+                listOf(compactIdentity, compactClock, compactGuidance).forEachIndexed { index, child ->
                     val width = if (stacked) -1 else if (index == 0) 0 else -2
                     val weight = if (!stacked && index == 0) 1f else 0f
                     val gap = if (!stacked && index > 0) dp(8) else 0
@@ -167,7 +166,7 @@ class ExtractionActivity : ThemedActivity() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        listOf(identityBlock, compactClock, compactGuidance).forEach { headerWords.addView(it) }
+        listOf(compactIdentity, compactClock, compactGuidance).forEach { headerWords.addView(it) }
         pageHeader.addView(headerWords, 0, LinearLayout.LayoutParams(0, -2, 1f))
         pageHeader.minimumHeight = dp(48)
         pageHeader.tag = "product/extraction/header"
@@ -298,6 +297,8 @@ class ExtractionActivity : ThemedActivity() {
         workspace.setFooter(actionDock)
         scaleReadout = ExtractionScaleReadoutView(this, visual)
         actionDock.addView(scaleReadout, LinearLayout.LayoutParams(-1, -2))
+        pendingRecipeLabel = PendingRecipeLabel(style)
+        actionDock.addView(pendingRecipeLabel, LinearLayout.LayoutParams(-1, -2))
         start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
         (weightTarget.parent as? android.view.ViewGroup)?.removeView(weightTarget)
         actionDock.addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
@@ -497,10 +498,8 @@ class ExtractionActivity : ThemedActivity() {
             preparation == BrewPreparation.State.IDLE && !settingBusy && !sleepBusy &&
             (state == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
                 state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
-        // Reuse the exact resolved selection used by startSelectedCurve(), not the last record.
-        val pendingRecipe = ManualPendingRecipe.name(observedCup, owner?.chartCurveId,
-            profile?.name, profile?.let(library::validated) == true)
-        identityBlock.show(displayCurveName, pendingRecipe)
+        compactIdentity.show(displayCurveName)
+        compactIdentity.contentDescription = displayCurveName
         compactClock.show((if (inlineGuidance) "" else shotLabel(state) + " · ") + elapsedText +
             if (BuildConfig.MOCK_MODE) " · Mock" else "")
         compactClock.contentDescription = compactClock.text.toString() +
@@ -667,6 +666,10 @@ class ExtractionActivity : ThemedActivity() {
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
+        // Same resolved profile/slot as startSelectedCurve(); observed records never select a recipe.
+        pendingRecipeLabel.bind(PendingRecipePresentation.name(observedCup, owner?.chartCurveId,
+            profile?.id, profile?.name, profile?.let(library::validated) == true,
+            startVisible = !stopAction.visible))
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
     }
     private fun TextView.show(value: String) {

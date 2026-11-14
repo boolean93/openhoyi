@@ -104,7 +104,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var compactMode: TextView
     private lateinit var compactGuidance: TextView
     private lateinit var compactIdentity: TextView
-    private lateinit var identityBlock: ManualPendingRecipeTitle
+    private lateinit var pendingRecipeLabel: PendingRecipeLabel
     private lateinit var headerWords: LinearLayout
     private lateinit var supportReadings: LinearLayout
     private lateinit var chartHost: FrameLayout
@@ -138,7 +138,6 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         compactIdentity = style.text("", TaskProductVisualStyle.Type(if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 18 else 20, 500, if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 26 else 28), "product/extraction/identity").apply {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        identityBlock = ManualPendingRecipeTitle(compactIdentity, style)
         compactClock = style.text("", TaskProductVisualStyle.Type(17,400,24), "product/extraction/clock")
         compactElapsed = style.text("", TaskProductVisualStyle.Type(17,400,24), "product/extraction/elapsed")
         compactMode = style.text(if(BuildConfig.MOCK_MODE) "Mock" else "",TaskProductVisualStyle.Type(15,400,22),"product/extraction/mode",true).apply { visibility=if(BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE }
@@ -150,7 +149,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val portraitHeader=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT
         val portraitIdentityRow=if(portraitHeader) style.row().apply {gravity=android.view.Gravity.CENTER_VERTICAL} else null
         headerWords = if(portraitHeader) style.column().apply {
-            portraitIdentityRow!!.addView(identityBlock,LinearLayout.LayoutParams(0,-2,1f))
+            portraitIdentityRow!!.addView(compactIdentity,LinearLayout.LayoutParams(0,-2,1f))
             addView(portraitIdentityRow,LinearLayout.LayoutParams(-1,-2))
             compactClock.setCompoundDrawablesRelative(null,null,null,null)
             val metadata=style.row().apply {gravity=android.view.Gravity.CENTER_VERTICAL}
@@ -163,12 +162,12 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             init { gravity = android.view.Gravity.CENTER_VERTICAL; isBaselineAligned = false }
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                listOf(identityBlock,compactClock,compactElapsed,compactMode,compactGuidance).forEach {it.measure(natural,natural)}
+                listOf(compactIdentity,compactClock,compactElapsed,compactMode,compactGuidance).forEach {it.measure(natural,natural)}
                 val available = View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
                 val stacked = available < dp(112) + compactClock.measuredWidth + compactElapsed.measuredWidth + compactMode.measuredWidth + compactGuidance.measuredWidth + dp(16)
-                val naturalFits=identityBlock.measuredWidth+compactClock.measuredWidth+compactElapsed.measuredWidth+compactMode.measuredWidth+compactGuidance.measuredWidth+dp(24)<=available
+                val naturalFits=compactIdentity.measuredWidth+compactClock.measuredWidth+compactElapsed.measuredWidth+compactMode.measuredWidth+compactGuidance.measuredWidth+dp(24)<=available
                 orientation = if (stacked) VERTICAL else HORIZONTAL
-                listOf(identityBlock, compactClock, compactElapsed, compactMode, compactGuidance).forEachIndexed { index, child ->
+                listOf(compactIdentity, compactClock, compactElapsed, compactMode, compactGuidance).forEachIndexed { index, child ->
                     val width = if (stacked) -1 else if (index == 0 && !naturalFits) 0 else -2
                     val weight = if (!stacked && index == 0 && !naturalFits) 1f else 0f
                     val gap = if (!stacked && index > 0) dp(8) else 0
@@ -179,7 +178,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        if(!portraitHeader) listOf(identityBlock, compactClock, compactElapsed, compactMode, compactGuidance).forEach { headerWords.addView(it) }
+        if(!portraitHeader) listOf(compactIdentity, compactClock, compactElapsed, compactMode, compactGuidance).forEach { headerWords.addView(it) }
         pageHeader.addView(headerWords, 0, LinearLayout.LayoutParams(0, -2, 1f))
         pageHeader.minimumHeight = dp(56)
         pageHeader.tag = "product/extraction/header"
@@ -355,6 +354,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         controls.addView(actionButtons, if (compactPortrait) LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) }
             else LinearLayout.LayoutParams(if(portraitLive) -1 else dp(190), -2).apply { if(portraitLive) topMargin=dp(12) else marginStart=dp(12) })
         workspace.setFooter(actionDock)
+        pendingRecipeLabel = PendingRecipeLabel(style)
+        actionButtons.addView(pendingRecipeLabel, LinearLayout.LayoutParams(-1, -2))
         start = HoyiUi.button(host, actionButtons, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
         (weightTarget.parent as? android.view.ViewGroup)?.removeView(weightTarget)
         (if (compactPortrait) actionDock else actionButtons).addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
@@ -626,10 +627,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             preparation == BrewPreparation.State.IDLE && !settingBusy && !sleepBusy &&
             (state == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
                 state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
-        // Reuse the exact resolved selection used by startSelectedCurve(), not the last record.
-        val pendingRecipe = ManualPendingRecipe.name(observedCup, owner?.chartCurveId,
-            profile?.name, profile?.let(library::validated) == true)
-        identityBlock.show(displayCurveName, pendingRecipe)
+        compactIdentity.show(displayCurveName)
+        compactIdentity.contentDescription = displayCurveName
         compactClock.show(shotLabel(state))
         compactClock.setTextColor(getColor(if(state==ExtractionState.RUNNING) R.color.mobile_success else if(state==ExtractionState.OUTCOME_UNKNOWN) R.color.mobile_danger else R.color.mobile_text))
         compactElapsed.show(elapsedText)
@@ -797,6 +796,10 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
+        // Same resolved profile/slot as startSelectedCurve(); observed records never select a recipe.
+        pendingRecipeLabel.bind(PendingRecipePresentation.name(observedCup, owner?.chartCurveId,
+            profile?.id, profile?.name, profile?.let(library::validated) == true,
+            startVisible = !stopAction.visible))
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
         val facts=ExtractionStatusPresentation.Facts(state,active,owner?.running==true,blocked!=null || studioBlocked!=null,
             owner?.manualShotActive==true,owner?.scalePreflight==true,preparation,!normalPreparation,
