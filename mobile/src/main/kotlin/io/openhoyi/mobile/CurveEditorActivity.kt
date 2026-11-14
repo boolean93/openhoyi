@@ -45,8 +45,12 @@ class CurveEditorActivity : ThemedActivity() {
         val sections = TaskCurveEditorForm(this, body, style)
         form = sections
         fun field(parent: LinearLayout, key: String, label: Int, initial: String, numeric: Boolean = true,
-            compactLabel: String? = null, tableCell: Boolean = false): EditText {
-            val input = if (tableCell) EditText(this).apply {
+            compactLabel: String? = null, tableCell: Boolean = false, inlineTitle: Boolean = false): EditText {
+            val input = if (inlineTitle) EditText(this).apply {
+                id = View.generateViewId()
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                parent.addView(this, LinearLayout.LayoutParams(-1, -2))
+            } else if (tableCell) EditText(this).apply {
                 id = View.generateViewId()
                 textSize = 16f
                 typeface = TaskTypography.face(this@CurveEditorActivity, 400)
@@ -77,11 +81,8 @@ class CurveEditorActivity : ThemedActivity() {
             return input
         }
         val name = field(sections.metadata[0], "name", R.string.profiles_name, source.name, false,
-            compactLabel = getString(R.string.profiles_name))
+            compactLabel = getString(R.string.profiles_name), inlineTitle = true)
         // A borderless, directly editable title. Long names scroll inside the title, never over navigation.
-        (name.parent as? android.view.ViewGroup)?.let { host ->
-            (0 until host.childCount).map(host::getChildAt).filter { it !== name }.forEach { it.visibility = View.GONE }
-        }
         name.apply {
             background = null
             backgroundTintList = null

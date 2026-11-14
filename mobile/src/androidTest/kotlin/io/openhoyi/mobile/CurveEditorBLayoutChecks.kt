@@ -197,8 +197,7 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
             main {
                 val title = tagged("name") as EditText
                 title.setText(longName)
-                title.requestFocus()
-                title.setSelection(title.length())
+                title.clearFocus()
                 check(title.text.toString() == longName)
             }
             test.waitForIdleSync()
@@ -207,9 +206,18 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
             if (args.getString("titleEditChecks") == "true") {
                 val title = tagged("name") as EditText
                 val input = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                val point = IntArray(2)
+                main { title.getLocationOnScreen(point) }
+                val now = SystemClock.uptimeMillis()
+                listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP).forEach { action ->
+                    android.view.MotionEvent.obtain(now, SystemClock.uptimeMillis(), action,
+                        point[0] + title.width / 2f, point[1] + title.height / 2f, 0).let { event ->
+                        check(test.uiAutomation.injectInputEvent(event, true)); event.recycle()
+                    }
+                }
+                await("title click keeps inline focus") { title.hasFocus() && screen.hasWindowFocus() && title.isFocusableInTouchMode && title.showSoftInputOnFocus }
                 await("title input connection") { input.isActive(title) }
-                main { input.showSoftInput(title, InputMethodManager.SHOW_IMPLICIT) }
-                await("title IME") { root.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true }
+                await("title click opens native IME") { root.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true }
                 main { fullyVisible(title); fullyVisible(save) }
                 shot(args.getString("fixture", "current") + "-long-name-ime")
             }
