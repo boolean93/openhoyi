@@ -118,10 +118,7 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                         }
                     }
                 }
-                (1..3).forEach { index ->
-                    val linked = root.findViewWithTag<TextView>("curve-stage-linked-$index")
-                    check(linked.isShown && linked.text.toString() == screen.getString(R.string.curve_editor_linked))
-                }
+                check((1..3).all { root.findViewWithTag<View>("curve-stage-linked-$it") == null })
                 val colors = CurveEditorColors(screen)
                 check((tagged("control-mode") as CurveEditorSegments).checked)
                 // Each downstream card is another view of the same protocol bits, never an independent mode.

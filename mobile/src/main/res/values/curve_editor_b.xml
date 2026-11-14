@@ -10,5 +10,4 @@
     <string name="curve_editor_first_flow">流量</string>
     <string name="curve_editor_temperature_short">温度</string>
     <string name="curve_editor_shared_mode">阶段 2–4 共用此模式，修改任一处会同步其他阶段</string>
-    <string name="curve_editor_linked">2–4 联动</string>
 </resources>

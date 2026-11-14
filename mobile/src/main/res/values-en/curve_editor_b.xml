@@ -10,5 +10,4 @@
     <string name="curve_editor_first_flow">Flow</string>
     <string name="curve_editor_temperature_short">Temp.</string>
     <string name="curve_editor_shared_mode">Stages 2–4 share this mode; changing any one updates the others</string>
-    <string name="curve_editor_linked">2–4 linked</string>
 </resources>
