@@ -43,14 +43,14 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                     Triple(State.CONFIRMED,null,1),Triple(State.CONFIRMED,null,0))
                 for((state,fresh,last) in cases) {
                     val id=SleepPresentation.status(state,fresh,last)
-                    text(id)
-                    SleepPresentation.hint(state,fresh,last)?.let {text(it)}
+                    text(SleepPresentation.compactStatus(id))
+                    SleepPresentation.compactHint(SleepPresentation.hint(state,fresh,last))?.let {text(it)}
                     val button=Button(context).apply {
-                        setText(if(id in setOf(R.string.task_shell_machine_asleep,R.string.sleep_status_last_confirmed))R.string.task_shell_machine_asleep else R.string.home_sleep_button)
-                        isEnabled=false
+                        setText(if(id in setOf(R.string.task_shell_machine_asleep,R.string.sleep_status_last_confirmed))R.string.task_shell_sleep_wake else R.string.home_sleep_button)
+                        isEnabled=SleepReconnectPolicy.allowed(true,DeviceState.READY,state,fresh,last,false,null,false,false)
                     }
                     body.addView(button)
-                    check(!button.isEnabled)
+                    check(button.isEnabled==(state==State.CONFIRMED && last==1))
                     if(state in setOf(State.WRITING,State.WAITING_ASLEEP,State.UNKNOWN))check(id!=R.string.task_shell_machine_awake)
                     if(last==0 && fresh==null)check(id!=R.string.sleep_status_last_confirmed)
                 }
@@ -205,7 +205,19 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                                 check(label.length<=4 && status.length<=4) {"Sleep rail text exceeded four characters: $label / $status"}
                                 if(hint.isShown)check(hint.text.length<=4) {"Sleep hint exceeded four characters"}
                             }
-                            if(name=="last-confirmed")check(status==host.activity.getString(R.string.task_shell_sleep_history))
+                            if(name in setOf("asleep", "last-confirmed")) {
+                                check(status==host.activity.getString(R.string.task_shell_machine_asleep))
+                                check(label==host.activity.getString(R.string.task_shell_sleep_wake))
+                                check(!hint.isShown && button.isEnabled)
+                                var sleeps=0; var reconnects=0
+                                val probe=TaskShellStatusView(host.activity,{sleeps++},{},{},{},{},{reconnects++})
+                                probe.present(owner)
+                                probe.findViewWithTag<Button>("task-shell-sleep").performClick()
+                                check(sleeps==0 && reconnects==1) {"Wake guidance must only request connection recovery"}
+                                check(tracker.state==State.CONFIRMED && (owner.snapshot.coffee as IdleTelemetry).sleepStateRaw==1)
+                            } else {
+                                check(label==host.activity.getString(R.string.task_shell_action_sleep))
+                            }
                             checks.put(org.json.JSONObject().put("case",name).put("label",label).put("status",status)
                                 .put("hint",if(hint.isShown)hint.text.toString() else "").put("lines",button.layout.lineCount)
                                 .put("buttonWidthPx",button.width).put("railWidthPx",shell.width))
