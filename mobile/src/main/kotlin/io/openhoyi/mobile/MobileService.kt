@@ -441,7 +441,7 @@ class MobileService : Service() {
     val coffeeFirmware: CoffeeFirmware? get() = if(mock != null)
         snapshot.settings?.let { CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch) }
         else hub?.coffeeFirmware
-    val machineSettingsFresh: Boolean get() = snapshot.settings != null &&
+    val machineSettingsFresh: Boolean get() = !staleSettingsRefreshBusy && snapshot.settings != null &&
         SettingsFreshness.isFresh(snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime())
     val machineBrewSettingsAvailable: Boolean get() = BrewSettingsEvidence.isAvailable(
         snapshot.coffeeState == DeviceState.READY, snapshot.settings != null,
@@ -478,6 +478,7 @@ class MobileService : Service() {
     private val watchShot = object : Runnable {
         override fun run() {
             observeTare()
+            refreshStaleMachineSettings()
             val current = shotState
             if (current != lastShotState) {
                 val previous = lastShotState
@@ -1300,6 +1301,47 @@ class MobileService : Service() {
         }
         return null
     }
+    private val settingsRefreshBudget = SettingsRefreshBudget()
+    private var staleSettingsRefreshBusy = false
+    private fun settingsRefreshSafe(): Boolean {
+        val idle = snapshot.coffee as? IdleTelemetry ?: return false
+        return SettingsRefreshEligibility.allowed(
+            foreground = running && mock == null && appVisibility.visible,
+            readyIdle = snapshot.coffeeState == DeviceState.READY &&
+                TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()) &&
+                idle.sleepStateRaw == 0 && io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits),
+            controlRecoveryBlocked = MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning) != null,
+            leverActive = leverInFlight != null || leverStore.active,
+            operationActive = manualShotActive || ShotGate.active(shotState) || brewPreparation.active || cupResetBusy || scheduleBusy ||
+                settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+                    SettingsWriteTracker.State.UNKNOWN) || sleepNow.state in setOf(SleepNowTracker.State.WRITING,
+                    SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
+    }
+    /** A bounded settings synchronization, not a retry of the user's machine command. */
+    private fun refreshStaleMachineSettings(explicit: Boolean = false) {
+        if (staleSettingsRefreshBusy || machineSettingsFresh || !settingsRefreshSafe()) return
+        val current = hub ?: return
+        val generation = current.coffeeGeneration
+        if (!current.canRefreshStaleSettings) return
+        if (!settingsRefreshBudget.claim(generation, snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime(), explicit)) return
+        staleSettingsRefreshBusy = true
+        logMachineStateGate("settings.refresh_started")
+        current.refreshStaleSettings({ hub === current && current.coffeeGeneration == generation && settingsRefreshSafe() }) { result ->
+            staleSettingsRefreshBusy = false
+            logs.record("settings.refresh_finished", mapOf("result" to result.javaClass.simpleName,
+                "version" to BuildConfig.VERSION_NAME))
+        }
+    }
+    private fun logMachineStateGate(event: String) {
+        val now = MobileMonotonicClock.elapsedRealtime()
+        val idle = snapshot.coffee as? IdleTelemetry
+        logs.record(event, mapOf("version" to BuildConfig.VERSION_NAME,
+            "firmware" to coffeeFirmware.toString(), "state" to snapshot.coffeeState.name,
+            "idleAgeMs" to (snapshot.coffeeAt?.let { now-it }?.toString() ?: "missing"),
+            "settingsAgeMs" to (snapshot.settingsAt?.let { now-it }?.toString() ?: "missing"),
+            "sleep" to idle?.sleepStateRaw.toString(), "alarms" to idle?.alarmBits.toString()))
+    }
+
     // The framework-attached Application owns the journal even when the base context is isolated.
     // Detached upgrade checks have only a base context. Never substitute an empty journal.
     private val leverStore get() = ((application as? MobileApplication)
@@ -1312,7 +1354,12 @@ class MobileService : Service() {
     /** No complete recipe readback exists. This API reports transport only, never durable save. */
     internal fun leverRecipeWriteBlock(): String? {
         leverWriteBlock?.let { return it }
-        return leverRecipeConditions()
+        val blocked = leverRecipeConditions()
+        if (blocked != null) {
+            logMachineStateGate("lever_recipe.blocked")
+            refreshStaleMachineSettings(explicit = true)
+        }
+        return blocked
     }
     private fun leverRecipeConditions(): String? {
         MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)?.let { return it }
@@ -1324,9 +1371,11 @@ class MobileService : Service() {
         if (mock != null) return null
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
-        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()) ||
-            idle.sleepStateRaw != 0 || idle.alarmBits != 0 || !machineSettingsFresh)
-            return getString(R.string.service_write_awake_idle_needed)
+        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()))
+            return getString(R.string.lever_gate_sync)
+        if (idle.sleepStateRaw != 0) return getString(R.string.lever_gate_asleep)
+        if (!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)) return getString(R.string.lever_gate_alarm)
+        if (!machineSettingsFresh) return getString(R.string.lever_gate_sync)
         if (coffeeFirmware !in listOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5)))
             return getString(R.string.lever_firmware_unsupported)
         return null
@@ -1403,8 +1452,10 @@ class MobileService : Service() {
     internal fun acknowledgeLeverRecipeUnknown(): String? {
         if (leverInFlight != null) return getString(R.string.lever_sending)
         val record = leverStore.blockingAttempt ?: return getString(R.string.lever_record_failed)
-        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true) || leverRecipeConditions() != null)
+        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true) || leverRecipeConditions() != null) {
+            refreshStaleMachineSettings(explicit = true)
             return getString(R.string.lever_reconnect_original)
+        }
         if (!leverStore.acknowledge(record.token)) return getString(R.string.lever_record_failed)
         event(ResourceMessage(R.string.lever_result_unknown), "lever_recipe.acknowledged")
         return null

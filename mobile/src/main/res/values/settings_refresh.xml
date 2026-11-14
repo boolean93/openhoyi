@@ -1,0 +1,5 @@
+<resources>
+    <string name="lever_gate_asleep">机器休眠</string>
+    <string name="lever_gate_alarm">机器告警</string>
+    <string name="lever_gate_sync">等待同步</string>
+</resources>
