@@ -2,7 +2,7 @@
 
 - 需求与范围：曲线库原排序位置提供单个紧凑菜单。自定义曲线独立勾选，最近使用/使用次数互斥排序，保留搜索和烘焙分类的叠加语义。
 - 来源分支/基线提交：develop / f788985f。
-- 工作分支：feature/custom-curve-filter；PR目标：develop。
+- 工作分支：feature/custom-curve-filter-pr（保留原工作树的独立AGENTS改动，任务提交转入干净工作树）；PR目标：develop。
 - 身份边界：CustomCurveStore.items 的 customDocument 标志涵盖新建、导入、另存曲线，不包含内置或抓取曲线，不显示已归档曲线。不按名称或ID猜测。
 - 改动文件与步骤：共用CurveLibraryMenu；CurveActivity/CurveFragment读取并保存筛选偏好；CurveSearch增加默认关闭的本地来源条件；适配已有控件测试并补独立筛选回归。
 - 验收：勾选不改变排序，切换排序不取消筛选；关闭恢复全部来源；搜索和分类条件保留；重建保持偏好；空集合给出短文案。
