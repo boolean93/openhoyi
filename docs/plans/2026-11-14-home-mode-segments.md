@@ -23,3 +23,10 @@
 - `am instrument -w -e mainNavigationChecks home ...BrewAudioInstrumentation` 返回 `MAIN_NAVIGATION_CHECKS_COMPLETED`：禁用不提交/启用恢复/程序选择无回调检查通过。720×360dp 专属几何检查在实际1138×711dp设备明确skip，不宣称其通过。
 - 实际点击首页变流：蓝色变压/恒压变为绿色变流/快速，第二组选项完整显示慢速/快速，无截断；操作后恢复原变压/恒压。保留实际截图 home-pressure.png/home-flow.png 供主线程交付。
 - 本轮实屏仅正常横屏深色，不新增无关尺寸矩阵；其他主题复用现有编辑器调色板且已静态审查。结束恢复正式包前台。
+
+## 补充验收
+
+- 按协调要求新增 `HomeModeVisualChecks`：仅 Mock 包，通过临时状态输入覆盖压力、流量、断连；每种验证两组控件完整可见、48dp触控、文字单行无截断，断连点击不改变选择。结束恢复 snapshot、Mock tick 与主题，不触真实设备。
+- 正常横屏2560×1600、模拟方屏1600×1600、模拟竖屏1080×1920，分别深浅主题，共六次 `HOME_MODE_VISUAL_PASSED`。不把模拟UI视为真实BLE连接问题已修复。
+- 真实屏幕尺寸、旋转3、主题、正式dev120前台均恢复；Mock115保留完整编辑器R8。
+- 拼图 `home-mode-review-board.png` 仅排列原生截图并附局部，标注模拟范围。原始部分截图遇到系统通知，已避开并重拍受影响验收图，不交付通知内容。
