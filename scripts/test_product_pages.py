@@ -407,6 +407,36 @@ class ProductPagesTest(unittest.TestCase):
                   and f"./assets/brand/{path.name}" not in self.html}
         self.assertEqual(unused, set())
 
+    def test_official_curve_guide(self):
+        guide = (SITE / "import-official-curves.html").read_text()
+        page = Page(guide)
+        js = (SITE / "import-guide.js").read_text()
+        self.assertIn('./import-official-curves.html', self.html)
+        self.assertEqual(len(page.ids), len(set(page.ids)))
+        self.assertEqual(sum(tag == "h1" for tag, _ in page.tags), 1)
+        for href in page.links + page.assets:
+            # Hidden download link is populated only from a verified index.
+            if not href:
+                continue
+            url = urlsplit(href)
+            if url.scheme:
+                self.assertEqual(url.scheme, "https")
+                self.assertEqual(url.netloc, "github.com")
+            elif url.path:
+                path = (SITE / unquote(url.path)).resolve()
+                self.assertTrue(path.is_relative_to(SITE.resolve()))
+                self.assertTrue(path.is_file(), href)
+            elif url.fragment:
+                self.assertIn(url.fragment, page.ids)
+        for text in ("同版本", "多张截图", "不让 AI 猜", "核对", "旧版本", "纯 JSON"):
+            self.assertIn(text, guide)
+        self.assertNotIn("releases/latest", guide + js)
+        self.assertIn("index.available !== true", js)
+        self.assertIn("index.downloadUrl !== expected", js)
+        self.assertIn("requested !== index.releaseTag", js)
+        self.assertIn("AbortController", js)
+        self.assertNotIn("innerHTML", js)
+
     def test_deployment_scope(self):
         workflow = (ROOT / ".github/workflows/product-pages.yml").read_text()
         self.assertIn("github.ref == 'refs/heads/develop'", workflow)

@@ -1,0 +1,38 @@
+{
+  "schema": 3,
+  "controlMode": "pressure",
+  "temperatureC": 92,
+  "configuration": {
+    "firstSegmentFlowMode": false,
+    "preinfusionSeconds": 0,
+    "inactiveStages": [
+      {
+        "waterTenthsMl": 0,
+        "target": 0
+      },
+      {
+        "waterTenthsMl": 0,
+        "target": 0
+      }
+    ],
+    "variableFlowLogic": false,
+    "firstDurationSeconds": 0,
+    "pressureLogic": false,
+    "compensationHundredthsGram": 0
+  },
+  "kind": "openhoyi.local-curve",
+  "name": "变压示例",
+  "stages": [
+    {
+      "waterTenthsMl": 100,
+      "target": 30
+    },
+    {
+      "waterTenthsMl": 400,
+      "target": 90
+    }
+  ],
+  "totalWaterLimitMl": 50,
+  "id": "draft-d4857d0e-c610-4f1c-86aa-cbabfe9af006",
+  "targetHundredthsGram": 3600
+}

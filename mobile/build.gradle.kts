@@ -124,3 +124,11 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     inputs.files(file("src/main/AndroidManifest.xml"), fileTree("src/main/res") { include("**/*.xml") })
         .withPropertyName("appTypographyResourceGuard").withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
 }
+
+// Prompt fixtures/text changes must invalidate their real-parser JVM contract checks.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    inputs.files(rootProject.fileTree("docs/curve-import"))
+        .withPropertyName("curveImportPromptContract")
+        .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    systemProperty("hoyi.curve.prompt.dir", rootProject.file("docs/curve-import").absolutePath)
+}

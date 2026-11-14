@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 
+from curve_import_prompt import build_prompt, validate_metadata, ASSET_NAME, MAX_BYTES, CONTRACT_FILES, DIRECTORY
 from git_policy import pr_release_note
 from apk_distribution import inspect_apk, compare_upgrade
 from develop_release_policy import (REQUIRED_WORKFLOWS, allocate_version, select_successful_runs,
@@ -296,6 +297,9 @@ def build():
     manifest.update(apkFile=name, channel="develop-test", checks=item["checks"], workflowRun=item["workflowRun"],
                     hardwareAcceptanceVerified=False, installationVerified=False, dataPreservationVerified=False,
                     approvalReference=item["approvalReference"])
+    prompt = build_prompt(source_root, directory, manifest)
+    if prompt is not None:
+        manifest["curveImportPrompt"] = prompt
     (directory / "distribution.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     sums = "".join(sha256((directory / p).read_bytes()) + "  " + p + "\n" for p in (name, "distribution.json"))
     (directory / "SHA256SUMS.txt").write_text(sums)
@@ -364,6 +368,52 @@ def release_body(api, source, records, body):
     return "## 本次更新\n\n" + "\n".join(notes) + "\n\n" + remainder
 
 
+def verify_prompt_source(manifest, directory):
+    """Rebuild from immutable Git blobs, never the mutable controller checkout."""
+    source = manifest["declaredSourceCommit"]
+    if not re.fullmatch(r"[0-9a-f]{40}", source):
+        raise PublisherError("Invalid prompt source commit")
+    tree = git("ls-tree", source, "--", DIRECTORY)
+    with tempfile.TemporaryDirectory(prefix="openhoyi-prompt-source-") as temporary:
+        root = Path(temporary, "source")
+        root.mkdir()
+        if tree:
+            for name in (*CONTRACT_FILES, DIRECTORY + "/contract.json"):
+                entry = git("ls-tree", source, "--", name)
+                if not entry.startswith("100644 blob "):
+                    raise PublisherError("Prompt source input missing or not a regular blob")
+                data = subprocess.check_output(["git", "show", source + ":" + name], cwd=ROOT)
+                if not 0 < len(data) <= 1024 * 1024:
+                    raise PublisherError("Invalid prompt source blob size")
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+        output = Path(temporary, "output")
+        expected = build_prompt(root, output, manifest)
+        if expected != manifest.get("curveImportPrompt"):
+            raise PublisherError("Prompt metadata differs from reserved source")
+        if expected is not None and (output / ASSET_NAME).read_bytes() != (directory / ASSET_NAME).read_bytes():
+            raise PublisherError("Prompt bytes differ from reserved source")
+
+
+def prompt_asset(manifest, directory):
+    """Optional source-bound attachment; historical three-file bundles stay valid."""
+    if "curveImportPrompt" not in manifest:
+        if (directory / ASSET_NAME).exists():
+            raise PublisherError("Unbound curve import prompt attachment")
+        return None
+    metadata = manifest["curveImportPrompt"]
+    validate_metadata(metadata)
+    path = directory / metadata["file"]
+    if not path.is_file() or path.is_symlink() or not 0 < path.stat().st_size <= MAX_BYTES:
+        raise PublisherError("Invalid curve import prompt attachment")
+    raw = path.read_bytes()
+    raw.decode("utf-8")
+    if sha256(raw) != metadata["sha256"]:
+        raise PublisherError("Curve import prompt checksum mismatch")
+    return path
+
+
 def publish_one(api, ledger, item, directory):
     code, source = item["code"], item["source"]
     tag = f"dev-{code}"
@@ -383,6 +433,10 @@ def publish_one(api, ledger, item, directory):
     if actual["apkSha256"] != manifest["apkSha256"]:
         raise PublisherError("Build artifact changed before publication")
     files = [apk, manifest_path, directory / "SHA256SUMS.txt"]
+    prompt = prompt_asset(manifest, directory)
+    verify_prompt_source(manifest, directory)
+    if prompt is not None:
+        files.append(prompt)
     hashes = {p.name: sha256(p.read_bytes()) for p in files}
     expected_sums = "".join(hashes[p.name] + "  " + p.name + "\n" for p in files[:2])
     if files[2].read_text() != expected_sums:
@@ -441,6 +495,8 @@ def publish_one(api, ledger, item, directory):
         if successful_ci(api, source) is None:
             raise PublisherError("Required source checks changed before public release")
         body = release_body(api, source, public, release.get("body", ""))
+        if prompt is not None:
+            body += f"\n\n[官方曲线截图导入提示词（中文 TXT）](https://github.com/{REPO}/releases/download/{tag}/{ASSET_NAME})"
         def prepared(s):
             s["allocations"][str(code)].update(status="prepared", manifestSha256=hashes["distribution.json"], assetHashes=hashes)
         ledger.update(prepared)

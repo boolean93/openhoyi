@@ -1315,6 +1315,12 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                         val website=tagged(activity,"product/settings/app/project-home") as TextView
                         check(website.text.toString()==activity.getString(R.string.settings_project_home) && website.hasOnClickListeners())
                         check(website.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
+                        val importGuide=tagged(activity,"product/settings/app/curve-import-guide") as TextView
+                        check(importGuide.text.toString()==activity.getString(R.string.settings_curve_import_guide) && importGuide.hasOnClickListeners())
+                        check(importGuide.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
+                        check(importGuide.visibility==View.VISIBLE && importGuide.isEnabled)
+                        val guideUri=android.net.Uri.parse(AppSettingsFragment.CURVE_IMPORT_GUIDE_URL)
+                        check(guideUri.scheme=="https" && guideUri.host=="boolean93.github.io" && guideUri.path=="/openhoyi/import-official-curves.html")
                         check(!(field(requireNotNull(field(activity,"feedbackCard")),"audioOwner") as Lazy<*>).isInitialized()) {"Main screenshot started preview audio"}
                     }
                     is MachineSettingsActivity -> {
