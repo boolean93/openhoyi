@@ -1,0 +1,28 @@
+/* A compact reading page, using the product site's existing visual tokens. */
+.guide { max-width: 860px; padding-block: 64px 80px; }
+.guide-heading { padding-bottom: 46px; }
+.guide h1 { font-size: clamp(2.1rem, 5vw, 3.5rem); line-height: 1.2; }
+.guide-lede { margin-top: 24px; color: var(--body); font-size: 19px; }
+.guide-muted { color: var(--muted); font-size: 14px; margin-top: 14px; }
+.guide-steps { list-style: none; }
+.guide-step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding-block: 32px; border-top: 1px solid var(--line); }
+.guide-number { color: var(--primary); font-size: 14px; font-weight: 600; padding-top: 6px; }
+.guide h2 { font-size: clamp(1.25rem, 3vw, 1.6rem); margin: 0 0 14px; line-height: 1.4; }
+.guide-step p { max-width: 680px; }
+.guide-step p + p { margin-top: 14px; }
+.guide-checklist { list-style: disc; padding-left: 20px; margin-top: 16px; color: var(--body); }
+.guide-checklist li { margin-top: 6px; }
+.guide-file { padding: 14px 16px; background: var(--soft); border-radius: 10px; font-size: 14px; overflow-wrap: anywhere; }
+.guide-file code { font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.guide-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.guide-note { padding: 22px 24px; margin-top: 16px; border-left: 3px solid var(--primary); background: var(--soft); border-radius: 0 12px 12px 0; }
+.guide-note p { margin-top: 6px; color: var(--body); font-size: 15px; }
+.guide-link { display: inline-block; color: var(--primary-strong); text-decoration: underline; text-underline-offset: 4px; margin-top: 16px; padding-block: 8px; }
+@media (max-width: 600px) {
+  .guide { padding-block: 36px 48px; }
+  .guide-heading { padding-bottom: 28px; }
+  .guide-lede { font-size: 16px; }
+  .guide-step { grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding-block: 26px; }
+  .guide-step p, .guide-checklist { font-size: 16px; }
+  .guide-step .guide-muted, .guide-step .guide-file { font-size: 14px; }
+}

@@ -110,6 +110,7 @@ jobs:
             ${{ runner.temp }}/develop-dist/${{ matrix.code }}/OpenHOYI-*.apk
             ${{ runner.temp }}/develop-dist/${{ matrix.code }}/distribution.json
             ${{ runner.temp }}/develop-dist/${{ matrix.code }}/SHA256SUMS.txt
+            ${{ runner.temp }}/develop-dist/${{ matrix.code }}/OpenHOYI-curve-import-prompt.zh-CN.txt
           if-no-files-found: error
           retention-days: 14
 

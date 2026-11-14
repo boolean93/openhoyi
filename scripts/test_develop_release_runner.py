@@ -164,11 +164,80 @@ class DevelopReleaseRunnerTests(unittest.TestCase):
                         previous={"apkSha256": "c" * 64, "versionCode": 41, "sourceCommit": "d" * 40})
             with mock.patch.dict(os.environ, {"DEVELOP_APK_ENABLED": "true", "RUNNER_TEMP": temporary}, clear=True), \
                     mock.patch.object(runner, "inspect_apk", return_value=manifest) as inspect, \
+                    mock.patch.object(runner, "verify_prompt_source"), \
                     mock.patch.object(runner, "tools", return_value=("fake-aapt", "fake-apksigner")), \
                     mock.patch.object(runner, "successful_ci", return_value={"verified": True}), \
                     mock.patch.object(runner, "inventory", return_value=[]) as inventory, \
                     mock.patch.object(runner, "release_body", return_value="## 本次更新\n\n- 测试更新。") :
                 yield api, ledger, item, directory, inspect, inventory
+
+    def test_prompt_source_rebuild_uses_reserved_commit_blobs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest = dict(versionCode=CODE, versionName=VERSION, declaredSourceCommit=SOURCE)
+            metadata = runner.build_prompt(runner.ROOT, root, manifest)
+            manifest["curveImportPrompt"] = metadata
+            def git_blob(*args):
+                self.assertEqual(args[1], SOURCE)
+                return "100644 blob fake\t" + args[-1]
+            def show_blob(args, cwd):
+                self.assertEqual(cwd, runner.ROOT)
+                self.assertTrue(args[2].startswith(SOURCE + ":"))
+                return (runner.ROOT / args[2].split(":", 1)[1]).read_bytes()
+            with mock.patch.object(runner, "git", side_effect=git_blob), \
+                    mock.patch.object(runner.subprocess, "check_output", side_effect=show_blob):
+                runner.verify_prompt_source(manifest, root)
+                (root / runner.ASSET_NAME).write_bytes(b"forged")
+                manifest["curveImportPrompt"]["sha256"] = sha256(b"forged")
+                with self.assertRaisesRegex(ValueError, "reserved source"):
+                    runner.verify_prompt_source(manifest, root)
+            with mock.patch.object(runner, "git", return_value=""):
+                with self.assertRaisesRegex(ValueError, "reserved source"):
+                    runner.verify_prompt_source(manifest, root)
+                manifest.pop("curveImportPrompt")
+                runner.verify_prompt_source(manifest, root)
+            with mock.patch.object(runner, "git", side_effect=["040000 tree dir", ""]):
+                with self.assertRaisesRegex(ValueError, "missing"):
+                    runner.verify_prompt_source(manifest, root)
+
+    def test_prompt_published_and_bound_without_changing_checksum_inventory(self):
+        with self.publication() as (api, ledger, item, directory, _, _):
+            prompt = directory / runner.ASSET_NAME
+            prompt.write_text("截图导入提示词", encoding="utf-8")
+            path = directory / "distribution.json"
+            manifest = json.loads(path.read_text())
+            manifest["curveImportPrompt"] = dict(file=prompt.name, sha256=sha256(prompt.read_bytes()),
+                                                schema=3, revision=1)
+            path.write_text(json.dumps(manifest))
+            (directory / "SHA256SUMS.txt").write_text("".join(
+                sha256(p.read_bytes()) + "  " + p.name + "\n"
+                for p in (directory / manifest["apkFile"], path)))
+            runner.publish_one(api, ledger, item, directory)
+            self.assertEqual(len(api.assets), 4)
+            self.assertEqual(len(api.contents["SHA256SUMS.txt"].splitlines()), 2)
+            self.assertIn(prompt.name, ledger.state["allocations"][str(CODE)]["assetHashes"])
+            self.assertIn("/releases/download/dev-42/" + prompt.name, api.release["body"])
+
+    def test_prompt_missing_tampered_or_unbound_rejected_before_publication(self):
+        for failure in ("missing", "tampered", "unbound", "path"):
+            with self.subTest(failure=failure), self.publication() as (api, ledger, item, directory, _, _):
+                prompt = directory / runner.ASSET_NAME
+                prompt.write_bytes(b"prompt")
+                manifest_path = directory / "distribution.json"
+                manifest = json.loads(manifest_path.read_text())
+                if failure != "unbound":
+                    manifest["curveImportPrompt"] = dict(file=prompt.name, sha256=sha256(b"prompt"),
+                                                        schema=3, revision=1)
+                if failure == "missing":
+                    prompt.unlink()
+                elif failure == "tampered":
+                    prompt.write_bytes(b"changed")
+                elif failure == "path":
+                    manifest["curveImportPrompt"]["file"] = "../prompt.txt"
+                manifest_path.write_text(json.dumps(manifest))
+                with self.assertRaises(ValueError):
+                    runner.publish_one(api, ledger, item, directory)
+                self.assertEqual(api.calls, [])
 
     def test_publish_flat_named_and_partial_single_artifact_downloads(self):
         for layout in ("flat", "named", "partial-flat"):

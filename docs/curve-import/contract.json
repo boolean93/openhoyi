@@ -1,0 +1,14 @@
+{
+  "schema": 3,
+  "revision": 1,
+  "files": {
+    "mobile/src/main/kotlin/io/openhoyi/mobile/CustomCurveDocument.kt": "9ba5698dec9b84be0d2b61095c1b21940edf05675ce04f267520b02aa567e5c6",
+    "mobile/src/main/kotlin/io/openhoyi/mobile/CustomCurveAdapter.kt": "8c54b863cdae2d8f260473d7b51fcb5daa9bb1acd67f932fcda6162c6e26e98d",
+    "mobile/src/main/kotlin/io/openhoyi/mobile/CustomPressureCurveAdapter.kt": "92db5be1fae96b067db0e78f5528d85e7dc6f7f4b36daba27eb5c57e195cce46",
+    "mobile/src/main/kotlin/io/openhoyi/mobile/CurveDocumentPresentation.kt": "a317e42e61c3e1ef97dd7f102c4c6772dc27f9a0229497a7f5c14cce5d5b6b26",
+    "protocol-core/src/main/kotlin/io/openhoyi/protocol/CustomCurveStartPolicy.kt": "957144f90994111a26f2d0f05c7dbfedd845e8de837aba0e56239f59a5628f65",
+    "docs/curve-import/photo-to-json.zh-CN.txt": "4142ca2357d9394dca797210dfd841deab1efa08c98b06dea924363af2ddc75b",
+    "docs/curve-import/examples/pressure.json": "9fdd07a3096999921af750afbdf27cff16c83aa55c970f983ef5eb8088a5be3d",
+    "docs/curve-import/examples/flow.json": "d031c749d7d18426ef513f6bebd0d13a604cf37d585481787afef582751ba47c"
+  }
+}
