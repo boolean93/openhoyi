@@ -5,8 +5,8 @@
 - 工作分支：fix/update-progress-settings；PR 目标：develop。
 - 改动文件与步骤：ReleaseUpdateOwner 按当前主导航页面选择呈现；提取纯展示策略并覆盖所有下载阶段、页面切换、Activity 重建、关闭和安全阻断。
 - 推送与合并：普通推送，通过 scripts/create-pr 的完整本地检查，等待精确 head 的 branch-policy、verify，通过后合入。
-- 验证证据：JVM 展示策略与现有下载/安装测试；完整本地 PR 检查。未操作平板或真实机器。
+- 验证证据：JVM 展示策略与现有下载/安装测试；完整本地 PR 检查；手动 download_progress_checks 跑真实 Mock MainActivity 的设置/别页/返回/重建展示（内存下载夹具，无网络和安装）。未操作平板或真实机器。
 - 协议与设备风险：不更改下载、校验、持久化、通知、安装租约、蓝牙及机器协议。切页/后台/旋转仍撤销自动安装租约和浮层，不取消后台下载；设置页从同一 controller 恢复进度。重复点击仍由 controller.working 拒绝，不创建第二个下载。
 - 发布：不单独发版或安装；合入后的既有 develop 发布通道不变，包名、签名和升级边界不变。
 - 回退：revert 本 PR 即恢复原呈现，不涉及用户数据迁移或清理。
-- 未完成与阻塞：实机 UI 未测，后续记录实际检查结果。
+- 未完成与阻塞：实机 UI 未测；专用 GitHub Mock 路由集成测试不触碰用户平板。
