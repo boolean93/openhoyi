@@ -8,4 +8,6 @@
     <string name="curve_editor_target_range">Range: %1$s–%2$s %3$s</string>
     <string name="curve_editor_water_range">Water range: %1$s–%2$s mL</string>
     <string name="curve_editor_first_flow">Flow</string>
+    <string name="curve_editor_temperature_short">Temp.</string>
+    <string name="curve_editor_flow_inline">Flow\n%1$s</string>
 </resources>

@@ -21,6 +21,7 @@ class CurveEditorActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val style = TaskProductFormStyle(this)
+        val colors = CurveEditorColors(this)
         val body = style.visual.page(this, getString(R.string.curve_editor_title), getString(R.string.flow_editor_subtitle))
         val store = profileStore(body) ?: return
         val sourceId = intent.getStringExtra(CURVE_ID)
@@ -82,7 +83,7 @@ class CurveEditorActivity : ThemedActivity() {
             (0 until host.childCount).map(host::getChildAt).filter { it !== name }.forEach { it.visibility = View.GONE }
         }
         val temperature = field(sections.metadata[1], "temperature", R.string.profiles_temperature, source.temperatureC.toString(),
-            compactLabel = getString(R.string.curve_preview_temperature))
+            compactLabel = getString(R.string.curve_editor_temperature_short))
         val cup = field(sections.metadata[2], "cup", R.string.profiles_cup, CurveDraftNumber.format(source.targetHundredthsGram, 2),
             compactLabel = getString(R.string.curve_preview_weight))
         temperature.inputType = android.text.InputType.TYPE_CLASS_NUMBER
@@ -181,6 +182,7 @@ class CurveEditorActivity : ThemedActivity() {
         fun units() {
             (0..3).forEach { index ->
                 val flow = flowMode && (index > 0 || firstFlow)
+                sections.setStageType(index, flow)
                 sections.stageModes[index].text = getString(when {
                     flowMode && index == 0 && !firstFlow -> R.string.curve_editor_mode_first_pressure
                     flow && pressureLogic -> R.string.curve_editor_mode_flow_fast
@@ -203,13 +205,16 @@ class CurveEditorActivity : ThemedActivity() {
             }
             firstModePicker.isEnabled = flowMode
             firstModePicker.visibility = if (flowMode) View.VISIBLE else View.GONE
-            sections.firstModeHost.visibility = if (flowMode) View.VISIBLE else View.GONE
+            sections.firstModeHost.visibility = View.VISIBLE
             sections.stageModes[0].visibility = if (flowMode) View.GONE else View.VISIBLE
             firstModePicker.contentDescription = getString(R.string.flow_editor_first) + " · " + sections.stageModes[0].text
-            firstModePicker.labels(getString(R.string.curve_editor_mode_first_pressure), getString(
-                if (pressureLogic) R.string.curve_editor_mode_flow_fast else R.string.curve_editor_mode_flow_slow))
+            firstModePicker.labels(getString(R.string.curve_editor_mode_first_pressure), getString(R.string.curve_editor_flow_inline,
+                getString(if (pressureLogic) R.string.curve_control_fast else R.string.curve_control_slow)))
             firstModePicker.select(firstFlow)
+            controlSwitch.colors(colors.pressureFill, colors.flowFill)
             controlSwitch.select(flowMode)
+            firstModePicker.colors(colors.pressureFill, colors.flowFill)
+            logicSwitch.colors(colors.fill(flowMode), colors.fill(flowMode))
             logicSwitch.labels(getString(if (flowMode) R.string.curve_control_slow else R.string.curve_control_constant),
                 getString(if (flowMode) R.string.curve_control_fast else R.string.curve_control_follow))
             logicSwitch.select(pressureLogic)
@@ -230,6 +235,7 @@ class CurveEditorActivity : ThemedActivity() {
         firstModePicker = CurveEditorSegments(this, style.visual,
             getString(R.string.curve_editor_mode_first_pressure), getString(R.string.curve_editor_first_flow)).apply {
             tag = "product/form/curve-editor/first-mode"
+            compact()
             select(firstFlow)
             sections.firstModeHost.addView(this, LinearLayout.LayoutParams(-1, -2))
             onSelected = { firstFlow = it; units() }
@@ -346,7 +352,7 @@ class CurveEditorActivity : ThemedActivity() {
             isFillViewport = true
             addView(preview, android.widget.FrameLayout.LayoutParams(-1, -1))
         }
-        sections.supportingBody.addView(previewScroll, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 230)))
+        sections.supportingBody.addView(previewScroll, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 200)))
         val previewStatus = style.visual.text("", TaskProductVisualStyle.auxiliary).apply {
             style.visual.add(sections.supportingBody, this)
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -420,7 +426,20 @@ class CurveEditorActivity : ThemedActivity() {
         previewChanged()
         units()
         sections.restore(savedInstanceState, fields)
-        val actionRow = style.visual.row().apply { gravity = android.view.Gravity.END }
+        val actionRow = object : LinearLayout(this) {
+            init { isBaselineAligned = false; gravity = android.view.Gravity.END }
+            override fun onMeasure(w: Int, h: Int) {
+                val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                for (index in 0 until childCount) getChildAt(index).measure(free, free)
+                val stacked = (0 until childCount).sumOf { getChildAt(it).measuredWidth } + style.dp(8) > View.MeasureSpec.getSize(w)
+                orientation = if (stacked) VERTICAL else HORIZONTAL
+                for (index in 0 until childCount) (getChildAt(index).layoutParams as LayoutParams).apply {
+                    width = if (stacked) -1 else -2
+                    marginEnd = if (!stacked && index == 0) style.dp(8) else 0
+                }
+                super.onMeasure(w, h)
+            }
+        }
         style.visual.action(actionRow, getString(R.string.beans_cancel), "product/form/curve-editor/cancel", top = 0) { finish() }
             .layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
         val save = style.visual.action(actionRow, getString(if (sourceId == null) R.string.curve_editor_create else R.string.curve_editor_save_copy),

@@ -59,13 +59,16 @@ internal class CurveEditorPreviewView(context: Context, private val style: TaskP
                 paint.pathEffect = DashPathEffect(floatArrayOf(dp(4), dp(3)), 0f)
                 line(x, top, x, bottom, style.border); paint.pathEffect = null
             }
-            val color = if (stage.flow) style.accent else style.pressure
+            val color = CurveEditorColors(context).ink(stage.flow)
             if (stage.target != null) {
                 val max = if (stage.flow) flowMax * 10 else 120
                 val y = bottom - (bottom - top) * stage.target / max
                 line(x + dp(4), y, x + step - dp(4), y, color, true)
+                // Near the axis ceiling, put the label below the target instead of across its line.
+                val baseline = if (y - dp(8) + paint.fontMetrics.ascent >= top + dp(2)) y - dp(8)
+                    else y + dp(8) - paint.fontMetrics.ascent
                 text(CurveDraftNumber.format(stage.target, 1) + if (stage.flow) " mL/s" else " bar", center,
-                    (y - dp(8)).coerceAtLeast(top + lineHeight), color)
+                    baseline, color)
             } else text("—", center, (top + bottom) / 2, style.muted)
             text(context.getString(R.string.profiles_stage, index + 1), center, bottom + lineHeight + dp(4), style.ink)
             text(stage.water?.let { CurveDraftNumber.format(it, 1) + " mL" } ?: "— mL", center,

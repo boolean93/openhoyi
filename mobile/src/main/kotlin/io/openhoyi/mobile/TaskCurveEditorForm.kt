@@ -21,8 +21,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     private inner class MetadataCell : LinearLayout(activity) {
         init { tag = "bean-full-field"; orientation = HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
-            background = style.visual.shape(style.visual.surface, true)
-            setPadding(dp(16), dp(6), dp(16), dp(6))
+            setPadding(0, 0, 0, 0)
         }
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val vertical = MeasureSpec.getSize(widthMeasureSpec) < dp((210 * resources.configuration.fontScale).toInt())
@@ -42,20 +41,27 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     val metadata: List<LinearLayout> = List(3) { MetadataCell() }
     val stageRows = List(4) { panel() }
+    private val stageDots = mutableListOf<View>()
+    private val stageTitles = List(4) { index -> style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.body).apply {
+        typeface = TaskTypography.face(activity, 500)
+    } }
     val stageHeader = style.visual.row()
     val stageModes = List(4) { style.visual.text("", TaskProductVisualStyle.body).apply {
-        gravity = android.view.Gravity.CENTER; minimumHeight = dp(48); minHeight = dp(48)
-        setPadding(dp(8), dp(2), dp(8), dp(2))
-        background = style.visual.shape(style.visual.selected, false, 8)
+        gravity = android.view.Gravity.CENTER; minimumHeight = dp(32); minHeight = dp(32)
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+        if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(AppTextUnits.pixels(resources, 17f).toInt())
+        setPadding(dp(6), dp(2), dp(6), dp(2))
         tag = "curve-stage-mode-$it"
     } }
-    val firstModeHost = cell().apply {
-        background = style.visual.shape(style.visual.selected, false, 8)
-    }
+    val firstModeHost = cell()
     val waterLimit = cell()
     val modeControls = cell()
     val logicControls = cell()
-    val actions = cell()
+    val actions = cell().apply {
+        tag = "product/form/curve-editor/fixed-actions"
+        setPadding(0, dp(8), 0, 0)
+        setBackgroundColor(style.visual.page)
+    }
     val configurationFields = cell()
     val supportingBody = panel()
     private val settingsBody = panel()
@@ -68,7 +74,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private val metadataScroll = contentScroll
     private val host = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL; tag = "task-inline-form"
-        addView(contentScroll, LinearLayout.LayoutParams(-1, -1))
+        addView(contentScroll, LinearLayout.LayoutParams(-1, 0, 1f))
     }
     var productLayoutEvidence = JSONObject()
         private set
@@ -86,14 +92,14 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private var activeCount = 2
     private var changeCount: (Int) -> Unit = {}
     /** A measured grid: wraps cards rather than shrinking type or making stages a carousel. */
-    private inner class CardGrid(private val minimumDp: Int, private val maxColumns: Int) : ViewGroup(activity) {
+    private inner class CardGrid(private val minimumDp: Int, private val maxColumns: Int, private val measuredMinimum: (() -> Int)? = null) : ViewGroup(activity) {
         private var columns = 1
         private var rowHeights = emptyList<Int>()
         override fun generateDefaultLayoutParams() = LayoutParams(-1, -2)
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = MeasureSpec.getSize(widthMeasureSpec)
             val gap = dp(12)
-            val min = dp((minimumDp * activity.resources.configuration.fontScale.coerceAtLeast(1f)).toInt())
+            val min = maxOf(dp((minimumDp * activity.resources.configuration.fontScale.coerceAtLeast(1f)).toInt()), measuredMinimum?.invoke() ?: 0)
             val visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
             columns = ((width - paddingLeft - paddingRight + gap) / (min + gap)).coerceIn(1, maxColumns).coerceAtMost(visible.size.coerceAtLeast(1))
             val cellWidth = ((width - paddingLeft - paddingRight - gap * (columns - 1)) / columns).coerceAtLeast(0)
@@ -115,6 +121,9 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     init {
         body.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
+        // A sibling of the scrolling form: always above navigation bars and the IME insets.
+        body.addView(actions, LinearLayout.LayoutParams(-1, -2))
+        column.setPadding(0, 0, 0, dp(12))
         // The name belongs to the title, not a third metadata card. Narrow windows wrap it.
         val header = (body.tag as BeanPageRegions).header
         val headerParent = header.parent as ViewGroup
@@ -146,32 +155,65 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         }
         titleName.addView(header); titleName.addView(metadata[0]); if (info != null) titleName.addView(info)
         headerParent.addView(titleName, headerIndex, LinearLayout.LayoutParams(-1, -2))
-        val toolbar = CardGrid(180, 4).apply {
-            background = style.visual.shape(style.visual.surface, true)
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-        }
+        val toolbar = CardGrid(140, 4).apply { tag = "curve-editor-light-toolbar" }
         listOf(metadata[1], metadata[2], modeControls, logicControls).forEach(toolbar::addView)
         column.addView(toolbar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(12) })
         column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        val grid = CardGrid(188, 4).apply { tag = "curve-stage-cards" }
+        val grid = CardGrid(222, 4) {
+            // Real localized title width plus a 96dp minimum picker, not merely a nominal card width.
+            dp(32 + 6 + 11 + 48 + 96) + stageTitles.maxOf { kotlin.math.ceil(android.text.Layout.getDesiredWidth(it.text, it.paint).toDouble()).toInt() }
+        }.apply { tag = "curve-stage-cards" }
         stageRows.forEachIndexed { index, card ->
             card.tag = "curve-editor-stage-$index"
-            val heading = style.visual.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-            heading.addView(View(activity).apply { background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(style.visual.stageColors[index])
-            } }, LinearLayout.LayoutParams(dp(10), dp(10)))
-            heading.addView(style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.section), LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
-            val remove = style.visual.action(heading, "×", "curve-stage-remove-$index", top = 0) {
+            val heading = object : ViewGroup(activity) {
+                private var inline = true
+                override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
+                override fun onMeasure(w: Int, h: Int) {
+                    val width = MeasureSpec.getSize(w)
+                    val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+                    getChildAt(0).measure(MeasureSpec.makeMeasureSpec(dp(6), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(6), MeasureSpec.EXACTLY))
+                    getChildAt(1).measure(free, free)
+                    getChildAt(3).measure(MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY))
+                    val modeBudget = width - dp(6 + 11 + 48) - getChildAt(1).measuredWidth
+                    inline = modeBudget >= dp(96)
+                    getChildAt(2).measure(MeasureSpec.makeMeasureSpec(if (inline) modeBudget else width, MeasureSpec.EXACTLY), free)
+                    val rowHeight = maxOf(dp(48), getChildAt(1).measuredHeight)
+                    setMeasuredDimension(width, if (inline) maxOf(rowHeight, getChildAt(2).measuredHeight) else rowHeight + getChildAt(2).measuredHeight)
+                }
+                override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+                    val rowHeight = if (inline) height else maxOf(dp(48), getChildAt(1).measuredHeight)
+                    fun place(child: View, start: Int, top: Int) {
+                        val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - start - child.measuredWidth else start
+                        child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
+                    }
+                    place(getChildAt(0), 0, (rowHeight - dp(6)) / 2)
+                    place(getChildAt(1), dp(11), (rowHeight - getChildAt(1).measuredHeight) / 2)
+                    place(getChildAt(3), width - dp(48), (rowHeight - dp(48)) / 2)
+                    place(getChildAt(2), if (inline) dp(17) + getChildAt(1).measuredWidth else 0,
+                        if (inline) (rowHeight - getChildAt(2).measuredHeight) / 2 else rowHeight)
+                }
+            }.apply { tag = "curve-stage-heading-$index" }
+            val dot = View(activity).apply { background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(CurveEditorColors(activity).pressureInk)
+            } }
+            stageDots += dot
+            heading.addView(dot, LinearLayout.LayoutParams(dp(6), dp(6)))
+            heading.addView(stageTitles[index])
+            val mode = if (index == 0) firstModeHost else stageModes[index]
+            heading.addView(mode)
+            if (index == 0) firstModeHost.addView(stageModes[0], LinearLayout.LayoutParams(-1, -2))
+            val remove = style.visual.action(LinearLayout(activity), "×", "curve-stage-remove-$index", top = 0) {
                 if (activeCount > 1 && index == activeCount - 1) changeCount(activeCount - 1)
             }.apply {
+                (parent as ViewGroup).removeView(this)
+                heading.addView(this)
                 contentDescription = activity.getString(R.string.curve_editor_remove_stage, index + 1)
                 minWidth = dp(48); minimumWidth = dp(48); setPadding(0, 0, 0, 0)
                 layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
             }
             removes += remove
             card.addView(heading, LinearLayout.LayoutParams(-1, -2))
-            card.addView(stageModes[index], LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
-            if (index == 0) card.addView(firstModeHost, LinearLayout.LayoutParams(-1, -2))
             grid.addView(card)
         }
         add.setOnClickListener { if (activeCount < 4) changeCount(activeCount + 1) }
@@ -183,9 +225,16 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         val settingsGrid = CardGrid(190, 2)
         settingsGrid.addView(waterLimit); settingsGrid.addView(configurationFields)
         settingsBody.addView(settingsGrid, LinearLayout.LayoutParams(-1, -2))
-        settingsBody.addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
         lower.addView(settingsBody)
         column.addView(lower, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+    }
+    fun setStageType(index: Int, flow: Boolean) {
+        val colors = CurveEditorColors(activity)
+        stageDots[index].background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(colors.ink(flow))
+        }
+        stageModes[index].setTextColor(colors.ink(flow))
+        stageModes[index].background = style.visual.shape(colors.tint(flow), false, 6)
     }
     fun onStageCountChanged(action: (Int) -> Unit) { changeCount = action }
     fun setStageCount(count: Int) {

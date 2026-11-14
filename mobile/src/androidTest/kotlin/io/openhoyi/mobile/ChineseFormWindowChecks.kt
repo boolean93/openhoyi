@@ -489,7 +489,7 @@ internal object ChineseFormWindowChecks {
                     inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
                     check(inputs.size == 15) { "$name missing metadata, configuration or four-stage fields: ${inputs.size}" }
                     drafts = inputs.associateWith { it.text.toString() }
-                    listOf("name" to R.string.profiles_name, "temperature" to R.string.curve_preview_temperature,
+                    listOf("name" to R.string.profiles_name, "temperature" to R.string.curve_editor_temperature_short,
                         "cup" to R.string.curve_preview_weight).forEach { (key, label) ->
                         val field = requireNotNull(content.findViewWithTag<EditText>("product/form/curve-editor/$key"))
                         val title = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }
