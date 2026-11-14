@@ -43,6 +43,21 @@ class ReleaseUpdatePolicyTest {
         assertEquals("https://github.com/boolean93/openhoyi/releases/download/dev-94/OpenHOYI-0.2.0-dev.94.apk", index.downloadUrl)
     }
 
+    @Test fun optionalMirrorIsBoundedAndExactlyMatchesRepoVersionAndFilename() {
+        val mirror = "https://gitee.com/boolean93/openhoyi/releases/download/dev-94/OpenHOYI-0.2.0-dev.94.apk"
+        assertEquals(listOf(mirror), ReleaseUpdateIndex.parse(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(mirror)))).mirrorDownloadUrls)
+        assertTrue(ReleaseUpdateIndex.parse(fixture).mirrorDownloadUrls.isEmpty())
+        for (bad in listOf(mirror.replace("https:", "http:"), mirror + "?token=x", mirror + "#fragment",
+            mirror.replace("gitee.com", "gitee.com.evil.test"), mirror.replace("dev-94/", "dev-95/"),
+            mirror.replace("boolean93", "other"), mirror.replace(".apk", ".zip"), mirror.replace("/releases", "/%72eleases"))) {
+            rejects(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(bad))))
+        }
+        rejects(changed("mirrorDownloadUrls", mirror))
+        rejects(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(mirror, mirror))))
+        rejects(changed("mirrorDownloadUrls", org.json.JSONArray(listOf(1))))
+        rejects(changed("mirrorDownloadUrls", null))
+    }
+
     @Test fun integerFieldsRejectCoercionOverflowAndInvalidRanges() {
         for (key in listOf("schemaVersion", "versionCode", "apkSize")) {
             for (value in listOf<Any>("94", true, 94.5, 0, -1, Long.MAX_VALUE)) rejects(changed(key, value))

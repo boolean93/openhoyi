@@ -13,10 +13,12 @@ data class ReleaseUpdate(
     val releaseUrl: String,
     internal val indexJson: String? = null,
     val apkSize: Long = 0,
+    val mirrorDownloadUrls: List<String> = emptyList(),
 )
 
 object ReleaseUpdateIndex {
     const val URL = "https://boolean93.github.io/openhoyi/updates/dev.json"
+    const val MIRROR_URL = "https://gitee.com/boolean93/openhoyi/raw/main/updates/dev.json"
     const val MAX_BYTES = 64 * 1024
     private const val REPOSITORY = "boolean93/openhoyi"
     private const val BASE = "https://github.com/$REPOSITORY"
@@ -28,7 +30,7 @@ object ReleaseUpdateIndex {
     fun parse(json: String): ReleaseUpdate {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Update index is too large" }
         val fields = FlatJson(json).read()
-        require(fields.keys == keys) { "Unexpected update schema fields" }
+        require(fields.keys == keys || fields.keys == keys + "mirrorDownloadUrls") { "Unexpected update schema fields" }
         fun string(key: String): String = fields[key] as? String ?: error("Expected string: $key")
         fun integer(key: String): Long = fields[key] as? Long ?: error("Expected integer: $key")
         require(integer("schemaVersion") == 1L)
@@ -57,10 +59,18 @@ object ReleaseUpdateIndex {
         require(string("releaseUrl") == releaseUrl && string("downloadUrl") == downloadUrl)
         require(string("distributionUrl") == prefix + "distribution.json")
         require(string("checksumsUrl") == prefix + "SHA256SUMS.txt")
-        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl, json, integer("apkSize"))
+        val mirrors = if (fields.containsKey("mirrorDownloadUrls")) {
+            val values = fields["mirrorDownloadUrls"] as? List<*> ?: error("Expected mirror URL array")
+            require(values.size <= 1)
+            values.map { value ->
+                require(value == "https://gitee.com/$REPOSITORY/releases/download/$tag/$filename")
+                value as String
+            }
+        } else emptyList()
+        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl, json, integer("apkSize"), mirrors)
     }
 
-    /** Schema v1 is flat. Reject JSONTokener's Android leniencies and duplicate keys explicitly. */
+    /** Schema v1 plus one bounded optional string array. Reject JSONTokener's Android leniencies and duplicate keys explicitly. */
     private class FlatJson(private val source: String) {
         private var at = 0
         private fun whitespace() { while (at < source.length && source[at] in " \r\n\t") at++ }
@@ -87,6 +97,17 @@ object ReleaseUpdateIndex {
         private fun value(): Any? {
             whitespace()
             if (at < source.length && source[at] == '"') return quoted()
+            if (at < source.length && source[at] == '[') {
+                take('[')
+                whitespace()
+                val values = mutableListOf<String>()
+                if (at < source.length && source[at] != ']') {
+                    values += quoted()
+                    // Only one mirror is supported; no nested values or coercion.
+                }
+                take(']')
+                return values
+            }
             val start = at
             while (at < source.length && source[at] !in ",} \r\n\t") at++
             val token = source.substring(start, at)

@@ -51,7 +51,10 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
     fun serviceCreated(value: MobileService) { service = value }
     fun serviceDestroyed(value: MobileService) { if (service === value) service = null }
     private fun request(result: (Result<ReleaseUpdate>) -> Unit): () -> Unit {
-        val call = ReleaseUpdateHttpCall()
+        val call = ReleaseUpdateHttpCall(installedVersionCode = installedIdentity?.versionCode,
+            installedSignerSha256 = installedIdentity?.signerSha256, diagnostic = { event ->
+            runCatching { app.logs.record("update.transfer", event.fields()) }
+        })
         var finished = false // Main-thread callbacks own this lease; the worker only posts a value.
         var future: java.util.concurrent.Future<*>? = null
         val timeout = Runnable {
