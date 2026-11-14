@@ -33,6 +33,7 @@ internal class TaskShellStatusView(
     onReconnectScale: () -> Unit,
     onDisconnectScale: () -> Unit,
     onReconnectCoffee: () -> Unit = {},
+    onSleepReconnect: () -> Unit = {},
 ) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
     private val chrome = TaskShellVisualStyle(host)
@@ -83,7 +84,10 @@ internal class TaskShellStatusView(
     }
     private val coffeeHint=statusText("task-shell-coffee-hint")
     private val coffeeRetry=action("task-shell-coffee-retry",onReconnectCoffee)
-    private val sleep = action("task-shell-sleep", onSleep).apply {
+    private var retryAfterSleep = false
+    private val sleep = action("task-shell-sleep") {
+        if (retryAfterSleep) onSleepReconnect() else onSleep()
+    }.apply {
         setSingleLine(true);maxLines=1
     }
     private val reconnect = action("task-shell-scale-reconnect") {
@@ -182,7 +186,7 @@ internal class TaskShellStatusView(
         val iconActions = listOf(R.string.task_shell_action_disconnect, R.string.task_shell_action_retry,
             R.string.task_shell_action_connect, R.string.task_shell_action_select, R.string.coffee_connection_retry)
         val plainActions = listOf(R.string.task_shell_action_connecting, R.string.task_shell_action_sleep,
-            R.string.task_shell_machine_asleep)
+            R.string.task_shell_machine_asleep, R.string.task_shell_sleep_wake)
         val widest = maxOf(iconActions.maxOf { paint.measureText(host.getString(it)) + style.dp(28) },
             plainActions.maxOf { paint.measureText(host.getString(it)) })
         // Status padding 16 + action margins 8 + action padding 8. No change to 48dp targets.
@@ -327,7 +331,8 @@ internal class TaskShellStatusView(
         coffeeRetry.describe(coffeeName.text.toString()+" · "+status+" · "+coffeeAction)
         val asleep = statusId in setOf(R.string.task_shell_machine_asleep,R.string.sleep_status_last_confirmed)
         sleep.visibility=if(snapshot.coffeeState==DeviceState.READY || owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN))View.VISIBLE else View.GONE
-        val sleepAction = host.getString(if (asleep) R.string.task_shell_machine_asleep
+        retryAfterSleep = asleep
+        val sleepAction = host.getString(if (asleep) R.string.task_shell_sleep_wake
             else R.string.task_shell_action_sleep)
         sleep.label(sleepAction) // Text alone preserves the full label at the actual 104dp rail width.
         val sleepReason = when {
@@ -339,7 +344,7 @@ internal class TaskShellStatusView(
         }
         sleep.describe(coffeeName.text.toString() + " · " + status + " · " + sleepAction +
             (sleepReason?.let { " · $it" } ?: ""))
-        sleep.isEnabled = owner?.running == true && !active && !settingBusy &&
+        sleep.isEnabled = if (asleep) owner?.canReconnectAfterSleep == true else owner?.running == true && !active && !settingBusy &&
             owner.brewPreparationState == BrewPreparation.State.IDLE && idle?.sleepStateRaw == 0 &&
             owner.sleepNowState !in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP,
                 SleepNowTracker.State.UNKNOWN) && owner.machineControlSafetyMessage == null
