@@ -1,8 +1,10 @@
 """HTTP adapter contract tests with entirely local fake transport."""
 import base64
 import json
+import http.client
+from unittest.mock import patch, MagicMock
 import unittest
-from gitee_mirror_http import API, GiteeBackend
+from gitee_mirror_http import API, GiteeBackend, Transport
 from gitee_mirror_publish import ManifestState, OutcomeUnknown
 
 
@@ -44,6 +46,27 @@ class HTTPTests(unittest.TestCase):
         http = HTTP((503, {}, b'private details'))
         with self.assertRaises(OutcomeUnknown): GiteeBackend('fake', http).upload(7, 'app.apk', b'apk')
         self.assertEqual(len(http.calls), 1)
+
+    def test_incomplete_response_classification_for_reads_and_writes(self):
+        for method in ('GET', 'POST', 'PUT'):
+            with self.subTest(method=method):
+                response = MagicMock()
+                response.status = 200
+                response.read.side_effect = http.client.IncompleteRead(b'partial', 100)
+                response.__enter__.return_value = response
+                opener = MagicMock()
+                opener.open.return_value = response
+                with patch('gitee_mirror_http.urllib.request.build_opener', return_value=opener):
+                    with self.assertRaises(OutcomeUnknown if method != 'GET' else ValueError):
+                        Transport().request(method, API + '/releases')
+                self.assertEqual(opener.open.call_count, 1)
+
+    def test_successful_mutation_with_bad_json_is_unknown(self):
+        for method in ('POST', 'PUT'):
+            with self.subTest(method=method), self.assertRaises(OutcomeUnknown):
+                GiteeBackend('fake', HTTP((201, {}, b'{truncated'))).api(method, 'contents/updates/dev.json', {})
+        with self.assertRaises(ValueError):
+            GiteeBackend('fake', HTTP((200, {}, b'{truncated'))).api('GET', 'releases')
 
     def test_get_404_only_is_missing(self):
         self.assertIsNone(GiteeBackend('fake', HTTP((404, {}, b''))).manifest())

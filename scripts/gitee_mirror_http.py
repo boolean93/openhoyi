@@ -6,6 +6,7 @@ This adapter is tested against a fake HTTP service; real token scope remains unv
 """
 import base64
 import json
+import http.client
 import re
 import secrets
 import urllib.error
@@ -35,16 +36,18 @@ class Transport:
             response = urllib.request.build_opener(NoRedirect).open(request, timeout=30)
         except urllib.error.HTTPError as error:
             response = error
-        except (OSError, urllib.error.URLError):
+        except (OSError, urllib.error.URLError, http.client.HTTPException):
             if method != 'GET': raise OutcomeUnknown('Remote mutation outcome unknown') from None
             raise PublishError('Remote read unavailable') from None
         with response:
             try:
                 data = b'' if 300 <= response.status < 400 else response.read(limit + 1)
-            except (OSError, ValueError):
+            except (OSError, ValueError, http.client.HTTPException):
                 if method != 'GET': raise OutcomeUnknown('Remote mutation response interrupted') from None
                 raise PublishError('Remote response interrupted') from None
-            if len(data) > limit: raise PublishError('Remote response exceeds limit')
+            if len(data) > limit:
+                if method != 'GET': raise OutcomeUnknown('Remote mutation response exceeds limit')
+                raise PublishError('Remote response exceeds limit')
             return response.status, dict(response.headers), data
 
 
@@ -75,7 +78,9 @@ class GiteeBackend:
         if status == 404 and missing and method == 'GET': return MISSING
         if status not in (200, 201): raise PublishError('Gitee API rejected request')
         try: return json.loads(raw)
-        except (ValueError, UnicodeError): raise PublishError('Invalid Gitee JSON response') from None
+        except (ValueError, UnicodeError):
+            if method != 'GET': raise OutcomeUnknown('Remote mutation response is invalid') from None
+            raise PublishError('Invalid Gitee JSON response') from None
 
     def manifest(self):
         value = self.api('GET', MANIFEST + '?ref=' + BRANCH, missing=True)

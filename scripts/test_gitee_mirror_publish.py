@@ -1,9 +1,13 @@
 """Failure-injected transaction tests. No credentials, network or real APKs."""
 from copy import deepcopy
 import unittest
+import http.client
+from unittest.mock import MagicMock, patch
 
 from gitee_mirror_publish import ManifestState, OutcomeUnknown, publish
 import test_gitee_mirror_plan as fixture
+import test_gitee_mirror_http as http_fixture
+from gitee_mirror_http import GiteeBackend, Transport, API as GITEE_API
 
 
 class Fake:
@@ -73,6 +77,33 @@ class PublishTests(unittest.TestCase):
         self.assertEqual(len(self.backend.files), 3)
         self.assertEqual(self.backend.events.count('manifest'), 1)
         self.assertEqual(self.backend.events.count('release'), 1)
+
+    def test_broken_success_responses_reconcile_create_upload_and_cas(self):
+        for operation in ('release', self.index['apkFile'], 'manifest'):
+            for fault in ('invalid-json', 'incomplete-read'):
+                with self.subTest(operation=operation, fault=fault):
+                    self.backend = Fake()
+                    method_name = {'release': 'create_release', 'manifest': 'compare_and_swap'}.get(operation, 'upload')
+                    original = getattr(self.backend, method_name)
+                    def broken(*args):
+                        original(*args)  # remote operation really completed
+                        method = 'PUT' if operation == 'manifest' else 'POST'
+                        if fault == 'invalid-json':
+                            response = http_fixture.HTTP((201, {}, b'{broken-json'))
+                            GiteeBackend('fake-test-token', response).api(method, 'releases', {})
+                        else:
+                            response = MagicMock()
+                            response.status = 201
+                            response.read.side_effect = http.client.IncompleteRead(b'partial', 100)
+                            response.__enter__.return_value = response
+                            opener = MagicMock()
+                            opener.open.return_value = response
+                            with patch('gitee_mirror_http.urllib.request.build_opener', return_value=opener):
+                                Transport().request(method, GITEE_API + '/releases')
+                    setattr(self.backend, method_name, broken)
+                    self.assertEqual(self.run_publish()['status'], 'published')
+                    self.assertEqual(self.backend.events.count(operation), 1)
+                    self.assertEqual(len(self.backend.files), 3)
 
     def test_unknown_missing_outcome_never_reposts(self):
         for operation in ('release', self.index['apkFile'], 'manifest'):
