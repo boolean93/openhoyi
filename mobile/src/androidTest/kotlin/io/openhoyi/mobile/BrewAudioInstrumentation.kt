@@ -160,8 +160,9 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report); return
             }
             if(connectionSleepChecks){
+                ServiceSleepReconnectChecks(this).run()
                 val count=ConnectionSleepPresentationChecks(this).run()
-                report.putString("stream","CONNECTION_SLEEP_PRESENTATION_PASSED fixtures=$count languages=2 nativeComponents=true actualShellTree=true noBle=true noMachineCommands=true\n")
+                report.putString("stream","CONNECTION_SLEEP_PRESENTATION_PASSED fixtures=$count languages=2 nativeComponents=true actualShellTree=true serviceNativeDoubleClick=true noBle=true noMachineCommands=true\n")
                 finish(Activity.RESULT_OK,report);return
             }
             settingsVisualArguments?.let { arguments ->
