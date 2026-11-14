@@ -49,14 +49,15 @@ class ActiveTreeTest(unittest.TestCase):
         error=subprocess.CalledProcessError(1,['adb'],stderr='No such file')
         with self.assertRaisesRegex(ValueError,'hierarchy was not written'):
             self.call(['42','','MOCK_ACTIVE_TREE_CAPTURED nonce='+NONCE+' nodes=2',error,''])
-    def test_two_runner_targets_are_both_preserved(self):
-        installed=(f'instrumentation:{tap.TEST_PACKAGE}/io.openhoyi.mobile.BrewAudioInstrumentation (target={tap.PACKAGE})\n'
-                   f'instrumentation:{tap.TEST_PACKAGE}/io.openhoyi.mobile.MockHierarchyInstrumentation (target={tap.TEST_PACKAGE})\n')
-        self.assertEqual(2,len(tap.validate_installed_runners(installed)))
+    def test_all_reviewed_runner_targets_are_preserved(self):
+        installed=''.join(f'instrumentation:{tap.TEST_PACKAGE}/{name} (target={target})\n'
+                          for name,target in tap.RUNNERS.items())
+        self.assertEqual(tap.RUNNERS,tap.validate_installed_runners(installed))
         with self.assertRaises(ValueError):tap.validate_installed_runners(installed.replace('(target='+tap.TEST_PACKAGE+')','(target='+tap.PACKAGE+')'))
     def test_packaged_manifest_rejects_agp_overwriting_self_runner(self):
-        xml=f'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="{tap.TEST_PACKAGE}"><instrumentation android:name="io.openhoyi.mobile.BrewAudioInstrumentation" android:targetPackage="{tap.PACKAGE}"/><instrumentation android:name="io.openhoyi.mobile.MockHierarchyInstrumentation" android:targetPackage="{tap.TEST_PACKAGE}"/><application android:debuggable="true"/></manifest>'
-        self.assertEqual(2,len(tap.validate_runner_manifest(xml)))
+        entries=''.join(f'<instrumentation android:name="{name}" android:targetPackage="{target}"/>' for name,target in tap.RUNNERS.items())
+        xml=f'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="{tap.TEST_PACKAGE}">{entries}<application android:debuggable="true"/></manifest>'
+        self.assertEqual(tap.RUNNERS,tap.validate_runner_manifest(xml))
         with self.assertRaises(ValueError):tap.validate_runner_manifest(xml.replace('android:targetPackage="'+tap.TEST_PACKAGE+'"','android:targetPackage="'+tap.PACKAGE+'"'))
 
     def test_explicit_backend_dispatch_and_invalid_before_adb(self):

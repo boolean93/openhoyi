@@ -13,7 +13,7 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-PACKAGE = 'io.openhoyi.mobile.mock'
+from mock_runner_contract import APP as PACKAGE, TEST as TEST_PACKAGE, RUNNERS
 
 
 class AmbiguousMockControl(ValueError):
@@ -122,19 +122,17 @@ def ensure_mock(timeout=30):
     return state
 
 
-TEST_PACKAGE = 'io.openhoyi.mobile.mock.test'
 TREE_RUNNER = TEST_PACKAGE + '/io.openhoyi.mobile.MockHierarchyInstrumentation'
 
 
 def validate_runner_manifest(xml):
     root = ET.fromstring(xml)
     android = '{http://schemas.android.com/apk/res/android}'
-    expected = {'io.openhoyi.mobile.BrewAudioInstrumentation': PACKAGE,
-                'io.openhoyi.mobile.MockHierarchyInstrumentation': TEST_PACKAGE}
+    expected = RUNNERS
     entries = root.findall('instrumentation')
     actual = {n.get(android + 'name'): n.get(android + 'targetPackage') for n in entries}
     app = root.find('application')
-    if (root.get('package') != TEST_PACKAGE or len(entries) != 2 or actual != expected
+    if (root.get('package') != TEST_PACKAGE or len(entries) != len(expected) or actual != expected
             or app is None or app.get(android + 'debuggable') != 'true'
             or app.findall('activity') or app.findall('activity-alias')):
         raise ValueError('Packaged test runners/targets/application contract differs')
@@ -143,9 +141,8 @@ def validate_runner_manifest(xml):
 
 def validate_installed_runners(text):
     entries = re.findall(r'^instrumentation:' + re.escape(TEST_PACKAGE) + r'/([^ ]+) \(target=([^)]*)\)$', text, re.MULTILINE)
-    expected = {'io.openhoyi.mobile.BrewAudioInstrumentation': PACKAGE,
-                'io.openhoyi.mobile.MockHierarchyInstrumentation': TEST_PACKAGE}
-    if len(entries) != 2 or dict(entries) != expected:
+    expected = RUNNERS
+    if len(entries) != len(expected) or dict(entries) != expected:
         raise ValueError('Installed runner targets do not match isolated Mock/self contract')
     return dict(entries)
 
