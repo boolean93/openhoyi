@@ -28,7 +28,7 @@ python3 scripts/gitee_mirror_plan.py --index /path/to/verified-dev.json --assets
 
 所需能力：读取目标仓库、创建/读取目标Release、上传附件、创建/更新目标仓库 updates/dev.json；不需要账号资料、邮箱、组织管理、SSH/GPG密钥管理、仓库删除。
 
-当前真实 Gitee UI 的私人令牌页同时列出「私人令牌」「仓库级私人令牌」。必须优先确认仓库级令牌能否覆盖 Release 附件与文件 API，并仅选 boolean93/openhoyi。此次只读打开生成入口后页面没有显示作用域表单，因此**具体权限标识及仓库级token的API兼容性尚未核实**；不要根据旧资料直接让用户选所有项目权限。当前未生成或读取任何token值。
+已在用户已登录 Tabbit 的实际 Gitee 新建表单核实（仅查看、未提交）：选择「仓库级私人令牌」后，仓库范围可选「选择仓库」，最多50个；应仅选 boolean93/openhoyi，不能保留默认「全部仓库」。权限 projects 的说明为「查看、创建、更新指定仓库」；另有 pull_requests、issues、notes、hook，不需勾选。平台强制 user_info 勾选且禁用，无法取消，这意味着仍有基础账号资料访问范围。建议仅 projects 加平台强制 user_info；Release/附件/contents API 在该scope下能否实际成功仍需真实受权验证，不能只根据权限名称声称已验证。期限菜单有7/30/60/90天及永不过期，建议初期30天。当前未生成或读取任何token值。
 
 安全设置建议：用户自己在Gitee生成有期限的最小权限token，直接填入GitHub boolean93/openhoyi 的受保护environment `gitee-mirror` 的secret `GITEE_MIRROR_TOKEN`。先配置environment只允许develop分支及受控工作流，按需设置required reviewer，再放secret；不能仅在YAML写environment名称就视作保护生效。若使用repository secret，需要额外说明所有可获secret工作流的权限面。token不进入聊天、文件、命令参数、日志、APK、Git仓库或截图；不由助手中转。初次投产先由用户完成授权后再验证真实API，任何scope扩大需重新确认。
 
@@ -74,3 +74,11 @@ GitHub官方步骤：Settings → Environments → 指定environment → Environ
 4. 配置环境分支限制/审批，随后由用户批准启用repo变量GITEE_MIRROR_ENABLED=true。第一次workflow_dispatch才可显式allow_first_manifest=true；自动事件永远不能bootstrap。
 5. 人工批准第一次真实镜像发布范围：最新已发布GitHub APK、distribution.json、SHA256SUMS.txt及Gitee updates/dev.json。检查公开下载及清单、Android完整下载验证和回退后，再认为投产完成。
 6. 后续Develop APK prerelease完成事件自动执行同一安全流程；镜像作业失败不破坏GitHub发布或原Pages清单。禁止随意重跑未知写入，事务引擎先回读。
+
+### 给用户的最短凭据操作
+
+1. Gitee 设置 → 私人令牌 → 生成新令牌 → 仓库级 → 选择仓库 boolean93/openhoyi；只保留 projects（user_info是平台强制项），选30天。用户自行提交并复制，不发给助手。
+2. GitHub boolean93/openhoyi → Settings → Environments → gitee-mirror，先限制部署分支仅develop，再把令牌直接添加为 Environment secret `GITEE_MIRROR_TOKEN`。初次测试可启用required reviewer；如果环境功能不可用，不擅自降级成全仓库Secret。
+3. 告知助手“Secret已放好”，无需发值。之后在首次真实发布范围获得批准后再启用 `GITEE_MIRROR_ENABLED`，只核对Secret名称/环境保护，不读取值。
+
+`projects`只是一项UI核实结果，不替代实际API授权验收。若API返回401/403，应停止并报告端点/状态，不能自动要求所有权限或创建更大范围token。
