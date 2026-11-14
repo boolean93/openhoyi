@@ -286,7 +286,7 @@
     <string name="firmware_protocol_timeout">"Firmware version read timed out · Possibly a newer unsupported firmware"</string>
     <string name="firmware_unsupported">"Firmware %1$s · Newer firmware not supported yet"</string>
     <string name="firmware_verified">"Firmware %1$s · Protocol verified"</string>
-    <string name="follow_firmware_required">"Follow brewing requires firmware 1.1.4 or 1.1.5"</string>
+    <string name="follow_firmware_required">"Follow brewing requires firmware 1.1.3, 1.1.4 or 1.1.5"</string>
     <string name="follow_lever_not_supported">"Follow curves cannot be used as lever recipes yet"</string>
     <string name="history_count">"%1$s local records · Retained up to 30 days / 500 records"</string>
     <string name="history_detail_mock_title">"Simulated extraction details"</string>
@@ -981,7 +981,7 @@
     <string name="sleep_status_unknown_hint">"Check the coffee machine and verify its state after connecting. The sleep request will not be sent again."</string>
     <string name="sleep_status_waiting">"Waiting for the coffee machine to confirm sleep"</string>
     <string name="sleep_status_writing">"Sending sleep request"</string>
-    <string name="slow_global_firmware_required">"Slow mode requires firmware 1.1.4 or 1.1.5"</string>
+    <string name="slow_global_firmware_required">"Slow mode requires firmware 1.1.3, 1.1.4 or 1.1.5"</string>
     <string name="start_block_asleep">"Coffee machine is asleep"</string>
     <string name="start_block_coffee_not_ready">"Coffee machine not ready yet"</string>
     <string name="start_block_curve_missing">"Select a curve first"</string>
