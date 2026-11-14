@@ -196,6 +196,31 @@ class CustomFlowStartPermitTest {
         }
     }
 
+    @Test fun firmware113NewModesRetainAlarmFreshnessAndUnknownVersionGuards() {
+        val follow=p.copy(variableFlowLogic=false,firstSegmentFlowMode=false,target1=30,target2=90,target3=60)
+        val slow=MachineSettingChange.LeverMode(false,true)
+        for (firmware in listOf(null,CoffeeFirmware(2,0,0))) {
+            assertFalse(CustomCurveFirmwarePolicy.permits(follow,firmware))
+            assertFalse(MachineModeFirmwarePolicy.permits(slow,firmware))
+        }
+        for (alarm in listOf(false,true)) {
+            val f=Fixture(permit={true});f.firmware(3);f.fresh()
+            if (alarm) {
+                val c6=f.bytes("400023F02F1C770B00000000000000190321AF");c6[13]=0x20
+                f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,c6)
+            } else f.now=1501
+            val before=f.calls.size;var result:OperationResult?=null
+            assertNull(f.session.captureStartContext(follow))
+            f.session.startExtraction(follow){result=it};assertTrue(result is OperationResult.Failed)
+            f.session.writeSetting(slow){result=it};assertTrue(result is OperationResult.Failed)
+            assertEquals(before,f.calls.size)
+            f.now=1501
+            f.session.stopExtraction(7){result=it}
+            assertEquals(before+1,f.calls.size)
+            assertArrayEquals(CoffeeCommands.stop(7).frame.toByteArray(),(f.calls.last().third as GattOperation.Write).bytes)
+        }
+    }
+
     @Test fun firmware113And115KeepC6BlockAndEmergencyStopWithoutFreshIdleOrNoAlarmRequirement() {
       for (patch in listOf(3,5)) {
         val f=Fixture(permit={true});f.firmware(patch);f.fresh()
