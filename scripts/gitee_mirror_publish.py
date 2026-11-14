@@ -2,7 +2,8 @@
 """Mirror transaction engine. All remote operations are injected, never implicit.
 
 No CLI, credentials or default network backend: this module cannot publish by itself.
-Backend contract: reads fail closed; missing is None ONLY after confirmed HTTP 404;
+Backend contract: reads fail closed; manifest absence requires confirmed HTTP 404;
+release-tag absence also permits Gitee's confirmed HTTP 200 JSON null response;
 mutations are single-attempt; timeout/5xx/connection loss raise OutcomeUnknown;
 CAS uses the file's revision, never unconditional writes. Anonymous reads have no auth.
 """
