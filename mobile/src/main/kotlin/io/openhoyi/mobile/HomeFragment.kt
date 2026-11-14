@@ -246,7 +246,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         machineHeading.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         machineRetryIconShown=false // A rebuilt View must establish its own drawable.
         machineConnect = button(machineHeading, getString(R.string.home_connect)) {
-            if(service?.snapshot?.coffeeState==DeviceState.READY)showDevicePanel() else host.reconnectCoffee()
+            if(service?.snapshot?.coffeeState!=DeviceState.READY)host.reconnectCoffee()
         }.apply {
             tag = "product/home/connect"
             setSingleLine(true);maxLines=1
@@ -951,8 +951,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 getString(R.string.home_live_suffix) else "")
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
         status.visibility = View.VISIBLE
+        // Connected device management remains in the navigation/settings entry.
+        // Do not reserve header space for the redundant “Change” action.
+        machineConnect.visibility = if (s.coffeeState == DeviceState.READY) View.GONE else View.VISIBLE
         machineConnect.show(getString(when {
-            s.coffeeState==DeviceState.READY -> R.string.home_visual_change
             TaskShellDeviceStatus.connecting(s.coffeeState) -> R.string.task_shell_action_connecting
             else -> R.string.coffee_connection_retry
         }))
