@@ -81,10 +81,17 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                     activity = host.activity
                     owner = host.select(TaskDestination.CURVES)
                 } else {
-                    activity = startActivitySync(Intent(targetContext, CurveActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    owner = activity
+                    val monitor = addMonitor(MainActivity::class.java.name, null, false)
+                    try {
+                        startActivitySync(Intent(targetContext, CurveActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                        activity = requireNotNull(waitForMonitorWithTimeout(monitor, 5000))
+                        waitForIdleSync()
+                        owner = (activity as MainActivity).supportFragmentManager.primaryNavigationFragment!!
+                        check(owner is CurveFragment)
+                    } finally { removeMonitor(monitor) }
                 }
-                val name = "${if (dark) "dark" else "light"}-${if (embedded) "fragment" else "activity"}"
+                val name = "${if (dark) "dark" else "light"}-${if (embedded) "fragment" else "legacy-redirect"}"
                 fun menu() = activity.window.decorView.findViewWithTag<CurveLibraryMenu>("product/curve-library/sort")
                 fun open() {
                     main { check(menu().isShown && menu().performClick()) }
@@ -120,7 +127,7 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                         main { activity.recreate() }
                         activity = requireNotNull(waitForMonitorWithTimeout(monitor, 5000))
                         await { activity.hasWindowFocus() }
-                        owner = if (embedded) (activity as MainActivity).supportFragmentManager.primaryNavigationFragment!! else activity
+                        owner = (activity as MainActivity).supportFragmentManager.primaryNavigationFragment!!
                         verify(CurveSortMode.MOST_USED, true)
                         main { check(field(owner, "category") == CurveCategoryFilter.DARK) }
                     } finally { removeMonitor(monitor) }
@@ -134,7 +141,13 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                         check((field(owner, "visibleItems") as List<*>).size == app.curves.items.size)
                     }
                     capture(output, "$name-all")
-                } finally { main { activity.finish() } }
+                } catch (error: Throwable) {
+                    runCatching { capture(output, "$name-failure") }
+                    throw error
+                } finally {
+                    main { activity.finish() }
+                    await { activity.isDestroyed }
+                }
             }
             report.putString("stream", "CURVE_FILTER_POPUP_PASSED realPopup=true themes=2 entryPoints=2 recreated=true noBle=true\n")
             finish(Activity.RESULT_OK, report)
