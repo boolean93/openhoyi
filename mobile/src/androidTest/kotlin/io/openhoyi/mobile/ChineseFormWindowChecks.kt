@@ -489,7 +489,7 @@ internal object ChineseFormWindowChecks {
                     inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
                     check(inputs.size == 15) { "$name missing metadata, configuration or four-stage fields: ${inputs.size}" }
                     drafts = inputs.associateWith { it.text.toString() }
-                    listOf("name" to R.string.profiles_name, "temperature" to R.string.curve_preview_temperature,
+                    listOf("name" to R.string.profiles_name, "temperature" to R.string.curve_editor_temperature_short,
                         "cup" to R.string.curve_preview_weight).forEach { (key, label) ->
                         val field = requireNotNull(content.findViewWithTag<EditText>("product/form/curve-editor/$key"))
                         val title = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }
@@ -513,25 +513,27 @@ internal object ChineseFormWindowChecks {
                     }
                     check(titles.all { it.width > 0 && it.height > 0 }) { "$name zero-sized stage title" }
                     val modes: List<View> = (0..3).map { index ->
-                        val selector = content.findViewWithTag<android.widget.Spinner>("product/form/curve-editor/first-mode")
+                        val selector = content.findViewWithTag<CurveEditorSegments>("product/form/curve-editor/first-mode")
                         if (index == 0 && selector?.visibility == View.VISIBLE) {
-                            check(selector.isEnabled && selector.isClickable && selector.height >= HoyiUi.dp(activity, 48))
-                            check((selector.selectedView as? TextView)?.text?.isNotBlank() == true)
+                            check(selector.isEnabled && selector.height >= HoyiUi.dp(activity, 48))
+                            check(selector.text.isNotBlank())
                             check(selector.contentDescription.toString().startsWith(activity.getString(R.string.flow_editor_first)))
                             check(content.findViewWithTag<View>("curve-stage-mode-0").visibility == View.GONE)
                             selector
-                        } else requireNotNull(content.findViewWithTag<TextView>("curve-stage-mode-$index")).also {
-                            check(it.text.isNotBlank()) { "$name missing stage control-mode labels" }
+                        } else requireNotNull(content.findViewWithTag<CurveEditorSegments>(
+                            "product/form/curve-editor/" + if (index == 1) "control-mode" else "control-mode-$index")).also {
+                            check(it.text.isNotBlank()) { "$name missing stage control-mode selector" }
+                            check(it.checked == (content.findViewWithTag<CurveEditorSegments>("product/form/curve-editor/control-mode")).checked)
                         }
                     }
                     val remove = requireNotNull(content.findViewWithTag<Button>("curve-stage-remove-3"))
                     check(remove.isEnabled && remove.width >= HoyiUi.dp(activity, 48) && remove.height >= HoyiUi.dp(activity, 48))
-                    val localActions = listOf(R.string.profiles_preview, R.string.ui_full_details).map { action ->
-                        descendants(content).filterIsInstance<Button>().single { it.text.toString() == activity.getString(action) }
+                    val localActions = listOf("cancel", "save").map { key ->
+                        requireNotNull(content.findViewWithTag<View>("product/form/curve-editor/$key"))
                     }
                     reachable = inputs + titles + modes + remove + localActions
                     if (activity.resources.configuration.let { it.screenWidthDp >= 1000 && it.fontScale <= 1.05f }) {
-                        val topPositions = listOf("name", "temperature", "cup").map { key ->
+                        val topPositions = listOf("temperature", "cup").map { key ->
                             val input = content.findViewWithTag<EditText>("product/form/curve-editor/$key")
                             val xy = IntArray(2); input.getLocationOnScreen(xy); xy[1]
                         }

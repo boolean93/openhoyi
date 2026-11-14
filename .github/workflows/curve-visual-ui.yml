@@ -3,6 +3,11 @@ name: Verify curve visual migration UI
 on:
   workflow_dispatch:
     inputs:
+      editor_b:
+        description: Run isolated editor B checks and representative screenshots
+        required: false
+        default: false
+        type: boolean
       filter_only:
         description: Focused curve filter popup checks only
         type: boolean
@@ -41,6 +46,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Verify real curve library and explicit import flows
         env:
+          EDITOR_B_CHECKS: ${{ inputs.editor_b == true && 'true' || 'false' }}
           PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -50,7 +56,7 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_curve_filter_popup.sh ${{ inputs.filter_only }}
+          script: if [ "$EDITOR_B_CHECKS" = true ]; then bash scripts/check_curve_editor_b.sh; else bash scripts/check_curve_filter_popup.sh ${{ inputs.filter_only }}; fi
       - name: Upload real curve evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -58,6 +64,7 @@ jobs:
           name: curve-visual-tablet-user-landscape
           path: |
             build/task-first-evidence/curve-visual-migration/
+            build/task-first-evidence/editor-b/
             build/curve-filter-popup/
           if-no-files-found: warn
           retention-days: 7

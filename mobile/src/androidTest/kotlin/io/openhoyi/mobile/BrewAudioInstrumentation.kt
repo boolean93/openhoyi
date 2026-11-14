@@ -55,6 +55,8 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var historyFooterArguments: Bundle? = null
     private var customExecution = false
     private var customFlowEditorChecks = false
+    private var editorBArguments: Bundle? = null
+    private var editorBLayoutArguments: Bundle? = null
     private var systemDocuments = false
     private var disposableCiEmulator = false
     private var documentContracts = false
@@ -97,6 +99,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         historyFooterArguments = arguments?.takeIf {it.getString("historyFooterChecks")=="true"}?.let(::Bundle)
         customExecution = arguments?.getString("customExecution") == "true"
         customFlowEditorChecks = arguments?.getString("customFlowEditorChecks") == "true"
+        editorBLayoutArguments = arguments?.takeIf { it.getString("editorBLayoutChecks") == "true" }?.let(::Bundle)
+        editorBArguments = arguments?.takeIf { it.getString("editorBChecks") == "true" }?.let(::Bundle)
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
         documentContracts = arguments?.getString("documentContracts") == "true"
@@ -119,6 +123,16 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            editorBLayoutArguments?.let { args ->
+                CurveEditorBLayoutChecks(this).run(args)
+                report.putString("stream", "EDITOR_B_LAYOUT_CHECKS_PASSED fixedActions=true ime=true touch48=true colors=true noCurveSaved=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            editorBArguments?.let { args ->
+                CurveEditorBChecks(this).run(args)
+                report.putString("stream", "EDITOR_B_CHECKS_PASSED copy=true referencesUnchanged=true livePreview=true invalidRecovery=true repeatedSave=true cancel=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if (downloadRoutingChecks) {
                 ReleaseDownloadRoutingChecks(this).run()
                 report.putString("stream", "DOWNLOAD_ROUTING_PASSED settingsInline=true otherPagePopup=true navigation=true recreation=true transferPreserved=true noInstaller=true noNetwork=true noBle=true\n")

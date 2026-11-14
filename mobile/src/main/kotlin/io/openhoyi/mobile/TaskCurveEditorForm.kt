@@ -21,10 +21,14 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     private inner class MetadataCell : LinearLayout(activity) {
         init { tag = "bean-full-field"; orientation = HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
-            background = style.visual.shape(style.visual.surface, true)
-            setPadding(dp(16), dp(6), dp(16), dp(6))
+            setPadding(0, 0, 0, 0)
         }
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            if (tag == "curve-editor-title-host") {
+                orientation = HORIZONTAL
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                return
+            }
             val vertical = MeasureSpec.getSize(widthMeasureSpec) < dp((210 * resources.configuration.fontScale).toInt())
             orientation = if (vertical) VERTICAL else HORIZONTAL
             for (i in 0 until childCount) {
@@ -42,17 +46,27 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     val metadata: List<LinearLayout> = List(3) { MetadataCell() }
     val stageRows = List(4) { panel() }
+    private val stageDots = mutableListOf<View>()
+    private val stageTitles = List(4) { index -> style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.body).apply {
+        typeface = TaskTypography.face(activity, 500)
+    } }
     val stageHeader = style.visual.row()
     val stageModes = List(4) { style.visual.text("", TaskProductVisualStyle.body).apply {
-        gravity = android.view.Gravity.CENTER; setPadding(dp(8), dp(2), dp(8), dp(2))
-        background = style.visual.shape(style.visual.selected, false, 8)
+        gravity = android.view.Gravity.CENTER; minimumHeight = dp(32); minHeight = dp(32)
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+        if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(AppTextUnits.pixels(resources, 17f).toInt())
+        setPadding(dp(6), dp(2), dp(6), dp(2))
         tag = "curve-stage-mode-$it"
     } }
-    val firstModeHost = cell().apply {
-        background = style.visual.shape(style.visual.selected, false, 8)
-    }
+    val firstModeHost = cell()
+    val sharedModeHosts = List(4) { cell() }
+    val sharedLogicHosts = List(4) { cell() }
     val waterLimit = cell()
-    val modeControls = cell()
+    val actions = cell().apply {
+        tag = "product/form/curve-editor/fixed-actions"
+        setPadding(0, dp(8), 0, 0)
+        setBackgroundColor(style.visual.page)
+    }
     val configurationFields = cell()
     val supportingBody = panel()
     private val settingsBody = panel()
@@ -65,7 +79,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private val metadataScroll = contentScroll
     private val host = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL; tag = "task-inline-form"
-        addView(contentScroll, LinearLayout.LayoutParams(-1, -1))
+        addView(contentScroll, LinearLayout.LayoutParams(-1, 0, 1f))
     }
     var productLayoutEvidence = JSONObject()
         private set
@@ -83,27 +97,27 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private var activeCount = 2
     private var changeCount: (Int) -> Unit = {}
     /** A measured grid: wraps cards rather than shrinking type or making stages a carousel. */
-    private inner class CardGrid(private val minimumDp: Int, private val maxColumns: Int) : ViewGroup(activity) {
+    private inner class CardGrid(private val minimumDp: Int, private val maxColumns: Int, private val measuredMinimum: (() -> Int)? = null) : ViewGroup(activity) {
         private var columns = 1
         private var rowHeights = emptyList<Int>()
         override fun generateDefaultLayoutParams() = LayoutParams(-1, -2)
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = MeasureSpec.getSize(widthMeasureSpec)
             val gap = dp(12)
-            val min = dp((minimumDp * activity.resources.configuration.fontScale.coerceAtLeast(1f)).toInt())
+            val min = maxOf(dp((minimumDp * activity.resources.configuration.fontScale.coerceAtLeast(1f)).toInt()), measuredMinimum?.invoke() ?: 0)
             val visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
-            columns = ((width + gap) / (min + gap)).coerceIn(1, maxColumns).coerceAtMost(visible.size.coerceAtLeast(1))
-            val cellWidth = ((width - gap * (columns - 1)) / columns).coerceAtLeast(0)
+            columns = ((width - paddingLeft - paddingRight + gap) / (min + gap)).coerceIn(1, maxColumns).coerceAtMost(visible.size.coerceAtLeast(1))
+            val cellWidth = ((width - paddingLeft - paddingRight - gap * (columns - 1)) / columns).coerceAtLeast(0)
             visible.forEach { it.measure(MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)) }
             rowHeights = visible.chunked(columns).map { row -> row.maxOf { it.measuredHeight } }
             visible.forEachIndexed { index, child -> child.measure(MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(rowHeights[index / columns], MeasureSpec.EXACTLY)) }
-            setMeasuredDimension(width, rowHeights.sum() + gap * (rowHeights.size - 1).coerceAtLeast(0))
+            setMeasuredDimension(width, paddingTop + paddingBottom + rowHeights.sum() + gap * (rowHeights.size - 1).coerceAtLeast(0))
         }
         override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-            val gap = dp(12); var top = 0
+            val gap = dp(12); var top = paddingTop
             (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }.chunked(columns).forEachIndexed { rowIndex, row ->
                 row.forEachIndexed { index, child ->
-                    val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - (index + 1) * child.measuredWidth - index * gap else index * (child.measuredWidth + gap)
+                    val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - (index + 1) * child.measuredWidth - index * gap else paddingLeft + index * (child.measuredWidth + gap)
                     child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
                 }
                 top += rowHeights[rowIndex] + gap
@@ -112,32 +126,93 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     init {
         body.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
-        val metaGrid = CardGrid(205, 3)
-        metadata.forEach(metaGrid::addView)
-        column.addView(metaGrid, LinearLayout.LayoutParams(-1, -2))
-        modeControls.background = style.visual.shape(style.visual.surface, true)
-        modeControls.setPadding(dp(16), dp(4), dp(16), dp(4))
-        column.addView(modeControls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        // A sibling of the scrolling form: always above navigation bars and the IME insets.
+        body.addView(actions, LinearLayout.LayoutParams(-1, -2))
+        column.setPadding(0, 0, 0, dp(12))
+        // The curve name is the title itself; retain the back/tools/details controls.
+        val header = (body.tag as BeanPageRegions).header
+        val words = (0 until header.childCount).map(header::getChildAt)
+            .first { it is LinearLayout }
+        val titleIndex = header.indexOfChild(words)
+        header.removeView(words)
+        metadata[0].apply {
+            tag = "curve-editor-title-host"
+            background = null
+            setPadding(0, 0, 0, 0)
+        }
+        header.addView(metadata[0], titleIndex, LinearLayout.LayoutParams(0, -2, 1f))
+        header.contentDescription = null
+        val toolbarFields = CardGrid(140, 2)
+        listOf(metadata[1], metadata[2]).forEach(toolbarFields::addView)
+        val toolbar = object : android.widget.FrameLayout(activity) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                // Input widths follow useful content space, not the entire tablet width.
+                toolbarFields.layoutParams.width = minOf(MeasureSpec.getSize(widthMeasureSpec),
+                    dp((560 * resources.configuration.fontScale.coerceAtLeast(1f)).toInt()))
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            tag = "curve-editor-light-toolbar"
+            addView(toolbarFields, android.widget.FrameLayout.LayoutParams(-1, -2, android.view.Gravity.START))
+        }
+        column.addView(toolbar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(12) })
         column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        val grid = CardGrid(188, 4).apply { tag = "curve-stage-cards" }
+        val grid = CardGrid(222, 4) {
+            // Real localized title width plus a 96dp minimum picker, not merely a nominal card width.
+            dp(32 + 6 + 11 + 48) + maxOf(dp(96), (listOf(firstModeHost) + sharedModeHosts).flatMap { host -> (0 until host.childCount).mapNotNull { host.getChildAt(it) as? CurveEditorSegments } }.maxOfOrNull { it.requiredWidth() } ?: 0) + stageTitles.maxOf { kotlin.math.ceil(android.text.Layout.getDesiredWidth(it.text, it.paint).toDouble()).toInt() }
+        }.apply { tag = "curve-stage-cards" }
         stageRows.forEachIndexed { index, card ->
             card.tag = "curve-editor-stage-$index"
-            val heading = style.visual.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-            heading.addView(View(activity).apply { background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(style.visual.stageColors[index])
-            } }, LinearLayout.LayoutParams(dp(10), dp(10)))
-            heading.addView(style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.section), LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
-            val remove = style.visual.action(heading, "−", "curve-stage-remove-$index", top = 0) {
+            val heading = object : ViewGroup(activity) {
+                private var inline = true
+                override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
+                override fun onMeasure(w: Int, h: Int) {
+                    val width = MeasureSpec.getSize(w)
+                    val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+                    getChildAt(0).measure(MeasureSpec.makeMeasureSpec(dp(6), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(6), MeasureSpec.EXACTLY))
+                    getChildAt(1).measure(free, free)
+                    getChildAt(3).measure(MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY))
+                    val modeBudget = width - dp(6 + 11 + 48) - getChildAt(1).measuredWidth
+                    val needed = if (index == 0) maxOf(dp(96), (0 until firstModeHost.childCount).mapNotNull { firstModeHost.getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0) else maxOf(dp(96), (0 until sharedModeHosts[index].childCount).mapNotNull { sharedModeHosts[index].getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0)
+                    inline = modeBudget >= needed
+                    getChildAt(2).measure(MeasureSpec.makeMeasureSpec(if (inline) modeBudget else width, MeasureSpec.EXACTLY), free)
+                    val rowHeight = maxOf(dp(48), getChildAt(1).measuredHeight)
+                    setMeasuredDimension(width, if (inline) maxOf(rowHeight, getChildAt(2).measuredHeight) else rowHeight + getChildAt(2).measuredHeight)
+                }
+                override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+                    val rowHeight = if (inline) height else maxOf(dp(48), getChildAt(1).measuredHeight)
+                    fun place(child: View, start: Int, top: Int) {
+                        val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - start - child.measuredWidth else start
+                        child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
+                    }
+                    place(getChildAt(0), 0, (rowHeight - dp(6)) / 2)
+                    place(getChildAt(1), dp(11), (rowHeight - getChildAt(1).measuredHeight) / 2)
+                    place(getChildAt(3), width - dp(48), (rowHeight - dp(48)) / 2)
+                    place(getChildAt(2), if (inline) dp(17) + getChildAt(1).measuredWidth else 0,
+                        if (inline) (rowHeight - getChildAt(2).measuredHeight) / 2 else rowHeight)
+                }
+            }.apply { tag = "curve-stage-heading-$index" }
+            val dot = View(activity).apply { background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(CurveEditorColors(activity).pressureInk)
+            } }
+            stageDots += dot
+            heading.addView(dot, LinearLayout.LayoutParams(dp(6), dp(6)))
+            heading.addView(stageTitles[index])
+            val mode = if (index == 0) firstModeHost else sharedModeHosts[index]
+            heading.addView(mode)
+            if (index == 0) firstModeHost.addView(stageModes[0], LinearLayout.LayoutParams(-1, -2))
+            val remove = style.visual.action(LinearLayout(activity), "×", "curve-stage-remove-$index", top = 0) {
                 if (activeCount > 1 && index == activeCount - 1) changeCount(activeCount - 1)
             }.apply {
+                (parent as ViewGroup).removeView(this)
+                heading.addView(this)
                 contentDescription = activity.getString(R.string.curve_editor_remove_stage, index + 1)
                 minWidth = dp(48); minimumWidth = dp(48); setPadding(0, 0, 0, 0)
                 layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
             }
             removes += remove
             card.addView(heading, LinearLayout.LayoutParams(-1, -2))
-            card.addView(stageModes[index], LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
-            if (index == 0) card.addView(firstModeHost, LinearLayout.LayoutParams(-1, -2))
             grid.addView(card)
         }
         add.setOnClickListener { if (activeCount < 4) changeCount(activeCount + 1) }
@@ -146,10 +221,19 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         val lower = CardGrid(320, 2)
         lower.addView(supportingBody)
         style.visual.add(settingsBody, style.visual.text(activity.getString(R.string.curve_editor_more_settings), TaskProductVisualStyle.section))
-        settingsBody.addView(waterLimit, LinearLayout.LayoutParams(-1, -2))
-        settingsBody.addView(configurationFields, LinearLayout.LayoutParams(-1, -2))
+        val settingsGrid = CardGrid(190, 2)
+        settingsGrid.addView(waterLimit); settingsGrid.addView(configurationFields)
+        settingsBody.addView(settingsGrid, LinearLayout.LayoutParams(-1, -2))
         lower.addView(settingsBody)
         column.addView(lower, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+    }
+    fun setStageType(index: Int, flow: Boolean) {
+        val colors = CurveEditorColors(activity)
+        stageDots[index].background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(colors.ink(flow))
+        }
+        stageModes[index].setTextColor(colors.ink(flow))
+        stageModes[index].background = style.visual.shape(colors.tint(flow), false, 6)
     }
     fun onStageCountChanged(action: (Int) -> Unit) { changeCount = action }
     fun setStageCount(count: Int) {
