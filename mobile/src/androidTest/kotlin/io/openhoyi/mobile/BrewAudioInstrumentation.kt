@@ -49,6 +49,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var taskFrameChecks = false
     private var homeNavigationOnly = false
     private var mainNavigationChecks = false
+    private var homeModeVisualArguments: Bundle? = null
     private var settingsNavigationOnly = false
     private var inlineNavigationOnly = false
     private var singleScreenChecks = false
@@ -91,6 +92,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
         liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
+        homeModeVisualArguments = arguments?.takeIf { it.getString("homeModeVisual") == "true" }?.let(::Bundle)
         mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings", "inline", "home")
         homeNavigationOnly = arguments?.getString("mainNavigationChecks") == "home"
         settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
@@ -288,6 +290,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (taskFrameChecks) {
                 TaskFrameChecks(this).run()
                 report.putString("stream", "TASK_FRAME_CHECKS_PASSED pages=24 noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            homeModeVisualArguments?.let {
+                HomeModeVisualChecks(this).run(it)
+                report.putString("stream", "HOME_MODE_VISUAL_PASSED mockOnly=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
