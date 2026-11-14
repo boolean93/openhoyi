@@ -6,6 +6,9 @@ on:
       - 'site/**'
       - 'scripts/test_product_pages.py'
       - 'scripts/*release_update_index*'
+      - 'scripts/curve_import_prompt.py'
+      - 'scripts/test_curve_import_prompt.py'
+      - 'docs/curve-import/**'
       - '.github/workflows/product-pages.yml'
   push:
     branches: [develop]
@@ -13,6 +16,9 @@ on:
       - 'site/**'
       - 'scripts/test_product_pages.py'
       - 'scripts/*release_update_index*'
+      - 'scripts/curve_import_prompt.py'
+      - 'scripts/test_curve_import_prompt.py'
+      - 'docs/curve-import/**'
       - '.github/workflows/product-pages.yml'
   # GITHUB_TOKEN release writes do not emit a triggering release event.
   workflow_run:
@@ -43,6 +49,7 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p test_product_pages.py -v
           python3 -m unittest discover -s scripts -p test_release_update_index.py -v
+          python3 -m unittest discover -s scripts -p test_curve_import_prompt.py -v
 
   deploy:
     if: >-

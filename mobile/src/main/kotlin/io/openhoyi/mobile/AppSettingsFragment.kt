@@ -15,6 +15,9 @@ import androidx.fragment.app.Fragment
 
 /** The app settings tab owns its controls and listeners while the host owns its service binding. */
 class AppSettingsFragment : Fragment() {
+    companion object {
+        internal const val CURVE_IMPORT_GUIDE_URL = "https://boolean93.github.io/openhoyi/import-official-curves.html"
+    }
     internal lateinit var themeCheckBox: CompoundButton
         private set
     internal lateinit var themeError: TextView
@@ -273,6 +276,14 @@ class AppSettingsFragment : Fragment() {
             }
         }
         style.add(aboutCard, visual.pair(name, website, "product/settings/app/about/identity"))
+        style.action(aboutCard, getString(R.string.settings_curve_import_guide),
+            "product/settings/app/curve-import-guide", top = 0) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(CURVE_IMPORT_GUIDE_URL)))
+            } catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
         visual.divider(aboutCard)
         updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
         val diagnostics = sections.getValue("maintenance")

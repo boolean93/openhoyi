@@ -15,6 +15,7 @@ import time
 import urllib.request
 import urllib.error
 
+from curve_import_prompt import validate_metadata, MAX_BYTES
 from apk_distribution import inspect_apk
 from develop_release import tag_record
 from develop_release_policy import validate_manifest, validate_reservation
@@ -100,7 +101,7 @@ def asset_bytes(assets, tag, name, limit, download):
     return data, url
 
 
-def build_index(api, certificate, aapt, apksigner, download=public_bytes, inspect=inspect_apk):
+def build_index(api, certificate, aapt, apksigner, download=public_bytes, inspect=inspect_apk, prompt_index=None):
     release = newest_release(api.pages("releases"))
     tag = release["tag_name"]
     record = tag_record(api, tag)
@@ -125,6 +126,21 @@ def build_index(api, certificate, aapt, apksigner, download=public_bytes, inspec
                             for name, data in ((manifest["apkFile"], apk), ("distribution.json", raw)))
     if sums.decode("utf-8") != expected_sums:
         raise ValueError("Checksum inventory differs from public APK and manifest")
+    prompt_info = {"schemaVersion": 1, "available": False,
+                   "versionCode": manifest["versionCode"], "versionName": manifest["versionName"],
+                   "releaseTag": tag, "releaseUrl": release["html_url"]}
+    # Verify the optional attachment without changing the legacy app index schema
+    # or its two-entry checksum inventory. distribution.json binds the prompt hash.
+    if "curveImportPrompt" in manifest:
+        metadata = manifest["curveImportPrompt"]
+        validate_metadata(metadata)
+        prompt, prompt_url = asset_bytes(assets, tag, metadata["file"], MAX_BYTES, download)
+        prompt.decode("utf-8")
+        if hashlib.sha256(prompt).hexdigest() != metadata["sha256"]:
+            raise ValueError("Public curve import prompt hash differs from manifest")
+        prompt_info.update(available=True, downloadUrl=prompt_url,
+                           declaredSourceCommit=source,
+                           **{k: metadata[k] for k in ("schema", "revision", "sha256")})
     with tempfile.TemporaryDirectory(prefix="openhoyi-index-") as directory:
         path = Path(directory, manifest["apkFile"])
         path.write_bytes(apk)
@@ -135,6 +151,8 @@ def build_index(api, certificate, aapt, apksigner, download=public_bytes, inspec
     # A publication racing the download must never silently produce a lower index.
     if newest_release(api.pages("releases"))["id"] != release["id"]:
         raise ValueError("Public channel advanced during verification; rerun Pages")
+    if prompt_index is not None:
+        prompt_index.update(prompt_info)
     return {"schemaVersion": 1, "channel": "develop-test", "repository": REPO,
             **{key: manifest[key] for key in ("packageName", "versionCode", "versionName", "apkSha256",
                 "signerCertificateSha256", "declaredSourceCommit", "sourceCommitVerified")},
@@ -227,9 +245,12 @@ def main():
     cert = os.environ.get("HOYI_RELEASE_CERT_SHA256", "").lower()
     if not re.fullmatch(r"[0-9a-f]{64}", cert) or not args.aapt or not args.apksigner:
         raise ValueError("Approved certificate and APK inspection tools are required")
-    index = build_index(GitHub(REPO, os.environ["GH_TOKEN"]), cert, args.aapt, args.apksigner)
+    prompt_index = {}
+    index = build_index(GitHub(REPO, os.environ["GH_TOKEN"]), cert, args.aapt, args.apksigner,
+                        prompt_index=prompt_index)
     guard_public_high_water(index)
     write_index(args.output, index)
+    write_index(args.output.parent / "curve-import-prompt.json", prompt_index)
     print("Verified public update index: " + index["releaseTag"])
 
 

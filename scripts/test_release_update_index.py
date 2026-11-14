@@ -87,6 +87,38 @@ class UpdateIndexTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_bytes()), index)
             self.assertEqual(list(path.parent.iterdir()), [path])
 
+    def test_optional_prompt_verified_but_app_index_unchanged(self):
+        baseline = API().build()
+        for corrupt in (False, True):
+            api = API()
+            name = "OpenHOYI-curve-import-prompt.zh-CN.txt"
+            prompt = "中文提示词".encode()
+            api.manifest["curveImportPrompt"] = dict(file=name, sha256=hashlib.sha256(prompt).hexdigest(),
+                                                    schema=3, revision=1)
+            api.files[name] = b"tampered" if corrupt else prompt
+            api.files["distribution.json"] = json.dumps(api.manifest).encode()
+            api.files["SHA256SUMS.txt"] = "".join(hashlib.sha256(api.files[n]).hexdigest() + "  " + n + "\n"
+                for n in (api.manifest["apkFile"], "distribution.json")).encode()
+            api.assets = [dict(id=i+1, name=n, size=len(data), state="uploaded",
+                browser_download_url=updater.BASE + "/releases/download/dev-42/" + n)
+                for i, (n, data) in enumerate(api.files.items())]
+            if corrupt:
+                with self.assertRaisesRegex(ValueError, "prompt hash"):
+                    api.build()
+            else:
+                prompt_index = {}
+                self.assertEqual(updater.build_index(api, CERT, "aapt", "apksigner", api.download,
+                    api.inspect, prompt_index=prompt_index), baseline)
+                self.assertTrue(prompt_index["available"])
+                self.assertEqual(prompt_index["sha256"], hashlib.sha256(prompt).hexdigest())
+                self.assertEqual(prompt_index["declaredSourceCommit"], SHA)
+                self.assertIn("/dev-42/", prompt_index["downloadUrl"])
+        api = API()
+        prompt_index = {}
+        updater.build_index(api, CERT, "aapt", "apksigner", api.download, api.inspect, prompt_index)
+        self.assertFalse(prompt_index["available"])
+        self.assertNotIn("downloadUrl", prompt_index)
+
     def test_numeric_highest_not_latest_date_and_no_fallback(self):
         a, b = fixture(9)[2], fixture(100)[2]
         b["published_at"] = "2020-01-01T00:00:00Z"

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#ffffff">
+  <title>如何导入官方曲线 — OpenHOYI</title>
+  <meta name="description" content="把官方 HOYI App 的曲线参数截图，交给 AI 转为 OpenHOYI JSON，再预览核对后导入。下载与 App 版本对应的提示词，缺少参数时不猜测。">
+  <link rel="canonical" href="https://boolean93.github.io/openhoyi/import-official-curves.html">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/brand/favicon-32.png">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./import-guide.css">
+  <script src="./import-guide.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="nav"><div class="nav-inner">
+    <a class="wordmark" href="./index.html">OpenHOYI</a>
+    <nav class="nav-links" aria-label="页面导航"><a href="./index.html">首页</a><a href="#prompt">获取提示词</a></nav>
+  </div></header>
+  <main class="guide wrap" id="main">
+    <header class="guide-heading">
+      <p class="eyebrow">曲线迁移指南</p>
+      <h1>喜欢的配方，<br>不用从头再填。</h1>
+      <p class="guide-lede">官方参数截图 → AI 转换 → OpenHOYI 预览导入</p>
+      <p class="guide-muted">这是截图转录，不是官方 App 的直接导出。AI 可能看错，保存前请逐项核对。</p>
+    </header>
+    <ol class="guide-steps">
+      <li class="guide-step" id="screenshots">
+        <span class="guide-number" aria-hidden="true">01</span>
+        <div><h2>拍全参数，不只拍曲线图</h2>
+          <p>在官方 HOYI App 打开曲线的参数页面。内容放不下就分多张截图，同一条曲线一起发送。</p>
+          <ul class="guide-checklist">
+            <li>名称、温度、目标液重（或未启用）</li>
+            <li>变压／变流、恒压／跟随或慢速／快速</li>
+            <li>全部阶段：模式、目标值、阶段水量</li>
+            <li>总量上限、预浸泡、第一阶段时长、补偿量等其余参数</li>
+          </ul>
+          <p class="guide-muted">保留字段名、数值和单位，避开反光、裁切及无关个人信息。只有曲线形状，无法还原完整配方。</p>
+        </div>
+      </li>
+      <li class="guide-step" id="prompt">
+        <span class="guide-number" aria-hidden="true">02</span>
+        <div><h2>拿到与你的 App 对应的提示词</h2>
+          <p>先在 OpenHOYI「关于」查看版本，再打开同版本的 GitHub Release，在 Assets 中下载下面这个文件。</p>
+          <p class="guide-file"><code>OpenHOYI-curve-import-prompt.zh-CN.txt</code></p>
+          <p class="guide-muted" id="prompt-status" role="status">请按 App 版本选择附件。</p>
+          <div class="guide-actions"><a id="prompt-download" class="button" hidden>下载提示词</a><a class="button" href="https://github.com/boolean93/openhoyi/releases" rel="noopener">选择对应版本</a></div>
+          <p class="guide-muted">旧版本可能没有这个附件。此时先升级到带有提示词附件的版本，再使用同版提示词；不要把其他版本的格式直接套用。提示词开头会注明适用版本。</p>
+        </div>
+      </li>
+      <li class="guide-step">
+        <span class="guide-number" aria-hidden="true">03</span>
+        <div><h2>把提示词和截图一起交给 AI</h2>
+          <p>用豆包等支持图片的 AI，新开一个对话，粘贴 TXT 的完整内容，再附上这条曲线的全部截图。也可以上传 TXT 文件。</p>
+          <p class="guide-muted">不要只发下载链接，AI 不一定能打开。缺项或看不清时，补图或确认参数，不让 AI 猜。最终需要一段纯 JSON，不含解释或 Markdown 代码框。</p>
+        </div>
+      </li>
+      <li class="guide-step">
+        <span class="guide-number" aria-hidden="true">04</span>
+        <div><h2>粘贴导入，核对后保存</h2>
+          <p>打开 OpenHOYI 曲线库的导入入口，粘贴 JSON 或选择 JSON 文件。在预览里对照官方截图，核对温度、目标液重、每一段的模式与数值，以及其余参数，再确认导入。</p>
+          <p class="guide-muted">如果提示格式或参数无效，把具体错误交给 AI 修正后重新预览。能导入不等于配方完全一致，也不代表机器已经开始萃取。</p>
+        </div>
+      </li>
+    </ol>
+    <aside class="guide-note" aria-label="核对重点"><strong>最重要的一步：核对数值和单位。</strong><p>别只看名称或曲线长得像。压力、流量、液重、水量是不同字段；确认无误后再使用。</p></aside>
+  </main>
+  <footer class="footer"><div class="wrap footer-inner"><p class="footer-note">OpenHOYI · 独立开发，非 HOYI 官方应用</p><a href="./index.html">返回首页</a></div></footer>
+</body>
+</html>
