@@ -274,22 +274,11 @@ class CurveEditorActivity : ThemedActivity() {
             onSelected = { firstFlow = it; units() }
         }
         (1..3).forEach { index ->
-            sections.sharedLogicHosts[index].apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                addView(style.visual.text(getString(R.string.curve_editor_linked), TaskProductVisualStyle.auxiliary).apply {
-                    tag = "curve-stage-linked-$index"
-                    minimumHeight = style.dp(48)
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    setPadding(0, 0, style.dp(8), 0)
-                    contentDescription = getString(R.string.curve_editor_shared_mode)
-                }, LinearLayout.LayoutParams(-2, -2))
-            }
             logicSwitches += CurveEditorSegments(this, style.visual, "", "").apply {
                 tag = if (index == 1) "product/form/curve-editor/pressure-logic" else "product/form/curve-editor/pressure-logic-$index"
                 compact()
                 contentDescription = getString(R.string.curve_editor_shared_mode)
-                sections.sharedLogicHosts[index].addView(this, LinearLayout.LayoutParams(0, -2, 1f))
+                sections.sharedLogicHosts[index].addView(this, LinearLayout.LayoutParams(-1, -2))
                 onSelected = { pressureLogic = it; units() }
             }
         }
