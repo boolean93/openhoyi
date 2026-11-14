@@ -17,6 +17,8 @@
     <!-- No Activity and no Mock target: observing a running cup must not restart it. -->
     <instrumentation android:name="io.openhoyi.mobile.MockHierarchyInstrumentation"
         android:targetPackage="io.openhoyi.mobile.mock.test" android:functionalTest="false" />
+    <instrumentation android:name="io.openhoyi.mobile.CurveFilterPopupInstrumentation"
+        android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
     <application>
         <provider
             android:name="io.openhoyi.mobile.CurveFixtureProvider"

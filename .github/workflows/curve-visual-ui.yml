@@ -2,6 +2,11 @@ name: Verify curve visual migration UI
 
 on:
   workflow_dispatch:
+    inputs:
+      filter_only:
+        description: Focused curve filter popup checks only
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
@@ -45,12 +50,26 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_curve_visual_migration.sh
+          script: |
+            if [[ "${{ inputs.filter_only }}" == "true" ]]; then
+              set -e
+              test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
+              adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
+              adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+              mkdir -p build/curve-filter-popup
+              trap 'adb pull /sdcard/Android/data/io.openhoyi.mobile.mock/files/curve-filter-popup build/curve-filter-popup/screenshots || true' EXIT
+              adb shell am instrument -w -e disposableCiEmulator true io.openhoyi.mobile.mock.test/io.openhoyi.mobile.CurveFilterPopupInstrumentation | tee build/curve-filter-popup/result.txt
+              grep -q CURVE_FILTER_POPUP_PASSED build/curve-filter-popup/result.txt
+            else
+              bash scripts/check_curve_visual_migration.sh
+            fi
       - name: Upload real curve evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: curve-visual-tablet-user-landscape
-          path: build/task-first-evidence/curve-visual-migration/
+          path: |
+            build/task-first-evidence/curve-visual-migration/
+            build/curve-filter-popup/
           if-no-files-found: warn
           retention-days: 7
