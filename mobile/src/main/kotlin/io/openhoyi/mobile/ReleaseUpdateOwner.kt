@@ -96,7 +96,8 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
             coordinator.dismiss(update); hide()
             progressOwner = java.lang.ref.WeakReference(activity)
             progressPage = java.lang.ref.WeakReference((activity as? FragmentActivity)?.supportFragmentManager?.primaryNavigationFragment ?: activity)
-            progressSuppressed = false
+            // Settings already observes this same controller through its inline update card.
+            progressSuppressed = progressPage?.get() is AppSettingsFragment
         }
         return started
     }
@@ -142,11 +143,15 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
     private fun renderProgress(activity: Activity) {
         if (progressSuppressed) return
         val page = (activity as? FragmentActivity)?.supportFragmentManager?.primaryNavigationFragment ?: activity
-        if (progressOwner?.get() !== activity || progressPage?.get() !== page || updateBlocked()) {
+        val state = downloads.controller.state
+        if (!showReleaseDownloadProgress(
+                settingsPage = page is AppSettingsFragment,
+                suppressed = progressSuppressed,
+                sameActivity = progressOwner?.get() === activity,
+                samePage = progressPage?.get() === page,
+                blocked = updateBlocked(), phase = state.phase)) {
             hideProgress(suppress = true); return
         }
-        val state = downloads.controller.state
-        if (state.phase == ReleaseDownloadController.Phase.IDLE) { hideProgress(suppress = true); return }
         if (progressPrompt == null) {
             progressPrompt = ReleaseDownloadProgressPrompt(activity, action = {
                 val current = downloads.controller.state

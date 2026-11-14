@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "f5fe3f2f6b99bc14f02d57bfa097a15ffd812ef4af0d65fd415652b5f0ef604a",
+  "sha256": "0dfc6a197f57500a671ff7a9c13324446b793f891d5ee53d7d00e664f468f364",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -624,7 +624,7 @@
     "curve_legacy": "旧版导入曲线",
     "curve_legacy_description": "查看旧版导入曲线，只读",
     "curve_browse_only": "仅浏览",
-    "curve_empty": "没有找到匹配的曲线\n试试其他名称或切换分类",
+    "curve_empty": "没有找到匹配的曲线\n调整搜索或筛选",
     "curve_detail_title": "曲线详情",
     "curve_detail_initial": "点选左侧曲线",
     "curve_detail_hint": "查看参数与可用状态",

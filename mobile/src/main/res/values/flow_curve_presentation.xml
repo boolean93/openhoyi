@@ -15,5 +15,5 @@
     <string name="flow_curve_configuration_summary">控制逻辑：%1$s · 首段：%2$s\n闷蒸 %3$d s · 首段限时 %4$d s · 重量补偿 %5$s g</string>
     <string name="flow_curve_parameters_compatible">完整控制参数兼容 · 保存后可用于冲煮</string>
     <string name="flow_curve_stage_flow_summary">第 %1$d 段：%2$s mL/s · %3$s mL</string>
-    <string name="flow_curve_parameters_require_114">参数兼容 · 此模式需固件 1.1.4 或 1.1.5</string>
+    <string name="flow_curve_parameters_require_114">参数兼容 · 此模式需固件 1.1.3、1.1.4 或 1.1.5</string>
 </resources>

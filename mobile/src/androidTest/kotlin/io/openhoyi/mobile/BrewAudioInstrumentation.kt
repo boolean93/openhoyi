@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var downloadRoutingChecks = false
     private var autoPreheatChecks = false
     private var unifiedSwitchChecks = false
     private var fontSizeChecks = false
@@ -66,6 +67,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        downloadRoutingChecks = arguments?.getString("downloadRoutingChecks") == "true"
         autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
@@ -129,6 +131,11 @@ class BrewAudioInstrumentation : Instrumentation() {
             editorBArguments?.let { args ->
                 CurveEditorBChecks(this).run(args)
                 report.putString("stream", "EDITOR_B_CHECKS_PASSED copy=true referencesUnchanged=true livePreview=true invalidRecovery=true repeatedSave=true cancel=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (downloadRoutingChecks) {
+                ReleaseDownloadRoutingChecks(this).run()
+                report.putString("stream", "DOWNLOAD_ROUTING_PASSED settingsInline=true otherPagePopup=true navigation=true recreation=true transferPreserved=true noInstaller=true noNetwork=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (fontSizeChecks) {

@@ -621,7 +621,7 @@
     <string name="curve_legacy">"旧版导入曲线"</string>
     <string name="curve_legacy_description">"查看旧版导入曲线，只读"</string>
     <string name="curve_browse_only">"仅浏览"</string>
-    <string name="curve_empty">"没有找到匹配的曲线\n试试其他名称或切换分类"</string>
+    <string name="curve_empty">"没有找到匹配的曲线\n调整搜索或筛选"</string>
     <string name="curve_detail_title">"曲线详情"</string>
     <string name="curve_detail_initial">"点选左侧曲线"</string>
     <string name="curve_detail_hint">"查看参数与可用状态"</string>

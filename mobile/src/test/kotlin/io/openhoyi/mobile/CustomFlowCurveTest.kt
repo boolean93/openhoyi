@@ -60,7 +60,7 @@ class CustomFlowCurveTest {
                 val uiMayStart=io.openhoyi.session.CoffeeFirmwareProfiles.permitsControl(0x110+patch) &&
                     io.openhoyi.session.CustomCurveFirmwarePolicy.permits(parameters,firmware)
                 assertEquals("Ls=${!pressureLogic} firstFlow=$firstFlow patch=$patch",
-                    patch==4 || patch==5 || (patch==3 && pressureLogic && !firstFlow),uiMayStart)
+                    patch in 3..5,uiMayStart)
             }
         }
     }

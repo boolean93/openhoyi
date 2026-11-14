@@ -3,4 +3,7 @@
     <string name="curve_sort_most_used">使用次数</string>
     <string name="curve_usage_count">" · 使用 %1$d 次"</string>
     <string name="curve_usage_unavailable">使用记录暂不可用，已保留原文件</string>
+    <string name="curve_filter_custom">自定义曲线</string>
+    <string name="curve_filter_custom_sort">自定义 · %1$s</string>
+    <string name="curve_filter_empty">没有符合条件的曲线</string>
 </resources>

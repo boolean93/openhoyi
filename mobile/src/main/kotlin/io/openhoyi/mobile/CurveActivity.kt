@@ -54,6 +54,7 @@ class CurveActivity : ThemedActivity() {
     private var compact = false
     private var category = CurveCategoryFilter.ALL
     private var sortMode = CurveSortMode.RECENT
+    private var customOnly = false
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
     private var lastAssignedCurveId: String? = null
@@ -70,6 +71,7 @@ class CurveActivity : ThemedActivity() {
         productStyle = TaskProductVisualStyle(this)
         category = CurveCategoryFilter.restore(savedInstanceState?.getString("category"))
         sortMode = CurveSortMode.restore(getSharedPreferences("curves", MODE_PRIVATE).getString("sort", null))
+        customOnly = getSharedPreferences("curves", MODE_PRIVATE).getBoolean("customOnly", false)
         // Initializes migration of existing positively observed shots, not selection events.
         runCatching { (application as MobileApplication).history }
         val root = LinearLayout(this).apply {
@@ -171,20 +173,13 @@ class CurveActivity : ThemedActivity() {
         }.apply { isEnabled = customAvailable; productStyle.button(this); layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(8) } }
         if (!customAvailable) HoyiUi.label(this, browser, getString(R.string.profiles_unavailable), 14, muted = true)
             .apply { productStyle.apply(this, TaskProductVisualStyle.auxiliary, true) }
-        val sort = Spinner(this).apply { minimumHeight = dp(52); tag = "product/curve-library/sort" }
-        sort.adapter = TaskProductFormStyle(this).choiceAdapter(
-            listOf(getString(R.string.curve_sort_recent), getString(R.string.curve_sort_most_used)))
-        sort.setSelection(sortMode.ordinal)
-        sort.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val chosen = CurveSortMode.entries[position]
-                if (sortMode == chosen) return
-                sortMode = chosen
-                getSharedPreferences("curves", MODE_PRIVATE).edit().putString("sort", sortMode.name).apply()
-                refreshList()
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-        }
+        val sort = CurveLibraryMenu(this, sortMode, customOnly) { chosenSort, chosenCustom ->
+            sortMode = chosenSort
+            customOnly = chosenCustom
+            getSharedPreferences("curves", MODE_PRIVATE).edit()
+                .putString("sort", sortMode.name).putBoolean("customOnly", customOnly).apply()
+            refreshList()
+        }.apply { productStyle.button(this) }
         browser.addView(sort, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         if ((application as MobileApplication).curveUsageResult.isFailure)
             HoyiUi.label(this, browser, getString(R.string.curve_usage_unavailable), 14, muted = true)
@@ -698,10 +693,11 @@ class CurveActivity : ThemedActivity() {
     private fun refreshList() {
         if (!::adapter.isInitialized || !::search.isInitialized) return
         val viewport = curveList.onSaveInstanceState()
-        val filtered = CurveSearch.filter(library.items, category, search.text.toString())
+        val filtered = CurveSearch.filter(library.items, category, search.text.toString(), customOnly)
         val ledger = (application as MobileApplication).curveUsageResult.getOrNull()
         visibleItems = if (ledger == null) filtered else CurveOrdering.sort(filtered, sortMode, ledger)
-        resultCount.text = getString(R.string.curve_result_count, visibleItems.size.toString())
+        resultCount.text = if (visibleItems.isEmpty()) getString(R.string.curve_filter_empty)
+            else getString(R.string.curve_result_count, visibleItems.size.toString())
         adapter.clear()
         adapter.addAll(visibleItems.map { it.id })
         viewport?.let { curveList.onRestoreInstanceState(it) }
