@@ -40,8 +40,8 @@ data class CustomCurveDocument(
         require(id.startsWith("draft-") && runCatching { UUID.fromString(id.removePrefix("draft-")).toString() == id.removePrefix("draft-") }.getOrDefault(false)) { "Invalid draft ID" }
         require(name.isNotBlank() && name.length <= 100)
         // Friendly draft limits, narrower than the wire's unsigned 8/16-bit fields.
-        require(temperatureC in 75..105)
-        require(targetHundredthsGram in 0..20000)
+        require(temperatureC in CurveMetadataInput.temperatureRange)
+        require(targetHundredthsGram in CurveMetadataInput.targetWeightRange)
         require(stages.size in 1..4)
         require(controlMode != ControlMode.FLOW || configuration != null)
         configuration?.let { c ->
@@ -207,4 +207,12 @@ internal object CurveDraftNumber {
         catch (e: ArithmeticException) { throw IllegalArgumentException("Draft number exceeds range", e) }
     }
     fun format(raw: Int, decimalPlaces: Int): String = BigDecimal.valueOf(raw.toLong(), decimalPlaces).stripTrailingZeros().toPlainString()
+}
+
+/** Application draft limits, not claims about the firmware byte-field limits. */
+internal object CurveMetadataInput {
+    val temperatureRange = 75..105
+    val targetWeightRange = 0..20000 // Hundredths of a gram. Zero disables the weight target.
+    fun temperature(text: String): Int = CurveDraftNumber.parse(text, 0).also { require(it in temperatureRange) }
+    fun targetWeight(text: String): Int = CurveDraftNumber.parse(text, 2).also { require(it in targetWeightRange) }
 }
