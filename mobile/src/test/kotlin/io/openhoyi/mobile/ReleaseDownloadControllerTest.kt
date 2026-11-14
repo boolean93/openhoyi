@@ -55,6 +55,8 @@ class ReleaseDownloadControllerTest {
         try {
             val actual=InstalledUpdateIdentity("io.openhoyi.mobile",94,false,"a".repeat(64))
             assertFalse(h.owner.reconcileInstalled(actual.copy(versionCode=93)))
+            assertFalse(h.owner.reconcileInstalled(actual.copy(debuggable=true,versionName="0.2.0-local.94-test")))
+            assertEquals(target, h.owner.state.target)
             assertFalse(h.owner.reconcileInstalled(actual.copy(signerSha256="f".repeat(64))))
             assertFalse(h.owner.reconcileInstalled(null));assertTrue(h.owner.reconcileInstalled(actual))
             assertEquals(ReleaseDownloadController.Phase.IDLE,h.owner.state.phase)

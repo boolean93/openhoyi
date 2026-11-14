@@ -20,5 +20,5 @@ internal fun installedUpdateIdentity(context: Context): InstalledUpdateIdentity?
     @Suppress("DEPRECATION")
     val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
     val application = info.applicationInfo ?: error("Package application identity unavailable")
-    InstalledUpdateIdentity(info.packageName, code, application.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0, certificate)
+    InstalledUpdateIdentity(info.packageName, code, application.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0, certificate, info.versionName)
 }.getOrNull()

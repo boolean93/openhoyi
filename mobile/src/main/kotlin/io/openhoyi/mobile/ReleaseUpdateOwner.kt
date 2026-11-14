@@ -21,10 +21,7 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
     private val executor = Executors.newSingleThreadExecutor()
     private val prefs = app.getSharedPreferences("release_updates", Context.MODE_PRIVATE)
     private val installedIdentity = installedUpdateIdentity(app)
-    private val automaticEligible = installedIdentity?.let {
-        it.packageName == "io.openhoyi.mobile" && !it.debuggable && it.versionCode > 0 &&
-            it.signerSha256?.matches(Regex("[0-9a-f]{64}")) == true
-    } == true
+    private val automaticEligible = releaseAutomaticCheckEligible(installedIdentity)
     val coordinator = ReleaseUpdateCoordinator(object : ReleaseUpdateCoordinator.Storage {
         override fun read() = ReleaseUpdateCoordinator.Saved(prefs.getBoolean("enabled", true),
             prefs.getLong("nextAutoAt", 0), prefs.getLong("limitedUntil", 0),
@@ -131,7 +128,7 @@ internal class ReleaseUpdateOwner(private val app: MobileApplication) : Applicat
 
         }
         // Poll machine state only while an undismissed, eligible update awaits safe presentation.
-        // Off/Mock/Debug owners wake only for lifecycle or explicit user events.
+        // Off/Mock/non-local Debug owners wake only for lifecycle or explicit user events.
         when {
             downloads.needsSafetyWatch || potential != null -> handler.postDelayed(tick, 250L)
             automaticEligible && coordinator.enabled -> handler.postDelayed(tick,
