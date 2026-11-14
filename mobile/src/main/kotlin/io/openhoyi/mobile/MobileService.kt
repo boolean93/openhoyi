@@ -1272,13 +1272,15 @@ class MobileService : Service() {
                         recoveryAfterSettingsSerial = serials.settings
                         event(ResourceMessage(R.string.service_write_setting_no_readback), "settings.unknown")
                     }
-                    if(change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating) {
-                        // First arm WAITING/watchdog, then request one fresh 0x83 via authenticated
+                    if(io.openhoyi.session.SettingsReadbackPolicy.supports(change)) {
+                        // First arm WAITING/watchdog, then request bounded fresh 0x83 via authenticated
                         // time sync. Its GATT success is not evidence that the setting was applied.
-                        val fallback=BoilerFallback(current,token,coffeeAddress,current.coffeeGeneration,recoveryOwner,
-                            MobileMonotonicClock.elapsedRealtime())
-                        boilerFallback=fallback
-                        handler.postDelayed({if(boilerFallback===fallback)attemptBoilerFallback()},3000)
+                        if(io.openhoyi.session.SettingsReadbackPolicy.isBoiler(change)) {
+                            val fallback=BoilerFallback(current,token,coffeeAddress,current.coffeeGeneration,recoveryOwner,
+                                MobileMonotonicClock.elapsedRealtime())
+                            boilerFallback=fallback
+                            handler.postDelayed({if(boilerFallback===fallback)attemptBoilerFallback()},3000)
+                        }
                         current.refreshBoilerSettings({machineWriteRecovery.owns(recoveryOwner) && boilerRecoveryProductSafe() &&
                             permitsOrdinaryWrite(current,coffeeAddress,token,
                                 MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))}) { attempt,refreshResult ->
