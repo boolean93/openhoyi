@@ -124,7 +124,13 @@ class MainActivity : ThemedActivity() {
         super.onUserInteraction()
         if(foreground)service?.requestCoffeeRecoverySoon()
     }
-    internal fun reconnectCoffee() {
+    internal fun reconnectCoffee() = reconnectCoffee(afterSleep = false)
+    private fun reconnectAfterSleep() {
+        // Recheck on click: a stale rendered button must not interrupt a newer operation.
+        if (service?.canReconnectAfterSleep != true) { shellStatus.present(service); return }
+        reconnectCoffee(afterSleep = true)
+    }
+    private fun reconnectCoffee(afterSleep: Boolean) {
         val address=getSharedPreferences("devices",MODE_PRIVATE).getString("coffee",null)
             ?.takeIf(BluetoothAdapter::checkBluetoothAddress)
         if(address==null){openSettingsSection("devices");return}
@@ -147,7 +153,7 @@ class MainActivity : ThemedActivity() {
             }catch(_:RuntimeException){reconnectCoffeeAfterBind=false;openSettingsSection("devices")}
             return
         }
-        when(owner.connectRememberedCoffee(address)){
+        when(if (afterSleep) owner.reconnectAfterSleep(address) else owner.connectRememberedCoffee(address)){
             RememberedCoffeeConnection.PASSWORD_REQUIRED -> {
                 openSettingsSection("devices")
                 Toast.makeText(this,getString(R.string.coffee_connection_password_hint),Toast.LENGTH_LONG).show()
@@ -267,7 +273,7 @@ class MainActivity : ThemedActivity() {
             }
         }
         frame = TaskPageFrame.host(this, style, { destination }, ::select)
-        shellStatus = TaskShellStatusView(this, ::sleepNow, ::openScale, ::reconnectScale, ::disconnectScale, ::reconnectCoffee)
+        shellStatus = TaskShellStatusView(this, ::sleepNow, ::openScale, ::reconnectScale, ::disconnectScale, ::reconnectCoffee, ::reconnectAfterSleep)
         frame.installShellStatus(shellStatus)
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
         val container = FrameLayout(this).apply { id = pageId; tag = "task-tab-content" }

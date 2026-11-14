@@ -31,7 +31,9 @@ class SleepRecoveryPresentationTest {
         for(key in listOf("home_sleep_button","home_sleep_send","task_shell_action_sleep","task_shell_machine_asleep","task_shell_action_wake_on_machine","task_shell_sleep_wake")){
             val text=catalog.getString(key);assertTrue(key,text.length<=4);assertFalse(key,text.contains('\n'))
         }
-        assertEquals(R.string.task_shell_sleep_wake,SleepPresentation.compactHint(R.string.sleep_status_last_confirmed_hint))
+        assertEquals(R.string.task_shell_machine_asleep, SleepPresentation.compactStatus(R.string.sleep_status_last_confirmed))
+        assertNull(SleepPresentation.compactHint(R.string.sleep_status_last_confirmed_hint))
+        assertNull(SleepPresentation.compactHint(R.string.task_shell_sleep_wake_hint))
         assertNull(SleepPresentation.compactHint(R.string.sleep_status_unknown_hint))
     }
 

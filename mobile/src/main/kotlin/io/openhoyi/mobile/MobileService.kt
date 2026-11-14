@@ -970,6 +970,22 @@ class MobileService : Service() {
             else event(error)
         })
     }
+    /** Explicit recovery after physical lever wake; never sends a wake/start/heating command. */
+    val canReconnectAfterSleep: Boolean get() {
+        val idle = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
+            MobileMonotonicClock.elapsedRealtime()) as? IdleTelemetry
+        return SleepReconnectPolicy.allowed(running, snapshot.coffeeState, sleepNowState,
+            idle?.sleepStateRaw, (snapshot.coffee as? IdleTelemetry)?.sleepStateRaw,
+            manualShotActive || ShotGate.active(shotState), settingWriteState,
+            brewPreparationState != BrewPreparation.State.IDLE,
+            cupResetBusy || scheduleBusy || leverInFlight != null || leverStore.blocked || machineWriteRecovery.pending)
+    }
+    fun reconnectAfterSleep(address: String): RememberedCoffeeConnection {
+        if (!canReconnectAfterSleep) return RememberedCoffeeConnection.BLOCKED
+        // Mock can exercise the action without pretending it wakes a sleeping machine.
+        mock?.let { refreshMock(it); return RememberedCoffeeConnection.STARTED }
+        return connectRememberedCoffee(address, automatic = false)
+    }
     fun connectRememberedCoffee(address: String): RememberedCoffeeConnection = connectRememberedCoffee(address,automatic=false)
     fun ensureKnownDevices() {
         if(mock!=null || !running || initialKnownCoffeeChecked)return
