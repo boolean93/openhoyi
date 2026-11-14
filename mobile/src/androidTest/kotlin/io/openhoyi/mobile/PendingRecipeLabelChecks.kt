@@ -102,6 +102,14 @@ class PendingRecipeLabelChecks : Instrumentation() {
             seriesField.set(owner,fixture)
             render.invoke(fragment)
         }
+        fun assertNoStopModeFootnote() {
+            fun texts(view:View):List<String> = if(view is android.view.ViewGroup)
+                (0 until view.childCount).flatMap {texts(view.getChildAt(it))}
+                else if(view is TextView && view.visibility==View.VISIBLE) listOf(view.text.toString()) else emptyList()
+            val content=texts(host.activity.window.decorView)
+            check(content.none {it.contains(host.activity.getString(R.string.extraction_weight_control_advice)) ||
+                it.contains(host.activity.getString(R.string.extraction_no_weight_advice))})
+        }
         fun capture(name:String) {
             val frames=NativeWindowFrameEvidence(this)
             frames.committedFrame(host.activity.window.decorView)
@@ -116,6 +124,7 @@ class PendingRecipeLabelChecks : Instrumentation() {
                 check(prefs.edit().putString("selected","factory-v3-001").commit())
                 record("manual")
                 check(label().visibility==View.VISIBLE && label().text.isNotBlank())
+                assertNoStopModeFootnote()
                 check((field(fragment,"compactIdentity").get(fragment) as TextView).text.toString()==
                     host.activity.getString(R.string.extraction_manual_label))
             }

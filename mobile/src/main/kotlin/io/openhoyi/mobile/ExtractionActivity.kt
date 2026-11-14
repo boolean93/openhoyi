@@ -300,8 +300,6 @@ class ExtractionActivity : ThemedActivity() {
         pendingRecipeLabel = PendingRecipeLabel(style)
         actionDock.addView(pendingRecipeLabel, LinearLayout.LayoutParams(-1, -2))
         start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
-        (weightTarget.parent as? android.view.ViewGroup)?.removeView(weightTarget)
-        actionDock.addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
         (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
         stop = HoyiUi.button(this, actionDock, getString(R.string.extraction_stop), danger = true) {
             service?.stopShot(); render()
@@ -589,10 +587,9 @@ class ExtractionActivity : ThemedActivity() {
         live.show(getString(R.string.extraction_live_temperature, rawTemperature))
         val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
             else profile?.targetHundredthsGram
-        val showStopModePreview=DirectExtractionStart.showStopModePreview(active,profile!=null,state)
-        weightTarget.visibility=if(showStopModePreview) View.VISIBLE else View.GONE
-        weightTarget.show(if(showStopModePreview && profile!=null) DirectExtractionStart.stopMode(profile).render {id,args->getString(id,*args)}
-            else if (owner?.manualShotActive != true && target != null && target > 0) {
+        // Keep detailed target/stop guidance available in Overview, not below the action.
+        weightTarget.visibility = View.GONE
+        weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
             val progress = getString(R.string.extraction_weight_progress, scale?.let(::number) ?: "—", number(target))
             val advice = when {
                 owner?.scalePreflight == true -> getString(R.string.extraction_preflight_weight_advice)
