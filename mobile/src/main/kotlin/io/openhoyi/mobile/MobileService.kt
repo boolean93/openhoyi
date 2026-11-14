@@ -1175,6 +1175,9 @@ class MobileService : Service() {
             {hub===current && machineWriteRecovery.owns(pending.owner) && boilerRecoveryProductSafe()})
         logs.record("settings.reconnect",mapOf("ownerId" to ownerId,"outcome" to if(started)"started" else "rejected"))
     }
+    internal val machineModeWritePending:Boolean get()=MachineModePendingPresentation.active(
+        machineWriteRecovery.owns(settingRecoveryOwner),machineWriteRecovery.kind,machineWriteRecovery.address,
+        hub?.coffeeAddress,snapshot.coffeeState,settingsWrite.change,settingsWrite.state)
     val boilerReadbackRecoveryActive:Boolean get()=HomeBoilerSwitchPresentation.localProgress(
         machineWriteRecovery.owns(settingRecoveryOwner),settingsWrite.change,settingsWrite.state,
         boilerReadbackReconnecting,boilerSettingsRecoveryBusy)

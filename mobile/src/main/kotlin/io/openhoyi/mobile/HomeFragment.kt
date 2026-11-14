@@ -966,12 +966,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
         val boilerRecoveryActive=owner?.boilerReadbackRecoveryActive==true
+        val localWriteProgress=boilerRecoveryActive || owner?.machineModeWritePending==true
         val warning = ShotSafetyAlert.resource(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)?.let { getString(it) }
-            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {boilerRecoveryActive}
+            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {localWriteProgress}
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
-            (owner?.machineWriteAcknowledgementAvailable != true || boilerRecoveryActive)) View.GONE else View.VISIBLE
+            (owner?.machineWriteAcknowledgementAvailable != true || localWriteProgress)) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
             owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)
