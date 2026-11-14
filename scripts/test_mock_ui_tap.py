@@ -211,3 +211,39 @@ class MockUiTapTest(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError,'ambiguous Mock control: X'):
                         main()
                 self.assertIn('diagnostic write failed',captured.getvalue())
+
+
+class MockRunnerContractTest(unittest.TestCase):
+    def test_reviewed_allowlist_matches_source_manifest_and_both_consumers(self):
+        import xml.etree.ElementTree as ET
+        import mock_ui_tap as tap
+        import shared_mock_artifact as shared
+        root = ET.parse(Path(__file__).resolve().parents[1] / 'mobile/src/androidTest/AndroidManifest.xml').getroot()
+        android = '{http://schemas.android.com/apk/res/android}'
+        entries = root.findall('instrumentation')
+        actual = {entry.get(android + 'name'): entry.get(android + 'targetPackage') for entry in entries}
+        self.assertEqual(5, len(entries))
+        self.assertEqual(5, len(tap.RUNNERS))
+        self.assertEqual(actual, tap.RUNNERS)
+        self.assertIs(shared.RUNNERS, tap.RUNNERS)
+
+    def test_unknown_missing_duplicate_and_wrong_targets_fail_both_capture_readers(self):
+        import mock_ui_tap as tap
+        expected = list(tap.RUNNERS.items())
+        mutations = [expected + [('io.openhoyi.mobile.UnknownRunner', tap.PACKAGE)],
+                     expected[:-1], expected + [expected[0]]]
+        for index, (name, target) in enumerate(expected):
+            wrong = list(expected)
+            wrong[index] = (name, tap.PACKAGE if target == tap.TEST_PACKAGE else tap.TEST_PACKAGE)
+            mutations.append(wrong)
+        for entries in [expected] + mutations:
+            installed = ''.join(f'instrumentation:{tap.TEST_PACKAGE}/{name} (target={target})\n' for name, target in entries)
+            declarations = ''.join(f'<instrumentation android:name="{name}" android:targetPackage="{target}"/>' for name, target in entries)
+            xml = f'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="{tap.TEST_PACKAGE}">{declarations}<application android:debuggable="true"/></manifest>'
+            for validator, data in [(tap.validate_installed_runners, installed), (tap.validate_runner_manifest, xml)]:
+                with self.subTest(entries=entries, validator=validator.__name__):
+                    if entries == expected:
+                        self.assertEqual(tap.RUNNERS, validator(data))
+                    else:
+                        with self.assertRaises(ValueError):
+                            validator(data)
