@@ -479,7 +479,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             TelemetryFreshness.isFresh(observedAt,now) && idle.sleepStateRaw==0
     }
     private fun permittedStart(parameters:StartParameters):EncodedCommand? {
-        // Follow is newly reviewed only for temporary complete recipes on 1.1.4/1.1.5.
+        // Follow is limited to temporary complete recipes and the exact compatibility profiles.
         // This must precede captured/additional frame fast paths as well as host permits.
         if (CustomCurveFirmwarePolicy.isPressureFollow(parameters) &&
             (!CustomCurveStartPolicy.permits(parameters) || !CustomCurveFirmwarePolicy.permits(parameters, observedFirmware))) return null
