@@ -104,6 +104,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var compactMode: TextView
     private lateinit var compactGuidance: TextView
     private lateinit var compactIdentity: TextView
+    private lateinit var pendingRecipeLabel: PendingRecipeLabel
     private lateinit var headerWords: LinearLayout
     private lateinit var supportReadings: LinearLayout
     private lateinit var chartHost: FrameLayout
@@ -353,9 +354,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         controls.addView(actionButtons, if (compactPortrait) LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) }
             else LinearLayout.LayoutParams(if(portraitLive) -1 else dp(190), -2).apply { if(portraitLive) topMargin=dp(12) else marginStart=dp(12) })
         workspace.setFooter(actionDock)
+        pendingRecipeLabel = PendingRecipeLabel(style)
+        actionButtons.addView(pendingRecipeLabel, LinearLayout.LayoutParams(-1, -2))
         start = HoyiUi.button(host, actionButtons, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
-        (weightTarget.parent as? android.view.ViewGroup)?.removeView(weightTarget)
-        (if (compactPortrait) actionDock else actionButtons).addView(weightTarget,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
         (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
         stop = HoyiUi.button(host, actionButtons, getString(R.string.extraction_stop), danger = true) {
             service?.stopShot(); render()
@@ -716,10 +717,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         live.show(getString(R.string.extraction_live_temperature, rawTemperature))
         val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
             else profile?.targetHundredthsGram
-        val showStopModePreview=DirectExtractionStart.showStopModePreview(active,profile!=null,state)
-        weightTarget.visibility=if(showStopModePreview) View.VISIBLE else View.GONE
-        weightTarget.show(if(showStopModePreview && profile!=null) DirectExtractionStart.stopMode(profile).render {id,args->getString(id,*args)}
-            else if (owner?.manualShotActive != true && target != null && target > 0) {
+        // Keep detailed target/stop guidance available in Overview, not below the action.
+        weightTarget.visibility = View.GONE
+        weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
             val progress = getString(R.string.extraction_weight_progress, scale?.let(::number) ?: "—", number(target))
             val advice = when {
                 owner?.scalePreflight == true -> getString(R.string.extraction_preflight_weight_advice)
@@ -793,6 +793,10 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
+        // Same resolved profile/slot as startSelectedCurve(); observed records never select a recipe.
+        pendingRecipeLabel.bind(PendingRecipePresentation.name(observedCup, owner?.chartCurveId,
+            profile?.id, profile?.name, profile?.let(library::validated) == true,
+            startVisible = !stopAction.visible))
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
         val facts=ExtractionStatusPresentation.Facts(state,active,owner?.running==true,blocked!=null || studioBlocked!=null,
             owner?.manualShotActive==true,owner?.scalePreflight==true,preparation,!normalPreparation,
