@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Instrumentation
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
@@ -16,13 +17,17 @@ import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.ListView
 import java.io.File
 
 /** Focused real-window checks. Refuses physical devices and non-Mock packages. */
 class CurveFilterPopupInstrumentation : Instrumentation() {
     private var disposable = false
+    private var orientation = ""
+    private val frames = NativeWindowFrameEvidence(this)
     override fun onCreate(arguments: Bundle?) {
         disposable = arguments?.getString("disposableCiEmulator") == "true"
+        orientation = arguments?.getString("orientation").orEmpty()
         super.onCreate(arguments)
         start()
     }
@@ -38,7 +43,10 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
         (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
     private fun field(owner: Any, name: String): Any? = owner.javaClass.getDeclaredField(name)
         .apply { isAccessible = true }.get(owner)
-    private fun capture(directory: File, name: String) {
+    private fun capture(directory: File, name: String, root: View) {
+        frames.committedFrame(root)
+        // A second submitted frame gives the compositor a presentation boundary for the first.
+        frames.committedFrame(root)
         val bitmap = requireNotNull(uiAutomation.takeScreenshot())
         try { File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
         finally { bitmap.recycle() }
@@ -73,6 +81,7 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
     override fun onStart() {
         val report = Bundle()
         try {
+            check(orientation in setOf("portrait", "landscape"))
             check(disposable && BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             check(Build.HARDWARE in setOf("ranchu", "goldfish"))
             val app = targetContext.applicationContext as MobileApplication
@@ -81,7 +90,7 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                 listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
             app.customCurvesResult.getOrThrow().save(document)
             val preferences = targetContext.getSharedPreferences("curves", Context.MODE_PRIVATE)
-            val output = File(targetContext.getExternalFilesDir(null), "curve-filter-popup").apply { check(isDirectory || mkdirs()) }
+            val output = File(targetContext.getExternalFilesDir(null), "curve-filter-popup/$orientation").apply { check(isDirectory || mkdirs()) }
             for (dark in listOf(false, true)) for (embedded in listOf(false, true)) {
                 check(targetContext.getSharedPreferences("appearance", Context.MODE_PRIVATE).edit().putBoolean("dark", dark).commit())
                 check(preferences.edit().remove("customOnly").putString("sort", CurveSortMode.RECENT.name).commit())
@@ -114,7 +123,12 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                 }
                 try {
                     await { activity.hasWindowFocus() }
-                    open(); capture(output, "$name-menu")
+                    main {
+                        val config = activity.resources.configuration
+                        check((config.orientation == Configuration.ORIENTATION_LANDSCAPE) == (orientation == "landscape"))
+                        check((config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) == dark)
+                    }
+                    open(); capture(output, "$name-menu", activity.window.decorView)
                     clickPopup(activity.getString(R.string.curve_filter_custom))
                     await { activity.hasWindowFocus() }; verify(CurveSortMode.RECENT, true)
                     main {
@@ -129,7 +143,21 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                         check((field(owner, "visibleItems") as List<*>).isEmpty())
                         check((field(owner, "resultCount") as TextView).text.toString() == activity.getString(R.string.curve_filter_empty))
                     }
-                    capture(output, "$name-empty")
+                    await {
+                        var ready = false
+                        main {
+                            val list = field(owner, "curveList") as ListView
+                            ready = list.count == 0 && list.visibility == View.GONE && list.emptyView.isShown &&
+                                list.emptyView.isLaidOut && !activity.window.decorView.isLayoutRequested
+                        }
+                        ready
+                    }
+                    capture(output, "$name-empty", activity.window.decorView)
+                    main {
+                        val list = field(owner, "curveList") as ListView
+                        check(list.count == 0 && list.emptyView.isShown)
+                        File(output, "$name-empty.txt").writeText("adapterCount=0 emptyViewShown=true orientation=$orientation dark=$dark")
+                    }
                     open(); clickPopup(activity.getString(R.string.curve_sort_most_used))
                     await { activity.hasWindowFocus() }; verify(CurveSortMode.MOST_USED, true)
                     main { check((field(owner, "search") as EditText).text.toString() == "no-such-curve-for-filter") }
@@ -142,7 +170,7 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                         verify(CurveSortMode.MOST_USED, true)
                         main { check(field(owner, "category") == CurveCategoryFilter.DARK) }
                     } finally { removeMonitor(monitor) }
-                    open(); capture(output, "$name-restored-menu")
+                    open(); capture(output, "$name-restored-menu", activity.window.decorView)
                     clickPopup(activity.getString(R.string.curve_filter_custom))
                     await { activity.hasWindowFocus() }; verify(CurveSortMode.MOST_USED, false)
                     main {
@@ -151,9 +179,9 @@ class CurveFilterPopupInstrumentation : Instrumentation() {
                             it.isClickable && it.text.toString() == CurveCategoryFilter.ALL.label(activity) }.performClick())
                         check((field(owner, "visibleItems") as List<*>).size == app.curves.items.size)
                     }
-                    capture(output, "$name-all")
+                    capture(output, "$name-all", activity.window.decorView)
                 } catch (error: Throwable) {
-                    runCatching { capture(output, "$name-failure") }
+                    runCatching { capture(output, "$name-failure", activity.window.decorView) }
                     throw error
                 } finally {
                     main { activity.finish() }

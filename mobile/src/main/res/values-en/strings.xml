@@ -111,7 +111,7 @@
     <string name="curve_editor_stage_water">"Stage water"</string>
     <string name="curve_editor_target_flow">"Flow"</string>
     <string name="curve_editor_target_pressure">"Pressure"</string>
-    <string name="curve_empty">"No matching curves found\nTry another name or category"</string>
+    <string name="curve_empty">"No matching curves found\nAdjust your search or filters"</string>
     <string name="curve_filter_description">"%1$s category%2$s"</string>
     <string name="curve_filter_selected_suffix">", selected"</string>
     <string name="curve_import_legacy">"Import legacy curve library JSON"</string>
