@@ -208,8 +208,8 @@ class CurveEditorActivity : ThemedActivity() {
             sections.firstModeHost.visibility = View.VISIBLE
             sections.stageModes[0].visibility = if (flowMode) View.GONE else View.VISIBLE
             firstModePicker.contentDescription = getString(R.string.flow_editor_first) + " · " + sections.stageModes[0].text
-            firstModePicker.labels(getString(R.string.curve_editor_mode_first_pressure), getString(R.string.curve_editor_flow_inline,
-                getString(if (pressureLogic) R.string.curve_control_fast else R.string.curve_control_slow)))
+            // First-stage type is independent; speed remains the clearly visible shared toolbar choice.
+            firstModePicker.labels(getString(R.string.curve_editor_mode_first_pressure), getString(R.string.curve_editor_first_flow))
             firstModePicker.select(firstFlow)
             controlSwitch.colors(colors.pressureFill, colors.flowFill)
             controlSwitch.select(flowMode)

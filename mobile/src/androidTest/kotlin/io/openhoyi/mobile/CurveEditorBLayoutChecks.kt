@@ -121,7 +121,9 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                 (tagged("first-mode") as CurveEditorSegments).selectFromUser(true)
                 val firstMode = tagged("first-mode") as CurveEditorSegments
                 val firstPair = descendants(firstMode).filterIsInstance<TextView>().filter { it.isClickable }
-                check(firstPair[1].isSelected && firstPair[1].text.toString().contains(screen.getString(R.string.curve_control_fast)))
+                check(firstPair[1].isSelected && firstPair[1].text.toString() == screen.getString(R.string.curve_editor_first_flow))
+                check(firstPair.all { it.lineCount == 1 })
+                check((tagged("pressure-logic") as CurveEditorSegments).text.toString() == screen.getString(R.string.curve_control_fast))
                 // Validate RTL layout of the actual picker, including the selected thumb placement.
                 firstMode.layoutDirection = View.LAYOUT_DIRECTION_RTL
                 firstMode.requestLayout()
@@ -149,6 +151,31 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                 }
             }
             shot(args.getString("fixture", "current") + "-top")
+            if (args.getString("semanticStates") == "true") {
+                val prefix = args.getString("fixture", "current")
+                fun modeAction(action: () -> Unit) { main(action); test.waitForIdleSync(); Thread.sleep(220) }
+                shot(prefix + "-mixed-fast")
+                modeAction { (tagged("first-mode") as CurveEditorSegments).selectFromUser(true) }
+                main {
+                    val pair = descendants(tagged("first-mode")).filterIsInstance<TextView>().filter { it.isClickable }
+                    check(pair.all { it.lineCount == 1 && !it.text.contains('\n') })
+                    check(pair[1].isSelected)
+                }
+                shot(prefix + "-first-flow-fast")
+                modeAction { (tagged("pressure-logic") as CurveEditorSegments).selectFromUser(false) }
+                shot(prefix + "-first-flow-slow")
+                modeAction { (tagged("first-mode") as CurveEditorSegments).selectFromUser(false) }
+                shot(prefix + "-mixed-slow")
+                modeAction { (tagged("control-mode") as CurveEditorSegments).selectFromUser(false) }
+                main {
+                    val colors = CurveEditorColors(screen)
+                    check((0..2).all { root.findViewWithTag<TextView>("curve-stage-mode-$it").currentTextColor == colors.pressureInk })
+                }
+                shot(prefix + "-pressure-constant")
+                modeAction { (tagged("pressure-logic") as CurveEditorSegments).selectFromUser(true) }
+                shot(prefix + "-pressure-follow")
+                modeAction { (tagged("control-mode") as CurveEditorSegments).selectFromUser(true) }
+            }
             var originalSave = Rect()
             main { save.getGlobalVisibleRect(originalSave); scroll.fullScroll(View.FOCUS_DOWN) }
             test.waitForIdleSync()

@@ -161,7 +161,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val grid = CardGrid(222, 4) {
             // Real localized title width plus a 96dp minimum picker, not merely a nominal card width.
-            dp(32 + 6 + 11 + 48 + 96) + stageTitles.maxOf { kotlin.math.ceil(android.text.Layout.getDesiredWidth(it.text, it.paint).toDouble()).toInt() }
+            dp(32 + 6 + 11 + 48) + maxOf(dp(96), (0 until firstModeHost.childCount).mapNotNull { firstModeHost.getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0) + stageTitles.maxOf { kotlin.math.ceil(android.text.Layout.getDesiredWidth(it.text, it.paint).toDouble()).toInt() }
         }.apply { tag = "curve-stage-cards" }
         stageRows.forEachIndexed { index, card ->
             card.tag = "curve-editor-stage-$index"
@@ -175,7 +175,8 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                     getChildAt(1).measure(free, free)
                     getChildAt(3).measure(MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY))
                     val modeBudget = width - dp(6 + 11 + 48) - getChildAt(1).measuredWidth
-                    inline = modeBudget >= dp(96)
+                    val needed = if (index == 0) maxOf(dp(96), (0 until firstModeHost.childCount).mapNotNull { firstModeHost.getChildAt(it) as? CurveEditorSegments }.maxOfOrNull { it.requiredWidth() } ?: 0) else dp(96)
+                    inline = modeBudget >= needed
                     getChildAt(2).measure(MeasureSpec.makeMeasureSpec(if (inline) modeBudget else width, MeasureSpec.EXACTLY), free)
                     val rowHeight = maxOf(dp(48), getChildAt(1).measuredHeight)
                     setMeasuredDimension(width, if (inline) maxOf(rowHeight, getChildAt(2).measuredHeight) else rowHeight + getChildAt(2).measuredHeight)

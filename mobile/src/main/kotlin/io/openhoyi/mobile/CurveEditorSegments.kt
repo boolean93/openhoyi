@@ -46,9 +46,13 @@ internal class CurveEditorSegments(context: Context, private val style: TaskProd
         choices.forEach { label ->
             label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
             if (android.os.Build.VERSION.SDK_INT >= 28) label.setLineHeight(AppTextUnits.pixels(resources, 17f).toInt())
+            label.setSingleLine(true)
             label.setPadding(style.dp(5), style.dp(2), style.dp(5), style.dp(2))
         }
     }
+    fun requiredWidth(): Int = choices.maxOf { label ->
+        maxOf(style.dp(48), kotlin.math.ceil(android.text.Layout.getDesiredWidth(label.text, label.paint).toDouble()).toInt() + label.compoundPaddingLeft + label.compoundPaddingRight)
+    } * 2 + paddingLeft + paddingRight
     fun labels(first: String, second: String) { choices[0].text = first; choices[1].text = second }
     fun select(value: Boolean, animate: Boolean = false) {
         if (selected == value && !animate && thumb.isLaidOut) return
