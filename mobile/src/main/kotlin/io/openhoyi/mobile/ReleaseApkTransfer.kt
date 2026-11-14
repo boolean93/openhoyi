@@ -10,6 +10,15 @@ import javax.net.ssl.HttpsURLConnection
 
 internal fun releaseApkUrlAllowed(value: URI, initial: URI): Boolean {
     if (value.scheme != "https" || value.port !in setOf(-1, 443) || value.userInfo != null || value.fragment != null) return false
+    if (initial.host == "gitee.com") {
+        val filename = initial.path.substringAfterLast('/')
+        return when (value.host) {
+            "gitee.com" -> value.rawQuery == null && (value.rawPath == initial.rawPath ||
+                Regex("/boolean93/openhoyi/attach_files/[0-9]+/download/" + Regex.escape(filename)).matches(value.rawPath))
+            "foruda.gitee.com" -> Regex("/attach_file/[0-9]+/" + Regex.escape(filename)).matches(value.rawPath)
+            else -> false
+        }
+    }
     return when (value.host) {
         "github.com" -> value.path == initial.path && value.rawQuery == null
         "release-assets.githubusercontent.com" -> value.path.startsWith("/github-production-release-asset/")
@@ -24,10 +33,14 @@ internal class ReleaseApkTransfer(
 ) {
     @Volatile private var cancelled = false
     fun cancel() { cancelled = true }
-    fun download(target: ReleaseUpdate, part: File, progress: (Long) -> Unit) {
+    fun download(target: ReleaseUpdate, part: File, progress: (Long) -> Unit) = downloadFrom(target, target.downloadUrl, part, progress)
+    fun downloadFrom(target: ReleaseUpdate, url: String, part: File, progress: (Long) -> Unit) {
         require(target.apkSize in 1..256L * 1024 * 1024)
-        val initial = URI(target.downloadUrl)
-        require(initial.scheme == "https" && initial.host == "github.com" && initial.port == -1 &&
+        val initial = URI(url)
+        val filename = URI(target.downloadUrl).path.substringAfterLast('/')
+        require(url == target.downloadUrl || (url in target.mirrorDownloadUrls &&
+            url == "https://gitee.com/boolean93/openhoyi/releases/download/dev-${target.versionCode}/$filename"))
+        require(initial.scheme == "https" && initial.host in setOf("github.com", "gitee.com") && initial.port == -1 &&
             initial.userInfo == null && initial.rawQuery == null && initial.fragment == null &&
             initial.path == "/boolean93/openhoyi/releases/download/dev-${target.versionCode}/" + initial.path.substringAfterLast('/') &&
             initial.path.substringAfterLast('/').matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]*\\.apk")))
