@@ -9,15 +9,17 @@ import io.openhoyi.session.SettingsWriteTracker
 /** Two independent wire bits. Missing readback uses disabled labels, never a writable default. */
 internal class MachineModeControls(context: Context, private val submit: (MachineSettingChange.LeverMode) -> Unit) : LinearLayout(context) {
     private var rendering = false
+    private val style = TaskProductVisualStyle(context)
+    private val palette = CurveEditorColors(context)
     private var pressure = false
     private var flow = false
     private var pressureBeforeFlow = false
-    private val mode: HoyiSwitch = toggle("machine-mode/control") { selected ->
+    private val mode: CurveEditorSegments = toggle("machine-mode/control", R.string.curve_control_pressure, R.string.curve_control_flow) { selected ->
         val next = CurveModeSelection(flow, pressure, pressureBeforeFlow).selectFlow(selected)
         pressureBeforeFlow = next.pressureBeforeFlow
         submit(MachineSettingChange.LeverMode(next.pressure, next.flow))
     }
-    private val logic: HoyiSwitch = toggle("machine-mode/logic") { selected -> submit(MachineSettingChange.LeverMode(selected, flow)) }
+    private val logic: CurveEditorSegments = toggle("machine-mode/logic", R.string.curve_control_constant, R.string.curve_control_follow) { selected -> submit(MachineSettingChange.LeverMode(selected, flow)) }
     private val row = LinearLayout(context).apply { orientation = HORIZONTAL; isBaselineAligned = false }
     private val status = android.widget.TextView(context).apply {
         textSize = 12f; setTextColor(context.getColor(R.color.mobile_muted))
@@ -33,23 +35,19 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
         addView(status, LayoutParams(-1, -2))
     }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
-    private fun toggle(key: String, change: (Boolean) -> Unit): HoyiSwitch = HoyiSwitch(context).apply {
-        tag = key; textSize = 14f
-        typeface = TaskTypography.face(context, 400)
-        setTextColor(context.getColor(R.color.mobile_text))
-        setPadding(0, dp(4), 0, dp(4))
-        setOnCheckedChangeListener { _, checked ->
-            if (!rendering) {
-                // The thumb must not claim application before readback; the owner renders pending state.
-                rendering = true
-                isChecked = if (key.endsWith("control")) flow else pressure
-                rendering = false
-                mode.isEnabled = false
-                logic.isEnabled = false
-                change(checked)
+    private fun toggle(key: String, first: Int, second: Int, change: (Boolean) -> Unit): CurveEditorSegments =
+        CurveEditorSegments(context, style, context.getString(first), context.getString(second)).apply {
+            tag = key; compact()
+            onSelected = { checked ->
+                if (!rendering && isEnabled) {
+                    // Keep the observed selection until the machine acknowledges the write.
+                    select(if (key.endsWith("control")) flow else pressure)
+                    mode.isEnabled = false
+                    logic.isEnabled = false
+                    change(checked)
+                }
             }
         }
-    }
     private fun android.widget.TextView.showLabel(value: String) {
         if (text.toString() != value) text = value
     }
@@ -58,19 +56,15 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
         rendering = true
         pressure = settings?.flags?.and(0x80) != 0 && settings != null
         flow = settings?.flags?.and(0x40) != 0 && settings != null
-        mode.isChecked = flow; logic.isChecked = pressure
-        mode.showLabel(context.getString(if (flow) R.string.curve_control_flow else R.string.curve_control_pressure))
-        logic.showLabel(context.getString(when {
-            flow && pressure -> R.string.curve_control_fast
-            flow -> R.string.curve_control_slow
-            pressure -> R.string.curve_control_follow
-            else -> R.string.curve_control_constant
-        }))
+        mode.select(flow); logic.select(pressure)
+        mode.colors(palette.pressureFill, palette.flowFill)
+        logic.labels(context.getString(if (flow) R.string.curve_control_slow else R.string.curve_control_constant),
+            context.getString(if (flow) R.string.curve_control_fast else R.string.curve_control_follow))
+        logic.colors(palette.fill(flow), palette.fill(flow))
         val known = settings != null
         val enabled = known && MachineSettingsEditGate.allowed(owner)
         listOf(mode, logic).forEach { toggle ->
             toggle.isEnabled = enabled
-            toggle.setTextColor(context.getColor(if (enabled) R.color.mobile_text else R.color.mobile_muted))
             toggle.contentDescription = if (known)
                 context.getString(R.string.machine_mode_title) + " · " + toggle.text
             else context.getString(R.string.machine_mode_missing)
@@ -92,7 +86,10 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val available = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
         val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-        mode.measure(free, free); logic.measure(free, free)
+        mode.layoutParams.width = mode.requiredWidth()
+        logic.layoutParams.width = logic.requiredWidth()
+        mode.measure(MeasureSpec.makeMeasureSpec(mode.requiredWidth(), MeasureSpec.EXACTLY), free)
+        logic.measure(MeasureSpec.makeMeasureSpec(logic.requiredWidth(), MeasureSpec.EXACTLY), free)
         val vertical = MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED &&
             mode.measuredWidth + logic.measuredWidth + dp(12) > available
         row.orientation = if (vertical) VERTICAL else HORIZONTAL
