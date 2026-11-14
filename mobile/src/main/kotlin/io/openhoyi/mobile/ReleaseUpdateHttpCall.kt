@@ -98,7 +98,7 @@ internal class ReleaseUpdateHttpCall(
                 checkActive()
                 val text = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString()
-                return ReleaseUpdateIndex.parse(text)
+                return if (source == ReleaseSource.GITEE) ReleaseUpdateIndex.parseGitee(text) else ReleaseUpdateIndex.parse(text)
             } finally { current.disconnect() }
         }
     }

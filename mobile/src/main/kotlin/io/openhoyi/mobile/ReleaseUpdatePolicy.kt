@@ -1,6 +1,8 @@
 package io.openhoyi.mobile
 
 import org.json.JSONTokener
+import org.json.JSONObject
+import org.json.JSONArray
 import java.time.Instant
 
 /** Verified public metadata, not proof that this binary matches a source commit. */
@@ -27,10 +29,14 @@ object ReleaseUpdateIndex {
         "apkSha256", "signerCertificateSha256", "declaredSourceCommit", "sourceCommitVerified", "releaseTag",
         "publishedAt", "releaseUrl", "apkFile", "apkSize", "downloadUrl", "distributionUrl", "checksumsUrl")
 
-    fun parse(json: String): ReleaseUpdate {
+    fun parse(json: String): ReleaseUpdate = parseIndex(json, domestic = false)
+
+    internal fun parseGitee(json: String): ReleaseUpdate = parseIndex(json, domestic = true)
+
+    private fun parseIndex(json: String, domestic: Boolean): ReleaseUpdate {
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Update index is too large" }
         val fields = FlatJson(json).read()
-        require(fields.keys == keys || fields.keys == keys + "mirrorDownloadUrls") { "Unexpected update schema fields" }
+        require(fields.keys == keys || (!domestic && fields.keys == keys + "mirrorDownloadUrls")) { "Unexpected update schema fields" }
         fun string(key: String): String = fields[key] as? String ?: error("Expected string: $key")
         fun integer(key: String): Long = fields[key] as? Long ?: error("Expected integer: $key")
         require(integer("schemaVersion") == 1L)
@@ -56,10 +62,12 @@ object ReleaseUpdateIndex {
         val releaseUrl = "$BASE/releases/tag/$tag"
         val prefix = "$BASE/releases/download/$tag/"
         val downloadUrl = prefix + filename
-        require(string("releaseUrl") == releaseUrl && string("downloadUrl") == downloadUrl)
+        val domesticUrl = "https://gitee.com/$REPOSITORY/releases/download/$tag/$filename"
+        require(string("releaseUrl") == releaseUrl &&
+            string("downloadUrl") == if (domestic) domesticUrl else downloadUrl)
         require(string("distributionUrl") == prefix + "distribution.json")
         require(string("checksumsUrl") == prefix + "SHA256SUMS.txt")
-        val mirrors = if (fields.containsKey("mirrorDownloadUrls")) {
+        val mirrors = if (domestic) listOf(domesticUrl) else if (fields.containsKey("mirrorDownloadUrls")) {
             val values = fields["mirrorDownloadUrls"] as? List<*> ?: error("Expected mirror URL array")
             require(values.size <= 1)
             values.map { value ->
@@ -67,7 +75,11 @@ object ReleaseUpdateIndex {
                 value as String
             }
         } else emptyList()
-        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl, json, integer("apkSize"), mirrors)
+        // Normalize only trusted, fully parsed metadata for existing cache/download restoration.
+        // This internal cache format is not published back to either index endpoint.
+        val cachedJson = if (domestic) JSONObject(json).put("downloadUrl", downloadUrl)
+            .put("mirrorDownloadUrls", JSONArray(mirrors)).toString() else json
+        return ReleaseUpdate(code, version, cert, hash, downloadUrl, releaseUrl, cachedJson, integer("apkSize"), mirrors)
     }
 
     /** Schema v1 plus one bounded optional string array. Reject JSONTokener's Android leniencies and duplicate keys explicitly. */

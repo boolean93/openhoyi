@@ -35,6 +35,26 @@ class ReleaseUpdatePolicyTest {
         catch (_: java.time.format.DateTimeParseException) { }
     }
 
+    @Test fun domesticContractChangesOnlyDownloadUrlAndRestoresCachedTarget() {
+        val canonical = ReleaseUpdateIndex.parse(fixture)
+        val mirror = canonical.downloadUrl.replace("github.com", "gitee.com")
+        val domestic = changed("downloadUrl", mirror)
+        rejects(domestic) // Untrusted / GitHub-source parser never accepts a Gitee download URL.
+        val parsed = ReleaseUpdateIndex.parseGitee(domestic)
+        assertEquals(canonical.downloadUrl, parsed.downloadUrl)
+        assertEquals(listOf(mirror), parsed.mirrorDownloadUrls)
+        assertEquals(canonical.apkSha256, parsed.apkSha256)
+        assertEquals(canonical.signerSha256, parsed.signerSha256)
+        assertEquals(canonical.apkSize, parsed.apkSize)
+        assertEquals(parsed, ReleaseUpdateIndex.parse(requireNotNull(parsed.indexJson)))
+        for (bad in listOf(mirror.replace("dev-94", "dev-95"), mirror.replace("boolean93", "other"),
+            mirror + "?token=secret", mirror.replace("https://", "http://"), canonical.downloadUrl)) {
+            try { ReleaseUpdateIndex.parseGitee(changed("downloadUrl", bad)); fail("Bad mirror accepted") }
+            catch (_: IllegalArgumentException) { }
+        }
+        try { ReleaseUpdateIndex.parseGitee(JSONObject(domestic).put("mirrorDownloadUrls", org.json.JSONArray()).toString())
+            fail("Extra domestic field accepted") } catch (_: IllegalArgumentException) { }
+    }
     @Test fun realDev94FixtureIsCompatibleWithSchema() {
         val index = ReleaseUpdateIndex.parse(fixture)
         assertEquals(94L, index.versionCode)

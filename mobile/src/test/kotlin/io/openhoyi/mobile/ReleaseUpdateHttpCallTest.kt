@@ -11,14 +11,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReleaseUpdateHttpCallTest {
-    private fun fixture(code: Int = 94) = JSONObject(mapOf(
+    private fun fixture(code: Int = 94, domestic: Boolean = false) = JSONObject(mapOf(
         "schemaVersion" to 1, "channel" to "develop-test", "repository" to "boolean93/openhoyi",
         "packageName" to "io.openhoyi.mobile", "versionCode" to code, "versionName" to "0.2.0-dev.$code",
         "apkSha256" to "a".repeat(64), "signerCertificateSha256" to "b".repeat(64),
         "declaredSourceCommit" to "c".repeat(40), "sourceCommitVerified" to false, "releaseTag" to "dev-$code",
         "publishedAt" to "2026-11-12T11:40:15Z", "apkFile" to "OpenHOYI.apk", "apkSize" to 100,
         "releaseUrl" to "https://github.com/boolean93/openhoyi/releases/tag/dev-$code",
-        "downloadUrl" to "https://github.com/boolean93/openhoyi/releases/download/dev-$code/OpenHOYI.apk",
+        "downloadUrl" to "https://${if(domestic) "gitee.com" else "github.com"}/boolean93/openhoyi/releases/download/dev-$code/OpenHOYI.apk",
         "distributionUrl" to "https://github.com/boolean93/openhoyi/releases/download/dev-$code/distribution.json",
         "checksumsUrl" to "https://github.com/boolean93/openhoyi/releases/download/dev-$code/SHA256SUMS.txt",
     )).toString().toByteArray()
@@ -53,14 +53,14 @@ class ReleaseUpdateHttpCallTest {
         val result = ReleaseUpdateHttpCall(mirrorEnabled = true, installedVersionCode = 93,
             installedSignerSha256 = "b".repeat(64)) { url ->
             urls += url.toString()
-            if (urls.size == 1) Connection(String(fixture(96)).replace("b".repeat(64), "d".repeat(64)).toByteArray())
+            if (urls.size == 1) Connection(String(fixture(96, domestic = true)).replace("b".repeat(64), "d".repeat(64)).toByteArray())
             else Connection(fixture(95))
         }.execute()
         assertEquals(95L, result.versionCode)
         assertEquals(listOf(ReleaseUpdateIndex.MIRROR_URL, ReleaseUpdateIndex.URL), urls)
     }
     @Test fun domesticFirstAnonymousBoundedRequest() {
-        val c = Connection(fixture()); val urls = mutableListOf<String>()
+        val c = Connection(fixture(domestic = true)); val urls = mutableListOf<String>()
         val result = ReleaseUpdateHttpCall(mirrorEnabled = true) { url -> urls += url.toString(); c }.execute()
         assertEquals(94L, result.versionCode); assertEquals(listOf(ReleaseUpdateIndex.MIRROR_URL), urls)
         assertFalse(c.instanceFollowRedirects); assertFalse(c.useCaches)
@@ -72,7 +72,7 @@ class ReleaseUpdateHttpCallTest {
         val raw = "https://raw.giteeusercontent.com/boolean93/openhoyi/raw/main/updates/dev.json"
         val urls = mutableListOf<String>()
         val result = ReleaseUpdateHttpCall(mirrorEnabled = true) { url -> urls += url.toString()
-            if (urls.size == 1) Connection(byteArrayOf(), 302, headers=mapOf("Location" to raw)) else Connection(fixture())
+            if (urls.size == 1) Connection(byteArrayOf(), 302, headers=mapOf("Location" to raw)) else Connection(fixture(domestic = true))
         }.execute()
         assertEquals(94L, result.versionCode); assertEquals(listOf(ReleaseUpdateIndex.MIRROR_URL, raw), urls)
         for (bad in listOf("https://evil.test/updates", raw + "?token=secret", raw.replace("openhoyi", "other"), raw.replace("https", "http"))) {
@@ -117,11 +117,11 @@ class ReleaseUpdateHttpCallTest {
     }
     @Test fun staleMirrorChecksGithubButKeepsHealthyMirrorWhenGithubFails() {
         var calls=0
-        assertEquals(95L,ReleaseUpdateHttpCall(mirrorEnabled = true, installedVersionCode=94){calls++;Connection(fixture(if(calls==1)94 else 95))}.execute().versionCode)
+        assertEquals(95L,ReleaseUpdateHttpCall(mirrorEnabled = true, installedVersionCode=94){calls++;Connection(fixture(if(calls==1)94 else 95, domestic=calls==1))}.execute().versionCode)
         assertEquals(2,calls);calls=0
-        assertEquals(94L,ReleaseUpdateHttpCall(mirrorEnabled = true, installedVersionCode=94){calls++;Connection(fixture(),if(calls==1)200 else 500)}.execute().versionCode)
+        assertEquals(94L,ReleaseUpdateHttpCall(mirrorEnabled = true, installedVersionCode=94){calls++;Connection(fixture(domestic=calls==1),if(calls==1)200 else 500)}.execute().versionCode)
         assertEquals(2,calls);calls=0
-        assertEquals(95L,ReleaseUpdateHttpCall(mirrorEnabled = true, installedVersionCode=94){calls++;Connection(fixture(95))}.execute().versionCode)
+        assertEquals(95L,ReleaseUpdateHttpCall(mirrorEnabled = true, installedVersionCode=94){calls++;Connection(fixture(95, domestic=true))}.execute().versionCode)
         assertEquals(1,calls)
     }
 }
