@@ -87,7 +87,7 @@ class CurveEditorActivity : ThemedActivity() {
             background = null
             backgroundTintList = null
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24f)
-            typeface = TaskTypography.face(this@CurveEditorActivity, 600)
+            typeface = TaskTypography.face(this@CurveEditorActivity, 700)
             if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(AppTextUnits.pixels(resources, 32f).toInt())
             setPaddingRelative(0, style.dp(8), style.dp(8), style.dp(8))
             minimumHeight = style.dp(48); minHeight = style.dp(48)
