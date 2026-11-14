@@ -147,7 +147,10 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                             check(modeLabels.map { it.text.toString() } == labels.map(activity::getString))
                             check(modeLabels.map { it.isChecked } == listOf(bits and 0x40 != 0, bits and 0x80 != 0))
                             check(modeLabels.all { it.isEnabled == MachineSettingsEditGate.allowed(owner) })
-                            if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all { it.stateDescription == null })
+                            // Switch restores its platform on/off state description when the override is cleared.
+                            if (android.os.Build.VERSION.SDK_INT >= 30) check(modeLabels.all {
+                                it.stateDescription != activity.getString(R.string.machine_mode_missing)
+                            })
                         }
                     }
                 } finally {
