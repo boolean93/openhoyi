@@ -18,6 +18,7 @@ from gitee_mirror_publish import ManifestState, OutcomeUnknown, PublishError
 API = 'https://gitee.com/api/v5/repos/boolean93/openhoyi'
 MANIFEST = 'contents/updates/dev.json'
 BRANCH = 'main'
+MISSING = object()
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -71,14 +72,14 @@ class GiteeBackend:
         status, _, raw = self.http.request(method, API + '/' + path, body, mime)
         if method != 'GET' and status >= 500:
             raise OutcomeUnknown('Remote mutation outcome unknown')
-        if status == 404 and missing and method == 'GET': return None
+        if status == 404 and missing and method == 'GET': return MISSING
         if status not in (200, 201): raise PublishError('Gitee API rejected request')
         try: return json.loads(raw)
         except (ValueError, UnicodeError): raise PublishError('Invalid Gitee JSON response') from None
 
     def manifest(self):
         value = self.api('GET', MANIFEST + '?ref=' + BRANCH, missing=True)
-        if value is None: return None
+        if value is MISSING: return None
         try:
             if value['encoding'] != 'base64' or not re.fullmatch('[0-9a-f]{40}', value['sha']):
                 raise ValueError()
@@ -89,15 +90,18 @@ class GiteeBackend:
     def release(self, tag):
         if not re.fullmatch(r'dev-[1-9][0-9]*', tag): raise PublishError('Invalid release tag')
         value = self.api('GET', 'releases/tags/' + tag, missing=True)
-        if value is None: return None
-        if value.get('tag_name') != tag or type(value.get('id')) is not int or value['id'] <= 0:
+        # Gitee public tags endpoint also returns HTTP 200 JSON null for absence.
+        if value is MISSING or value is None: return None
+        if not isinstance(value, dict) or value.get('tag_name') != tag or type(value.get('id')) is not int or value['id'] <= 0:
             raise PublishError('Invalid Gitee release identity')
         return value['id']
 
     def create_release(self, tag):
         if not re.fullmatch(r'dev-[1-9][0-9]*', tag): raise PublishError('Invalid release tag')
         # Empty repo must have a separately authorized bootstrap; never initialize here.
-        self.api('GET', 'branches/' + BRANCH)
+        branch = self.api('GET', 'branches/' + BRANCH)
+        if not isinstance(branch, dict) or branch.get('name') != BRANCH or not isinstance(branch.get('commit'), dict):
+            raise PublishError('Mirror main branch must be initialized explicitly')
         self.api('POST', 'releases', {'tag_name': tag, 'name': 'OpenHOYI ' + tag,
                  'body': 'GitHub Release mirror: https://github.com/boolean93/openhoyi/releases/tag/' + tag,
                  'target_commitish': BRANCH, 'prerelease': True})
@@ -108,10 +112,21 @@ class GiteeBackend:
         return f'releases/{release_id}/attach_files'
 
     def attachments(self, release_id):
-        value = self.api('GET', self.release_path(release_id))
-        if not isinstance(value, list) or any(not isinstance(x, dict) or not isinstance(x.get('name'), str) for x in value):
-            raise PublishError('Invalid Gitee attachment list')
-        return [x['name'] for x in value]
+        names, ids = [], set()
+        for page in range(1, 101):
+            value = self.api('GET', self.release_path(release_id) + f'?page={page}&per_page=100&direction=asc')
+            if not isinstance(value, list):
+                raise PublishError('Invalid Gitee attachment list')
+            if not value: return names
+            for item in value:
+                if (not isinstance(item, dict) or not isinstance(item.get('name'), str)
+                        or type(item.get('id')) is not int or item['id'] <= 0):
+                    raise PublishError('Invalid Gitee attachment list')
+                if item['id'] in ids or item['name'] in names:
+                    raise PublishError('Duplicate or unstable paginated attachment inventory')
+                ids.add(item['id'])
+                names.append(item['name'])
+        raise PublishError('Attachment pagination exceeds safety limit')
 
     def upload(self, release_id, name, data):
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name) or not 0 < len(data) <= MAX_ATTACHMENT:
