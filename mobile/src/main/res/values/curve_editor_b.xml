@@ -1,0 +1,11 @@
+<resources>
+    <string name="curve_editor_title">编辑曲线</string>
+    <string name="curve_editor_create">创建曲线</string>
+    <string name="curve_editor_save_copy">另存为新曲线</string>
+    <string name="curve_editor_preview_incomplete">部分阶段参数无效，缺失值以破折号显示；预览不代表可保存。</string>
+    <string name="curve_editor_value_required">请填写此数值</string>
+    <string name="curve_editor_value_number">请输入有效数字，最多一位小数</string>
+    <string name="curve_editor_target_range">范围：%1$s–%2$s %3$s</string>
+    <string name="curve_editor_water_range">水量范围：%1$s–%2$s mL</string>
+    <string name="curve_editor_first_flow">流量</string>
+</resources>

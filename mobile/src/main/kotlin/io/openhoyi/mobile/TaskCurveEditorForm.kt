@@ -44,7 +44,8 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     val stageRows = List(4) { panel() }
     val stageHeader = style.visual.row()
     val stageModes = List(4) { style.visual.text("", TaskProductVisualStyle.body).apply {
-        gravity = android.view.Gravity.CENTER; setPadding(dp(8), dp(2), dp(8), dp(2))
+        gravity = android.view.Gravity.CENTER; minimumHeight = dp(48); minHeight = dp(48)
+        setPadding(dp(8), dp(2), dp(8), dp(2))
         background = style.visual.shape(style.visual.selected, false, 8)
         tag = "curve-stage-mode-$it"
     } }
@@ -53,6 +54,8 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     val waterLimit = cell()
     val modeControls = cell()
+    val logicControls = cell()
+    val actions = cell()
     val configurationFields = cell()
     val supportingBody = panel()
     private val settingsBody = panel()
@@ -92,18 +95,18 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             val gap = dp(12)
             val min = dp((minimumDp * activity.resources.configuration.fontScale.coerceAtLeast(1f)).toInt())
             val visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
-            columns = ((width + gap) / (min + gap)).coerceIn(1, maxColumns).coerceAtMost(visible.size.coerceAtLeast(1))
-            val cellWidth = ((width - gap * (columns - 1)) / columns).coerceAtLeast(0)
+            columns = ((width - paddingLeft - paddingRight + gap) / (min + gap)).coerceIn(1, maxColumns).coerceAtMost(visible.size.coerceAtLeast(1))
+            val cellWidth = ((width - paddingLeft - paddingRight - gap * (columns - 1)) / columns).coerceAtLeast(0)
             visible.forEach { it.measure(MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)) }
             rowHeights = visible.chunked(columns).map { row -> row.maxOf { it.measuredHeight } }
             visible.forEachIndexed { index, child -> child.measure(MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(rowHeights[index / columns], MeasureSpec.EXACTLY)) }
-            setMeasuredDimension(width, rowHeights.sum() + gap * (rowHeights.size - 1).coerceAtLeast(0))
+            setMeasuredDimension(width, paddingTop + paddingBottom + rowHeights.sum() + gap * (rowHeights.size - 1).coerceAtLeast(0))
         }
         override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-            val gap = dp(12); var top = 0
+            val gap = dp(12); var top = paddingTop
             (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }.chunked(columns).forEachIndexed { rowIndex, row ->
                 row.forEachIndexed { index, child ->
-                    val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - (index + 1) * child.measuredWidth - index * gap else index * (child.measuredWidth + gap)
+                    val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - (index + 1) * child.measuredWidth - index * gap else paddingLeft + index * (child.measuredWidth + gap)
                     child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
                 }
                 top += rowHeights[rowIndex] + gap
@@ -112,12 +115,43 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     init {
         body.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
-        val metaGrid = CardGrid(205, 3)
-        metadata.forEach(metaGrid::addView)
-        column.addView(metaGrid, LinearLayout.LayoutParams(-1, -2))
-        modeControls.background = style.visual.shape(style.visual.surface, true)
-        modeControls.setPadding(dp(16), dp(4), dp(16), dp(4))
-        column.addView(modeControls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        // The name belongs to the title, not a third metadata card. Narrow windows wrap it.
+        val header = (body.tag as BeanPageRegions).header
+        val headerParent = header.parent as ViewGroup
+        val headerIndex = headerParent.indexOfChild(header)
+        headerParent.removeView(header)
+        val info = header.getChildAt(header.childCount - 1).takeIf { it is android.widget.Button }
+        if (info != null) header.removeView(info)
+        metadata[0].background = null
+        metadata[0].setPadding(dp(8), dp(4), dp(8), dp(4))
+        val titleName = object : ViewGroup(activity) {
+            private var wide = false
+            override fun generateDefaultLayoutParams() = LayoutParams(-1, -2)
+            override fun onMeasure(w: Int, h: Int) {
+                val width = MeasureSpec.getSize(w)
+                wide = width >= dp((620 * resources.configuration.fontScale).toInt())
+                val headingWidth = if (wide) dp(240) else width - dp(48)
+                header.measure(MeasureSpec.makeMeasureSpec(headingWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                metadata[0].measure(MeasureSpec.makeMeasureSpec(if (wide) minOf(dp(340), width - headingWidth - dp(48)) else width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                info?.measure(MeasureSpec.makeMeasureSpec(dp(48), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                setMeasuredDimension(width, if (wide) maxOf(header.measuredHeight, metadata[0].measuredHeight) else header.measuredHeight + metadata[0].measuredHeight)
+            }
+            override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+                header.layout(0, 0, header.measuredWidth, header.measuredHeight)
+                info?.layout(width - dp(48), 0, width, info.measuredHeight)
+                val x = if (wide) header.measuredWidth else 0
+                val y = if (wide) 0 else header.measuredHeight
+                metadata[0].layout(x, y, x + metadata[0].measuredWidth, y + metadata[0].measuredHeight)
+            }
+        }
+        titleName.addView(header); titleName.addView(metadata[0]); if (info != null) titleName.addView(info)
+        headerParent.addView(titleName, headerIndex, LinearLayout.LayoutParams(-1, -2))
+        val toolbar = CardGrid(180, 4).apply {
+            background = style.visual.shape(style.visual.surface, true)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+        }
+        listOf(metadata[1], metadata[2], modeControls, logicControls).forEach(toolbar::addView)
+        column.addView(toolbar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(12) })
         column.addView(stageHeader, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val grid = CardGrid(188, 4).apply { tag = "curve-stage-cards" }
         stageRows.forEachIndexed { index, card ->
@@ -127,7 +161,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                 shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(style.visual.stageColors[index])
             } }, LinearLayout.LayoutParams(dp(10), dp(10)))
             heading.addView(style.visual.text(activity.getString(R.string.profiles_stage, index + 1), TaskProductVisualStyle.section), LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
-            val remove = style.visual.action(heading, "−", "curve-stage-remove-$index", top = 0) {
+            val remove = style.visual.action(heading, "×", "curve-stage-remove-$index", top = 0) {
                 if (activeCount > 1 && index == activeCount - 1) changeCount(activeCount - 1)
             }.apply {
                 contentDescription = activity.getString(R.string.curve_editor_remove_stage, index + 1)
@@ -146,8 +180,10 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         val lower = CardGrid(320, 2)
         lower.addView(supportingBody)
         style.visual.add(settingsBody, style.visual.text(activity.getString(R.string.curve_editor_more_settings), TaskProductVisualStyle.section))
-        settingsBody.addView(waterLimit, LinearLayout.LayoutParams(-1, -2))
-        settingsBody.addView(configurationFields, LinearLayout.LayoutParams(-1, -2))
+        val settingsGrid = CardGrid(190, 2)
+        settingsGrid.addView(waterLimit); settingsGrid.addView(configurationFields)
+        settingsBody.addView(settingsGrid, LinearLayout.LayoutParams(-1, -2))
+        settingsBody.addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
         lower.addView(settingsBody)
         column.addView(lower, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
     }

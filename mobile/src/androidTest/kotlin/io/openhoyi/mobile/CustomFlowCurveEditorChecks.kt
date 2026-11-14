@@ -8,8 +8,6 @@ import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.Spinner
-import android.widget.Switch
 import android.widget.TextView
 
 /** Opt-in disposable Mock UI regression. It never selects a curve or starts an extraction. */
@@ -49,10 +47,13 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
             view.getGlobalVisibleRect(rect) && rect.width() >= view.width && rect.height() >= view.height
         }
     }
-    private fun save(activity: Activity) {
+    private fun save(activity: Activity): CustomCurveDocument? {
+        val store = (context.applicationContext as MobileApplication).customCurvesResult.getOrThrow()
+        val before = store.list().map { it.id }.toSet()
         visible(activity, "save")
         main { check(tag(activity, "save").isEnabled); check(tag(activity, "save").performClick()) }
         test.waitForIdleSync()
+        return store.list().singleOrNull { it.id !in before }
     }
     private fun recreate(activity: Activity, rotate: Boolean = false): Activity {
         val monitor = test.addMonitor(CurveEditorActivity::class.java.name, null, false)
@@ -89,45 +90,45 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
         try {
             var newEditor = start(CurveEditorActivity::class.java)
             main {
-                check(!(tag(newEditor, "control-mode") as Switch).isChecked)
+                check(!(tag(newEditor, "control-mode") as CurveEditorSegments).checked)
                 check(tag(newEditor, "first-mode").visibility == View.GONE)
                 check(tag(newEditor, "pressure-logic").visibility == View.VISIBLE)
-                (tag(newEditor, "control-mode") as Switch).isChecked = true
+                (tag(newEditor, "control-mode") as CurveEditorSegments).selectFromUser(true)
             }
             await("flow-only controls visible") { tag(newEditor, "first-mode").visibility == View.VISIBLE && tag(newEditor, "pressure-logic").visibility == View.VISIBLE }
             main {
-                check((tag(newEditor, "pressure-logic") as Switch).isChecked)
-                val firstMode = tag(newEditor, "first-mode") as Spinner
-                check(firstMode.isClickable && firstMode.isEnabled && firstMode.height >= HoyiUi.dp(newEditor, 48))
-                check((firstMode.selectedView as TextView).text.toString() == context.getString(R.string.curve_editor_mode_first_pressure))
+                check((tag(newEditor, "pressure-logic") as CurveEditorSegments).checked)
+                val firstMode = tag(newEditor, "first-mode") as CurveEditorSegments
+                check(firstMode.isEnabled && firstMode.height >= HoyiUi.dp(newEditor, 48))
+                check(firstMode.text.toString() == context.getString(R.string.curve_editor_mode_first_pressure))
                 check(root(newEditor).findViewWithTag<View>("curve-stage-mode-0").visibility == View.GONE)
-                (tag(newEditor, "control-mode") as Switch).isChecked = false
+                (tag(newEditor, "control-mode") as CurveEditorSegments).selectFromUser(false)
             }
             await("pressure controls restored") {
                 tag(newEditor, "first-mode").visibility == View.GONE && tag(newEditor, "pressure-logic").visibility == View.VISIBLE &&
-                    !(tag(newEditor, "pressure-logic") as Switch).isChecked
+                    !(tag(newEditor, "pressure-logic") as CurveEditorSegments).checked
             }
             main {
-                check((tag(newEditor, "control-mode") as Switch).text == context.getString(R.string.curve_control_pressure))
-                check((tag(newEditor, "pressure-logic") as Switch).text == context.getString(R.string.curve_control_constant))
-                (tag(newEditor, "pressure-logic") as Switch).isChecked = true
+                check((tag(newEditor, "control-mode") as CurveEditorSegments).text == context.getString(R.string.curve_control_pressure))
+                check((tag(newEditor, "pressure-logic") as CurveEditorSegments).text == context.getString(R.string.curve_control_constant))
+                (tag(newEditor, "pressure-logic") as CurveEditorSegments).selectFromUser(true)
                 input(newEditor, "name").setText("Pressure follow draft")
             }
             newEditor = recreate(newEditor)
             main {
-                check(!(tag(newEditor, "control-mode") as Switch).isChecked)
-                check((tag(newEditor, "pressure-logic") as Switch).isChecked)
-                check((tag(newEditor, "pressure-logic") as Switch).text == context.getString(R.string.curve_control_follow))
+                check(!(tag(newEditor, "control-mode") as CurveEditorSegments).checked)
+                check((tag(newEditor, "pressure-logic") as CurveEditorSegments).checked)
+                check((tag(newEditor, "pressure-logic") as CurveEditorSegments).text == context.getString(R.string.curve_control_follow))
                 check(input(newEditor, "name").text.toString() == "Pressure follow draft")
                 // Official fSwChange: follow -> flow (fast), then slow -> pressure (constant).
-                (tag(newEditor, "control-mode") as Switch).isChecked = true
-                check((tag(newEditor, "pressure-logic") as Switch).isChecked)
-                (tag(newEditor, "pressure-logic") as Switch).isChecked = false
-                (tag(newEditor, "control-mode") as Switch).isChecked = false
-                check(!(tag(newEditor, "pressure-logic") as Switch).isChecked)
+                (tag(newEditor, "control-mode") as CurveEditorSegments).selectFromUser(true)
+                check((tag(newEditor, "pressure-logic") as CurveEditorSegments).checked)
+                (tag(newEditor, "pressure-logic") as CurveEditorSegments).selectFromUser(false)
+                (tag(newEditor, "control-mode") as CurveEditorSegments).selectFromUser(false)
+                check(!(tag(newEditor, "pressure-logic") as CurveEditorSegments).checked)
                 // A changed draft must not alter the persisted source until Save.
                 check(source(newEditor).configuration == null)
-                (tag(newEditor, "pressure-logic") as Switch).isChecked = false
+                (tag(newEditor, "pressure-logic") as CurveEditorSegments).selectFromUser(false)
             }
             var newPressureId = ""
             main {
@@ -147,7 +148,7 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
             var followId = ""
             main {
                 followId = source(followEditor).id
-                (tag(followEditor, "pressure-logic") as Switch).isChecked = true
+                (tag(followEditor, "pressure-logic") as CurveEditorSegments).selectFromUser(true)
             }
             created += followId
             save(followEditor)
@@ -159,10 +160,11 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
             val savedFollow = requireNotNull(store.find(followId))
             val reopenedFollow = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, followId) }
             main {
-                check((tag(reopenedFollow, "pressure-logic") as Switch).isChecked)
-                check(!(tag(reopenedFollow, "control-mode") as Switch).isChecked)
+                check((tag(reopenedFollow, "pressure-logic") as CurveEditorSegments).checked)
+                check(!(tag(reopenedFollow, "control-mode") as CurveEditorSegments).checked)
             }
-            save(reopenedFollow)
+            val followCopy = requireNotNull(save(reopenedFollow)); created += followCopy.id
+            check(followCopy == savedFollow.copy(id = followCopy.id) && followCopy.id != savedFollow.id)
             await("pressure follow no-edit save") { reopenedFollow.isDestroyed && store.find(followId) == savedFollow }
             check(CustomCurveDocument.decode(savedFollow.encode()) == savedFollow)
             for ((index, item) in representatives.withIndex()) {
@@ -171,15 +173,17 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                 main {
                     copied = source(editor)
                     check(copied == CustomCurveDocument.fromLibraryItem(item, copied.id))
-                    check((root(editor).findViewWithTag<View>("task-form-stage-preview") as CurveStageView).preview?.mixed == true)
+                    check((root(editor).findViewWithTag<View>("task-form-stage-preview") as CurveEditorPreviewView).model.stages.map { it.flow }.distinct().size == 2)
                 }
-                created += copied.id
-                // A true no-edit save must not erase timers, flags or inactive slots.
-                save(editor); await("copy saved") { editor.isDestroyed && store.find(copied.id) == copied }
+                // A true no-edit save gets a new ID without erasing timers, flags or inactive slots.
+                val originalCopy = copied
+                copied = requireNotNull(save(editor)); created += copied.id
+                check(copied == originalCopy.copy(id = copied.id))
+                await("copy saved") { editor.isDestroyed && store.find(copied.id) == copied }
                 editor = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, copied.id) }
                 main {
-                    (tag(editor, "first-mode") as Spinner).setSelection(1)
-                    (tag(editor, "pressure-logic") as Switch).isChecked = index == 0
+                    (tag(editor, "first-mode") as CurveEditorSegments).selectFromUser(true)
+                    (tag(editor, "pressure-logic") as CurveEditorSegments).selectFromUser(index == 0)
                     input(editor, "target-0").setText("2.5")
                     input(editor, "cup").setText("36")
                     input(editor, "preinfusion").setText("4")
@@ -187,35 +191,38 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                     input(editor, "compensation").setText("0.2")
                 }
                 await("first flow preview") {
-                    val preview = (root(editor).findViewWithTag<View>("task-form-stage-preview") as CurveStageView).preview
-                    preview?.hasFlow == true && !preview.mixed
+                    val preview = (root(editor).findViewWithTag<View>("task-form-stage-preview") as CurveEditorPreviewView).model
+                    preview.stages.all { it.flow }
                 }
                 main {
-                    (tag(editor, "control-mode") as Switch).isChecked = false
+                    (tag(editor, "control-mode") as CurveEditorSegments).selectFromUser(false)
                     check(tag(editor, "first-mode").visibility == View.GONE)
                 }
                 editor = recreate(editor)
                 main {
-                    (tag(editor, "control-mode") as Switch).isChecked = true
-                    check((tag(editor, "pressure-logic") as Switch).isChecked) // Flow always starts fast.
-                    check((tag(editor, "first-mode") as Spinner).selectedItemPosition == 1)
+                    (tag(editor, "control-mode") as CurveEditorSegments).selectFromUser(true)
+                    check((tag(editor, "pressure-logic") as CurveEditorSegments).checked) // Flow always starts fast.
+                    check((tag(editor, "first-mode") as CurveEditorSegments).checked)
                     check(input(editor, "target-0").text.toString() == "2.5")
-                    (tag(editor, "pressure-logic") as Switch).isChecked = index == 0
+                    (tag(editor, "pressure-logic") as CurveEditorSegments).selectFromUser(index == 0)
                 }
                 for (key in listOf("control-mode", "first-mode", "pressure-logic", "target-0", "water-0", "preinfusion", "first-duration", "compensation")) visible(editor, key)
                 editor = recreate(editor, rotate = index == 0)
                 main {
-                    check((tag(editor, "control-mode") as Switch).isChecked)
-                    check((tag(editor, "first-mode") as Spinner).selectedItemPosition == 1)
-                    check((tag(editor, "pressure-logic") as Switch).isChecked == (index == 0))
+                    check((tag(editor, "control-mode") as CurveEditorSegments).checked)
+                    check((tag(editor, "first-mode") as CurveEditorSegments).checked)
+                    check((tag(editor, "pressure-logic") as CurveEditorSegments).checked == (index == 0))
                     mapOf("target-0" to "2.5", "cup" to "36", "preinfusion" to "4", "first-duration" to "8", "compensation" to "0.2")
                         .forEach { (key, value) -> check(input(editor, key).text.toString() == value) }
                 }
-                val expected = copied.copy(targetHundredthsGram = 3600,
+                var expected = copied.copy(targetHundredthsGram = 3600,
                     stages = copied.stages.mapIndexed { at, stage -> if (at == 0) stage.copy(target = 25) else stage },
                     configuration = copied.configuration!!.copy(firstSegmentFlowMode = true, pressureLogic = index == 0,
                         preinfusionSeconds = 4, firstDurationSeconds = 8, compensationHundredthsGram = 20))
-                save(editor); await("edited saved") { editor.isDestroyed && store.find(copied.id) == expected }
+                val edited = requireNotNull(save(editor)); created += edited.id
+                check(edited == expected.copy(id = edited.id) && store.find(copied.id) == copied)
+                copied = edited; expected = edited
+                await("edited saved") { editor.isDestroyed && store.find(copied.id) == expected }
                 editor = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, copied.id) }
                 main { check(source(editor) == expected); input(editor, "water-0").setText("0"); input(editor, "first-duration").setText("0") }
                 save(editor)
@@ -254,13 +261,14 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                 store.save(old); created += old.id
                 var editor = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, old.id) }
                 main { selectCurveStageCount(root(editor), 2) }
-                save(editor); await("old reduced saved") { editor.isDestroyed && store.find(old.id)?.stages?.size == 2 }
+                val reduced = requireNotNull(save(editor)); created += reduced.id
+                await("old reduced saved") { editor.isDestroyed && reduced.stages.size == 2 }
+                check(store.find(old.id) == old)
                 main {
-                    val reduced = requireNotNull(store.find(old.id))
                     check(reduced.configuration!!.inactiveStages == old.stages.drop(2))
                     check(reduced.totalWaterLimitMl == old.totalWaterLimitMl)
                 }
-                editor = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, old.id) }
+                editor = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, reduced.id) }
                 main {
                     selectCurveStageCount(root(editor), 4)
                     old.stages.forEachIndexed { index, stage ->
@@ -268,7 +276,9 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                         check(input(editor, "water-$index").text.toString() == CurveDraftNumber.format(stage.waterTenthsMl, 1))
                     }
                 }
-                save(editor); await("hidden stages restored") { editor.isDestroyed && store.find(old.id)?.stages == old.stages }
+                val restored = requireNotNull(save(editor)); created += restored.id
+                await("hidden stages restored") { editor.isDestroyed && restored.stages == old.stages }
+                check(store.find(old.id) == old && store.find(reduced.id) == reduced)
             }
             val raw = CustomCurveDocument(CustomCurveDocument.newId(), "Legacy raw editor guard", 93, 0,
                 CustomCurveDocument.ControlMode.FLOW_RAW, listOf(CustomCurveDocument.Stage(25, 150), CustomCurveDocument.Stage(35, 400)))

@@ -54,6 +54,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var historyFooterArguments: Bundle? = null
     private var customExecution = false
     private var customFlowEditorChecks = false
+    private var editorBArguments: Bundle? = null
     private var systemDocuments = false
     private var disposableCiEmulator = false
     private var documentContracts = false
@@ -95,6 +96,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         historyFooterArguments = arguments?.takeIf {it.getString("historyFooterChecks")=="true"}?.let(::Bundle)
         customExecution = arguments?.getString("customExecution") == "true"
         customFlowEditorChecks = arguments?.getString("customFlowEditorChecks") == "true"
+        editorBArguments = arguments?.takeIf { it.getString("editorBChecks") == "true" }?.let(::Bundle)
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
         documentContracts = arguments?.getString("documentContracts") == "true"
@@ -117,6 +119,11 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            editorBArguments?.let { args ->
+                CurveEditorBChecks(this).run(args)
+                report.putString("stream", "EDITOR_B_CHECKS_PASSED copy=true referencesUnchanged=true livePreview=true invalidRecovery=true repeatedSave=true cancel=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             if (fontSizeChecks) {
                 FontSizeRuntimeChecks(this).run()
                 report.putString("stream", "FONT_SIZE_CHECKS_PASSED independentSystemScale=true previewCancelApply=true preheatRequestPreserved=true navigationCancel=true sameCup=true sameService=true retainedDraft=true noBle=true\n")

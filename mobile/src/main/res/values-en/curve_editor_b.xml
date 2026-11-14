@@ -1,0 +1,11 @@
+<resources>
+    <string name="curve_editor_title">Edit curve</string>
+    <string name="curve_editor_create">Create curve</string>
+    <string name="curve_editor_save_copy">Save as new curve</string>
+    <string name="curve_editor_preview_incomplete">Some stage values are invalid. Missing values are shown as dashes; this preview does not mean the curve can be saved.</string>
+    <string name="curve_editor_value_required">Enter a value</string>
+    <string name="curve_editor_value_number">Enter a number with at most one decimal place</string>
+    <string name="curve_editor_target_range">Range: %1$s–%2$s %3$s</string>
+    <string name="curve_editor_water_range">Water range: %1$s–%2$s mL</string>
+    <string name="curve_editor_first_flow">Flow</string>
+</resources>
