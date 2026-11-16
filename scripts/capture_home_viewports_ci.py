@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 import struct
+import re
 import xml.etree.ElementTree as ET
 
 PACKAGE = "io.openhoyi.mobile.mock"
@@ -110,6 +111,32 @@ def main():
             "requestedAppFontScale": {"small": .9, "medium": 1., "large": 1.1}[font],
             "fontEvidence": "production preference confirmed before cold launch; runtime font scale not instrumented",
             "scrollPerformed": False, "slotActionsPerformed": False}, indent=2) + "\n")
+        if name == "flat-landscape-large":
+            # Real swipe inside the blank center of this known flat Home heading;
+            # never tap a slot or a machine control. The fresh CI guard still owns
+            # the target. This proves actual overflow reachability, not one-screen fit.
+            if not any(n.get("class") == "android.widget.ScrollView" and
+                       n.get("scrollable") == "true" and n.get("bounds") == "[130,35][1600,340]"
+                       for n in home_nodes):
+                raise RuntimeError("Flat Home scroll geometry changed; refuse blind input")
+            adb("shell", "input", "swipe", "800", "260", "800", "100", "300")
+            time.sleep(1)
+            after = adb("exec-out", "uiautomator", "dump", "/dev/tty")
+            (folder / "scrolled-window.xml").write_text(after)
+            (folder / "home-scrolled.png").write_bytes(adb("exec-out", "screencap", "-p", binary=True))
+            tree = ET.fromstring(after[after.find("<?xml"):after.find("</hierarchy>") + 12])
+            expected = {"Espresso深烘", "SOE浅烘", "HOYI Turbo Shot", "HOYI Limit Extraction", "Hyper Ex 超萃手冲"}
+            cards = [n for n in tree.iter("node") if n.get("package") == PACKAGE and
+                     n.get("clickable") == "true" and n.get("content-desc") in expected]
+            if {n.get("content-desc") for n in cards} != expected:
+                raise RuntimeError("Not all five slots are reachable after scroll")
+            bounds = [list(map(int, re.findall(r"\d+", n.get("bounds")))) for n in cards]
+            if any(x2 - x1 < 60 or y2 - y1 < 60 or y1 < 35 or y2 > 340
+                   for x1, y1, x2, y2 in bounds):
+                raise RuntimeError("Scrolled slot lacks a complete 48dp touch region")
+            (folder / "scroll-result.json").write_text(json.dumps({"slotBounds": bounds,
+                "allFiveReachable": True, "minimumVisibleTouchDp": 48,
+                "oneScreenFit": False, "slotActionsPerformed": False}, indent=2) + "\n")
     print(f"HOME_VIEWPORT_CAPTURES_COMPLETE cases={len(CASES)} humanReviewRequired=true")
 
 
