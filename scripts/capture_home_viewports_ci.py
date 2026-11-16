@@ -141,6 +141,7 @@ def main():
             (folder / "scrolled-window.xml").write_text(after)
             (folder / "home-scrolled.png").write_bytes(adb("exec-out", "screencap", "-p", binary=True))
             tree = ET.fromstring(after[after.find("<?xml"):after.find("</hierarchy>") + 12])
+            left, top, right, bottom = home_scroll(list(tree.iter("node")), width)
             expected = {"Espresso深烘", "SOE浅烘", "HOYI Turbo Shot", "HOYI Limit Extraction", "Hyper Ex 超萃手冲"}
             cards = [n for n in tree.iter("node") if n.get("package") == PACKAGE and
                      n.get("clickable") == "true" and n.get("content-desc") in expected]
