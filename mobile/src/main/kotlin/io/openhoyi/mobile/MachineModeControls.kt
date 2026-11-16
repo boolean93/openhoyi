@@ -108,10 +108,12 @@ internal class MachineModeHeader(context: Context, private val heading: LinearLa
         addView(controls, LayoutParams(-2, -2))
     }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        gravity = android.view.Gravity.CENTER_VERTICAL or
+            (if (heading.visibility == View.GONE) android.view.Gravity.END else android.view.Gravity.START)
         val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
         heading.measure(free, free); controls.measure(free, free)
         val available = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
-        val stacked = heading.measuredWidth + controls.measuredWidth + (resources.displayMetrics.density * 12).toInt() > available
+        val stacked = (if (heading.visibility == View.GONE) 0 else heading.measuredWidth) + controls.measuredWidth + (resources.displayMetrics.density * 12).toInt() > available
         orientation = if (stacked) VERTICAL else HORIZONTAL
         (heading.layoutParams as LayoutParams).apply { width = if (stacked) -1 else 0; weight = if (stacked) 0f else 1f }
         (controls.layoutParams as LayoutParams).apply {

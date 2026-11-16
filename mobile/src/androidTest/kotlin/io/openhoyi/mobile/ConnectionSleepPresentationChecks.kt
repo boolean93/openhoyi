@@ -123,7 +123,9 @@ internal class ConnectionSleepPresentationChecks(private val test:Instrumentatio
                         val hint=shell.findViewWithTag<TextView>("task-shell-coffee-hint")
                         val retry=shell.findViewWithTag<Button>("task-shell-coffee-retry")
                         val headerAction=host.viewField<Button>(fragment,"machineConnect").text.toString()
-                        check(header==host.activity.getString(R.string.home_machine_title)+" · "+label) {"Header contains extra process text: $header"}
+                        check(header.isEmpty() && !host.viewField<TextView>(fragment,"status").isShown) {
+                            "Home must not duplicate the shell connection status: $header"
+                        }
                         check(status==label && !hint.isShown) {"Connection hint remained on the actual rail"}
                         check(retry.isShown && retry.layout.lineCount==1)
                         check(!retry.contentDescription.toString().contains('\uFFFC'))
