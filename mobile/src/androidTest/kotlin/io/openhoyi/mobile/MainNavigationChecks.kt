@@ -11,6 +11,8 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ListView
+import android.widget.TextView
+
 import io.openhoyi.session.ExtractionState
 
 /** Exercises the rendered six-tab host, never the redirect Activities. */
@@ -61,7 +63,10 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             check(root.findViewWithTag<View>("product/home/connect") == null) {
                 "Home must not duplicate the shell connection/retry controls"
             }
-            val tags = listOf("machine-status", "brew-boiler", "steam-boiler",
+            val duplicateStatus = requireNotNull(root.findViewWithTag<TextView>("product/home/service-status"))
+            check(!duplicateStatus.isShown || duplicateStatus.text.toString() ==
+                home.getString(R.string.home_manual_shot_status)) { "Home duplicated the shell machine status" }
+            val tags = listOf("brew-boiler", "steam-boiler",
                 "brew-boiler/toggle", "steam-boiler/toggle", "machine-mode/control", "machine-mode/logic") +
                 (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
                     listOf("direct-preset/$it", "direct-preset/$it/preview")

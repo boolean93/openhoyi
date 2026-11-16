@@ -1110,4 +1110,5 @@
     <string name="curve_editor_bloom_short">闷蒸</string>
     <string name="curve_editor_duration_short">首段限时</string>
     <string name="curve_editor_compensation_short">重量补偿</string>
+    <string name="home_preset_full_name">曲线完整名称</string>
 </resources>

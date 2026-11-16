@@ -71,7 +71,10 @@ class TaskLayoutPolicyTest {
     fun compactHomeUsesOnlyShortLandscapeWindows() {
         assertTrue(TaskLayoutPolicy.compactHome(284, portrait = false))
         assertTrue(TaskLayoutPolicy.compactHome(420, portrait = false))
-        assertFalse(TaskLayoutPolicy.compactHome(421, portrait = false))
+        assertTrue(TaskLayoutPolicy.compactHome(480, portrait = false))
+        assertTrue(TaskLayoutPolicy.compactHome(520, portrait = false))
+        assertFalse(TaskLayoutPolicy.compactHome(521, portrait = false))
+        assertFalse(TaskLayoutPolicy.compactHome(600, portrait = false))
         assertFalse(TaskLayoutPolicy.compactHome(240, portrait = true))
         assertFalse(TaskLayoutPolicy.compactHome(1138, portrait = true))
     }
