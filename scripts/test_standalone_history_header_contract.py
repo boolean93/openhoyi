@@ -29,7 +29,7 @@ class StandaloneHeaderContract(unittest.TestCase):
             path=self.root/relative;path.parent.mkdir(parents=True,exist_ok=True)
             nodes=[dict(rectPx=t['visibility']['rectPx'],textLineBoxes=[dict(text=t['text'],lineCount=t['lineCount'],ellipsisCount=0)],**({'semanticId':t['semanticId']} if t['semanticId'] is not None else {})) for t in snapshot['texts']]
             nodes += [dict(semanticId=c['semanticId'],rectPx=c['layout']['rectPx'],textLineBoxes=[]) for c in snapshot['controls']]
-            target=dict(densityDpi=360,nodes=nodes,standaloneHeader=snapshot,standaloneHistoryPlot=dict(plotPresent=True,actualPlotHeightDp=96.1,visiblePlotHeightDp=96.1))
+            target=dict(densityDpi=360,nodes=nodes,standaloneHeader=snapshot,standaloneHistoryPlot=dict(plotPresent=True,actualPlotHeightDp=160.1,visiblePlotHeightDp=96.1))
             path.write_text(json.dumps(dict(captureWindowKind='ACTIVITY',acceptedAttempt=1,attempts=[dict(geometryBefore=dict(target=target),geometryAfter=dict(target=target))])))
             path.with_name('geometry.json').write_text(json.dumps(target))
         (self.root/'standalone-header-reachability.json').write_text(json.dumps(self.report))
@@ -42,6 +42,38 @@ class StandaloneHeaderContract(unittest.TestCase):
         self.assertNotIn('semanticId',explanation)
         self.assertIsNone(target['standaloneHeader']['texts'][16]['semanticId'])
         self.validate(self.root)
+    def test_page_scroll_can_reveal_header_without_visible_plot(self):
+        self.save()
+        for relative in ['states/detail-header-initial/window-frame-sync.json',self.report['restoredProof'],*[p['proof'] for p in self.report['pages']]]:
+            path=self.root/relative;proof=json.loads(path.read_text())
+            target=proof['attempts'][0]['geometryBefore']['target']
+            target['standaloneHistoryPlot']['visiblePlotHeightDp']=0
+            proof['attempts'][0]['geometryAfter']['target']=copy.deepcopy(target)
+            path.write_text(json.dumps(proof));path.with_name('geometry.json').write_text(json.dumps(target))
+        self.validate(self.root)
+    def test_plot_floor_not_met_fails(self):
+        self.save()
+        path=self.root/'states/detail-header-0/window-frame-sync.json';proof=json.loads(path.read_text())
+        target=proof['attempts'][0]['geometryBefore']['target'];target['standaloneHistoryPlot']['actualPlotHeightDp']=159.9
+        proof['attempts'][0]['geometryAfter']['target']=copy.deepcopy(target)
+        path.write_text(json.dumps(proof));path.with_name('geometry.json').write_text(json.dumps(target))
+        with self.assertRaises(AssertionError):self.validate(self.root)
+    def test_on_demand_range_proof_passes_and_missing_or_changed_range_fails(self):
+        metric='WATER'
+        for snapshot in [self.report['initial'],self.report['restored'],self.report['pages'][0]['snapshot']]:
+            snapshot['texts']=[t for t in snapshot['texts'] if t['semanticId']!='chart-range:'+metric]
+            next(c for c in snapshot['controls'] if c['semanticId']=='chart-metric:'+metric)['contentDescription']='Water; 0–30 mL; hint'
+        self.save()
+        relative='states/detail-range-water/window-frame-sync.json';path=self.root/relative;path.parent.mkdir(parents=True)
+        target=dict(rangeText='0–30 mL',expectedRange='0–30 mL',explanation='source',range={'complete':True})
+        def save_range():
+            path.write_text(json.dumps(dict(captureWindowKind='EXPLICIT_WINDOW',acceptedAttempt=1,attempts=[dict(geometryBefore={'target':target})])))
+            (self.root/'standalone-metric-ranges.json').write_text(json.dumps(dict(completed=True,ranges=[dict(metric=metric,proof=relative,target=target)])))
+        save_range();self.validate(self.root)
+        target['rangeText']='wrong';save_range()
+        with self.assertRaises(AssertionError):self.validate(self.root)
+        target['rangeText']=target['expectedRange'];target['range']['complete']=False;save_range()
+        with self.assertRaises(AssertionError):self.validate(self.root)
     def test_missing_line_coverage_fails(self):
         self.report['pages'][0]['snapshot']['texts'][0]['rows'][0].update(rectPx=[0,310,20,330],complete=False)
         with self.assertRaises(AssertionError):self.run_gate()
