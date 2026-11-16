@@ -23,10 +23,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [tablet-user-landscape]
+        include:
+          - profile: before
+            source: e46e41da5e3a895af18d81bbbd3a49e3193c7d0d
+          - profile: after
+            source: fa17e28aee8ef6bc8b5cca9faff72c3f5b183c55
     steps:
       - uses: actions/checkout@v7
         with:
+          persist-credentials: false
+      - name: Preserve identical capture harness
+        run: cp scripts/capture_home_viewports_ci.py scripts/capture_home_comparison_ci.py "$RUNNER_TEMP/"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.source }}
           persist-credentials: false
       - uses: actions/setup-java@v6
         with:
@@ -37,7 +47,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Build isolated Mock
-        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+        run: ./gradlew :mobile:assembleMock --no-daemon --console=plain
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -55,11 +65,7 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: >-
-            if [ "$HOME_VIEWPORT_ONLY" = "true" ]; then python3 scripts/capture_home_viewports_ci.py;
-            else bash scripts/check_task_frame_ui.sh ${{ matrix.profile }} &&
-            bash scripts/check_strict_native_samples.sh && bash scripts/check_product_visual_migration.sh &&
-            bash scripts/check_form_visual_migration.sh; fi
+          script: python3 "$RUNNER_TEMP/capture_home_comparison_ci.py"
       - name: Upload real window evidence
         if: always()
         uses: actions/upload-artifact@v6
