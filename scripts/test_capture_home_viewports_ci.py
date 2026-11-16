@@ -2,6 +2,7 @@ import importlib.util
 import os
 from pathlib import Path
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("capture_home", Path(__file__).with_name("capture_home_viewports_ci.py"))
@@ -33,6 +34,15 @@ class EnvironmentGuardTests(unittest.TestCase):
         self.assertTrue(any(w < h for _, w, h, _ in capture.CASES))
         self.assertTrue(any(w == h for _, w, h, _ in capture.CASES))
         self.assertTrue(any(w / h >= 4 for _, w, h, _ in capture.CASES))
+
+    def test_scroll_geometry_comes_from_actual_insets_and_excludes_rail(self):
+        for bottom in (325, 340):
+            nodes = [ET.Element("node", {"package": capture.PACKAGE,
+                "class": "android.widget.ScrollView", "scrollable": "true", "bounds": value})
+                for value in (f"[0,35][130,{bottom}]", f"[130,35][1600,{bottom}]")]
+            self.assertEqual([130, 35, 1600, bottom], capture.home_scroll(nodes, 1600))
+            with self.assertRaises(RuntimeError):
+                capture.home_scroll(nodes[:1], 1600)
 
 
 if __name__ == "__main__":

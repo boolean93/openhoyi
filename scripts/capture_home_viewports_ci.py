@@ -49,6 +49,20 @@ def require_environment():
         raise RuntimeError("Fresh emulator required; refusing to modify an existing installation")
 
 
+def bounds(node):
+    return list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
+
+
+def home_scroll(nodes, width):
+    candidates = [n for n in nodes if n.get("package") == PACKAGE and
+                  n.get("class") == "android.widget.ScrollView" and
+                  n.get("scrollable") == "true" and len(bounds(n)) == 4 and
+                  bounds(n)[0] > 0 and bounds(n)[2] - bounds(n)[0] > width / 2]
+    if len(candidates) != 1:
+        raise RuntimeError("Cannot uniquely identify actual Home scroll container")
+    return bounds(candidates[0])
+
+
 def main():
     require_environment()  # All guards precede installation or display changes.
     out = Path("build/home-viewports")
@@ -115,11 +129,13 @@ def main():
             # Real swipe inside the blank center of this known flat Home heading;
             # never tap a slot or a machine control. The fresh CI guard still owns
             # the target. This proves actual overflow reachability, not one-screen fit.
-            if not any(n.get("class") == "android.widget.ScrollView" and
-                       n.get("scrollable") == "true" and n.get("bounds") == "[130,35][1600,340]"
-                       for n in home_nodes):
-                raise RuntimeError("Flat Home scroll geometry changed; refuse blind input")
-            adb("shell", "input", "swipe", "800", "260", "800", "100", "300")
+            left, top, right, bottom = home_scroll(home_nodes, width)
+            x, start, end = (left + right) // 2, top + (bottom - top) * 3 // 4, top + (bottom - top) // 5
+            if any(n.get("clickable") == "true" and len(bounds(n)) == 4 and
+                   bounds(n)[0] <= x < bounds(n)[2] and bounds(n)[1] <= start < bounds(n)[3]
+                   for n in home_nodes):
+                raise RuntimeError("Swipe start intersects a control; refuse blind input")
+            adb("shell", "input", "swipe", str(x), str(start), str(x), str(end), "300")
             time.sleep(1)
             after = adb("exec-out", "uiautomator", "dump", "/dev/tty")
             (folder / "scrolled-window.xml").write_text(after)
@@ -130,11 +146,12 @@ def main():
                      n.get("clickable") == "true" and n.get("content-desc") in expected]
             if {n.get("content-desc") for n in cards} != expected:
                 raise RuntimeError("Not all five slots are reachable after scroll")
-            bounds = [list(map(int, re.findall(r"\d+", n.get("bounds")))) for n in cards]
-            if any(x2 - x1 < 60 or y2 - y1 < 60 or y1 < 35 or y2 > 340
-                   for x1, y1, x2, y2 in bounds):
+            card_bounds = [bounds(n) for n in cards]
+            if any(x2 - x1 < 60 or y2 - y1 < 60 or y1 < top or y2 > bottom
+                   for x1, y1, x2, y2 in card_bounds):
                 raise RuntimeError("Scrolled slot lacks a complete 48dp touch region")
-            (folder / "scroll-result.json").write_text(json.dumps({"slotBounds": bounds,
+            (folder / "scroll-result.json").write_text(json.dumps({"slotBounds": card_bounds,
+                "scrollViewport": [left, top, right, bottom],
                 "allFiveReachable": True, "minimumVisibleTouchDp": 48,
                 "oneScreenFit": False, "slotActionsPerformed": False}, indent=2) + "\n")
     print(f"HOME_VIEWPORT_CAPTURES_COMPLETE cases={len(CASES)} humanReviewRequired=true")
