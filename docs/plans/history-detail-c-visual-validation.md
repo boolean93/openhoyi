@@ -68,3 +68,11 @@ App字号只在一次性测试 Scope 的内存存储中设置，使用 AppFontSi
 用户已授权历史-only分支推送并在临时 GitHub CI 做真实多尺寸验收，实际图证据审核前暂不创建 PR，不操作本机平板。当前 runner 是上述 **7 个**代表配置，不是早期11配置 PLAN_ONLY 导出器。首配置追加一次压力图例的真实屏幕坐标 DOWN/UP 注入：坐标来自点击前严格 native frame 的完整至少48dp触区中心，验证指定压力弹窗的范围与bar单位，关闭后验证曲线原始数据/引用/trace/journal和选择状态保留，最后恢复原选择/焦点/滚动。其他配置沿用轻量可达检查；不能用 performClick 当作这一次实际触摸证据。
 
 本次仅修改仪器/host和本计划，未改生产代码、未运行Gradle或设备。实际注入、7配置与task resize仍待精确分支头的CI执行；通过编译/静态检查不代表已执行。最终补编译由协调方串行进行。
+
+## 最新冻结边界与仅本地入口修复
+
+本节覆盖前面的执行计划：协调方已核验用户最新明确批准精确历史范围的公开push/PR及必要检查后merge，并明确「不在Mac跑AVD，GitHub云端CI可以继续」。仅Mac AVD仍禁止；此前公开写入审核阻塞按最新核验授权处理。本轮实现者只保存本地补丁并静态冻结，不自行构建、公开写入或触发CI，由协调方串行接续。原CI-only/qemu安全入口保留，不转向用户平板。
+
+既有 CI `43815813317`（源码 `cfabcb123ef9c2bc487350d83f6adee1a631da2e`）保留原失败证据：前6case机械通过，square正常布局已截图，但freeform启动未观测到多窗口，因此未执行同task resize。不能称系统不支持freeform或resize已通过。host点击proof变量覆盖设置快照导致FAIL_RESTORE，已仅把临时变量改为tap_proof。
+
+本地仪器补丁明确在API34以AOSP私有options Bundle键 `android.activity.windowingMode=5` 请求freeform（不是公共SDK承诺）；在原断言前写入请求/实际bounds、multiwindow、PiP与平台feature诊断。原同task bounds变化/恢复、多窗口与布局检查保留；平台若拒绝仍失败，不加权限身份、不用反射、不假通过。两项纯源码/host轻量回归验证设置快照保全与options接线，**不代表Android编译或runtime验证**。本轮未Gradle、未AVD/设备或远端操作。

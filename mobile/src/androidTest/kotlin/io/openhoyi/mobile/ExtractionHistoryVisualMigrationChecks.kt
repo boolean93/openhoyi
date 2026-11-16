@@ -2963,12 +2963,24 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     fun shell(command:String)=android.os.ParcelFileDescriptor.AutoCloseInputStream(test.uiAutomation.executeShellCommand(command)).bufferedReader().use {it.readText()}
                     val resize=JSONObject().put("status","BLOCKED_REAL_TASK_RESIZE_UNSUPPORTED")
                     report.put("taskResize",resize)
-                    // Public launch bounds on a CI-only freeform-capable emulator, then resize the SAME task.
+                    // AOSP API34 PRIVATE options key, instrumentation only: bounds alone do not request freeform.
+                    check(Build.VERSION.SDK_INT==34) { "Private windowing-mode option is verified only for API34" }
+                    val requestedBounds=Rect(60,60,860,840)
+                    val launchOptions=android.app.ActivityOptions.makeBasic().setLaunchBounds(requestedBounds).toBundle()
+                    launchOptions.putInt("android.activity.windowingMode",5)
+                    resize.put("requestedWindowingMode",launchOptions.getInt("android.activity.windowingMode"))
+                        .put("requestedBounds",rect(requestedBounds)).put("sdkInt",Build.VERSION.SDK_INT)
+                        .put("featureFreeform",context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT))
+                        .put("featurePip",context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE))
                     val launch=Intent(context,HistoryDetailActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK).putExtra("shotId",id)
-                    val floating=test.startActivitySync(launch,android.app.ActivityOptions.makeBasic().setLaunchBounds(Rect(60,60,860,840)).toBundle())
+                    val floating=test.startActivitySync(launch,launchOptions)
+                    main {resize.put("launchTaskId",floating.taskId).put("actualBounds",rect(floating.windowManager.currentWindowMetrics.bounds))
+                        .put("actualMultiWindow",floating.isInMultiWindowMode).put("actualPip",floating.isInPictureInPictureMode)}
                     await("freeform Activity laid out") {floating.hasWindowFocus() && root(floating).isLaidOut && !root(floating).isLayoutRequested}
                     chartReady(floating)
-                    check(floating.isInMultiWindowMode) { "BLOCKED: platform did not honor public freeform launch bounds" }
+                    main {resize.put("actualBounds",rect(floating.windowManager.currentWindowMetrics.bounds))
+                        .put("actualMultiWindow",floating.isInMultiWindowMode).put("actualPip",floating.isInPictureInPictureMode)}
+                    check(floating.isInMultiWindowMode) { "BLOCKED: requested freeform not observed; platform support is not determined" }
                     val task=floating.taskId
                     fun current()=requireNotNull(active.activeActivity()).also {check(it.taskId==task && it is HistoryDetailActivity)}
                     val original=Rect(floating.windowManager.currentWindowMetrics.bounds);val originalMode=floating.isInMultiWindowMode

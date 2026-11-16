@@ -89,8 +89,8 @@ try:
             entry=tapped[0];event=entry['input'];assert entry['metric']==event['metric']=='PRESSURE'
             assert event['source']==0x1002 and event['downAccepted'] and event['upAccepted']
             assert event['dialogClosed'] and event['dataUnchangedAfterClose'] and event['selectionPreservedAfterClose']
-            before=require_proof(details/event['preTapProof'])
-            before_target=before['attempts'][before['acceptedAttempt']-1]['geometryBefore']['target']
+            tap_proof=require_proof(details/event['preTapProof'])
+            before_target=tap_proof['attempts'][tap_proof['acceptedAttempt']-1]['geometryBefore']['target']
             hit=next(c for c in before_target['standaloneHeader']['controls'] if c['semanticId']=='chart-metric:PRESSURE')
             assert hit['widthDp']>=48 and hit['heightDp']>=48 and hit['visibility']['complete']
             assert event['rectPx']==hit['visibility']['rectPx']
