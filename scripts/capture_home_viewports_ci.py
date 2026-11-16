@@ -18,8 +18,8 @@ import xml.etree.ElementTree as ET
 PACKAGE = "io.openhoyi.mobile.mock"
 SERIAL = "emulator-5554"
 CASES = (
-    ("landscape-21x9-medium", 2100, 900, "medium"),
-    ("landscape-21x9-large", 2100, 900, "large"),
+    ("feedback-2048x1365-medium", 2048, 1365, "medium"),
+    ("feedback-2048x1365-large-dense", 2048, 1365, "large"),
 )
 
 
@@ -65,18 +65,19 @@ def main():
     apk = Path("mobile/build/outputs/apk/mock/mobile-mock.apk")
     identity = {"sourceCommit": os.environ["GITHUB_SHA"],
                 "apkSha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-                "runId": os.environ["GITHUB_RUN_ID"], "densityDpi": 200,
+                "runId": os.environ["GITHUB_RUN_ID"], "densityDpi": "per case",
                 "kind": "actual Android Home windows; synthetic fresh Mock data"}
     (out / "identity.json").write_text(json.dumps(identity, indent=2) + "\n")
     result = adb("install", str(apk))
     if "Success" not in result:
         raise RuntimeError(result)
     for name, width, height, font in CASES:
+        density = 340 if name.endswith("dense") else 200
         folder = out / name
         folder.mkdir(exist_ok=True)
         adb("shell", "am", "force-stop", PACKAGE)
         adb("shell", "wm", "size", f"{width}x{height}")
-        adb("shell", "wm", "density", "200")
+        adb("shell", "wm", "density", str(density))
         adb("shell", "settings", "put", "system", "accelerometer_rotation", "0")
         adb("shell", "settings", "put", "system", "user_rotation", "0")
         # This file belongs only to the new disposable Mock install above. Use the
@@ -107,7 +108,7 @@ def main():
             raise RuntimeError("Mock MainActivity is not foreground")
         actual_size = adb("shell", "wm", "size")
         actual_density = adb("shell", "wm", "density")
-        if f"Override size: {width}x{height}" not in actual_size or "Override density: 200" not in actual_density:
+        if f"Override size: {width}x{height}" not in actual_size or f"Override density: {density}" not in actual_density:
             raise RuntimeError("Requested CI window override not confirmed")
         png = adb("exec-out", "screencap", "-p", binary=True)
         (folder / "home.png").write_bytes(png)
@@ -115,7 +116,7 @@ def main():
             raise RuntimeError("Actual screenshot dimensions differ from requested window")
         (folder / "activity.txt").write_text(adb("shell", "dumpsys", "activity", "top"))
         (folder / "display.txt").write_text(actual_size + actual_density)
-        (folder / "case.json").write_text(json.dumps({"requestedPixels": [width, height],
+        (folder / "case.json").write_text(json.dumps({"densityDpi": density, "requestedPixels": [width, height],
             "actualScreenshotPixels": [width, height], "persistedAppFont": font,
             "requestedAppFontScale": {"small": .9, "medium": 1., "large": 1.1}[font],
             "fontEvidence": "production preference confirmed before cold launch; runtime font scale not instrumented",
