@@ -29,11 +29,12 @@ class EnvironmentGuardTests(unittest.TestCase):
                 self.assertTrue(all(call.args[0] == "shell" for call in adb.call_args_list))
                 self.assertFalse(any("install" in call.args for call in adb.call_args_list))
 
-    def test_scenarios_cover_app_fonts_and_window_shapes(self):
-        self.assertEqual({row[3] for row in capture.CASES}, {"small", "medium", "large"})
-        self.assertTrue(any(w < h for _, w, h, _ in capture.CASES))
-        self.assertTrue(any(w == h for _, w, h, _ in capture.CASES))
-        self.assertTrue(any(w / h >= 4 for _, w, h, _ in capture.CASES))
+    def test_requested_21x9_scenarios(self):
+        self.assertEqual({row[3] for row in capture.CASES}, {"medium", "large"})
+        self.assertEqual(len(capture.CASES), 2)
+        for _, width, height, _ in capture.CASES:
+            self.assertEqual((width, height), (2100, 900))
+            self.assertEqual(width * 9, height * 21)
 
     def test_scroll_geometry_comes_from_actual_insets_and_excludes_rail(self):
         for bottom in (325, 340):

@@ -18,13 +18,8 @@ import xml.etree.ElementTree as ET
 PACKAGE = "io.openhoyi.mobile.mock"
 SERIAL = "emulator-5554"
 CASES = (
-    ("landscape-16x10-medium", 1600, 1000, "medium"),
-    ("landscape-16x10-small", 1600, 1000, "small"),
-    ("landscape-16x10-large", 1600, 1000, "large"),
-    ("portrait-large", 1000, 1600, "large"),
-    ("square-medium", 1100, 1100, "medium"),
-    ("flat-landscape-large", 1600, 400, "large"),
-    ("narrow-landscape-large", 900, 600, "large"),
+    ("landscape-21x9-medium", 2100, 900, "medium"),
+    ("landscape-21x9-large", 2100, 900, "large"),
 )
 
 
