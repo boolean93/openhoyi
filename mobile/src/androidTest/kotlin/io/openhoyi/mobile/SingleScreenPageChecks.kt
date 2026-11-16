@@ -76,7 +76,7 @@ internal object SingleScreenPageChecks {
             }
         }
         if (activity is HistoryDetailActivity) {
-            val charts = views.filterIsInstance<ShotChartView>()
+            val charts = listOfNotNull(content.findViewWithTag<ShotChartView>("product/history/chart"))
             check(charts.size == 1 && charts.single().points.size >= 2) { "$fixture missing populated historical chart" }
             val plot = charts.single().findViewWithTag<View>("chart-plot")
             check(plot.visibility == View.VISIBLE && plot.height >= HoyiUi.dp(activity, 96)) {
