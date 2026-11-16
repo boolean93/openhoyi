@@ -99,9 +99,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var brewButton: Button
     private lateinit var browseCurvesButton: Button
     private lateinit var presetButtons: List<Button>
-    private data class DirectPresetVisual(val button: Button, val name: TextView,
-                                          val sparkline: CurveLibrarySparklineView)
-    private lateinit var directPresets: List<DirectPresetVisual>
+    private lateinit var directPresets: List<HomePresetGrid.Visual>
     private var layoutDirectPresets: (Boolean) -> Unit = {}
     private var presetVisualsDirty = true
     private var customCurveRevision = -1L
@@ -157,7 +155,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4)) }
         root.addView(ScrollView(host).apply {
             tag = "product/home/page-scroll"
-            isFillViewport = false
+            isFillViewport = true
             addView(content, android.widget.FrameLayout.LayoutParams(-1, -2))
         }, LinearLayout.LayoutParams(-1, 0, 1f))
         emergencyStop = Button(host).apply {
@@ -233,12 +231,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { productStyle.apply(this, TaskProductVisualStyle.Type(if (compactType) 14 else 18,500,if (compactType) 20 else 26)); tag = "product/home/service-status" }
         content.removeView(status)
         val machineHeading = productStyle.row().apply {
-            gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            visibility = View.GONE
         }
         machineModes = MachineModeControls(host, ::changeMachineMode)
-        // Short landscape already shares this header with the last-curve card. Keep
-        // its original width budget; the modes reuse the quick-heading row below.
-        val machineRow = if (shortWideHome) machineHeading.apply {
+        // Landscape modes share the quick-heading row instead of reserving another
+        // 48dp row for a machine title already present in the navigation rail.
+        val machineRow = if (!phoneHome) machineHeading.apply {
             tag = "product/home/machine-status"
         } else MachineModeHeader(host, machineHeading, machineModes)
         val compactTopRow = if (shortWideHome) productStyle.row("product/home/compact-top").also {
@@ -248,7 +247,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         (compactTopRow ?: content).addView(machineRow, if (compactTopRow != null)
             LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
         machineHeading.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
-        val spaciousHome = !phoneHome && resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
+        val spaciousHome = !phoneHome && resources.configuration.screenWidthDp >= 800 && !shortHome
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
         content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { if(spaciousHome) topMargin=dp(8) })
         fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
@@ -316,33 +315,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             MachineSettingChange.SteamHeating(!(service?.snapshot?.settings?.steamHeating ?: false))
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as Button }
-        if (spaciousHome || phoneHome) {
-            val scroll=root.findViewWithTag<ScrollView>("product/home/page-scroll")
-            val updateBudget=View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                val available=scroll.height
-                if(available>0) {
-                    // Weighted cards may differ by a pixel. Use one shared portrait budget so
-                    // they cannot alternately resize the same hero and request another layout.
-                    val portraitWidth = boilerDials.minOfOrNull { dial ->
-                        val card = dial.parent as View
-                        (card.width-card.paddingLeft-card.paddingRight-dp(4)).coerceAtLeast(0)
-                    } ?: 0
-                    val portraitBudget = if (phoneHome && compactType && portraitWidth > 0) HomePortraitBudget.fit(
-                        (portraitWidth/resources.displayMetrics.density).toInt(),
-                        (available/resources.displayMetrics.density).toInt(), resources.configuration.fontScale) else null
-                    portraitBudget?.let { boilerRow.setPortraitHeroHeight(dp(it.hero)) }
-                    boilerDials.forEach { dial ->
-                        val parent=dial.parent as View
-                        val cardWidth=(parent.width-parent.paddingLeft-parent.paddingRight-dp(4)).coerceAtLeast(0)
-                        if (cardWidth == 0) return@forEach
-                        val diameter=portraitBudget?.let { minOf(dp(it.dial), boilerRow.portraitDialLimit() ?: Int.MAX_VALUE) } ?: minOf(dp(216),cardWidth.coerceAtLeast(dp(112)))
-                        if(dial.layoutParams.width!=diameter) dial.layoutParams=(dial.layoutParams as LinearLayout.LayoutParams).apply {width=diameter;height=diameter}
-                    }
-                }
-            }
-            scroll.addOnLayoutChangeListener(updateBudget)
-            content.addOnLayoutChangeListener(updateBudget)
-        }
+        HomeViewportBudget.install(root, content, boilerRow, boilerDials, phoneHome, compactType, spaciousHome)
         quickRow = productStyle.column("product/home/quick-extraction")
         content.addView(quickRow, LinearLayout.LayoutParams(-1, -2))
         val previewLegend=productStyle.text("",TaskProductVisualStyle.Type(12,400,20),"product/home/preview-legend").apply {
@@ -384,7 +357,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        if (shortWideHome) {
+        if (!phoneHome) {
             // Modes remain visible (and safety-gated) while quick actions hide for an
             // active cup. Reusing this row avoids adding a 48dp header to a 284dp viewport.
             previewHeading.tag = "product/home/compact-quick-heading"
@@ -442,9 +415,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             tag = "product/home/last-curve"
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
-            minimumHeight = dp(if(spaciousHome) 76 else 48)
-            setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0),
-                dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0))
+            minimumHeight = dp(if(spaciousHome) 64 else 48)
+            setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 4 else 0),
+                dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 4 else 0))
             background = productStyle.shape(productStyle.surface, true)
             elevation=resources.displayMetrics.density
         }
@@ -503,100 +476,18 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             (lastCurvePreview.layoutParams as LinearLayout.LayoutParams).apply { width=-1; height=dp(44) }
             (quickLaunch.layoutParams as LinearLayout.LayoutParams).apply { width=-1; marginStart=0; topMargin=dp(8) }
         }
-        val presetRow = productStyle.column("product/home/direct-presets").apply {
-            orientation=if(phoneHome) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        val presetRow = HomePresetGrid(host, productStyle, phoneHome, compactType, shortHome,
+            shortWideHome, spaciousHome, onNameLongClick = { fullName ->
+                AlertDialog.Builder(host).setTitle(R.string.home_preset_full_name)
+                    .setMessage(fullName).setPositiveButton(android.R.string.ok, null).let(::showTransient)
+            }) { slot ->
+            if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot)
         }
         quickRow.addView(presetRow, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(if (shortHome) 0 else 6)
         })
-        directPresets = (0..5).map { slot ->
-            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 120 else 80) }
-            val button = productStyle.button(Button(host), outline = spaciousHome).apply {
-                tag = "product/home/direct-preset/$slot"
-                // Static theme chrome belongs to view creation, not the 250ms telemetry render.
-                if (slot == 0) background = productStyle.shape(productStyle.surface, true)
-                setOnClickListener { if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot) }
-            }
-            tile.addView(button, FrameLayout.LayoutParams(-1, -1))
-            val contents = object : LinearLayout(host) {
-                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                    if (phoneHome && compactType && childCount == 3) {
-                        val cardWidth = (View.MeasureSpec.getSize(widthMeasureSpec) / resources.displayMetrics.density).toInt()
-                        val compact = HomePortraitBudget.compactPreset(cardWidth, resources.configuration.fontScale)
-                        getChildAt(1).layoutParams.height = dp(if (compact) 28 else 40)
-                        // The entire tile is the touch target; its label needs no separate 48dp target.
-                        val label = getChildAt(2)
-                        val labelHeight = dp(if (compact) 32 else 48)
-                        if (label.minimumHeight != labelHeight) label.minimumHeight = labelHeight
-                    }
-                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-                }
-            }.apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = android.view.Gravity.TOP
-                setPadding(dp(if (shortHome) 6 else 10), dp(if (shortHome) 1 else 6), dp(if (shortHome) 6 else 10), dp(if (shortHome) 1 else 6))
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-            }
-            tile.addView(contents, FrameLayout.LayoutParams(-1, if(phoneHome || shortHome) -2 else -1))
-            val slotLabel = productStyle.text(if (slot == 0) "${getString(R.string.lever_title)} · ${getString(R.string.lever_recent)}" else getString(R.string.home_slot, slot.toString()),
-                TaskProductVisualStyle.Type(if (slot == 0) 12 else 14, 400, if (slot == 0) 18 else 20),
-                secondary = true).apply { gravity = android.view.Gravity.START }
-            val previewHeader = if (shortWideHome) productStyle.row().apply {
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                contents.addView(this, LinearLayout.LayoutParams(-1, -2))
-            } else contents
-            previewHeader.addView(slotLabel, LinearLayout.LayoutParams(if (shortWideHome) -2 else -1, -2))
-            val sparkline = CurveLibrarySparklineView(host, productStyle).apply {
-                visibility = View.GONE
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                tag = "product/home/direct-preset/$slot/preview"
-            }
-            previewHeader.addView(sparkline, if (shortWideHome)
-                LinearLayout.LayoutParams(0, dp(24), 1f).apply { marginStart = dp(4) }
-            else LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 40)))
-            val name = productStyle.text("", TaskProductVisualStyle.Type(if (compactType) 15 else if (shortHome) 14 else 17, 500, if (compactType) 22 else if (shortHome) 20 else 24)).apply {
-                gravity = android.view.Gravity.CENTER
-                maxLines = if(phoneHome || shortHome) Int.MAX_VALUE else 2
-                ellipsize = if(phoneHome || shortHome) null else android.text.TextUtils.TruncateAt.END
-                if(phoneHome) minimumHeight=dp(48)
-            }
-            if (slot == 0) name.setTextColor(productStyle.homePresetText)
-            contents.addView(name, if(phoneHome || shortHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(-1, 0, 1f))
-            DirectPresetVisual(button, name, sparkline)
-        }
-        // Keep stable slot identities; only reparent when visibility changes, not on telemetry ticks.
-        val presetTiles = directPresets.map { it.button.parent as View }
-        var arrangedWithLever: Boolean? = null
-        layoutDirectPresets = { showLever ->
-            if (arrangedWithLever != showLever) {
-                presetTiles.forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
-                presetRow.removeAllViews()
-                val slots = HomeDirectPresetSlots.visible(showLever)
-                if (phoneHome) {
-                    slots.chunked(2).forEachIndexed { rowIndex, rowSlots ->
-                        val row = productStyle.row()
-                        presetRow.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
-                            if (rowIndex > 0) topMargin = dp(10)
-                        })
-                        rowSlots.forEachIndexed { column, slot ->
-                            row.addView(presetTiles[slot], LinearLayout.LayoutParams(0, -2, 1f).apply {
-                                if (column > 0) marginStart = dp(10)
-                            })
-                        }
-                    }
-                } else {
-                    slots.forEachIndexed { index, slot ->
-                        presetRow.addView(presetTiles[slot], LinearLayout.LayoutParams(0,
-                            if (shortHome) -2 else (dp(if (spaciousHome) 120 else 96) *
-                                resources.configuration.fontScale.coerceAtLeast(1f)).toInt(), 1f).apply {
-                            if (index > 0) marginStart = dp(if (spaciousHome) 8 else 4)
-                        })
-                    }
-                }
-                arrangedWithLever = showLever
-            }
-        }
-        layoutDirectPresets(false)
+        directPresets = presetRow.visuals
+        layoutDirectPresets = presetRow::showLever
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         coffeeDot = statusDot(machineChip)
@@ -980,9 +871,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         prominentAlarm.show(alarmBanner?.message.orEmpty())
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
             R.color.mobile_danger else R.color.mobile_accent))
-        // The shell owns connection status and recovery; this header only names the machine.
-        status.show(getString(R.string.home_machine_title) + if (owner?.manualShotActive == true)
-            " · " + getString(R.string.home_manual_shot_status) else "")
+        // Connection/readiness already belongs to the shell. Only exceptional shot state
+        // needs a second label here; keep mode controls in their existing header.
+        val manualShot = owner?.manualShotActive == true
+        status.show(if (manualShot) getString(R.string.home_manual_shot_status) else "")
+        (status.parent as? View)?.visibility = if (manualShot) View.VISIBLE else View.GONE
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
         status.visibility = View.VISIBLE
         scanButton.visibility = if (bothReady && !s.scanning) View.GONE else View.VISIBLE
@@ -1224,10 +1117,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: id)
                 if (button.text.toString() != label) button.text = label
                 val visual = directPresets[index + 1]
-                visual.button.contentDescription = label
+                val homeName = if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else HomePresetName.resolve(item?.customDocument?.name, item?.name, getString(R.string.home_slot_unconfigured))
+                visual.button.contentDescription = homeName
                 visual.button.background = productStyle.shape(if (item != null && item.id == selected?.id) productStyle.homeSelected else productStyle.surface, true)
                 visual.button.isEnabled = empty || unavailable || item?.let(library::canStart) == true
-                visual.name.show(if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: getString(R.string.home_slot_unconfigured))
+                visual.name.show(homeName)
                 visual.name.setTextColor(if (!unavailable && visual.button.isEnabled) productStyle.homePresetText else productStyle.onDisabled)
                 val thumbnail = HomePresetPreview.from(item, presetScale)
                 visual.sparkline.visibility = if (thumbnail == null) View.GONE else View.VISIBLE

@@ -9,6 +9,13 @@ import android.widget.LinearLayout
 /** Pure home layout: the machine image never contains telemetry or controls. */
 internal class MachineHomeView(context: Context, private val spacious: Boolean) : LinearLayout(context) {
     private var machineImage: ImageView? = null
+    private var landscapeHeightBudget: Int? = null
+
+    fun setLandscapeHeightBudget(height: Int) {
+        if (portrait || landscapeHeightBudget == height) return
+        landscapeHeightBudget = height
+        requestLayout()
+    }
     private var inlinePortrait = false
     private var tightInlinePortrait = false
     private val density = resources.displayMetrics.density
@@ -90,29 +97,63 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
                 weight = if (inlinePortrait) 1f else 0f
             }
         }
-        if (!spacious || MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY) {
+        if (!spacious) {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            if (!portrait && landscapeHeightBudget != null) {
+                val height = maxOf(measuredHeight, landscapeHeightBudget ?: 0)
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+            }
             return
         }
-        // The machine fits the real content viewport without scaling past its bounds; boiler text may
-        // need more space at large font scales. Both equal-height cards must fit
-        // the taller card's natural content before the weighted layout runs.
-        val availableWidth = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight - dp(16)).coerceAtLeast(0)
-        val cardWidth = availableWidth * 61 / 100 / 2
+        // Use this view's real width after shell/navigation padding, not display width.
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val budget = HomeLandscapeBudget.widths((width / density).toInt(), resources.configuration.fontScale)
+        setPadding(dp(budget.outer), paddingTop, dp(budget.outer), paddingBottom)
+        orientation = if (budget.stacked) VERTICAL else HORIZONTAL
+        val innerWidth = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+        val minimumCardWidth = dp((180 * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() + 2 * budget.cardPadding + 4)
+        val stackCards = budget.stacked && innerWidth < 2 * minimumCardWidth + dp(budget.cardGap)
+        boilers.orientation = if (stackCards) VERTICAL else HORIZONTAL
+        machineImage?.let { image ->
+            (image.layoutParams as LayoutParams).apply {
+                this.width = if (budget.stacked) innerWidth else dp(budget.image)
+                height = if (budget.stacked) dp(180) else -1
+                weight = 0f
+                marginEnd = if (budget.stacked) 0 else dp(budget.imageGap)
+                bottomMargin = if (budget.stacked) dp(8) else 0
+                resolveLayoutDirection(image.layoutDirection)
+            }
+        }
+        (boilers.layoutParams as LayoutParams).apply {
+            this.width = if (budget.stacked) -1 else 0
+            height = if (budget.stacked) -2 else -1
+            weight = if (budget.stacked) 0f else 1f
+        }
+        val boilerWidth = if (budget.stacked) innerWidth else
+            (innerWidth - dp(budget.image + budget.imageGap)).coerceAtLeast(0)
+        val cardWidth = if (stackCards) boilerWidth else
+            ((boilerWidth - dp(budget.cardGap) * (boilers.childCount - 1)) / boilers.childCount.coerceAtLeast(1)).coerceAtLeast(0)
         var naturalCardHeight = 0
-        var verticalMargins = 0
         for (index in 0 until boilers.childCount) {
             val card = boilers.getChildAt(index)
-            val params = card.layoutParams as LayoutParams
-            card.measure(MeasureSpec.makeMeasureSpec((cardWidth - params.leftMargin - params.rightMargin).coerceAtLeast(0), MeasureSpec.EXACTLY),
+            card.setPadding(dp(budget.cardPadding), card.paddingTop, dp(budget.cardPadding), card.paddingBottom)
+            (card.layoutParams as LayoutParams).apply {
+                this.width = if (stackCards) -1 else 0
+                weight = if (stackCards) 0f else 1f
+                marginStart = if (!stackCards && index > 0) dp(budget.cardGap) else 0
+                topMargin = if (stackCards && index > 0) dp(8) else 0
+                resolveLayoutDirection(card.layoutDirection)
+            }
+            card.measure(MeasureSpec.makeMeasureSpec(cardWidth, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-            naturalCardHeight = maxOf(naturalCardHeight, card.measuredHeight)
-            verticalMargins += params.topMargin + params.bottomMargin
+            naturalCardHeight = if (stackCards) naturalCardHeight + card.measuredHeight + (if (index > 0) dp(8) else 0)
+                else maxOf(naturalCardHeight, card.measuredHeight)
         }
-        val desiredHeight = maxOf(dp(340), naturalCardHeight + verticalMargins + paddingTop + paddingBottom)
+        val stackedImageHeight = if (budget.stacked) dp(188) else 0
+        val desiredHeight = maxOf(landscapeHeightBudget ?: dp(340), naturalCardHeight + stackedImageHeight + paddingTop + paddingBottom)
         val measuredHeight = resolveSize(desiredHeight, heightMeasureSpec)
         machineImage?.apply {
-            layoutParams.height=(minOf(measuredHeight,dp(340))*.99f).toInt()
+            layoutParams.height = if (budget.stacked) dp(180) else (minOf(measuredHeight,dp(340))*.99f).toInt()
             scaleX=1f
             scaleY=1f
             translationY=0f

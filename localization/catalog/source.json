@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "0dfc6a197f57500a671ff7a9c13324446b793f891d5ee53d7d00e664f468f364",
+  "sha256": "1373f126d8d4b84a1b40358f17b5cea9f41c6587917019c0ade3d3050a96bc82",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -1083,6 +1083,7 @@
     "curve_editor_mode_flow_fast": "流量 · 快速",
     "curve_editor_bloom_short": "闷蒸",
     "curve_editor_duration_short": "首段限时",
-    "curve_editor_compensation_short": "重量补偿"
+    "curve_editor_compensation_short": "重量补偿",
+    "home_preset_full_name": "曲线完整名称"
   }
 }

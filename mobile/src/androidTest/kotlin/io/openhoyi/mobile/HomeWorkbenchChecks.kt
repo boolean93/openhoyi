@@ -31,6 +31,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
     fun run(expectedFontScale: Float) {
         val context=test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")
+        main { HomePresetRowChecks.verify(context) }
         val app=context.applicationContext as MobileApplication
         val preferences=context.getSharedPreferences("curves",Context.MODE_PRIVATE)
         val before=preferences.all.toMap()
