@@ -17,7 +17,7 @@ class AiProtocolHistoryTest {
         val choice = root.getValue("choices").jsonArray.first().jsonObject
         var message = choice.getValue("message").jsonObject + ("reasoning_content" to JsonPrimitive(reason))
         if (tool) message = message + mapOf("content" to JsonNull, "tool_calls" to buildJsonArray { add(buildJsonObject {
-            put("id", "call1"); put("index", 0); put("type", "function"); put("function", buildJsonObject { put("name", "current_status"); put("arguments", " { } ") })
+            put("id", "call1"); put("type", "function"); put("function", buildJsonObject { put("name", "current_status"); put("arguments", " { } ") })
         }) })
         return JsonObject(root + ("choices" to buildJsonArray { add(JsonObject(choice + mapOf("message" to JsonObject(message), "finish_reason" to JsonPrimitive(if (tool) "tool_calls" else "stop")))) })).toString()
     }
@@ -53,16 +53,18 @@ class AiProtocolHistoryTest {
         val choice = original.getValue("choices").jsonArray.first().jsonObject
         val message = choice.getValue("message").jsonObject
         val firstCall = message.getValue("tool_calls").jsonArray.first().jsonObject
-        val secondCall = JsonObject(firstCall + ("id" to JsonPrimitive("call2")) + ("index" to JsonPrimitive(1)))
+        val secondCall = JsonObject(firstCall + ("id" to JsonPrimitive("call2")))
         val exact = JsonObject(message + ("content" to JsonPrimitive("Let me check.")) + ("reasoning_content" to JsonNull) +
             ("tool_calls" to JsonArray(listOf(firstCall, secondCall))))
         val toolResponse = JsonObject(original + ("choices" to JsonArray(listOf(JsonObject(choice + ("message" to exact)))))).toString()
         val calls = mutableListOf<FakeAiConnection>()
         val first = send(AiProtocolHistory.empty(), emptyList(), "first", listOf(toolResponse, aiAnswer("one")), calls)
         assertEquals(exact, first.history.messages[1])
+        assertTrue(first.history.messages[1].getValue("tool_calls").jsonArray.all { "index" !in it.jsonObject })
         assertEquals(setOf("call1", "call2"), first.history.messages.filter { it["role"] == JsonPrimitive("tool") }.map { it["tool_call_id"]!!.jsonPrimitive.content }.toSet())
         val replay = Json.parseToJsonElement(calls.last().sent.toString("UTF-8")).jsonObject.getValue("messages").jsonArray
         assertEquals(exact, replay[2])
+        assertTrue(replay[2].jsonObject.getValue("tool_calls").jsonArray.all { "index" !in it.jsonObject })
     }
     @Test fun invalidReasoningTypesAndProtocolMismatchesHaveClosedDiagnostics() = runBlocking {
         for (reason in listOf<JsonElement>(JsonPrimitive(42), buildJsonObject { put("PRIVATE_SENTINEL", true) })) {
@@ -122,7 +124,12 @@ class AiProtocolHistoryTest {
         assertEquals("PRIVATE_FINAL_REASON", messages[4]["reasoning_content"]?.jsonPrimitive?.content)
         assertEquals("call1", messages[3]["tool_call_id"]?.jsonPrimitive?.content)
         val originalCall = messages[2].getValue("tool_calls").jsonArray.first().jsonObject
-        assertEquals(0, originalCall["index"]?.jsonPrimitive?.int)
+        // Complete tool messages omit the SSE-only fragment locator.
+        assertFalse(originalCall.containsKey("index"))
+        assertEquals(setOf("id", "type", "function"), originalCall.keys)
+        assertEquals("call1", originalCall["id"]?.jsonPrimitive?.content)
+        assertEquals("function", originalCall["type"]?.jsonPrimitive?.content)
+        assertEquals("current_status", originalCall.getValue("function").jsonObject["name"]?.jsonPrimitive?.content)
         assertEquals(" { } ", originalCall.getValue("function").jsonObject["arguments"]?.jsonPrimitive?.content)
         assertEquals(6, next.history.messages.size)
         assertEquals("two", next.text)
