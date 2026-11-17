@@ -468,7 +468,54 @@ def validate_language_dialog_target(accepted,safe,proof):
         assert len(focused)==1
         assert safe['focusedControlIdentity']==focused[0]['viewIdentity']
 
+def validate_weekly_direct_route(first_proof,day_proof,manifest):
+    assert manifest['mockMode'] is True and manifest['page']=='machine'
+    routes=[]
+    for proof,selected in ((first_proof,'everyDay'),(day_proof,'day')):
+        assert proof['captureWindowKind']=='ACTIVITY' and proof['accepted'] and proof['timeoutMs']==5000
+        attempt=proof['attempts'][proof['acceptedAttempt']-1]
+        assert attempt['geometryBefore']==attempt['geometryAfter']
+        accepted=attempt['geometryBefore']['target'];route=accepted['weeklyEditorRoute'];routes.append(route)
+        assert route['contract']=='ACTUAL_WEEKLY_DIRECT_ROUTE_V2' and route['ownerActivityIdentity']>0
+        for key in ('windowIdentity','decorIdentity','windowTokenIdentity','rootIdentity'):
+            assert route[key]==proof[key] and route[key]>0
+        assert route['locale']==accepted['locale'] and route['locale']
+        assert route['density']==accepted['densityDpi']/160
+        assert route['everyDayResource']=='machine_settings_schedule_every_day' and route['everyDayLabel']
+        every=route['everyDay'];days=route['days'];assert len(days)==7
+        assert [d['semanticId'] for d in days]==['product/settings/machine/schedule/day/'+str(i) for i in range(7)]
+        controls=[every]+days
+        assert len({c['viewIdentity'] for c in controls})==8
+        for control in controls:
+            matches=[n for n in accepted['nodes'] if n['viewIdentity']==control['viewIdentity']]
+            assert len(matches)==1 and matches[0]==control
+            x,y,r,b=control['rectPx'];assert r-x>=48*route['density'] and b-y>=48*route['density']
+        assert every['textLineBoxes'][0]['text']==route['everyDayLabel']
+        require_whole(every if selected=='everyDay' else days[0])
+        state=route['scheduleState']
+        assert state['source']=='OWNED_MOCK_SERVICE_TYPED_SLEEP_PART_V1'
+        assert state['mockMode'] is True and state['packageName']=='io.openhoyi.mobile.mock'
+        assert state['ownerServiceClass']=='io.openhoyi.mobile.MobileService' and state['mockRuntimeClass']=='io.openhoyi.mobile.MockDeviceRuntime'
+        assert state['ownerServiceIdentity']==manifest['ownedMachineServiceIdentity'] and state['mockRuntimeIdentity']==manifest['ownedMockRuntimeIdentity']
+        assert state['state']=='IDLE' and state['pendingIsNull'] is True
+        for key,index,count in (('firstReadback',0,4),('secondReadback',4,3)):
+            part=state[key];assert part['firstDaySundayIndex']==index and part['raw']==[] and len(part['days'])==count
+            if index==0: assert type(part['enabledBits']) is int and 0<=part['enabledBits']<=255
+            else: assert part['enabledBits'] is None
+            for day in part['days']:
+                assert set(day)=={'sleepHour','sleepMinute','wakeHour','wakeMinute'}
+                assert all(type(day[k]) is int and 0<=day[k]<limit for k,limit in
+                    (('sleepHour',24),('sleepMinute',60),('wakeHour',24),('wakeMinute',60)))
+    before,after=routes
+    for key in ('ownerActivityIdentity','windowIdentity','decorIdentity','windowTokenIdentity','rootIdentity','locale','density','scheduleState'):
+        assert before[key]==after[key]
+    assert before['everyDay']['viewIdentity']==after['everyDay']['viewIdentity']
+    assert [v['viewIdentity'] for v in before['days']]==[v['viewIdentity'] for v in after['days']]
+
 def validate_weekly_editor_route(collapsed_proof,expanded_proof,manifest):
+    attempt=collapsed_proof['attempts'][collapsed_proof['acceptedAttempt']-1]
+    if attempt['geometryBefore']['target']['weeklyEditorRoute']['contract']=='ACTUAL_WEEKLY_DIRECT_ROUTE_V2':
+        return validate_weekly_direct_route(collapsed_proof,expanded_proof,manifest)
     assert manifest['mockMode'] is True and manifest['page']=='machine'
     assert manifest['ownedMachineServiceIdentity']>0 and manifest['ownedMockRuntimeIdentity']>0
     routes=[]

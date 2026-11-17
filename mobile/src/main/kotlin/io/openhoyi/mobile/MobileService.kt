@@ -1539,10 +1539,10 @@ class MobileService : Service() {
         }
         return null
     }
-    fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
+    fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule, allDays: Boolean = false): String? {
         interruptUpdateInstallation()
         if (mock != null) {
-            val result = mock.changeSchedule(expected, target)
+            val result = mock.changeSchedule(expected, target, allDays)
             if (result == null) {
                 refreshMock(mock)
                 event(ResourceMessage(R.string.service_write_schedule_mock), "mock.sleep_schedule")
@@ -1575,7 +1575,7 @@ class MobileService : Service() {
         if (observed.days != expected.days) return getString(R.string.service_write_schedule_changed)
         val changedDays = expected.days.indices.count { expected.days[it] != target.days[it] }
         if (changedDays == 0) return getString(R.string.service_write_schedule_already_observed)
-        if (changedDays != 1) return getString(R.string.service_write_schedule_one_day_only)
+        if (!SleepScheduleEdit.accepts(expected, target, allDays)) return getString(R.string.service_write_schedule_one_day_only)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_schedule_identity_missing)
         val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
             coffeeAddress, MachineWriteRegistration.Request.Schedule(scheduleWrite, target, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))) {
