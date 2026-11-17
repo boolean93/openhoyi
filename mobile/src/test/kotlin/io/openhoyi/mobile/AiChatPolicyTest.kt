@@ -7,8 +7,8 @@ class AiChatPolicyTest {
     @Test fun recommendationsDefaultToOneWithoutOverridingExplicitCounts() {
         val system = AiChatPolicy.SYSTEM
         listOf("default to exactly one best-fit card unless the user explicitly asks for more",
-            "including counts above three", "do not impose a three-card cap",
-            "If resource or tool budgets prevent the requested count, explain that explicitly").forEach {
+            "including counts above three", "no three-card cap",
+            "Disclose budget limits rather than silently dropping items").forEach {
             assertTrue("Missing recommendation policy: $it", system.contains(it))
         }
         assertFalse(system.contains("1–3 best fits"))
