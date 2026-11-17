@@ -1,0 +1,7 @@
+<resources>
+    <string name="ai_stream_thinking_show">Show thinking</string>
+    <string name="ai_stream_thinking_hide">Hide thinking</string>
+    <string name="ai_stream_tool">Using tools</string>
+    <string name="ai_stream_thinking">Thinking</string>
+    <string name="ai_stream_answering">Writing answer</string>
+</resources>

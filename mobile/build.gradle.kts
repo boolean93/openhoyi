@@ -1,11 +1,99 @@
+import java.io.File as JavaIoFile
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.PrivateKey
+
 plugins { id("com.android.application"); kotlin("android") }
-apply(from = "distribution.gradle.kts")
+// BEGIN VERBATIM DISTRIBUTION LOGIC: scope matches the former applied script.
+run {
+
+// Local developer defaults remain unchanged. Release requires explicit declarations.
+val declaredCode = providers.gradleProperty("hoyiVersionCode").orNull
+val declaredName = providers.gradleProperty("hoyiVersionName").orNull
+val previousCode = providers.gradleProperty("hoyiPreviousVersionCode").orNull
+val buildCode = declaredCode?.toIntOrNull() ?: if (declaredCode == null) 1 else 0
+if (buildCode <= 0) throw GradleException("hoyiVersionCode must be a positive Android version code")
+val buildName = declaredName ?: "0.1.0"
+if (buildName.length > 64 || !buildName.matches(Regex("[0-9]+(?:\\.[0-9]+){1,3}(?:[-+][0-9A-Za-z.-]+)?"))) {
+    throw GradleException("hoyiVersionName must be a version identifier")
+}
+extra["hoyiDistributionVersionCode"] = buildCode
+extra["hoyiDistributionVersionName"] = buildName
+
+val externalSigning = listOf("STORE_FILE", "STORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD", "CERT_SHA256")
+    .associateWith { providers.environmentVariable("HOYI_RELEASE_$it").orNull }
+val signingComplete = externalSigning.values.all { !it.isNullOrEmpty() }
+extra["hoyiExternalSigning"] = externalSigning
+extra["hoyiExternalSigningComplete"] = signingComplete
+
+val verifyReleaseDistribution = tasks.register("verifyReleaseDistribution") {
+    group = "verification"
+    description = "Require declared increasing release version and verified external signing identity"
+    // Validate on every invocation; no cached success for changed keys or environment.
+    doLast {
+        if (declaredCode == null || declaredName == null || previousCode == null) {
+            throw GradleException("Release builds require explicit version properties")
+        }
+        val previous = previousCode.toIntOrNull()
+        if (previous == null || previous < 0 || buildCode <= previous) {
+            throw GradleException("Release version must be greater than the declared previous version")
+        }
+        if (!signingComplete) throw GradleException("Release signing configuration is incomplete")
+        val suppliedFile = JavaIoFile(externalSigning.getValue("STORE_FILE")!!)
+        if (!suppliedFile.isAbsolute) throw GradleException("Release signing key path must be absolute")
+        val keyFile = suppliedFile.canonicalFile
+        if (keyFile.toPath().startsWith(rootProject.projectDir.canonicalFile.toPath())) {
+            throw GradleException("Release signing key must be outside the repository")
+        }
+        if (!keyFile.isFile) throw GradleException("Release signing key file is unavailable")
+        val expected = externalSigning.getValue("CERT_SHA256")!!
+        if (!expected.matches(Regex("[0-9a-fA-F]{64}"))) {
+            throw GradleException("Release signing certificate must be a SHA256 hex digest")
+        }
+        val storePassword = externalSigning.getValue("STORE_PASSWORD")!!.toCharArray()
+        val keyPassword = externalSigning.getValue("KEY_PASSWORD")!!.toCharArray()
+        val actual = try {
+            val store = KeyStore.getInstance(keyFile, storePassword)
+            val alias = externalSigning.getValue("KEY_ALIAS")!!
+            if (store.getKey(alias, keyPassword) !is PrivateKey) throw IllegalStateException()
+            val certificate = store.getCertificate(alias) ?: throw IllegalStateException()
+            MessageDigest.getInstance("SHA-256").digest(certificate.encoded)
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        } catch (_: Exception) {
+            // Do not include provider exceptions, paths, aliases, or passwords in errors.
+            throw GradleException("Release signing keystore cannot be opened")
+        } finally {
+            storePassword.fill('\u0000')
+            keyPassword.fill('\u0000')
+        }
+        if (!actual.equals(expected, ignoreCase = true)) {
+            throw GradleException("Release signing certificate does not match the expected identity")
+        }
+        logger.lifecycle("Release distribution configuration verified")
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(verifyReleaseDistribution)
+}
+}
+// END VERBATIM DISTRIBUTION LOGIC
 @Suppress("UNCHECKED_CAST")
 val externalSigning = extra["hoyiExternalSigning"] as Map<String, String?>
 val externalSigningComplete = extra["hoyiExternalSigningComplete"] as Boolean
 val updateChecks = providers.gradleProperty("hoyiUpdateChecks").orNull?.let {
     when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiUpdateChecks must be true or false") }
 } ?: false
+// Candidate-only opt-in: do not change normal Mock, Debug or Release behavior.
+val optimizeMock = providers.gradleProperty("hoyiOptimizeMock").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiOptimizeMock must be true or false") }
+} ?: false
+if (optimizeMock && updateChecks) throw GradleException("Optimized Mock cannot be used for update fixtures")
+val mockOptimizationControl = providers.gradleProperty("hoyiMockOptimizationControl").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiMockOptimizationControl must be true or false") }
+} ?: false
+if (mockOptimizationControl && (optimizeMock || updateChecks)) {
+    throw GradleException("Mock optimization control cannot be combined with optimization or update fixtures")
+}
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
@@ -40,6 +128,20 @@ android {
             applicationIdSuffix = ".mock"
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "MOCK_MODE", "true")
+            if (mockOptimizationControl) {
+                // Same non-debuggable baseline as the optimized candidate.
+                isDebuggable = false
+                isMinifyEnabled = false
+                isShrinkResources = false
+            }
+            if (optimizeMock) {
+                // R8 debug mode limits optimizations. Keep Mock behavior/signing,
+                // but build this explicit candidate in non-debuggable mode.
+                isDebuggable = false
+                isMinifyEnabled = true
+                isShrinkResources = true
+                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-mock-optimize.pro")
+            }
         }
     }
     if (updateChecks) {
@@ -57,10 +159,23 @@ android {
             java.setSrcDirs(listOf("src/updateFixtureTest/kotlin"))
         }
     }
+    sourceSets.getByName("test").java.srcDir("src/compatTest/kotlin")
+    sourceSets.getByName("androidTest").java.srcDir("src/compatTest/kotlin")
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
-    kotlinOptions { jvmTarget = "17" }
+}
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+configurations.configureEach {
+    exclude(group = "org.slf4j", module = "slf4j-simple")
+    exclude(group = "ai.koog", module = "prompt-executor-deepseek-client-android")
 }
 dependencies {
+    implementation("ai.koog:agents-core:1.3.0")
+    // The Android 1.3.0-beta publication invokes List.removeLast (API35) in its merge path.
+    // Use the official same-version JVM client as one closed module; keep shared dependencies Android-native.
+    implementation("ai.koog:prompt-executor-deepseek-client-jvm:1.3.0-beta") { isTransitive = false }
+    implementation("ai.koog:prompt-executor-openai-client-base:1.3.0")
+    implementation("io.github.oshai:kotlin-logging:8.0.01")
+    implementation("org.slf4j:slf4j-nop:2.0.17")
     implementation("androidx.fragment:fragment:1.8.6")
     implementation(project(":bean-core"))
     implementation(project(":bluetooth-android"))

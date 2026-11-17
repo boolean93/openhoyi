@@ -8,6 +8,7 @@ class CustomCurveStore(private val storage: Storage) {
     interface Storage { fun read(): String?; fun write(value: String) }
     enum class ImportStatus { SAVED, ALREADY_EXISTS, CONFLICT }
     data class ImportResult(val status: ImportStatus, val document: CustomCurveDocument)
+    @ConsistentCopyVisibility
     data class Deletion internal constructor(val document: CustomCurveDocument, internal val token: String,
                                              internal val bindings: Map<Int, String>)
     private data class State(val documents: LinkedHashMap<String, CustomCurveDocument> = linkedMapOf(),
@@ -34,6 +35,24 @@ class CustomCurveStore(private val storage: Storage) {
         if (state.documents[safe.id] == safe) return
         commit(state.copy(documents = LinkedHashMap(state.documents).apply { put(safe.id, safe) }))
     }
+    /** Native-confirmed AI proposals use a store-wide revision to reject changed-and-restored (ABA) targets. */
+    @Synchronized internal fun aiWriteSnapshot(id: String?): Pair<Long, CustomCurveDocument?> =
+        revision to id?.let(::find)
+
+    @Synchronized internal fun saveAiConfirmed(document: CustomCurveDocument, expected: CustomCurveDocument?, expectedRevision: Long, permitted: () -> Boolean = { true }) {
+        val safe = frozen(document)
+        check(revision == expectedRevision) { "Curve library changed; propose again" }
+        require(safe.isEditable)
+        check(safe.id !in state.archived) { "Curve was deleted" }
+        if (expected == null) check(!state.documents.containsKey(safe.id)) { "Curve ID exists" }
+        else {
+            require(expected.id == safe.id && expected.isEditable)
+            check(state.documents[safe.id] == expected) { "Curve changed; propose again" }
+        }
+        check(permitted()) { "Curve is in use" }
+        save(safe, expected)
+    }
+
     @Synchronized fun delete(id: String, bindings: Map<Int, String>, expected: CustomCurveDocument? = null, permitted: () -> Boolean = { true }): Deletion {
         val document = requireNotNull(find(id)) { "Curve unavailable" }
         if (expected != null) check(expected == document) { "Curve changed" }

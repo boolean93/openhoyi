@@ -7,7 +7,9 @@ import android.widget.LinearLayout
 
 class CurveEditorActivity : ThemedActivity() {
     private class FieldFailure(val key: String, val label: Int) : IllegalArgumentException()
-    companion object { const val CURVE_ID = "curveId" }
+    companion object { const val CURVE_ID = "curveId"; internal const val AI_DRAFT = "io.openhoyi.mobile.ai_curve_draft" }
+    private var aiDraftToken: String? = null
+    private var aiDraftKind: AiCurveCard.Kind? = null
     private var form: TaskCurveEditorForm? = null
     private val fields = linkedMapOf<String, EditText>()
     private var draftId = CustomCurveDocument.newId()
@@ -24,15 +26,20 @@ class CurveEditorActivity : ThemedActivity() {
         val colors = CurveEditorColors(this)
         val body = style.visual.page(this, getString(R.string.curve_editor_title), getString(R.string.flow_editor_subtitle))
         val store = profileStore(body) ?: return
-        val sourceId = intent.getStringExtra(CURVE_ID)
+        val aiRequested = intent.hasExtra(AI_DRAFT)
+        aiDraftToken = intent.getStringExtra(AI_DRAFT)
+        val aiDraft = AiCurveEditorDrafts.get(aiDraftToken)
+        aiDraftKind = aiDraft?.card?.kind ?: savedInstanceState?.getString("aiDraftKind")?.let { runCatching { AiCurveCard.Kind.valueOf(it) }.getOrNull() }
+        val sourceId = if (aiRequested) aiDraft?.card?.before?.id else intent.getStringExtra(CURVE_ID)
         draftId = savedInstanceState?.getString("draftId") ?: draftId
         val source = savedInstanceState?.getString("sourceDocument")?.let { runCatching { CustomCurveDocument.decode(it) }.getOrNull() }
-            ?: if (sourceId == null) CustomCurveDocument(draftId, getString(R.string.profiles_default_name), 93, 3600,
+            ?: aiDraft?.seed ?: if (aiRequested) null else if (sourceId == null) CustomCurveDocument(draftId, getString(R.string.profiles_default_name), 93, 3600,
             CustomCurveDocument.ControlMode.PRESSURE, listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
         else runCatching {
             store.find(sourceId) ?: (application as MobileApplication).curves.find(sourceId)?.let { CustomCurveDocument.fromLibraryItem(it, draftId) }
         }.getOrNull()
-        if (source == null) { HoyiUi.label(this, body, getString(R.string.profiles_missing), 17); return }
+        if (source == null) { HoyiUi.label(this, body, getString(if (aiRequested) R.string.ai_curve_editor_expired else R.string.profiles_missing), 17); return }
+        if (aiRequested && aiDraft?.available() != true) HoyiUi.label(this, body, getString(R.string.ai_curve_editor_expired), 17)
         sourceDocument = source
         draftId = source.id
         if (!source.isEditable) { profileCard(body, source); return }
@@ -495,9 +502,15 @@ class CurveEditorActivity : ThemedActivity() {
         }
         style.visual.action(actionRow, getString(R.string.beans_cancel), "product/form/curve-editor/cancel", top = 0) { finish() }
             .layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
-        val save = style.visual.action(actionRow, getString(if (sourceId == null) R.string.curve_editor_create else R.string.curve_editor_save_copy),
+        val saveLabel = if (aiRequested) when (aiDraftKind) {
+            AiCurveCard.Kind.REPLACE -> R.string.ai_curve_editor_save_changes
+            AiCurveCard.Kind.COPY_FACTORY -> R.string.curve_editor_save_copy
+            else -> R.string.curve_editor_create
+        } else if (sourceId == null) R.string.curve_editor_create else R.string.curve_editor_save_copy
+        val save = style.visual.action(actionRow, getString(saveLabel),
             "product/form/curve-editor/save", primary = true, top = 0) {}
         save.layoutParams = LinearLayout.LayoutParams(-2, -2)
+        if (aiRequested) save.isEnabled = aiDraft?.available() == true
         sections.actions.addView(actionRow, LinearLayout.LayoutParams(-1, -2))
         save.setOnClickListener {
             if (!save.isEnabled || isFinishing) return@setOnClickListener
@@ -505,12 +518,21 @@ class CurveEditorActivity : ThemedActivity() {
             val available = (application as MobileApplication).customCurvesResult.getOrNull()
             if (available == null) { error.setText(R.string.profiles_unavailable); save.isEnabled = false; return@setOnClickListener }
             save.isEnabled = false
-            if (runCatching { if (sourceId == null) available.save(doc) else available.saveCopy(doc) }.isSuccess) finish()
-            else { error.setText(R.string.profiles_save_failed); save.isEnabled = true }
+            if (runCatching {
+                if (aiRequested) requireNotNull(aiDraft).saveFromEditor(doc, available) { id ->
+                    (application as MobileApplication).curveDeletionGuards.values.none { it(id) }
+                } else if (sourceId == null) available.save(doc) else available.saveCopy(doc)
+            }.isSuccess) finish()
+            else { error.setText(if (aiRequested) R.string.ai_curve_editor_expired else R.string.profiles_save_failed); save.isEnabled = !aiRequested }
         }
+    }
+    override fun onDestroy() {
+        if (isFinishing && !isChangingConfigurations) AiCurveEditorDrafts.remove(aiDraftToken)
+        super.onDestroy()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        aiDraftKind?.let { outState.putString("aiDraftKind", it.name) }
         outState.putString("draftId", draftId); outState.putInt("stageCount", stageCount)
         sourceDocument?.let { outState.putString("sourceDocument", it.encode()) }
         outState.putBoolean("flowMode", flowMode); outState.putBoolean("firstFlow", firstFlow); outState.putBoolean("pressureLogic", pressureLogic)

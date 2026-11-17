@@ -130,5 +130,26 @@ class DistributionChecks(unittest.TestCase):
             self.assertIn('"apkSha256"', output.read_text())
 
 
+class InlineDistributionGuardContract(unittest.TestCase):
+    def test_active_signing_guard_matches_retained_reference(self):
+        # Retaining the old file for audit must not create two drifting signing policies.
+        root = Path(__file__).resolve().parents[1]
+        reference = (root / "mobile/distribution.gradle.kts").read_text()
+        imports, body = reference.splitlines(keepends=True)[:3], "".join(reference.splitlines(keepends=True)[3:])
+        active = (root / "mobile/build.gradle.kts").read_text()
+        start = "// BEGIN VERBATIM DISTRIBUTION LOGIC: scope matches the former applied script.\nrun {\n"
+        end = "}\n// END VERBATIM DISTRIBUTION LOGIC\n"
+        self.assertNotIn('apply(from = "distribution.gradle.kts")', active)
+        self.assertEqual(active.count(start), 1)
+        self.assertEqual(active.count(end), 1)
+        for declaration in imports:
+            self.assertIn(declaration, active)
+        self.assertEqual(active.count("import java.io.File as JavaIoFile\n"), 1)
+        inlined = active.split(start, 1)[1].split(end, 1)[0]
+        self.assertEqual(inlined.count("JavaIoFile("), 1)
+        normalized = inlined.replace("JavaIoFile(", "java.io.File(", 1)
+        self.assertEqual(normalized, body)
+
+
 if __name__ == "__main__":
     unittest.main()

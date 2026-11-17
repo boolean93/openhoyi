@@ -13,6 +13,9 @@ import java.io.File
 
 /** Process-owned writer, independent of Activity and service restarts. */
 class MobileApplication : Application() {
+    init { AiSdkLogging.install() }
+    internal var offlinePreviewProcessReady = false
+        private set
     internal lateinit var languagePreferences: AppLanguagePreference
         private set
     internal lateinit var fontSizePreferences: AppFontSizePreference
@@ -35,6 +38,14 @@ class MobileApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // The exported Mock fixture has its own process. It must not construct owners that
+        // can inspect/update downloads or initialize device/session preferences.
+        if (BuildConfig.MOCK_MODE) {
+            val process = ownProcessName()
+            offlinePreviewProcessReady = aiOfflinePreviewProcess(true, packageName, process)
+            // Unknown names fail closed too: never initialize owners on an unverified Mock process.
+            if (!aiMockOwnerInitializationAllowed(true, packageName, process)) return
+        }
         if (BuildConfig.MOCK_MODE) visibility.observe("mock-lifecycle-diagnostics") {
             android.util.Log.i("OpenHoyiLifecycle", if (it) "visible" else "hidden")
         }
@@ -44,9 +55,15 @@ class MobileApplication : Application() {
     }
 
     override fun onTerminate(){
-        autoConnect.close()
+        if (::autoConnect.isInitialized) autoConnect.close()
         super.onTerminate()
     }
+
+    private fun ownProcessName(): String? = runCatching {
+        if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
+        else (getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager)?.runningAppProcesses
+            ?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
+    }.getOrNull()
 
     override fun attachBaseContext(base: Context) {
         val prefs = base.getSharedPreferences("app_language", MODE_PRIVATE)
@@ -297,3 +314,10 @@ class MobileApplication : Application() {
         }, "history-export").start()
     }
 }
+
+/** Exact Mock identity only; formal and ordinary Mock processes keep their existing lifecycle. */
+internal fun aiOfflinePreviewProcess(mock: Boolean, packageName: String, processName: String?): Boolean =
+    mock && packageName == "io.openhoyi.mobile.mock" && processName == "$packageName:ai_offline_preview"
+
+internal fun aiMockOwnerInitializationAllowed(mock: Boolean, packageName: String, processName: String?): Boolean =
+    !mock || packageName.isNotBlank() && processName == packageName

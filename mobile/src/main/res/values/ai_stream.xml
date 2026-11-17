@@ -1,0 +1,7 @@
+<resources>
+    <string name="ai_stream_thinking_show">查看思考</string>
+    <string name="ai_stream_thinking_hide">收起思考</string>
+    <string name="ai_stream_tool">正在调用工具</string>
+    <string name="ai_stream_thinking">思考中</string>
+    <string name="ai_stream_answering">正在生成回答</string>
+</resources>

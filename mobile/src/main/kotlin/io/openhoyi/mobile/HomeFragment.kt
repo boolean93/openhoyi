@@ -248,7 +248,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             LinearLayout.LayoutParams(0, -2, 2f) else LinearLayout.LayoutParams(-1, -2))
         machineHeading.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         val spaciousHome = !phoneHome && resources.configuration.screenWidthDp >= 800 && !shortHome
-        val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
+        val boilerRow = MachineHomeView(host, spaciousHome, onOpenAi = {
+            // Navigation only: never selects a recipe or invokes a machine command.
+            startActivity(Intent(host, AiChatActivity::class.java))
+        }).apply { tag = "product/home/boilers" }
         content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { if(spaciousHome) topMargin=dp(8) })
         fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {

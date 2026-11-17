@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var aiSafetyArguments: Bundle? = null
     private var downloadRoutingChecks = false
     private var autoPreheatChecks = false
     private var unifiedSwitchChecks = false
@@ -58,6 +59,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var customExecution = false
     private var customFlowEditorChecks = false
     private var editorBArguments: Bundle? = null
+    private var aiPreviewArguments: Bundle? = null
     private var editorBLayoutArguments: Bundle? = null
     private var systemDocuments = false
     private var disposableCiEmulator = false
@@ -69,6 +71,8 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        aiSafetyArguments = arguments?.takeIf { it.getString("aiSafetyChecks") == "true" }?.let(::Bundle)
+        aiPreviewArguments = arguments?.takeIf { it.getString("aiPreviewOnly") == "true" }?.let(::Bundle)
         downloadRoutingChecks = arguments?.getString("downloadRoutingChecks") == "true"
         autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
@@ -124,9 +128,19 @@ class BrewAudioInstrumentation : Instrumentation() {
         super.onCreate(arguments); start()
     }
     override fun onStart() {
+        if (aiPreviewArguments?.keySet()?.any { it !in setOf("aiPreviewOnly", "aiCardConstructionOnly", "previewLanguage", "previewFont", "previewDark", "previewId") } == true) {
+            finish(Activity.RESULT_CANCELED, Bundle().apply { putString("stream", "AI_PREVIEW_ARGUMENTS_CONFLICT\n") })
+            return
+        }
+        aiSafetyArguments?.let { AiAndroidAcceptance(this).run(it); return }
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            aiPreviewArguments?.let { args ->
+                AiChatPreviewChecks(this).run(args)
+                report.putString("stream", "AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             editorBLayoutArguments?.let { args ->
                 CurveEditorBLayoutChecks(this).run(args)
                 report.putString("stream", "EDITOR_B_LAYOUT_CHECKS_PASSED fixedActions=true ime=true touch48=true colors=true noCurveSaved=true noBle=true\n")

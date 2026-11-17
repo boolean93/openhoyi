@@ -1,0 +1,16 @@
+<resources>
+    <string name="ai_usage_title">用量统计</string>
+    <string name="ai_usage_session">本次会话</string>
+    <string name="ai_usage_device">本机累计</string>
+    <string name="ai_usage_since">统计起点：%1$s</string>
+    <string name="ai_usage_none">尚无模型请求</string>
+    <string name="ai_usage_model">%1$s · %2$d 次请求\n输入 %3$d · 输出 %4$d · 合计 %5$d Token</string>
+    <string name="ai_usage_model_unknown">%1$s · %2$d 次请求\nToken 未返回</string>
+    <string name="ai_usage_missing">%1$d 次请求用量缺失，消耗未知</string>
+    <string name="ai_usage_search">搜索：尝试 %1$d 次 · 未确认 %2$d 次</string>
+    <string name="ai_usage_incomplete">部分统计可能不完整。</string>
+    <string name="ai_usage_note">本机统计，非账单；费用未知。</string>
+    <string name="ai_usage_close">关闭</string>
+    <string name="ai_usage_cache">缓存命中率：%1$s（已返回 %2$d/%3$d 次请求）</string>
+    <string name="ai_usage_cache_unknown">缓存命中率：未知</string>
+</resources>

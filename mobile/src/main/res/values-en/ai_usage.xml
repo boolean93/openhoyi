@@ -1,0 +1,16 @@
+<resources>
+    <string name="ai_usage_title">Usage</string>
+    <string name="ai_usage_session">This conversation</string>
+    <string name="ai_usage_device">This device</string>
+    <string name="ai_usage_since">Tracked since: %1$s</string>
+    <string name="ai_usage_none">No model requests yet</string>
+    <string name="ai_usage_model">%1$s · %2$d requests\nInput %3$d · Output %4$d · Total %5$d tokens</string>
+    <string name="ai_usage_model_unknown">%1$s · %2$d requests\nTokens not reported</string>
+    <string name="ai_usage_missing">%1$d requests missing usage; consumption unknown</string>
+    <string name="ai_usage_search">Search: %1$d attempts · %2$d unconfirmed</string>
+    <string name="ai_usage_incomplete">Some statistics may be incomplete.</string>
+    <string name="ai_usage_note">Local statistics, not a bill; costs unknown.</string>
+    <string name="ai_usage_close">Close</string>
+    <string name="ai_usage_cache">Cache hit rate: %1$s (reported for %2$d/%3$d requests)</string>
+    <string name="ai_usage_cache_unknown">Cache hit rate: unknown</string>
+</resources>

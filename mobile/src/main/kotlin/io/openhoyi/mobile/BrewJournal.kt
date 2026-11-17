@@ -119,6 +119,15 @@ internal class BrewJournal(private val storage: Storage) {
     private fun sameIdentity(a: Observation, b: Observation) {
         require(a.curveId == b.curveId && a.startedAtMs == b.startedAtMs) { "Shot ID has different identity" }
     }
+    // Retain the existing private checksum hook used by journal integrity tests.
+    private fun checksum(values: JSONArray): String = Companion.checksum(values)
+
+    companion object {
+        /** Validates the persisted document without constructing a recovering/writing journal. */
+        internal fun readOnlyObservations(value: String): List<Observation> = decode(value).values
+            .map { it.observation }
+            .sortedWith(compareByDescending<Observation> { it.startedAtMs }.thenBy { it.id })
+
     private fun validate(value: Observation) {
         require(value.id.isNotBlank() && value.id.length <= 256)
         require(value.curveId.isNotBlank() && value.curveId.length <= 256)
@@ -212,4 +221,5 @@ internal class BrewJournal(private val storage: Storage) {
     }
     private fun checksum(values: JSONArray): String = MessageDigest.getInstance("SHA-256").digest(canonical(values).toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+}
 }
