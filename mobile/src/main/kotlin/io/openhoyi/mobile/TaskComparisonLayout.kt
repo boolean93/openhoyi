@@ -10,6 +10,7 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
     val details = LinearLayout(activity).apply { orientation = VERTICAL }
     private val toolbarScroll = ScrollView(activity).apply { tag = "comparison-toolbar"; addView(toolbar) }
     private val detailsScroll = ScrollView(activity).apply { if (visual != null) tag = "comparison-details-scroll"; addView(details) }
+    private var supplementalDetails: View? = null
     private var chart: TwoCupChartView? = null
     internal val productLayoutEvidence = org.json.JSONObject()
     init {
@@ -17,6 +18,12 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
         addView(toolbarScroll, LayoutParams(-1, -2))
         addView(detailsScroll, LayoutParams(-1, -2))
         if (visual != null) { tag = "product/comparison/workspace"; toolbar.tag = "product/comparison/toolbar-body"; details.tag = "product/comparison/details" }
+    }
+    /** Extra readout scrolls with the details without claiming more of the plot budget. */
+    fun setSupplementalDetails(view: View) {
+        check(supplementalDetails == null)
+        supplementalDetails = view
+        details.addView(view, LayoutParams(-1, -2).apply { topMargin = HoyiUi.dp(activity, 16) })
     }
     fun setChart(value: TwoCupChartView) {
         check(chart == null)
@@ -112,7 +119,11 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
         val standard = height >= preferred + toolbarMinimum + detailsMinimum
         val minimum = if (standard) preferred else fallback
         val toolbarBudget = minOf(maxOf(toolbar.measuredHeight,toolbarMinimum), (height - minimum - detailsMinimum).coerceAtLeast(0))
-        val detailBudget = minOf(maxOf(details.measuredHeight,detailsMinimum), (height - toolbarBudget - minimum).coerceAtLeast(0))
+        val supplementalHeight = supplementalDetails?.takeIf { it.visibility == View.VISIBLE }?.let {
+            val params = it.layoutParams as LayoutParams
+            it.measuredHeight + params.topMargin + params.bottomMargin
+        } ?: 0
+        val detailBudget = minOf(maxOf(details.measuredHeight - supplementalHeight,detailsMinimum), (height - toolbarBudget - minimum).coerceAtLeast(0))
         productLayoutEvidence.put("availableHeightPx", height).put("toolbarNaturalPx", toolbar.measuredHeight)
             .put("toolbarBudgetPx", toolbarBudget).put("toolbarLocallyScrollable", toolbar.measuredHeight > toolbarBudget)
             .put("detailsNaturalPx", details.measuredHeight).put("detailsViewportPx", detailBudget)
