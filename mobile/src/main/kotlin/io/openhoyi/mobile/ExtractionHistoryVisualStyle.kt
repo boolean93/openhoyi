@@ -79,7 +79,7 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
 
 /** Independent M5 Paint and actual-draw evidence; consumes the existing validated projection only. */
 internal class ProductHistoryChartRenderer(private val context: Context, private val style: ExtractionHistoryVisualStyle,
-    private val liveMode: Boolean = false) {
+    private val liveMode: Boolean = false, private val standaloneAxes: Boolean = false) {
     private val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = TaskTypography.face(context, 400); textSize = this@ProductHistoryChartRenderer.style.palette.sp(14); isFakeBoldText = false
         letterSpacingCompat()
@@ -144,7 +144,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
             ChartAxisScale.majorTicks(range, layoutAxis?.steps?.get(series.metric) ?: series.step)
                 .map { tickText(series, it) }
         }.orEmpty()
-        return (current + target + (if (compact) displayUnit(series.metric) else axisTitle(series.metric)))
+        return (current + target + (if (compact || standaloneAxes) displayUnit(series.metric) else axisTitle(series.metric)))
             .maxOf(::extent) + dp(if (liveMode) 12f else 16f)
     }
     private fun tickText(series: MetricChartSeries, value: Float): String =
@@ -155,6 +155,49 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     private fun showAllAxes(width: Int, data: FourMetricChartData): Boolean =
         if (liveMode && data.series.size > 4) width - data.series.sumOf { column(it, true).toDouble() } - dp(16f) >= dp(120f)
         else liveMode || allAxes(width, data)
+    private data class AxisCaption(val metric: ChartMetric, val text: String, val x: Float, val row: Int)
+    private fun captions(width: Int, data: FourMetricChartData): List<AxisCaption> {
+        val half = (width / 2f - dp(16f)).coerceAtLeast(dp(1f))
+        val result = mutableListOf<AxisCaption>()
+        listOf(listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE), listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WATER)).forEachIndexed { side, metrics ->
+            var x = 0f; var row = 0
+            for (metric in metrics.filter { m -> data.series.any { it.metric == m } }) {
+                val text = axisTitle(metric)
+                // Split only when even one complete caption exceeds its half-window budget.
+                var chunk = ""
+                val chunks = mutableListOf<String>()
+                for (character in text) {
+                    if (chunk.isNotEmpty() && extent(chunk + character) > half) { chunks += chunk; chunk = "" }
+                    chunk += character
+                }
+                if (chunk.isNotEmpty()) chunks += chunk
+                for (part in chunks) {
+                    val size = extent(part)
+                    if (x > 0 && x + size > half) { row++; x = 0f }
+                    result += AxisCaption(metric, part, dp(8f) + side * width / 2f + x, row)
+                    x += size + dp(12f)
+                }
+            }
+        }
+        val rightOffsets = result.filter { it.x >= width / 2f }.groupBy { it.row }.mapValues { (_, captions) ->
+            width - dp(8f) - captions.maxOf { it.x + extent(it.text) }
+        }
+        return result.map { caption ->
+            if (caption.x >= width / 2f) caption.copy(x = caption.x + rightOffsets.getValue(caption.row)) else caption
+        }
+    }
+    internal var standaloneLegendBand = false
+    fun standaloneCaptionInsets(width: Int, data: FourMetricChartData): Pair<Float, Float>? {
+        val planned = captions(width, data)
+        if (planned.any { it.row > 0 }) return null
+        val left = planned.filter { it.x < width / 2f }.maxOfOrNull { it.x + extent(it.text) } ?: dp(8f)
+        val right = planned.filter { it.x >= width / 2f }.minOfOrNull { it.x } ?: (width - dp(8f))
+        return (left + dp(12f)) to (width - right + dp(12f))
+    }
+    fun standaloneLegendExtra(): Float = if (standaloneLegendBand) maxOf(0f,
+        dp(52f) + line / 2 - HistoryPlotBudget.top(line, context.resources.displayMetrics.density, liveMode)) else 0f
+    fun standaloneTitleExtra(width: Int, data: FourMetricChartData): Float =
+        if (standaloneAxes) (captions(width, data).maxOfOrNull { it.row } ?: 0) * line else 0f
     fun bounds(width: Int, height: Int, data: FourMetricChartData, focused: ChartMetric, comparison: Boolean): RectF {
         val compactAxes = compactAxes(width, data)
         val selected = data.series.filter { comparison && it.metric == focused || !comparison }
@@ -165,7 +208,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val tailWidth = 0f // Live endpoint names live in the persistent metric tiles.
         val right = width - dp(8f) - rightAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat() - tailWidth
         return if (comparison) RectF(left, line * 1.5f + dp(12f), right, height - line * 1.5f - dp(12f))
-            else RectF(left, HistoryPlotBudget.top(line, context.resources.displayMetrics.density, liveMode),
+            else RectF(left, HistoryPlotBudget.top(line, context.resources.displayMetrics.density, liveMode) + standaloneTitleExtra(width, data) + standaloneLegendExtra(),
                 right, height - HistoryPlotBudget.bottom(line, context.resources.displayMetrics.density, liveMode))
     }
     private data class Label(val text: String, val x: Float, val baseline: Float, val align: Paint.Align, val color: Int, val role: String, val sizeSp: Int = 14, val metric: ChartMetric? = null)
@@ -212,12 +255,16 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         }
         fun planAxis(item: MetricChartSeries, x: Float) {
             val metricInk = if (liveMode) style.liveMetric(item.metric) else style.metric(item.metric)
-            texts += Label(if (compactAxes) displayUnit(item.metric) else axisTitle(item.metric), x, dp(4f) - fm.ascent, Paint.Align.LEFT, metricInk, "axis-unit", metric = item.metric)
+            if (!standaloneAxes) texts += Label(if (compactAxes) displayUnit(item.metric) else axisTitle(item.metric), x, dp(4f) - fm.ascent, Paint.Align.LEFT, metricInk, "axis-unit", metric = item.metric)
             // The first and last labeled ticks always equal range.low and range.high.
             for (value in labeled(ChartAxisScale.majorTicks(item.range, item.step))) {
                 val py = box.bottom - box.height() * (value - item.range.low) / (item.range.high - item.range.low)
                 texts += Label(tickText(item, value), x, py - (fm.ascent + fm.descent) / 2, Paint.Align.LEFT, metricInk, "axis-tick", metric = item.metric)
             }
+        }
+        if (standaloneAxes) captions(width, data).forEach { caption ->
+            texts += Label(caption.text, caption.x, dp(4f) - fm.ascent + caption.row * line,
+                Paint.Align.LEFT, style.liveMetric(caption.metric), "axis-unit", metric = caption.metric)
         }
         var x = dp(8f)
         leftAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }

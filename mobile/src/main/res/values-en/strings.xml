@@ -391,6 +391,7 @@
     <string name="home_password_message">"Enter the device password for the first connection. After a successful connection, it is encrypted and saved locally for future connections."</string>
     <string name="home_permission_expired">"Bluetooth permission has expired"</string>
     <string name="home_permission_required">"Bluetooth permission is required to connect devices"</string>
+    <string name="home_preset_full_name">"Full curve name"</string>
     <string name="home_quick_curves">"Quick curves"</string>
     <string name="home_quick_curves_hint">"Select a curve to review extraction preparation, then confirm start."</string>
     <string name="home_records">"Records and maintenance"</string>

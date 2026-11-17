@@ -9,6 +9,8 @@ class ShotChartView(context: Context) : FrameLayout(context) {
         removeView(chart); chart = ExtractionOverlayView(context, visual, embeddedHistory, standalonePlotMinimumDp); addView(chart, LayoutParams(-1, -1))
     }
     private var chart = ExtractionOverlayView(context)
+    internal val standaloneLegendOverlapsAxes get() = chart.standaloneLegendOverlapsAxes
+    internal fun standaloneMinimumPlotHeight(width: Int) = chart.standaloneMinimumPlotHeight(width)
     internal val standalonePlotMinimumHeightPx get() = chart.standalonePlotMinimumHeightPx
     internal val standaloneHeaderMinimumHeightPx get() = chart.standaloneHeaderMinimumHeightPx
     internal val plotRendererMode get() = chart.plotRendererMode

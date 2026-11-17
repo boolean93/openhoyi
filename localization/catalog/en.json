@@ -1080,5 +1080,6 @@
   "curve_editor_mode_flow_fast": "Flow · Fast",
   "curve_editor_bloom_short": "Bloom",
   "curve_editor_duration_short": "First-stage time",
-  "curve_editor_compensation_short": "Weight offset"
+  "curve_editor_compensation_short": "Weight offset",
+  "home_preset_full_name": "Full curve name"
 }

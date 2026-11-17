@@ -24,9 +24,12 @@ import kotlin.math.ceil
 /** A display-only, shared-time plot. Each metric retains its own physical range. */
 internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null,
     private val embeddedHistory: Boolean = false, private val standalonePlotMinimumDp: Float? = null) : LinearLayout(context) {
-    private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory) }
-    internal val standalonePlotMinimumHeightPx get() = standalonePlotMinimumDp?.let {
-        requireNotNull(productRenderer).minimumHeightForPlot(it)
+    private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory, standaloneAxes = standalonePlotMinimumDp != null) }
+    internal val standalonePlotMinimumHeightPx get() = standaloneMinimumPlotHeight(measuredWidth.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels)
+    internal fun standaloneMinimumPlotHeight(width: Int) = standalonePlotMinimumDp?.let {
+        configureStandaloneLegendBand(width)
+        requireNotNull(productRenderer).minimumHeightForPlot(it) + kotlin.math.ceil(requireNotNull(productRenderer).standaloneTitleExtra(
+            width, data) + requireNotNull(productRenderer).standaloneLegendExtra()).toInt()
     }
     internal val standaloneHeaderMinimumHeightPx: Int? get() = standalonePlotMinimumDp?.let {
         // Real whole controls and individual original text lines must remain revealable in the native scroll.
@@ -395,7 +398,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val box=productRenderer?.bounds(width,probeHeight,displayedData(data),focusMetric,false) ?: return dp(320f).toInt()
         return kotlin.math.ceil(liveHeaderHeightPx+fixedAxisNoticeHeight(width)+probeHeight-box.height()+box.width()*ratio).toInt().coerceAtLeast(dp(260f).toInt())
     }
-    private fun fixedAxisNoticeHeight(width: Int = measuredWidth): Int {
+    internal fun fixedAxisNoticeHeight(width: Int = measuredWidth): Int {
         if (fixedAxisNotice.visibility != VISIBLE) return 0
         fixedAxisNotice.measure(MeasureSpec.makeMeasureSpec(width.coerceAtLeast(dp(96f).toInt()), MeasureSpec.AT_MOST),
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
@@ -445,6 +448,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         addView(header, LayoutParams(-1, -2))
         addView(fixedAxisNotice, LayoutParams(-1, -2))
         addView(plot, LayoutParams(-1, 0, 1f))
+        if (standalonePlotMinimumDp != null) {
+            // Dedicated history: slim centered controls precede the axes and real plot.
+            explanation.tag = "product/history/chart-explanation"
+            header.bringToFront()
+        }
         visual?.palette?.let { style ->
             listOf(compactNotice, explanation, referenceCaption, fixedAxisNotice).forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
         }
@@ -455,8 +463,48 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         rebuildProjection()
     }
 
+    private var standaloneLegendLeft = 0
+    private var standaloneLegendWidth = 0
+    private var standaloneLegendCenterPx = 0f
+    internal val standaloneLegendOverlapsAxes get() = standalonePlotMinimumDp != null && productRenderer?.standaloneLegendBand == true
+    private fun configureStandaloneLegendBand(width: Int) {
+        if (standalonePlotMinimumDp == null) return
+        val insets = requireNotNull(productRenderer).standaloneCaptionInsets(width, data)
+        val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        var wantedHeight = dp(48f).toInt()
+        val wanted = (0 until legend.childCount).sumOf { index ->
+            val body=(legend.getChildAt(index) as android.widget.FrameLayout).getChildAt(0)
+            body.measure(natural,natural);wantedHeight=maxOf(wantedHeight,body.measuredHeight)
+            maxOf(dp(48f).toInt(),body.measuredWidth + dp(16f).toInt())
+        }
+        standaloneLegendLeft = kotlin.math.ceil(insets?.first ?: 0f).toInt()
+        standaloneLegendWidth = (width - standaloneLegendLeft - kotlin.math.ceil(insets?.second ?: 0f).toInt()).coerceAtLeast(0)
+        requireNotNull(productRenderer).standaloneLegendBand = insets != null && explanation.visibility != VISIBLE && fixedAxisNotice.visibility != VISIBLE && wanted <= standaloneLegendWidth && wanted > 0 && wantedHeight <= dp(48f).toInt()
+        standaloneLegendCenterPx = requireNotNull(productRenderer).bounds(width, dp(1000f).toInt(), data, focusMetric, false).centerX() - standaloneLegendLeft
+    }
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        if (standalonePlotMinimumDp == null) { super.onLayout(changed,l,t,r,b); return }
+        if (standaloneLegendOverlapsAxes) {
+            plot.layout(0,0,width,height)
+            header.layout(standaloneLegendLeft,0,standaloneLegendLeft+standaloneLegendWidth,header.measuredHeight)
+        } else {
+            header.layout(0,0,width,header.measuredHeight)
+            val noticeHeight = fixedAxisNoticeHeight(width)
+            fixedAxisNotice.layout(0,header.measuredHeight,width,header.measuredHeight+noticeHeight)
+            plot.layout(0,header.measuredHeight+noticeHeight,width,header.measuredHeight+noticeHeight+plot.measuredHeight)
+        }
+    }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        configureStandaloneLegendBand(MeasureSpec.getSize(widthMeasureSpec))
+        if (standaloneLegendOverlapsAxes) {
+            val width = MeasureSpec.getSize(widthMeasureSpec)
+            header.measure(MeasureSpec.makeMeasureSpec(standaloneLegendWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(dp(48f).toInt(), MeasureSpec.EXACTLY))
+            plot.measure(MeasureSpec.makeMeasureSpec(width,MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(height,MeasureSpec.EXACTLY))
+            setMeasuredDimension(width,height)
+            return
+        }
         if (liveCompactChrome) {
             if (compactTop.layoutParams.height != liveHeaderHeightPx) compactTop.layoutParams.height = liveHeaderHeightPx
             super.onMeasure(widthMeasureSpec,heightMeasureSpec)
@@ -464,7 +512,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
         if (standalonePlotMinimumDp != null) header.measure(widthMeasureSpec,
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-        val plotMinimum = plot.minimumAxisHeight()
+        val plotMinimum = standaloneMinimumPlotHeight(MeasureSpec.getSize(widthMeasureSpec)) ?: plot.minimumAxisHeight()
         val headerMinimum = standaloneHeaderMinimumHeightPx ?: dp(48f).toInt()
         val noticeHeight = fixedAxisNoticeHeight(MeasureSpec.getSize(widthMeasureSpec))
         val compact = height < plotMinimum + headerMinimum + noticeHeight
@@ -547,11 +595,15 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     compoundDrawablePadding = dp(4f).toInt()
                     setCompoundDrawablesRelative(MetricSwatch(metric), null, null, null)
                     setOnClickListener {
-                        if (data.series.none { it.metric == metric }) return@setOnClickListener
+                        if (data.series.none { it.metric == metric }) {
+                            if (standalonePlotMinimumDp != null) showStandaloneMetricInfo(metric)
+                            return@setOnClickListener
+                        }
                         selected = metric
                         updateSelection()
                         updateDescription()
                         plot.invalidate()
+                        if (standalonePlotMinimumDp != null) showStandaloneMetricInfo(metric)
                     }
                 }.also { button ->
                     if (liveChart) addLiveTile(metric, button) else legend.addView(button)
@@ -584,13 +636,24 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         plot.invalidate()
     }
 
+    private fun showStandaloneMetricInfo(metric: ChartMetric) {
+        val palette = requireNotNull(visual).palette
+        val content = LinearLayout(context).apply { orientation = VERTICAL }
+        content.addView(palette.text(liveRanges[metric]?.text?.toString().orEmpty(), TaskProductVisualStyle.body, "chart-range:$metric"))
+        content.addView(palette.text(explanation.text, TaskProductVisualStyle.auxiliary, "product/history/metric-explanation"))
+        AppDialog.show(context, metricName(metric), content,
+            AppDialog.Action(context.getString(android.R.string.ok)) {})
+    }
+
     private fun displayUnit(metric: ChartMetric) = if (liveChart && metric == ChartMetric.WATER) "mL" else metric.unit
 
     private fun addLiveTile(metric: ChartMetric, button: Button) {
         val palette = requireNotNull(visual).palette
         val tile = android.widget.FrameLayout(context)
         val body = LinearLayout(context).apply {
-            orientation = VERTICAL; setPadding(dp(8f).toInt(), dp(4f).toInt(), dp(8f).toInt(), dp(4f).toInt())
+            orientation = VERTICAL
+            if (standalonePlotMinimumDp != null) setPadding(dp(4f).toInt(), 0, dp(4f).toInt(), 0)
+            else setPadding(dp(8f).toInt(), dp(4f).toInt(), dp(8f).toInt(), dp(4f).toInt())
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         }
         val name = palette.text(if (metric == ChartMetric.WEIGHT) context.getString(R.string.task_extraction_scale)
@@ -604,12 +667,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         number.setSingleLine(true); unit.setSingleLine(true)
         number.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric)); unit.setTextColor(if(liveCompactChrome) requireNotNull(visual).palette.ink else metricColor(metric))
         quantity.addView(number); quantity.addView(unit, LayoutParams(-2, -2).apply { marginStart = dp(4f).toInt() })
-        body.addView(quantity)
+        if (standalonePlotMinimumDp != null) {
+            body.removeView(name)
+            val row = StandaloneReadoutRow(context, palette.dp(6))
+            row.addView(name, ViewGroup.LayoutParams(-2, -2)); row.addView(quantity, ViewGroup.LayoutParams(-2, -2))
+            body.addView(row, LayoutParams(-1, -2))
+            palette.apply(number, TaskProductVisualStyle.Type(18, 500, 24))
+            palette.apply(unit, TaskProductVisualStyle.Type(14, 400, 20))
+        } else body.addView(quantity)
         val range = palette.text("", TaskProductVisualStyle.Type(12, 400, 18), "chart-range:$metric", true)
         body.addView(range)
+        if (standalonePlotMinimumDp != null) range.visibility = GONE
         button.setCompoundDrawablesRelative(null, null, null, null)
         button.text = ""; button.setPadding(0, 0, 0, 0)
-        tile.addView(body, android.widget.FrameLayout.LayoutParams(-1, -2))
+        tile.addView(body, android.widget.FrameLayout.LayoutParams(-1, -2, if (standalonePlotMinimumDp != null) android.view.Gravity.CENTER_VERTICAL else android.view.Gravity.TOP))
         tile.addView(button, android.widget.FrameLayout.LayoutParams(-1, -1))
         liveTiles[metric] = tile; liveValues[metric] = number to unit; liveRanges[metric] = range
         legend.addView(tile)
@@ -634,7 +705,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 (if (paused) context.getString(R.string.live_pressure_pause_explanation) + "; " else "") +
                 (if (metric == ChartMetric.FLOW && latest == null) context.getString(R.string.task_chart_flow_unavailable) + "; " else "") +
                 context.getString(R.string.task_chart_hint)
-            button.isEnabled = series != null && (metric != ChartMetric.FLOW || latest != null)
+            button.isEnabled = standalonePlotMinimumDp != null || series != null && (metric != ChartMetric.FLOW || latest != null)
             return
         }
         if (series == null) {
@@ -684,7 +755,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             if (button.isSelected != focused) {
                 button.isSelected = focused
                 liveTiles[metric]?.background = requireNotNull(visual).palette.shape(
-                    if (focused && !liveCompactChrome) requireNotNull(visual).palette.selected else android.graphics.Color.TRANSPARENT,
+                    if (focused && !liveCompactChrome && standalonePlotMinimumDp == null) requireNotNull(visual).palette.selected else android.graphics.Color.TRANSPARENT,
                     radius = 8)
                 button.typeface = TaskTypography.face(context, if (visual != null) 400 else if (focused) 700 else 400)
             }
@@ -731,10 +802,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val compact = compactRunningExplanation && visual != null && !embeddedHistory
         if (liveChart && data.pauseBaselineMs.isNotEmpty()) notes += context.getString(R.string.live_pressure_pause_explanation)
         val warnings = notes.drop(1)
-        val inline = if (liveChart) (listOf(context.getString(R.string.task_chart_hint)) + warnings).joinToString(" · ")
+        val inline = if (standalonePlotMinimumDp != null) warnings.filter { it != axisWarning }.joinToString(" · ")
+            else if (liveChart) (listOf(context.getString(R.string.task_chart_hint)) + warnings).joinToString(" · ")
             else if (compact) warnings.joinToString(" · ") else fullExplanation
         if (explanation.text.toString() != inline) explanation.text = inline
-        explanation.visibility = if (liveCompactChrome || !liveChart && compact && warnings.isEmpty()) GONE else VISIBLE
+        explanation.visibility = if (standalonePlotMinimumDp != null) {
+            if (inline.isEmpty()) GONE else VISIBLE
+        } else if (liveCompactChrome || !liveChart && compact && warnings.isEmpty()) GONE else VISIBLE
         plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
             context.getString(R.string.task_chart_independent, metricName(focusMetric), displayUnit(focusMetric)) +
             referenceNotes + displayedData(data).series.map { series ->
@@ -884,6 +958,32 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         @Deprecated("Deprecated in Android") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
     }
 
+    /** Intrinsic width for the legend, with whole name/value wrapping in narrow or large-font windows. */
+    private class StandaloneReadoutRow(context: Context, private val gap: Int) : ViewGroup(context) {
+        private var inline = true
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val bounded = MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED
+            val width = MeasureSpec.getSize(widthMeasureSpec)
+            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            val limit = if (bounded) MeasureSpec.makeMeasureSpec(width, MeasureSpec.AT_MOST) else natural
+            val name = getChildAt(0); val quantity = getChildAt(1)
+            name.measure(limit, natural); quantity.measure(limit, natural)
+            inline = !bounded || name.measuredWidth + gap + quantity.measuredWidth <= width
+            val wantedWidth = if (inline) name.measuredWidth + gap + quantity.measuredWidth else maxOf(name.measuredWidth, quantity.measuredWidth)
+            val wantedHeight = if (inline) maxOf(name.measuredHeight, quantity.measuredHeight) else name.measuredHeight + quantity.measuredHeight
+            setMeasuredDimension(resolveSize(wantedWidth, widthMeasureSpec), resolveSize(wantedHeight, heightMeasureSpec))
+        }
+        override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+            val name = getChildAt(0); val quantity = getChildAt(1)
+            fun place(view: View, x: Int, y: Int) {
+                val start = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - x - view.measuredWidth else x
+                view.layout(start, y, start + view.measuredWidth, y + view.measuredHeight)
+            }
+            place(name, 0, if (inline) (height - name.measuredHeight) / 2 else 0)
+            place(quantity, if (inline) name.measuredWidth + gap else 0, if (inline) (height - quantity.measuredHeight) / 2 else name.measuredHeight)
+        }
+    }
+
     /** Four readouts stay whole; actual text measurement decides one or two rows. */
     private inner class LegendLayout(context: Context) : ViewGroup(context) {
         private val separatorPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=visual?.liveSeparator ?: context.getColor(R.color.mobile_border);strokeWidth=dp(1f) }
@@ -900,7 +1000,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val available = MeasureSpec.getSize(widthMeasureSpec)
             naturalRow=false
-            if(liveCompactChrome && resources.configuration.orientation!=android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            if((liveCompactChrome && resources.configuration.orientation!=android.content.res.Configuration.ORIENTATION_PORTRAIT) || standalonePlotMinimumDp != null) {
                 val unspecified=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
                 val widths=(0 until childCount).map { i ->
                     val body=(getChildAt(i) as android.widget.FrameLayout).getChildAt(0)
@@ -921,6 +1021,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             }
             val wide = ((available - gap * 3) / 4).coerceAtLeast(1)
             var singleRowFits = true
+            var standaloneNaturalWidth = 0
             fun wholeSingleLine(view: View): Boolean = if (view.visibility == GONE) true else when (view) {
                 is TextView -> view.layout?.let { layout ->
                     layout.lineCount <= 1 && (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 }
@@ -936,6 +1037,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     val body = (child as android.widget.FrameLayout).getChildAt(0)
                     val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
                     body.measure(natural, natural)
+                    standaloneNaturalWidth = maxOf(standaloneNaturalWidth, body.measuredWidth)
                     if (body.measuredWidth > wide || !wholeSingleLine(body)) singleRowFits = false
                 } else {
                     child.measure(MeasureSpec.makeMeasureSpec(wide, MeasureSpec.EXACTLY),
@@ -944,6 +1046,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 }
             }
             columns = if (liveCompactChrome && resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) 2 else if (singleRowFits) 4 else 2
+            if (standalonePlotMinimumDp != null && standaloneNaturalWidth > (available - gap) / 2) columns = 1
             val childWidth = ((available - gap * (columns - 1)) / columns).coerceAtLeast(1)
             var rowHeight = 0
             var totalHeight = 0
@@ -970,12 +1073,31 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
         override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
             if(naturalRow) {
-                var x=0
+                var x=if (standalonePlotMinimumDp != null) ((width - (0 until childCount).sumOf { getChildAt(it).measuredWidth }) / 2).coerceAtLeast(0) else 0
                 for(i in 0 until childCount) {
                     val child=getChildAt(i)
                     val start=if(layoutDirection==View.LAYOUT_DIRECTION_RTL) width-x-child.measuredWidth else x
                     child.layout(start,0,start+child.measuredWidth,child.measuredHeight)
                     x+=child.measuredWidth
+                }
+                if (standalonePlotMinimumDp != null && childCount > 0) {
+                    var visibleLeft = Int.MAX_VALUE; var visibleRight = Int.MIN_VALUE
+                    fun include(view: View) {
+                        if (view.visibility != VISIBLE) return
+                        if (view is TextView && view.text.isNotEmpty()) {
+                            val rect = android.graphics.Rect(0, 0, view.width, view.height)
+                            offsetDescendantRectToMyCoords(view, rect)
+                            visibleLeft = minOf(visibleLeft, rect.left); visibleRight = maxOf(visibleRight, rect.right)
+                        } else if (view is ViewGroup) for (index in 0 until view.childCount) include(view.getChildAt(index))
+                    }
+                    for (index in 0 until childCount) include((getChildAt(index) as android.widget.FrameLayout).getChildAt(0))
+                    if (visibleLeft <= visibleRight) {
+                        val target = if (standaloneLegendOverlapsAxes) standaloneLegendCenterPx else width / 2f
+                        val delta = kotlin.math.round(target - (visibleLeft + visibleRight) / 2f).toInt()
+                            .coerceIn(-(0 until childCount).minOf { getChildAt(it).left },
+                                width - (0 until childCount).maxOf { getChildAt(it).right })
+                        for (index in 0 until childCount) getChildAt(index).offsetLeftAndRight(delta)
+                    }
                 }
                 return
             }

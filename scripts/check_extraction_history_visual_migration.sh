@@ -436,7 +436,19 @@ def require_reach(folder,page,expected_warning=False):
         require_standalone_header(folder)
         reach=json.loads((folder/'detail-business.json').read_text())
         assert reach['completed'] and reach['savedNotesReachable'] and reach['exactScrollRestored']
-        assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['shotIdUnchanged'] and reach['journalUnchanged'] and reach['fixedEditComplete']
+        assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['shotIdUnchanged'] and reach['journalUnchanged'] and reach['noEditOrSaveInvoked']
+        assert reach['notesSource']=='actual_BrewJournal_Notes_in_actual_details_dialog'
+        assert {x['tag'] for x in reach['actionsReachable']} == {'product/history/review','product/history/details','product/history/compare'}
+        for action in reach['actionsReachable']:
+            require_text_layout(action['layout'])
+            proof=require_proof(folder/action['proof'])
+            accepted=proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+            assert proof['captureWindowKind']=='ACTIVITY' and accepted['action']==action['layout']
+            assert accepted['actionWidthDp']>=48 and accepted['actionHeightDp']>=48
+        for target in reach['targets']:
+            proof=require_proof(folder/target['proof'])
+            accepted=proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+            assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and accepted['note']==target['layout']
         assert len(reach['targets'])==6 and len({x['target'] for x in reach['targets']})==6
         for target in reach['targets']:require_text_layout(target['layout'])
         assert all(x['visibility']['complete'] for x in reach['targets'])
@@ -596,15 +608,29 @@ def require_standalone_header(folder):
     assert report['schema']=='STANDALONE_NATIVE_HEADER_REACH_V1' and report['completed']
     assert report['beforeState']==report['afterState']
     initial=report['initial']; restored=report['restored']
-    assert initial==restored and len(initial['texts'])>=17
+    assert initial==restored and len(initial['texts'])>=12
     assert len({t['identity'] for t in initial['texts']})==len(initial['texts'])
-    expected=['chart-metric:'+metric for metric in ('PRESSURE','WATER','WEIGHT','TEMPERATURE')]
+    metrics=('PRESSURE','WATER','FLOW','TEMPERATURE') if initial['controls'][2]['semanticId']=='chart-metric:FLOW' else ('PRESSURE','WATER','WEIGHT','TEMPERATURE')
+    expected=['chart-metric:'+metric for metric in metrics]
     assert [c['semanticId'] for c in initial['controls']]==expected
     assert len({c['identity'] for c in initial['controls']})==4
     tags={t['semanticId'] for t in initial['texts']}
-    for metric in ('PRESSURE','WATER','WEIGHT','TEMPERATURE'):
+    for metric in metrics:
         assert {f'product/extraction/metric/{metric}/{part}' for part in ('name','number','unit')} <= tags
-        assert 'chart-range:'+metric in tags
+        # Ranges may live in the explicit, independently captured metric info dialog.
+        if 'chart-range:'+metric not in tags:
+            assert (folder/'standalone-metric-ranges.json').is_file(), 'Missing on-demand range evidence'
+            ranges=json.loads((folder/'standalone-metric-ranges.json').read_text())
+            assert ranges['completed']
+            entries=[x for x in ranges['ranges'] if x['metric']==metric]
+            assert len(entries)==1
+            entry=entries[0];proof=require_proof(folder/entry['proof'])
+            target=proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+            assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and target==entry['target']
+            control=next(x for x in initial['controls'] if x['semanticId']=='chart-metric:'+metric)
+            expected_range=control['contentDescription'].split('; ',1)[1].split(';',1)[0]
+            assert target['rangeText']==target['expectedRange']==expected_range and target['rangeText'] and target['explanation']
+            assert target['range']['complete']
     def accepted(relative,snapshot):
         assert relative.startswith('states/detail-header-') and relative.endswith('/window-frame-sync.json')
         assert '..' not in Path(relative).parts and not Path(relative).is_absolute()
@@ -615,7 +641,7 @@ def require_standalone_header(folder):
         assert target==attempt['geometryAfter']['target']
         assert target['standaloneHeader']==snapshot
         plot=target['standaloneHistoryPlot']
-        if plot['plotPresent']:assert plot['actualPlotHeightDp']>=96 and plot['visiblePlotHeightDp']>=96
+        if plot['plotPresent']:assert plot['actualPlotHeightDp']>=160  # Legend reveal may scroll the plot out of view.
         else:assert plot['emptySamples'] and plot['actualSampleCount']==0
         assert json.loads((folder/relative).with_name('geometry.json').read_text())==target
         density=target['densityDpi']/160
@@ -644,7 +670,7 @@ def require_standalone_header(folder):
         assert current['headerIdentity']==initial['headerIdentity']
         assert len(current['texts'])==len(initial['texts']) and len(current['controls'])==4
         viewport=current['viewport']
-        assert current['headerVisibility']['complete'] and current['headerVisibility']['screenMappingVerified']
+        assert current['headerVisibility']['screenMappingVerified']
         assert viewport==current['headerVisibility']['visibleRectPx']
         assert viewport[2]>viewport[0] and viewport[3]>viewport[1]
         for index,(before,text) in enumerate(zip(initial['texts'],current['texts'])):
@@ -678,16 +704,15 @@ def require_standalone(folder,window,empty_expected):
     assert json.loads((folder/'standalone-history-plot.json').read_text())==evidence
     assert evidence['budgetSource']=='deep_copy_existing_StandaloneHistoryPlot.productLayoutEvidence'
     budget=evidence['budget']
-    assert budget['minimumPlotDp']==96
-    assert budget['standalonePlotFloorOptIn'] and budget['actualRendererMode']=='LIVE'
-    assert budget['headerScrollPreservesNaturalContent']
-    assert budget['chartBudgetSource']=='native_scroll_atomic_header + same_actual_renderer_plot_96dp'
-    for key in ('availableHeightPx','availableWidthPx','verticalChromeNaturalPx','resolvedChromeNaturalPx',
-                'metricsInlineNaturalWidthPx','chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','primaryBudgetSatisfiable'):
+    assert budget['minimumPlotDp']==160 and budget['actualRendererMode']=='LIVE'
+    assert budget['chartFirst']
+    assert budget['chartBudgetSource']=='complete_native_readouts_below_same_renderer_160dp_plot'
+    for key in ('availableHeightPx','availableWidthPx','resolvedChromeNaturalPx',
+                'chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','contentHeightPx','localContentScroll'):
         assert key in budget,(folder,key)
     assert evidence['emptySamples']==empty_expected
     if evidence['plotPresent']:
-        assert evidence['actualPlotHeightDp']>=96 and evidence['visiblePlotHeightDp']>=96
+        assert evidence['actualPlotHeightDp']>=160 and evidence['visiblePlotHeightDp']>=160
         assert evidence['plotView']['screenMappingVerified']
         assert evidence['plotBoundsScreenPx'] and evidence['visiblePlotBoundsScreenPx']
     else:

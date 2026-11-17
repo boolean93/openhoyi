@@ -1116,15 +1116,15 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun requireStandaloneHistoryPlot(activity:Activity,folder:File,evidence:JSONObject,emptyExpected:Boolean) {
         File(folder,"standalone-history-plot.json").writeText(evidence.toString(2))
         check(evidence.getBoolean("emptySamples")==emptyExpected)
-        check(evidence.getJSONObject("budget").getInt("minimumPlotDp")==96)
+        check(evidence.getJSONObject("budget").getInt("minimumPlotDp")==160)
         if(!evidence.getBoolean("plotPresent")) {
             check(emptyExpected && evidence.getInt("actualSampleCount")==0) {"M5 nonempty Detail has no actual Canvas plot"}
             check((0 until evidence.getJSONArray("actualCanvas").length()).none {
                 evidence.getJSONArray("actualCanvas").getJSONObject(it).optString("operation")=="path" })
         } else {
             check(evidence.getJSONObject("plotView").getBoolean("screenMappingVerified"))
-            check(evidence.getDouble("actualPlotHeightDp")>=96.0 && evidence.getDouble("visiblePlotHeightDp")>=96.0) {
-                "M5 Detail real Canvas plot / visible intersection <96dp: $evidence"}
+            check(evidence.getDouble("actualPlotHeightDp")>=160.0 && evidence.getDouble("visiblePlotHeightDp")>=160.0) {
+                "C Detail real Canvas plot / visible intersection <160dp: $evidence"}
         }
     }
     private fun geometry(activity: Activity): JSONObject {
@@ -1522,18 +1522,21 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                                 left>=maxOf(viewport.getInt(0),clip.getInt(0)) && right<=minOf(viewport.getInt(2),clip.getInt(2)) &&
                                 top>=maxOf(viewport.getInt(1),clip.getInt(1)) && bottom<=minOf(viewport.getInt(3),clip.getInt(3)))
                     }))
-            })).put("controls",JSONArray(historicalMetrics.map { metric ->
+            })).put("controls",JSONArray(liveMetrics.map { metric ->
                 val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
                 JSONObject().put("identity",System.identityHashCode(button)).put("semanticId",button.tag)
+                    .put("contentDescription",button.contentDescription.toString())
                     .put("widthDp",button.width/activity.resources.displayMetrics.density)
                     .put("heightDp",button.height/activity.resources.displayMetrics.density).put("visibility",historyVisibility(button))
                     .put("layout",screenObservation(button))
             }))
     }
-    private fun standaloneHeaderReachability(activity: Activity, scope:Scope, folder:File) {
+    private fun standaloneHeaderReachability(activity: Activity, scope:Scope, folder:File, coordinateTap:Boolean = false) {
         val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
         val overlay=chart.getChildAt(0) as ExtractionOverlayView
         val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val outer=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/history/detail-scroll"))
+        val outerX=outer.scrollX;val outerY=outer.scrollY
         val savedX=header.scrollX;val savedY=header.scrollY;val focus=activity.currentFocus
         fun state()=JSONObject().put("shotId",activity.intent.getStringExtra("shotId"))
             .put("points",pointRecords(chart.points)).put("reference",pointRecords(overlay.reference))
@@ -1549,6 +1552,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 .put("proof","$relative/window-frame-sync.json"))
         }
         try {
+            main {header.requestRectangleOnScreen(Rect(0,0,header.width,header.height),true)}
+            frames.committedFrame(root(activity))
             var y=0
             while(true) {
                 main {header.scrollTo(savedX,y)};frames.committedFrame(root(activity))
@@ -1558,7 +1563,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 y=minOf(maximum,y+maxOf(1,header.height/2))
             }
             // Exact native reveals cover atomic controls/lines that straddle the sweep steps.
-            historicalMetrics.forEachIndexed { index,metric ->
+            liveMetrics.forEachIndexed { index,metric ->
                 val covered=(0 until pages.length()).any { pages.getJSONObject(it).getJSONObject("snapshot")
                     .getJSONArray("controls").getJSONObject(index).getJSONObject("layout").getBoolean("complete") }
                 if(!covered) {
@@ -1582,8 +1587,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
         } catch(error:Throwable) {failure=error;throw error}
         finally {
-            try {main {header.scrollTo(savedX,savedY)};frames.committedFrame(root(activity))
-                main {check(header.scrollX==savedX && header.scrollY==savedY && activity.currentFocus===focus)
+            try {main {header.scrollTo(savedX,savedY);outer.scrollTo(outerX,outerY)};frames.committedFrame(root(activity))
+                main {check(header.scrollX==savedX && header.scrollY==savedY && outer.scrollX==outerX && outer.scrollY==outerY && activity.currentFocus===focus)
                     check(state().toString()==before.toString())}}
             catch(restore:Throwable) {if(failure!=null)failure.addSuppressed(restore) else throw restore}
         }
@@ -1606,46 +1611,156 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 control.getDouble("widthDp")>=48 && control.getDouble("heightDp")>=48 && control.getJSONObject("layout").getBoolean("complete")
             }) {"M5 Detail original 48dp metric control not fully reachable"}
         }
+        val metricRanges=JSONArray()
+        val originalSelection=historyMainValue {field(overlay,"selected")}
+        try {
+            for(metric in liveMetrics) {
+                val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
+                val expected=button.contentDescription.toString().substringAfter("; ").substringBefore(";")
+                main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+                frames.committedFrame(root(activity))
+                val input=JSONObject().put("method","performClick")
+                val inject=coordinateTap && metric==liveMetrics.first()
+                val immutableBefore=historyMainValue {state().apply {remove("selected");remove("focusIdentity")}.toString()}
+                if(inject) {
+                    val beforeRelative="states/detail-coordinate-pressure-before"
+                    val native=capture(activity,File(folder,beforeRelative))
+                    val controls=native.target.getJSONObject("standaloneHeader").getJSONArray("controls")
+                    val hit=(0 until controls.length()).map {controls.getJSONObject(it)}.single {it.getString("semanticId")==button.tag}
+                    check(hit.getDouble("widthDp")>=48 && hit.getDouble("heightDp")>=48 && hit.getJSONObject("visibility").getBoolean("complete"))
+                    val rect=hit.getJSONObject("visibility").getJSONArray("rectPx")
+                    val x=(rect.getDouble(0)+rect.getDouble(2)).toFloat()/2
+                    val y=(rect.getDouble(1)+rect.getDouble(3)).toFloat()/2
+                    main {check(button.isEnabled && button.isShown && button.display.displayId==android.view.Display.DEFAULT_DISPLAY)
+                        check(historyVisibility(button).getJSONArray("rectPx").toString()==rect.toString())}
+                    val downTime=SystemClock.uptimeMillis()
+                    fun event(action:Int):Boolean {
+                        val event=android.view.MotionEvent.obtain(downTime,SystemClock.uptimeMillis(),action,x,y,0)
+                        event.source=android.view.InputDevice.SOURCE_TOUCHSCREEN
+                        return try {test.uiAutomation.injectInputEvent(event,true)} finally {event.recycle()}
+                    }
+                    input.put("method","coordinate").put("metric",metric.name).put("preTapProof","$beforeRelative/window-frame-sync.json")
+                        .put("rectPx",rect).put("xPx",x).put("yPx",y).put("downTimeUptimeMs",downTime)
+                        .put("source",android.view.InputDevice.SOURCE_TOUCHSCREEN)
+                    val downAccepted=event(android.view.MotionEvent.ACTION_DOWN)
+                    val upAccepted=event(android.view.MotionEvent.ACTION_UP)
+                    input.put("downAccepted",downAccepted).put("upAccepted",upAccepted)
+                    check(downAccepted && upAccepted)
+                } else main {check(button.performClick())}
+                var dialog:AlertDialog?=null
+                await("actual metric range dialog") {dialog=focusedJournalDialog(activity);dialog!=null}
+                val actual=requireNotNull(dialog);val window=requireNotNull(actual.window);val decor=window.decorView
+                try {
+                    val range=requireNotNull(decor.findViewWithTag<TextView>("chart-range:$metric"))
+                    if(inject) check(requireNotNull(decor.findViewWithTag<TextView>("app-dialog-title")).text.toString()==activity.getString(R.string.task_chart_pressure))
+                    main {range.requestRectangleOnScreen(Rect(0,0,range.width,range.height),true)}
+                    frames.committedFrame(decor)
+                    val relative="states/detail-range-${metric.name.lowercase()}"
+                    val phase=File(folder,relative).apply {check(isDirectory || mkdirs())}
+                    val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(phase,"window.png")) {
+                        JSONObject().put("metric",metric.name).put("range",screenObservation(range)).put("rangeText",range.text.toString())
+                            .put("input",JSONObject(input.toString())).put("expectedRange",expected).put("explanation",requireNotNull(decor.findViewWithTag<TextView>("product/history/metric-explanation")).text.toString())
+                    }
+                    check(range.text.toString()==expected && whole(screenObservation(range)))
+                    WindowProofStreamingWriter.writeStrict(frame.target,File(phase,"geometry.json"))
+                    metricRanges.put(JSONObject().put("metric",metric.name).put("proof","$relative/window-frame-sync.json").put("target",frame.target).put("input",input))
+                } finally {main {actual.dismiss()};frames.committedFrame(root(activity))}
+                if(inject) main {
+                    check(!actual.isShowing && field(overlay,"selected")==metric)
+                    check(state().apply {remove("selected");remove("focusIdentity")}.toString()==immutableBefore)
+                    input.put("dialogClosed",true).put("dataUnchangedAfterClose",true).put("selectionPreservedAfterClose",true)
+                }
+            }
+        } finally {
+            main {
+                write(overlay,"selected",originalSelection)
+                if(focus!=null) check(focus.requestFocus()) else activity.currentFocus?.clearFocus()
+                for(name in listOf("updateSelection","updateDescription")) overlay.javaClass.getDeclaredMethod(name).apply {isAccessible=true}.invoke(overlay)
+                header.scrollTo(savedX,savedY);outer.scrollTo(outerX,outerY)
+                requireNotNull(chart.findViewWithTag<View>("chart-plot")).invalidate()
+            }
+            frames.committedFrame(root(activity))
+        }
+        File(folder,"standalone-metric-ranges.json").writeText(JSONObject().put("ranges",metricRanges).put("completed",true).toString(2))
         WindowProofStreamingWriter.writeStrict(JSONObject().put("schema","STANDALONE_NATIVE_HEADER_REACH_V1")
             .put("initial",initial).put("pages",pages).put("restored",restored.target.getJSONObject("standaloneHeader"))
             .put("beforeState",before).put("afterState",historyMainValue {state()})
             .put("restoredProof","states/detail-header-restored/window-frame-sync.json").put("completed",true),File(folder,"standalone-header-reachability.json"))
     }
-    private fun detailReachability(activity: Activity, scope:Scope, folder: File) {
-        standaloneHeaderReachability(activity,scope,folder)
-        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+    private fun detailReachability(activity: Activity, scope:Scope, folder: File, coordinateTap:Boolean = false) {
+        standaloneHeaderReachability(activity,scope,folder,coordinateTap)
+        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/history/detail-scroll"))
         val savedX=scroll.scrollX;val savedY=scroll.scrollY
         val id=activity.intent.getStringExtra("shotId");val journal=scope.journal.exportJson()
-        val records=JSONArray()
-        val targets=nodes(root(activity)).filterIsInstance<TextView>().filter {
-            val tag=it.tag as? String ?: ""
-            tag.startsWith("product/history/note/") && !tag.endsWith("/row") && it.isShown }
-        check(targets.size==6) {"M5 actual saved note value targets missing: ${targets.map {it.tag}}"}
-        fun fixedEdit() {
-            val edit=requireNotNull(root(activity).findViewWithTag<Button>("product/history/review"))
-            check(historyVisibility(edit).getBoolean("complete") && whole(screenObservation(edit)))
-        }
+        val record=requireNotNull(scope.journal.find(requireNotNull(id)))
+        val n=record.notes
+        val fields=listOf(R.string.journal_bean to n.beanName,
+            R.string.journal_dose to n.doseMg?.let { activity.getString(R.string.journal_grams,BeanQuantity.formatGrams(it)) },
+            R.string.journal_grind to n.grind,R.string.journal_expectation to n.curveExpectation,
+            R.string.journal_taste to n.taste,R.string.journal_next to n.nextAdjustment)
+        val records=JSONArray();var dialog:AlertDialog?=null
+        val controls=JSONArray()
         try {
+            check(root(activity).findViewWithTag<Button>("product/history/review") != null)
+            check(root(activity).findViewWithTag<Button>("product/history/details") != null)
+            val compare=root(activity).findViewWithTag<Button>("product/history/compare") ?:
+                nodes(root(activity)).filterIsInstance<Button>().single {it.text.toString()==activity.getString(R.string.journal_compare)}
+            val actionButtons=listOf("product/history/review" to requireNotNull(root(activity).findViewWithTag<Button>("product/history/review")),
+                "product/history/details" to requireNotNull(root(activity).findViewWithTag<Button>("product/history/details")),
+                "product/history/compare" to compare)
+            for((index,pair) in actionButtons.withIndex()) {
+                val (tag,button)=pair
+                main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+                frames.committedFrame(root(activity))
+                val relative="states/detail-action-$index-reachable"
+                val phase=File(folder,relative).apply {check(isDirectory || mkdirs())}
+                val captured=frames.screenshot(activity,root(activity),File(phase,"window.png")) {
+                    captureTarget(activity).put("action",screenObservation(button))
+                        .put("actionWidthDp",button.width/activity.resources.displayMetrics.density)
+                        .put("actionHeightDp",button.height/activity.resources.displayMetrics.density)
+                }
+                WindowProofStreamingWriter.writeStrict(captured.target,File(phase,"geometry.json"))
+                main {check(historyVisibility(button).getBoolean("complete") && whole(screenObservation(button)))
+                    check(button.width>=HoyiUi.dp(activity,48) && button.height>=HoyiUi.dp(activity,48))
+                    controls.put(JSONObject().put("tag",tag).put("layout",captured.target.getJSONObject("action"))
+                        .put("proof","$relative/window-frame-sync.json"))}
+            }
+            val details=requireNotNull(root(activity).findViewWithTag<Button>("product/history/details"))
+            main {details.requestRectangleOnScreen(Rect(0,0,details.width,details.height),true)}
+            frames.committedFrame(root(activity));main {check(details.performClick())}
+            await("actual history details dialog focused") {dialog=focusedJournalDialog(activity);dialog!=null}
+            val window=requireNotNull(requireNotNull(dialog).window);val decor=window.decorView
+            val targets=fields.map { (label,value) ->
+                val expected=activity.getString(R.string.journal_field_value,activity.getString(label),
+                    value?.takeIf {it.isNotEmpty()} ?: activity.getString(R.string.journal_optional))
+                nodes(decor).filterIsInstance<TextView>().single {it.text.toString()==expected}
+            }
+            check(targets.size==6)
             targets.forEachIndexed {index,view ->
                 main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
-                frames.committedFrame(root(activity))
-                capture(activity,File(folder,"states/detail-note-$index-reachable"))
-                main {
-                    check(whole(screenObservation(view))) {"M5 complete saved note not reachable: ${view.tag}"}
-                    fixedEdit();records.put(JSONObject().put("target",view.tag).put("visibility",historyVisibility(view))
-                        .put("layout",screenObservation(view)).put("scrollX",scroll.scrollX).put("scrollY",scroll.scrollY))
+                frames.committedFrame(decor)
+                val phase=File(folder,"states/detail-note-$index-reachable").apply {check(isDirectory || mkdirs())}
+                val captured=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(phase,"window.png")) {
+                    JSONObject().put("ownerActivityIdentity",System.identityHashCode(activity))
+                        .put("nodes",JSONArray(nodes(decor).filterIsInstance<TextView>().map(::screenObservation)))
+                        .put("note",screenObservation(view)).put("journal",scope.journal.exportJson())
                 }
+                WindowProofStreamingWriter.writeStrict(captured.target,File(phase,"geometry.json"))
+                main {check(whole(screenObservation(view)))
+                    records.put(JSONObject().put("target",fields[index].first).put("visibility",historyVisibility(view))
+                        .put("layout",screenObservation(view)).put("proof","states/detail-note-$index-reachable/window-frame-sync.json"))}
             }
         } finally {
-            main {scroll.scrollTo(savedX,savedY)};frames.committedFrame(root(activity))
-            main {check(scroll.scrollX==savedX && scroll.scrollY==savedY);check(activity.intent.getStringExtra("shotId")==id);fixedEdit()}
+            main {dialog?.dismiss();scroll.scrollTo(savedX,savedY)};frames.committedFrame(root(activity))
+            main {check(scroll.scrollX==savedX && scroll.scrollY==savedY);check(activity.intent.getStringExtra("shotId")==id)}
         }
         capture(activity,File(folder,"states/detail-notes-restored"))
         check(scope.journal.exportJson()==journal)
         File(folder,"detail-business.json").writeText(JSONObject().put("targets",records).put("savedNotesReachable",true)
             .put("initialScrollPx",JSONArray(listOf(savedX,savedY))).put("restoredScrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
             .put("shotId",id).put("exactScrollRestored",true).put("shotIdUnchanged",true).put("journalUnchanged",true)
-            .put("fixedEditComplete",true).put("notesSource","actual_BrewJournal_Notes").put("noEditOrSaveInvoked",true).put("completed",true).toString(2))
+            .put("actionsReachable",controls).put("notesSource","actual_BrewJournal_Notes_in_actual_details_dialog")
+            .put("noEditOrSaveInvoked",true).put("completed",true).toString(2))
     }
     private fun extractionReachability(activity: Activity, folder: File) {
         val report=extractionToolsReachability(activity,folder,"RUNNING",listOf("reference-choice","overview"))
@@ -2614,10 +2729,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             val chart=nodes(root(activity)).filterIsInstance<ShotChartView>().single()
                             val overlay=nodes(chart).filterIsInstance<ExtractionOverlayView>().single()
                             data=field(overlay,"data") as FourMetricChartData; canvas=chart.visualEvidence; raw=chart.points
-                            val status=root(activity).findViewWithTag<TextView>("product/history/chart-status").text.toString()
-                            val expectedStatus=if(expected.isEmpty()) activity.getString(R.string.history_no_samples) else activity.getString(
-                                if(source.observation.status=="ENDED") R.string.history_samples_complete else R.string.history_samples_partial,expected.size.toString())
-                            check(status==expectedStatus)
+                            val status=root(activity).findViewWithTag<TextView>("product/history/chart-status")
+                            if (page=="history-detail" && expected.isNotEmpty() && source.observation.status=="ENDED") {
+                                check(status.visibility==View.GONE && status.text.isEmpty())
+                                val params=status.layoutParams as android.widget.LinearLayout.LayoutParams
+                                check(params.topMargin==0 && params.bottomMargin==0)
+                            } else {
+                                val expectedStatus=if(expected.isEmpty()) activity.getString(R.string.history_no_samples) else activity.getString(
+                                    if(source.observation.status=="ENDED") R.string.history_samples_complete else R.string.history_samples_partial,expected.size.toString())
+                                check(status.visibility==View.VISIBLE && status.text.toString()==expectedStatus)
+                            }
                             if(page=="history") check((field(activity,"selectedIds") as Map<*,*>)[false]==id)
                             else check(activity.intent.getStringExtra("shotId")==id)
                             fun displayed(role: String)=root(activity).findViewWithTag<TextView>("product/history/$role/number").text.toString()
@@ -2627,7 +2748,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             if(case=="missing-samples") {
                                 check(displayed("elapsed")=="30.0" && displayed("weight")=="36.00" && displayed("sampled-water")=="—")
                             }
-                            proof.put("sampleStateDisclosure",status).put("displayedElapsed",displayed("elapsed"))
+                            proof.put("sampleStateDisclosure",status.text.toString()).put("sampleStateVisibility",status.visibility).put("displayedElapsed",displayed("elapsed"))
                                 .put("displayedWeight",displayed("weight")).put("displayedLastSampleWater",displayed("sampled-water"))
                         }
                         check(raw==expected) { "M5 late reader or substituted samples for $page/$case" }
@@ -2701,6 +2822,214 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 if(primaryFailure!==error)primaryFailure!!.addSuppressed(error)
             }
         }
+    }
+    /** Dedicated real HistoryDetail route; does not reinterpret the fixed M5 matrix. */
+    fun runHistoryC(arguments: Bundle) {
+        check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")
+        check(arguments.getString("disposableCiEmulator")=="true" && arguments.getString("freshProcessVerified")=="true")
+        check(Build.HARDWARE in setOf("ranchu","goldfish") && Build.VERSION.SDK_INT>=34)
+        val source=requireNotNull(arguments.getString("sourceSha"));check(source.matches(Regex("[0-9a-f]{40}")))
+        val case=requireNotNull(arguments.getString("historyCase"));check(case.matches(Regex("[a-z0-9-]+")))
+        val font=AppFontSize.restore(arguments.getString("appFontSize"))
+        check(font.key==arguments.getString("appFontSize"))
+        val theme=requireNotNull(arguments.getString("sampleTheme"));check(theme in setOf("light","dark"))
+        val evidenceRun=requireNotNull(arguments.getString("evidenceRun"));check(evidenceRun.matches(Regex("[0-9]+-[0-9]+")))
+        val directory=File(context.getExternalFilesDir(null),"history-detail-c/$source/$evidenceRun/$case").apply {check(isDirectory || mkdirs())}
+        val typography=context.getSharedPreferences("app_typography",Context.MODE_PRIVATE)
+        val oldTypography=typography.all.toMap();val oldSize=app.fontSizePreferences.current
+        val report=JSONObject().put("sourceSha",source).put("apkSha256",arguments.getString("apkSha"))
+            .put("case",case).put("evidenceRun",evidenceRun).put("actualApkSha256",sha(File(context.applicationInfo.sourceDir)))
+            .put("actualTestApkSha256",sha(File(test.context.applicationInfo.sourceDir))).put("syntheticFixtures",true).put("hardwareAcceptance",false)
+            .put("visualAcceptance","ASTRA_PENDING").put("requestedAppFont",font.key)
+        var scope:Scope?=null;var failure:Throwable?=null
+        try {
+            main {check(app.fontSizePreferences.select(font)!=AppFontSizePreference.Selection.SAVE_FAILED)}
+            val active=Scope(directory,"history-detail");scope=active;active.prepare();active.install(theme=="dark")
+            File(directory,"fixture.json").writeText(active.fixture.toString(2))
+            fun verify(id:String,label:String) {
+                val expected=active.expectedSamples(id)
+                fun checkLayout(page:Activity,folder:File) {
+                val chart=requireNotNull(root(page).findViewWithTag<ShotChartView>("product/history/chart"))
+                val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"))
+                val operations=(0 until chart.visualEvidence.length()).map {chart.visualEvidence.getJSONObject(it)}
+                val axis=operations.filter {it.optString("operation")=="text" && it.optString("role")=="axis-unit"}
+                val names=mapOf(ChartMetric.TEMPERATURE to R.string.task_chart_temperature, ChartMetric.PRESSURE to R.string.task_chart_pressure,
+                    ChartMetric.FLOW to R.string.task_chart_flow,ChartMetric.WATER to R.string.task_chart_water)
+                if(expected.isNotEmpty()) for((metric,name) in names) {
+                    val expectedTitle=page.getString(name)+" · "+if(metric==ChartMetric.WATER) "mL" else metric.unit
+                    check(axis.filter {it.optString("metric")==metric.name}.joinToString("") {it.getString("text")}==expectedTitle)
+                }
+                for(text in operations.filter {it.optString("operation")=="text"}) {
+                    val box=text.getJSONArray("glyphBoundsPx")
+                    check(box.getDouble(0)>=0 && box.getDouble(1)>=0 && box.getDouble(2)<=plot.width && box.getDouble(3)<=plot.height)
+                }
+                if(expected.isNotEmpty()) {
+                    val timeTicks=operations.filter {it.optString("operation")=="text" && it.optString("role")=="time-tick"}
+                    val timeEnd=requireNotNull(operations.firstOrNull {it.optString("operation")=="plot"}).getLong("projectionTimeEndMs")
+                    val endLabel=String.format(java.util.Locale.ROOT,"%.1f s",ChartAxisScale.timeAxis(timeEnd,roundUp=false).endMs/1000.0)
+                    check(timeTicks.size>=2 && timeTicks.any {it.getString("text")=="0"} &&
+                        timeTicks.any {it.getString("text")==endLabel}) { "History C requires real start/end time labels with seconds unit" }
+                }
+                val canvas=operations.firstOrNull {it.optString("operation")=="plot"}
+                if(canvas!=null) main {
+                    val origin=IntArray(2);plot.getLocationOnScreen(origin)
+                    val plotTop=origin[1]+canvas.getJSONArray("boundsPx").getDouble(1)
+                    for(metric in liveMetrics) {
+                        val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
+                        val position=IntArray(2);button.getLocationOnScreen(position)
+                        check(position[1]+button.height<=plotTop+1) { "Legend must remain above the real plot" }
+                        val touch=android.graphics.RectF(position[0].toFloat(),position[1].toFloat(),(position[0]+button.width).toFloat(),(position[1]+button.height).toFloat())
+                        for(caption in axis) {
+                            val glyph=caption.getJSONArray("glyphBoundsPx")
+                            val ink=android.graphics.RectF(origin[0]+glyph.getDouble(0).toFloat(),origin[1]+glyph.getDouble(1).toFloat(),origin[0]+glyph.getDouble(2).toFloat(),origin[1]+glyph.getDouble(3).toFloat())
+                            check(!android.graphics.RectF.intersects(touch,ink)) { "Native legend touch area overlaps an axis title" }
+                        }
+                    }
+                }
+                if(canvas!=null) {
+                    val box=canvas.getJSONArray("boundsPx")
+                    check(box.getDouble(3)-box.getDouble(1)>=160*page.resources.displayMetrics.density)
+                    main {plot.requestRectangleOnScreen(Rect(0,box.getDouble(1).toInt(),plot.width,
+                        kotlin.math.ceil(box.getDouble(1)+160*page.resources.displayMetrics.density).toInt()),true)}
+                    frames.committedFrame(root(page))
+                    val focused=capture(page,File(folder,"plot-reachable"))
+                    main {requireStandaloneHistoryPlot(page,File(folder,"plot-reachable"),focused.target.getJSONObject("standaloneHistoryPlot"),expected.isEmpty())}
+                } else check(expected.isEmpty())
+                val controls=liveMetrics.map {requireNotNull(chart.findViewWithTag<Button>("chart-metric:$it"))}+
+                    listOfNotNull(root(page).findViewWithTag<Button>("product/history/review"),root(page).findViewWithTag<Button>("product/history/details"),root(page).findViewWithTag<Button>("product/history/compare"))
+                controls.forEachIndexed {index,button ->
+                    main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+                    frames.committedFrame(root(page))
+                    main {check(historyVisibility(button).getBoolean("complete"));check(button.width>=HoyiUi.dp(page,48) && button.height>=HoyiUi.dp(page,48))
+                        LanguageUiLayoutChecks.textFits(button,"History C $case/$label")
+                        if(button.tag.toString().startsWith("chart-metric:")) {
+                            val body=(button.parent as android.widget.FrameLayout).getChildAt(0)
+                            visibleTextViews(body).filter {it.text.isNotEmpty()}.forEach { text ->
+                                check(historyVisibility(text).getBoolean("complete"));LanguageUiLayoutChecks.textFits(text,"History C actual readout $case/$label")
+                            }
+                        }}
+                    capture(page,File(folder,"control-$index"))
+                }
+                }
+                val page=start(HistoryDetailActivity::class.java) {it.putExtra("shotId",id)}
+                active.captureHistoryRootService(page)
+                await("History C asynchronous reader") {
+                    val chart=root(page).findViewWithTag<ShotChartView>("product/history/chart")
+                    chart!=null && chart.points==expected && root(page).findViewWithTag<TextView>("product/history/chart-status")
+                        ?.text?.toString()!=page.getString(R.string.history_loading_samples)
+                }
+                check(app.fontSizePreferences.current==font)
+                val config=page.resources.configuration
+                check((config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK)==
+                    if(theme=="dark") android.content.res.Configuration.UI_MODE_NIGHT_YES else android.content.res.Configuration.UI_MODE_NIGHT_NO)
+                check(config.fontScale==font.scale && config.densityDpi==requireNotNull(arguments.getString("expectedDensity")).toInt())
+                val bounds=page.windowManager.currentWindowMetrics.bounds
+                check(bounds.width()==requireNotNull(arguments.getString("expectedWidth")).toInt() &&
+                    bounds.height()==requireNotNull(arguments.getString("expectedHeight")).toInt())
+                val folder=File(directory,label).apply {mkdirs()}
+                val initial=capture(page,folder)
+                report.put(label,JSONObject().put("actualAppFont",app.fontSizePreferences.current.key).put("actualAppFontScale",config.fontScale)
+                    .put("densityDpi",config.densityDpi).put("windowBoundsPx",rect(bounds)).put("multiWindow",page.isInMultiWindowMode)
+                    .put("window",initial.target).put("initialProof",initial.proof))
+                checkLayout(page,folder)
+                fun requireNotice(tag:String, expectedText:String, evidence:String) {
+                    val notice=requireNotNull(root(page).findViewWithTag<TextView>(tag))
+                    main { check(notice.visibility==View.VISIBLE && notice.text.toString().contains(expectedText))
+                        notice.requestRectangleOnScreen(Rect(0,0,notice.width,notice.height),true) }
+                    frames.committedFrame(root(page))
+                    main { check(historyVisibility(notice).getBoolean("complete")); LanguageUiLayoutChecks.textFits(notice,"History C warning $label") }
+                    capture(page,File(folder,evidence))
+                }
+                if(label=="unknown") requireNotice("product/history/chart-status",page.getString(R.string.history_samples_partial,expected.size.toString()),"partial-visible")
+                if(label=="gap" || label=="reset") requireNotice("product/history/chart-explanation",
+                    page.getString(if(label=="gap") R.string.task_chart_gap else R.string.task_chart_water_reset),"anomaly-visible")
+                if(label=="journal-failure") requireNotice("product/history/journal-status",page.getString(R.string.journal_unavailable),"journal-failure-visible")
+                if(label=="main" && arguments.getString("checkSpecial")=="true") {
+                    val chart=requireNotNull(root(page).findViewWithTag<ShotChartView>("product/history/chart"))
+                    val overlay=chart.getChildAt(0) as ExtractionOverlayView
+                    val oldFixed=field(overlay,"fixedAxes") as Boolean
+                    try {
+                        main {write(overlay,"fixedAxes",true)
+                            chart.points=expected+expected.last().copy(elapsedMs=FixedChartAxes.TIME_END_MS+1000)}
+                        frames.committedFrame(root(page))
+                        requireNotice("product/extraction/fixed-axis-notice",page.getString(R.string.fixed_chart_time_overflow),"fixed-overflow-visible")
+                        checkLayout(page,File(folder,"fixed-overflow-visible"))
+                    } finally { main {write(overlay,"fixedAxes",oldFixed);chart.points=expected}; frames.committedFrame(root(page)) }
+                }
+                if(label=="main" && arguments.getString("checkDetails")=="true") detailReachability(page,active,File(folder,"details").apply {mkdirs()},coordinateTap=true)
+                if(label=="unknown") main {check(requireNotNull(root(page).findViewWithTag<TextView>("product/history/warning")).text==page.getString(R.string.history_unknown_warning))}
+                if(label=="empty") main {check(root(page).findViewWithTag<TextView>("product/history/chart-status").text==page.getString(R.string.history_no_samples))}
+                if(label=="main" && arguments.getString("taskResize")=="true") {
+                    fun shell(command:String)=android.os.ParcelFileDescriptor.AutoCloseInputStream(test.uiAutomation.executeShellCommand(command)).bufferedReader().use {it.readText()}
+                    val resize=JSONObject().put("status","BLOCKED_REAL_TASK_RESIZE_UNSUPPORTED")
+                    report.put("taskResize",resize)
+                    // AOSP API34 PRIVATE options key, instrumentation only: bounds alone do not request freeform.
+                    check(Build.VERSION.SDK_INT==34) { "Private windowing-mode option is verified only for API34" }
+                    val requestedBounds=Rect(60,60,860,840)
+                    val launchOptions=android.app.ActivityOptions.makeBasic().setLaunchBounds(requestedBounds).toBundle()
+                    launchOptions.putInt("android.activity.windowingMode",5)
+                    resize.put("requestedWindowingMode",launchOptions.getInt("android.activity.windowingMode"))
+                        .put("requestedBounds",rect(requestedBounds)).put("sdkInt",Build.VERSION.SDK_INT)
+                        .put("featureFreeform",context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT))
+                        .put("featurePip",context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE))
+                    val launch=Intent(context,HistoryDetailActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK).putExtra("shotId",id)
+                    val floating=test.startActivitySync(launch,launchOptions)
+                    main {resize.put("launchTaskId",floating.taskId).put("actualBounds",rect(floating.windowManager.currentWindowMetrics.bounds))
+                        .put("actualMultiWindow",floating.isInMultiWindowMode).put("actualPip",floating.isInPictureInPictureMode)}
+                    await("freeform Activity laid out") {floating.hasWindowFocus() && root(floating).isLaidOut && !root(floating).isLayoutRequested}
+                    chartReady(floating)
+                    main {resize.put("actualBounds",rect(floating.windowManager.currentWindowMetrics.bounds))
+                        .put("actualMultiWindow",floating.isInMultiWindowMode).put("actualPip",floating.isInPictureInPictureMode)}
+                    check(floating.isInMultiWindowMode) { "BLOCKED: requested freeform not observed; platform support is not determined" }
+                    val task=floating.taskId
+                    fun current()=requireNotNull(active.activeActivity()).also {check(it.taskId==task && it is HistoryDetailActivity)}
+                    val original=Rect(floating.windowManager.currentWindowMetrics.bounds);val originalMode=floating.isInMultiWindowMode
+                    resize.put("taskId",task).put("beforeBounds",rect(original)).put("beforeMultiWindow",originalMode)
+                    try {
+                        resize.put("commandOutput",shell("am task resize $task 80 80 780 700"))
+                        await("actual task resize and current Activity") {
+                            val actual=active.activeActivity()
+                            actual!=null && actual.taskId==task && actual.isInMultiWindowMode && actual.windowManager.currentWindowMetrics.bounds!=original &&
+                                root(actual).isLaidOut && !root(actual).isLayoutRequested && actual.hasWindowFocus()
+                        }
+                        val actual=current();chartReady(actual)
+                        resize.put("afterBounds",rect(actual.windowManager.currentWindowMetrics.bounds)).put("afterMultiWindow",actual.isInMultiWindowMode)
+                        capture(actual,File(folder,"real-task-resized"));checkLayout(actual,File(folder,"real-task-resized"))
+                    } finally {
+                        resize.put("restoreOutput",shell("am task resize $task ${original.left} ${original.top} ${original.right} ${original.bottom}"))
+                        await("real task bounds and mode restored") {val actual=active.activeActivity();actual!=null && actual.taskId==task &&
+                            actual.windowManager.currentWindowMetrics.bounds==original && actual.isInMultiWindowMode==originalMode && !root(actual).isLayoutRequested}
+                        val restored=current();chartReady(restored)
+                        resize.put("restoredBounds",rect(restored.windowManager.currentWindowMetrics.bounds)).put("restoredMultiWindow",restored.isInMultiWindowMode)
+                        capture(restored,File(folder,"real-task-restored"));checkLayout(restored,File(folder,"real-task-restored"))
+                    }
+                    resize.put("status","PASS_REAL_TASK_RESIZE")
+                }
+                active.closeActivities()
+            }
+            verify(active.firstId,"main")
+            if(arguments.getString("checkSpecial")=="true") {
+                verify(active.historySpecialIds.getValue("unknown-observation"),"unknown")
+                verify(active.historySpecialIds.getValue("missing-samples"),"empty")
+                verify(active.historySpecialIds.getValue("sample-gap"),"gap")
+                verify(active.historySpecialIds.getValue("water-reset"),"reset")
+                main {write(app,"journalObservationFailure",IllegalStateException("History C synthetic journal failure"))}
+                try {verify(active.firstId,"journal-failure")}
+                finally {main {write(app,"journalObservationFailure",null)}}
+            }
+            check(active.readOnlyHistoryRootService())
+            report.put("mechanicalStatus","PASS_NOT_VISUAL_ACCEPTANCE")
+        } catch(error:Throwable) {failure=error;report.put("mechanicalStatus","FAIL").put("failure",error.stackTraceToString())}
+        finally {
+            try {scope?.cleanup()} catch(error:Throwable) {if(failure==null)failure=error else failure!!.addSuppressed(error)}
+            try {main {check(app.fontSizePreferences.select(oldSize)!=AppFontSizePreference.Selection.SAVE_FAILED)
+                restoreMockPreferences(typography,oldTypography);check(typography.all==oldTypography && app.fontSizePreferences.current==oldSize)}}
+            catch(error:Throwable) {if(failure==null)failure=error else failure!!.addSuppressed(error)}
+            report.put("overallStatus",if(failure==null) "PASS_MECHANICAL_ONLY" else "FAIL")
+            report.put("fileSha256",JSONObject(directory.walkTopDown().filter {it.isFile && it.name!="manifest.json"}.associate {it.relativeTo(directory).path to sha(it)}))
+            WindowProofStreamingWriter.writeStrict(report,File(directory,"manifest.json"))
+        }
+        failure?.let {throw it}
     }
     fun run(arguments: Bundle): Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")

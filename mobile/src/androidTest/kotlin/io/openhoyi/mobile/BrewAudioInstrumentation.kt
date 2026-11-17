@@ -33,6 +33,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var settingsVisualArguments: Bundle? = null
     private var legacyVisualArguments: Bundle? = null
     private var scaleVisualArguments: Bundle? = null
+    private var historyCArguments: Bundle? = null
     private var extractionHistoryVisualArguments: Bundle? = null
     private var beanWorkflowVisualArguments: Bundle? = null
     private var curveVisualArguments: Bundle? = null
@@ -81,6 +82,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
         legacyVisualArguments = arguments?.takeIf { it.getString("legacyVisualMigration") == "true" }?.let { Bundle(it) }
         scaleVisualArguments = arguments?.takeIf { it.getString("scaleVisualMigration") == "true" }?.let { Bundle(it) }
+        historyCArguments = arguments?.takeIf { it.getString("historyDetailC") == "true" }?.let { Bundle(it) }
         extractionHistoryVisualArguments = arguments?.takeIf { it.getString("extractionHistoryVisualMigration") == "true" }?.let { Bundle(it) }
         beanWorkflowVisualArguments = arguments?.takeIf { it.getString("beanWorkflowVisualMigration") == "true" }?.let { Bundle(it) }
         curveVisualArguments = arguments?.takeIf { it.getString("curveVisualMigration") == "true" }?.let { Bundle(it) }
@@ -218,6 +220,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                 val count=ScaleVisualMigrationChecks(this).run(arguments)
                 report.putString("stream", "SCALE_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
                 finish(Activity.RESULT_OK,report)
+                return
+            }
+            historyCArguments?.let { arguments ->
+                ExtractionHistoryVisualMigrationChecks(this).runHistoryC(arguments)
+                report.putString("stream", "HISTORY_DETAIL_C_CAPTURED mechanicalOnly=true visualAcceptance=ASTRA_PENDING noBle=true\n")
+                finish(Activity.RESULT_OK, report)
                 return
             }
             extractionHistoryVisualArguments?.let { arguments ->
