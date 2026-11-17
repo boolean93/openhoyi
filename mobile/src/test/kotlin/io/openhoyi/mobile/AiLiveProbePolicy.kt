@@ -97,7 +97,7 @@ internal object AiLiveProbePolicy {
         }
         val localTools = localOnlyTools(root)
         return AiRequestContract.forDeepSeek(JsonObject(root + ("tools" to JsonArray(localTools)) + ("max_tokens" to JsonPrimitive(256))).toString())
-            .toByteArray(Charsets.UTF_8).also { require(it.size <= MAX_REQUEST_BYTES) }
+            .toByteArray(Charsets.UTF_8).also { require(it.size <= MAX_REQUEST_BYTES) { "Probe request bytes=${it.size}, limit=$MAX_REQUEST_BYTES" } }
     }
     fun request(raw: String, maxTokens: Int = 32): ByteArray {
         require(maxTokens in setOf(32, 128))
@@ -113,7 +113,7 @@ internal object AiLiveProbePolicy {
         require(messages[1] == buildJsonObject { put("role", "user"); put("content", PROMPT) })
         val localTools = localOnlyTools(root)
         val limited = AiRequestContract.forDeepSeek(JsonObject(root + ("tools" to JsonArray(localTools)) + ("max_tokens" to JsonPrimitive(maxTokens))).toString())
-        return limited.toByteArray(Charsets.UTF_8).also { require(it.size <= MAX_REQUEST_BYTES) }
+        return limited.toByteArray(Charsets.UTF_8).also { require(it.size <= MAX_REQUEST_BYTES) { "Probe request bytes=${it.size}, limit=$MAX_REQUEST_BYTES" } }
     }
     private fun localOnlyTools(root: JsonObject): List<JsonElement> {
         // This existing live probe is approved for local reads only, never paid web search.

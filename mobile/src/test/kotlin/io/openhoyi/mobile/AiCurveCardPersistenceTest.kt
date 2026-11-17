@@ -68,6 +68,7 @@ class AiCurveCardPersistenceTest {
     }
     @Test fun schema4RemainsReadableAndCardsCannotBeAttachedToUserOrOverflowed() {
         val old = JSONObject(AiSessionCodec.encode(session()).toString(Charsets.UTF_8)).put("schema", 4)
+        old.remove("hoyiScreenshotSourceId")
         val rows = old.getJSONArray("lines")
         for (i in 0 until rows.length()) rows.getJSONObject(i).remove("curveCards")
         assertTrue(AiSessionCodec.decode(old.toString().toByteArray()).lines.all { it.curveCards.isEmpty() })

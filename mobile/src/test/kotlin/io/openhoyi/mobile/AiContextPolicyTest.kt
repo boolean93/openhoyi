@@ -101,7 +101,7 @@ class AiContextPolicyTest {
         assertEquals(lines, restored.lines); assertEquals("old facts", restored.protocol.summary); assertEquals(2, restored.protocol.coveredLines)
         val original = AiSession(state.epoch, lines, history(), "draft", AiUsageSnapshot())
         val json = Json.parseToJsonElement(AiSessionCodec.encode(original).toString(Charsets.UTF_8)).jsonObject
-        val legacy = JsonObject((json - "context" - "draftAttachments" - "model" - "inactive" - "ocr") + ("schema" to JsonPrimitive(1)) + ("lines" to JsonArray(json.getValue("lines").jsonArray.map { JsonObject(it.jsonObject - "attachments" - "curveCards") }))).toString().toByteArray()
+        val legacy = JsonObject((json - "context" - "draftAttachments" - "model" - "inactive" - "ocr" - "hoyiScreenshotSourceId") + ("schema" to JsonPrimitive(1)) + ("lines" to JsonArray(json.getValue("lines").jsonArray.map { JsonObject(it.jsonObject - "attachments" - "curveCards") }))).toString().toByteArray()
         assertEquals(lines, AiSessionCodec.decode(legacy).lines)
         val mismatch = JsonObject(json + ("context" to buildJsonObject { put("summary", "bad"); put("coveredLines", 2); put("reportedInput", JsonNull); put("reportedOutput", 0) }))
         assertTrue(runCatching { AiSessionCodec.decode(mismatch.toString().toByteArray()) }.isFailure)
