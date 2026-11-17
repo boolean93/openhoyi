@@ -278,7 +278,6 @@
     <string name="feedback_preferences_title">"App preferences"</string>
     <string name="feedback_preview">"Preview audio prompt"</string>
     <string name="feedback_preview_description">"Plays local audio only. Does not control the coffee machine."</string>
-    <string name="feedback_replay">"Play again"</string>
     <string name="feedback_save_failed">"Settings were not saved. Please try again."</string>
     <string name="feedback_stop_preview">"Stop preview"</string>
     <string name="feedback_title">"Your cup is ready"</string>
