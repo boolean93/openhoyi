@@ -226,7 +226,7 @@ internal class AiChatSession(
             if (!validArgs(args, setOf("offset", "limit", "curveId"))) invalid()
             else withContext(Dispatchers.IO) { data.history(string(args, "curveId"), integer(args, "offset", 0), integer(args, "limit", 10)) }
         })
-        tool(readTool("extraction_samples", "Read one selected shot's saved historical observations, never current live status or recipe setpoints. First obtain shotId from extraction_history. Page only as needed using nextOffset; truncated means more stored points remain. elapsedMs is sample-series monotonic offset, not machine extraction timer. Machine flow mL/s differs from scale-estimated g/s. Null is unknown/unavailable; false brewing is observed non-brewing. Stored data may be thinned at 2000 points; never invent missing points.",
+        tool(readTool("extraction_samples", "Read saved sample pages for an exact extraction_history shotId, not current status. Respect units, nulls and source/segment metadata; never reconstruct missing data. Follow nextOffset only as needed and disclose truncation.",
             optional = listOf(ToolParameterDescriptor("offset", "Sample offset 0..2000", ToolParameterType.Integer),
                 ToolParameterDescriptor("limit", "Samples per page 1..100; default 100", ToolParameterType.Integer)),
             required = listOf(ToolParameterDescriptor("shotId", "Exact shotId returned by extraction_history, [A-Za-z0-9-]{1,64}", ToolParameterType.String))) { args ->

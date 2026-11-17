@@ -179,7 +179,7 @@ class AiContextPolicyTest {
         val root = Json.parseToJsonElement(calls.single().sent.toString("UTF-8")).jsonObject
         val actual = AiContextPolicy.estimateJson(root.getValue("tools"))
         assertTrue(schema >= actual)
-        assertEquals(7, root.getValue("tools").jsonArray.size)
+        assertEquals(8, root.getValue("tools").jsonArray.size)
     }
 
 }
