@@ -68,17 +68,11 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
             BrewFeedbackClips.Level.LOW_FLOW -> R.string.feedback_low_flow
         }) + "\n\n" + activity.getString(R.string.feedback_note)
         val created = AlertDialog.Builder(activity).setTitle(R.string.feedback_title).setMessage(message)
-            .setPositiveButton(R.string.feedback_done, null).setNeutralButton(R.string.feedback_replay, null).create()
+            .setPositiveButton(R.string.feedback_done, null).create()
         dialog = created; shownId = result.shotId
         created.setOnDismissListener {
             // A delayed dismissal from an old dialog cannot cancel a newer request.
             if (dialog === created) { dialog = null; shownId = null; stopAudio() }
-        }
-        created.setOnShowListener {
-            created.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                variant = Random.nextInt(4)
-                try { audio.play(result.level, variant) } catch (_: RuntimeException) { stopAudio() }
-            }
         }
         try {
             AppDialog.show(created)

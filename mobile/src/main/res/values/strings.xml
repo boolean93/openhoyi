@@ -987,7 +987,6 @@
     <string name="feedback_low_flow">"这杯的流量比较慢，试试它的风味吧。"</string>
     <string name="feedback_note">"趣味提示，不代表风味评分。"</string>
     <string name="feedback_done">"知道了"</string>
-    <string name="feedback_replay">"再听一次。"</string>
 
     <!-- App-local language selector. -->
     <string name="language_title">"应用语言"</string>
