@@ -27,5 +27,12 @@ class AiConsentPolicyTest {
         val activity = File("src/main/kotlin/io/openhoyi/mobile/AiChatActivity.kt").readText()
         assertTrue(activity.contains("getString(R.string.ai_consent_body, AiChatPolicy.SEARCH_CALLS)"))
         assertFalse(activity.contains("deepseek_v4_compact"))
+        val gate = activity.substringAfter("private fun sendOrConfirm()").substringBefore("private fun sendAfterConsent")
+        assertFalse(gate.contains("confirmOcr("))
+        assertTrue(gate.contains("if (consented()) { sendAfterConsent(text); return }"))
+        assertTrue(gate.contains("binding.start()\n                sendAfterConsent(text)"))
+        val continuation = activity.substringAfter("private fun sendAfterConsent").substringBefore("private fun begin")
+        assertTrue(continuation.contains("confirmOcr(document)"))
+        assertTrue(continuation.contains("confirmAttachments(text)"))
     }
 }
