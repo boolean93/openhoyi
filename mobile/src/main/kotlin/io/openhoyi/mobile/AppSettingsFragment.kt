@@ -302,7 +302,7 @@ class AppSettingsFragment : Fragment() {
             exportGeneration++
             exportStatus?.visibility = View.GONE
             export.launch("openhoyi-diagnostics-${System.currentTimeMillis()}.zip")
-        }.apply { tag = "product/settings/app/export/action"; asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL; visual.action(this, icon = "export", atEnd = true) }
+        }.apply { tag = "product/settings/app/export/action"; visual.maintenanceAction(this) }
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }.also { style.add(diagnostics, it, 8) }

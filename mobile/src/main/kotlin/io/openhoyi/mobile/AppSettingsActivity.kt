@@ -116,8 +116,7 @@ class AppSettingsActivity : ThemedActivity() {
             invalidateExportResult()
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-diagnostics-${System.currentTimeMillis()}.zip"), EXPORT_LOGS)
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            visual.action(this,icon="export",atEnd=true);tag="product/settings/app/export"
+        }.apply { visual.maintenanceAction(this);tag="product/settings/app/export"
         }
         exportNormalColor=style.ink
         exportStatus=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/export/result").apply {
