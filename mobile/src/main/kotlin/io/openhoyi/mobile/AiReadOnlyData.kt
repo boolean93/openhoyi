@@ -12,6 +12,7 @@ internal interface AiReadOnlyData {
     fun currentStatus(): String
     fun curves(query: String = "", offset: Int = 0, limit: Int = 10): String
     fun history(curveId: String? = null, offset: Int = 0, limit: Int = 10): String
+    fun samples(shotId: String, offset: Int = 0, limit: Int = 100): String = "{\"status\":\"unavailable\"}"
 }
 
 /** Read only on demand. The caller supplies a main-thread-safe snapshot supplier, not a service. */
@@ -72,6 +73,13 @@ internal class LocalAiReadOnlyData(context: Context, private val snapshot: () ->
             AiReadOnlyQuery.history(observations, curveId, offset, limit)
         }
     }
+
+    override fun samples(shotId: String, offset: Int, limit: Int): String =
+        AiExtractionSamples.read(shotId, offset, limit,
+            observations = {
+                readBounded(File(context.filesDir, "brew_journal_v1.json"))
+                    ?.let(BrewJournal::readOnlyObservations).orEmpty()
+            }, load = { ShotSamplesStore(File(context.filesDir, "shot_samples")).load(it) }).toString()
 
     private fun age(at: Long?, now: Long): Any =
         if (at != null && at >= 0 && now >= at) now - at else JSONObject.NULL
@@ -199,7 +207,7 @@ internal object AiReadOnlyQuery {
         if (!validCurveId(curveId)) return JSONObject(invalidArguments())
         val matching = rows.filter { curveId == null || it.curveId == curveId }
         return page(matching, offset, limit) { shot ->
-            JSONObject().put("startedAtEpochMs", shot.startedAtMs).put("status", shot.status)
+            JSONObject().put("shotId", shot.id).put("startedAtEpochMs", shot.startedAtMs).put("status", shot.status)
                 .put("curveId", shot.curveId.take(80))
                 .put("observedDurationSeconds", shot.observedMachineElapsedSeconds ?: JSONObject.NULL)
                 .put("finalWeightGrams", shot.weightHundredthsGram?.div(100.0) ?: JSONObject.NULL)

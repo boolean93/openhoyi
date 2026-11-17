@@ -118,9 +118,9 @@ internal object AiLiveProbePolicy {
     private fun localOnlyTools(root: JsonObject): List<JsonElement> {
         // This existing live probe is approved for local reads only, never paid web search.
         val allTools = root.getValue("tools").jsonArray
-        val knownNames = setOf("current_status", "curves", "extraction_history", "web_search", "propose_custom_curve", "custom_curve_document", "present_curve_cards")
+        val knownNames = setOf("current_status", "curves", "extraction_history", "extraction_samples", "web_search", "propose_custom_curve", "custom_curve_document", "present_curve_cards")
         val allNames = allTools.map { it.jsonObject.getValue("function").jsonObject.getValue("name").jsonPrimitive.content }
-        require(allNames.size in 3..7 && allNames.distinct().size == allNames.size && allNames.all { it in knownNames })
+        require(allNames.size in 4..8 && allNames.distinct().size == allNames.size && allNames.all { it in knownNames })
         val webTools = allTools.filter { it.jsonObject.getValue("function").jsonObject.getValue("name") == JsonPrimitive("web_search") }
         require(webTools.size <= 1)
         val proposals = allTools.filter { it.jsonObject.getValue("function").jsonObject.getValue("name") == JsonPrimitive("propose_custom_curve") }
@@ -134,7 +134,7 @@ internal object AiLiveProbePolicy {
             it.jsonObject.getValue("function").jsonObject.getValue("name") in setOf(JsonPrimitive("web_search"), JsonPrimitive("propose_custom_curve"), JsonPrimitive("custom_curve_document"), JsonPrimitive("present_curve_cards"))
         }
         val names = localTools.map { it.jsonObject.getValue("function").jsonObject.getValue("name").jsonPrimitive.content }
-        require(names.size == 3 && names.toSet() == setOf("current_status", "curves", "extraction_history"))
+        require(names.size == 4 && names.toSet() == setOf("current_status", "curves", "extraction_history", "extraction_samples"))
         return localTools
     }
 

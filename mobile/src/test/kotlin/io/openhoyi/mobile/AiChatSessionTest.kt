@@ -24,6 +24,32 @@ class AiChatSessionTest {
         override fun curves(query: String, offset: Int, limit: Int) = "{\"items\":[]}"
         override fun history(curveId: String?, offset: Int, limit: Int) = "{\"items\":[]}"
     }
+    @Test fun selectedHistorySamplesReachModelAndInvalidArgumentsNeverRead() = runBlocking {
+        val reads = mutableListOf<String>()
+        val data = object : AiReadOnlyData {
+            override fun currentStatus() = "{}"
+            override fun curves(query: String, offset: Int, limit: Int) = "{}"
+            override fun history(curveId: String?, offset: Int, limit: Int): String {
+                reads += "history"
+                return "{\"items\":[{\"shotId\":\"shot-1\",\"status\":\"UNKNOWN\"}]}"
+            }
+            override fun samples(shotId: String, offset: Int, limit: Int): String {
+                reads += "$shotId:$offset:$limit"
+                return "{\"status\":\"available\",\"items\":[{\"elapsedMs\":1234,\"pressureBar\":9.1}],\"truncated\":false}"
+            }
+        }
+        fun call(name: String, args: JsonObject, id: String) = tool.replace("current_status", name)
+            .replace("call1", id).replace("\"arguments\":\"{}\"", "\"arguments\":" + JsonPrimitive(args.toString()))
+        val calls = CopyOnWriteArrayList<FakeAiConnection>(); val budget = AiRequestBudget()
+        val answers = listOf(call("extraction_history", buildJsonObject {}, "history1"),
+            call("extraction_samples", buildJsonObject { put("shotId", "../bad") }, "invalid1"),
+            call("extraction_samples", buildJsonObject { put("shotId", "shot-1") }, "samples1"), aiAnswer("Saved pressure was 9.1 bar."))
+        val answer = AiChatSession(data, transport(answers, budget, calls), budget, Dispatchers.Unconfined).reply(emptyList(), "Analyze the selected shot")
+        assertEquals("Saved pressure was 9.1 bar.", answer)
+        assertEquals(listOf("history", "shot-1:0:100"), reads)
+        val finalWire = calls.last().sent.toString("UTF-8")
+        assertTrue(finalWire.contains("pressureBar")); assertTrue(finalWire.contains("invalid_arguments"))
+    }
     private val tool = """{"id":"fake","system_fingerprint":"fake","object":"chat.completion","created":1,"model":"deepseek-flash","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call1","type":"function","function":{"name":"current_status","arguments":"{}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"""
     private fun transport(answers: List<String>, budget: AiRequestBudget, calls: MutableList<FakeAiConnection>) =
         AiSafeTransport({ "fake-test-only-key" }, { true }, budget, {
@@ -122,7 +148,7 @@ class AiChatSessionTest {
             assertEquals("Bearer fake-test-only-key", it.requestHeaders["Authorization"])
             assertTrue(body["messages"].toString().contains("prior answer"))
             val names = body["tools"]!!.jsonArray.map { t -> t.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content }.toSet()
-            assertEquals(setOf("current_status", "curves", "extraction_history", "web_search", "propose_custom_curve", "custom_curve_document", "present_curve_cards"), names)
+            assertEquals(setOf("current_status", "curves", "extraction_history", "extraction_samples", "web_search", "propose_custom_curve", "custom_curve_document", "present_curve_cards"), names)
         }
         assertTrue(calls.last().sent.toString("UTF-8").contains("PRIVATE_TOOL_SENTINEL"))
         val freshCalls = CopyOnWriteArrayList<FakeAiConnection>(); val freshBudget = AiRequestBudget()

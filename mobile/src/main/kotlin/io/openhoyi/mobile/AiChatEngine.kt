@@ -221,10 +221,19 @@ internal class AiChatSession(
             if (!validArgs(args, setOf("offset", "limit", "query"))) invalid()
             else withContext(Dispatchers.IO) { data.curves(string(args, "query") ?: "", integer(args, "offset", 0), integer(args, "limit", 10)).let(onCurveResult) }
         })
-        tool(readTool("extraction_history", "Read bounded recent extraction observations, optional exact curveId. UNKNOWN is not confirmed ended.",
+        tool(readTool("extraction_history", "Read bounded recent extraction summaries and shotId selectors, optional exact curveId. Use extraction_samples with a selected shotId for saved measured timelines. UNKNOWN is not confirmed ended.",
             pagination + ToolParameterDescriptor("curveId", "Optional exact curve identifier, at most 80 characters", ToolParameterType.String)) { args ->
             if (!validArgs(args, setOf("offset", "limit", "curveId"))) invalid()
             else withContext(Dispatchers.IO) { data.history(string(args, "curveId"), integer(args, "offset", 0), integer(args, "limit", 10)) }
+        })
+        tool(readTool("extraction_samples", "Read saved sample pages for an exact extraction_history shotId, not current status. Respect units, nulls and source/segment metadata; never reconstruct missing data. Follow nextOffset only as needed and disclose truncation.",
+            optional = listOf(ToolParameterDescriptor("offset", "Sample offset 0..2000", ToolParameterType.Integer),
+                ToolParameterDescriptor("limit", "Samples per page 1..100; default 100", ToolParameterType.Integer)),
+            required = listOf(ToolParameterDescriptor("shotId", "Exact shotId returned by extraction_history, [A-Za-z0-9-]{1,64}", ToolParameterType.String))) { args ->
+            val id = string(args, "shotId")
+            if (!validArgs(args, setOf("shotId", "offset", "limit")) || id == null || !AiExtractionSamples.validId(id) ||
+                integer(args, "offset", 0) !in 0..2000 || integer(args, "limit", 100) !in 1..100) invalid()
+            else withContext(Dispatchers.IO) { data.samples(id, integer(args, "offset", 0), integer(args, "limit", 100)) }
         })
     }
     private fun readTool(name: String, description: String, optional: List<ToolParameterDescriptor> = emptyList(),

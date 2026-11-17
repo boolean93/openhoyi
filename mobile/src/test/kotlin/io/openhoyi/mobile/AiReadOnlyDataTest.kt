@@ -50,6 +50,7 @@ class AiReadOnlyDataTest {
         assertEquals("UNKNOWN", item.getString("status"))
         assertEquals(30, item.getInt("observedDurationSeconds"))
         assertFalse(item.has("reason"))
+        assertEquals("1", item.getString("shotId"))
         assertFalse(item.has("id"))
         assertFalse(page.toString().contains("private raw error"))
         assertEquals(0, AiReadOnlyQuery.history(emptyList(), null, 0, 10).getInt("total"))
