@@ -12,6 +12,9 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
     private fun text(id: Int, vararg args: Any): String = resolve(id, args)
     data class SleepDaySummary(val name: String, val state: String, val period: String, val enabled: Boolean?)
 
+    fun cupCount(value: Settings?, fresh: Boolean): String =
+        text(R.string.settings_readback_cups, if (fresh && value != null) value.cupCount.toString() else "—")
+
     fun overview(value: Settings?): String {
         if (value == null) return text(R.string.settings_missing)
         val mode = if (value.flags and 0x04 != 0) text(R.string.setting_run_studio) else text(R.string.setting_run_cafe)

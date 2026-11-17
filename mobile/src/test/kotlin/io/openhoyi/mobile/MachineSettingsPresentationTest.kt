@@ -11,6 +11,14 @@ class MachineSettingsPresentationTest {
     private val presentation = MachineSettingsPresentation(DefaultStringResources::resolve)
     private val raw = ByteFrame(byteArrayOf())
 
+    @Test fun maintenanceCupCountRequiresFreshReadbackAndKeepsRealZero() {
+        val settings = Settings(1, 1, 3, 0x39, 93, 5, 125, 30, 70, 128, 2, raw)
+        assertEquals("累计杯数  ${settings.cupCount}", presentation.cupCount(settings, true))
+        assertEquals("累计杯数  —", presentation.cupCount(settings, false))
+        assertEquals("累计杯数  —", presentation.cupCount(null, true))
+        assertEquals("累计杯数  0", presentation.cupCount(settings.copy(cupCount = 0), true))
+    }
+
     @Test fun settingChangeMessagesKeepExistingCopyAndRerenderNestedValues() {
         val examples = listOf(
             io.openhoyi.protocol.MachineSettingChange.RunMode(true) to "运行模式：工作室",
