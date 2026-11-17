@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "1373f126d8d4b84a1b40358f17b5cea9f41c6587917019c0ade3d3050a96bc82",
+  "sha256": "6abf9259e6bc399588fdd5e44cc55c96c6d837ffa42bf591c866c237c387eb28",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -964,7 +964,6 @@
     "feedback_low_flow": "这杯的流量比较慢，试试它的风味吧。",
     "feedback_note": "趣味提示，不代表风味评分。",
     "feedback_done": "知道了",
-    "feedback_replay": "再听一次。",
     "language_title": "应用语言",
     "language_current": "当前语言：%1$s · 点击切换",
     "language_hint": "曲线名称和用户记录保留原文。",
