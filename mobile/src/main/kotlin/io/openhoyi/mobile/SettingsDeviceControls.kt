@@ -69,7 +69,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             if(service==null || !allowed()){error(host.getString(R.string.home_shutdown_busy));return@button}
             service.shutdown()
             if(service.running)error(host.getString(R.string.home_shutdown_busy)) else host.releaseServiceBinding()
-        }.apply {asTaskTextAction();minimumHeight=style.dp(48);disconnectActions+=this}
+        }.apply {visual.maintenanceAction(this);disconnectActions+=this}
     }
     fun error(value:String) {errorChanged(true);localError=value;if(::message.isInitialized)message.text=value}
     /** The shared scan action always shows both device types, including after a scoped change. */

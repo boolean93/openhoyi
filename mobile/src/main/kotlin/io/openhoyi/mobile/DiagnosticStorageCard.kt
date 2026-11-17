@@ -6,13 +6,13 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 
-/** Compact, wrapping row. Scope remains explicit so clearing logs is not confused with clearing history. */
+/** Full-width maintenance action; storage details remain separate from the button. */
 internal class DiagnosticStorageCard(private val activity: Activity, parent: LinearLayout, visual: SettingsVisualStyle) {
     private val controller = (activity.application as MobileApplication).diagnosticStorage.controller
     private val style = visual.palette
     private val size = style.text(activity.getString(R.string.diagnostic_storage_calculating), TaskProductVisualStyle.body,
         "product/settings/app/diagnostic-storage/size")
-    private val action = style.button(Button(activity)).apply {
+    private val action = visual.maintenanceAction(Button(activity)).apply {
         text = activity.getString(R.string.diagnostic_storage_clear)
         tag = "product/settings/app/diagnostic-storage/clear"
         setOnClickListener { controller.clear() }
@@ -23,7 +23,8 @@ internal class DiagnosticStorageCard(private val activity: Activity, parent: Lin
     private var observing = false
     private val observer: (DiagnosticStorageController.State) -> Unit = { render(it) }
     init {
-        style.add(parent, visual.pair(size, action, "product/settings/app/diagnostic-storage/row"), 16)
+        style.add(parent, size, 16)
+        style.add(parent, action, 8)
         style.add(parent, style.text(activity.getString(R.string.diagnostic_storage_scope), TaskProductVisualStyle.auxiliary,
             "product/settings/app/diagnostic-storage/scope", true), 8)
         style.add(parent, result, 8)
