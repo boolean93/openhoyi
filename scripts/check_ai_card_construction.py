@@ -19,6 +19,12 @@ def require(value, message):
         raise ValueError(message)
 
 
+def require_fresh_emulator(adb):
+    # Unlike pm path, list packages succeeds for an absent package.
+    installed = set(adb('shell', 'pm', 'list', 'packages').splitlines())
+    require('package:' + APP not in installed and 'package:' + TEST not in installed, 'Fresh emulator required')
+
+
 def main():
     # This entry point intentionally cannot target a developer's physical device.
     require(os.environ.get('GITHUB_ACTIONS') == 'true', 'Disposable GitHub runner required')
@@ -36,7 +42,7 @@ def main():
     require(adb('shell', 'getprop', 'ro.kernel.qemu') == '1', 'Emulator required')
     require(adb('shell', 'getprop', 'ro.hardware') in ('ranchu', 'goldfish'), 'Unexpected hardware')
     require(adb('emu', 'avd', 'name').splitlines()[0] == avd, 'AVD identity mismatch')
-    require(not adb('shell', 'pm', 'path', APP) and not adb('shell', 'pm', 'path', TEST), 'Fresh emulator required')
+    require_fresh_emulator(adb)
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     require(sha == os.environ.get('GITHUB_SHA'), 'Checkout differs from dispatched commit')
     paths = [Path('mobile/build/outputs/apk/mock/mobile-mock.apk'),

@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import check_ai_card_construction as check
 
@@ -17,6 +17,21 @@ class CardConstructionEntryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'AVD identity'):
                 check.main()
             run.assert_not_called()
+
+    def test_fresh_emulator_accepts_absent_target_and_exact_names_only(self):
+        adb = Mock(return_value='package:android\npackage:' + check.APP + '.other')
+        check.require_fresh_emulator(adb)
+        adb.assert_called_once_with('shell', 'pm', 'list', 'packages')
+
+    def test_existing_app_or_test_is_rejected(self):
+        for package in (check.APP, check.TEST):
+            with self.assertRaisesRegex(ValueError, 'Fresh emulator'):
+                check.require_fresh_emulator(Mock(return_value='package:' + package))
+
+    def test_package_query_failure_is_not_fresh(self):
+        error = check.subprocess.CalledProcessError(1, 'adb')
+        with self.assertRaises(check.subprocess.CalledProcessError):
+            check.require_fresh_emulator(Mock(side_effect=error))
 
     def test_workflow_is_opt_in_and_preserves_default_runner(self):
         source = (check.Path(__file__).parent.parent / '.github/workflows/mock-lifecycle.yml').read_text()
