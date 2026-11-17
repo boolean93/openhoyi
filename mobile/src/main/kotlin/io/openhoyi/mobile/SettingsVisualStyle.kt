@@ -118,6 +118,12 @@ internal class SettingsVisualStyle(val context:Context) {
         icon?.let {HomeVisualIcon.buttonIcon(view,it,atEnd=atEnd)}
         return view
     }
+    /** Maintenance actions share one full-width column; long labels may grow vertically. */
+    fun maintenanceAction(view: Button): Button = palette.button(view, outline = true).apply {
+        gravity = Gravity.CENTER
+        setCompoundDrawablesRelative(null, null, null, null)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = palette.dp(8) }
+    }
     fun dialog(dialog:AlertDialog,body:SettingsDialogViewport?=null) {
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         dialog.window?.setBackgroundDrawable(palette.shape(palette.surface))
