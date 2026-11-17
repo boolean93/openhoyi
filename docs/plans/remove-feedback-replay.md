@@ -16,3 +16,9 @@
 - `:mobile:compileDebugKotlin :mobile:testDebugUnitTest --tests io.openhoyi.mobile.BrewFeedbackAudioTest --tests io.openhoyi.mobile.BrewFeedbackTrackerTest`：BUILD SUCCESSFUL，1m51s。
 - 静态断言：无 neutral 按钮/监听；唯一 `audio.play` 仍在 autoplay 分支，配置恢复仍 `!restored`；完成按钮保留。
 - 中英文 XML 解析与 `git diff --check` 通过。未安装、未推送、未合并、未实机试听。
+
+## 独立PR推进（2026-11-17）
+
+- 用户最新要求每个功能独立PR；本功能单独分支 `fix/feedback-replay-removal`，与日志按钮、累计杯数、睡眠排程分开。
+- 已完成独立只读审查；创建草稿PR前执行仓库完整门禁，精确head必需检查通过后按用户授权合入develop。
+- 本轮无设备操作/试听；不手工发版。原实现工作树保留。
