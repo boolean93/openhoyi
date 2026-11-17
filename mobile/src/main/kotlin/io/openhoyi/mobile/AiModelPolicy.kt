@@ -18,9 +18,9 @@ internal object AiModelSessions {
         if (target == current.modelId) return current
         val restored = current.inactive.firstOrNull { it.modelId == target }
             ?: AiSession(current.epoch, emptyList(), AiProtocolHistory.empty(target), "", AiUsageSnapshot())
-        val prior = AiSession(current.epoch, current.lines, current.protocol, current.draft, current.usage, current.draftAttachments, ocr = current.ocr)
+        val prior = AiSession(current.epoch, current.lines, current.protocol, current.draft, current.usage, current.draftAttachments, ocr = current.ocr, hoyiScreenshotSourceId = current.hoyiScreenshotSourceId)
         return AiSession(current.epoch, restored.lines, restored.protocol, restored.draft, restored.usage,
-            restored.draftAttachments, listOf(prior), restored.ocr)
+            restored.draftAttachments, listOf(prior), restored.ocr, restored.hoyiScreenshotSourceId)
     }
 }
 

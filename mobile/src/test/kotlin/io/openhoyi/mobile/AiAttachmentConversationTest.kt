@@ -61,7 +61,7 @@ class AiAttachmentConversationTest {
         val session = AiSession(epoch, emptyList(), AiProtocolHistory.empty(), "legacy draft", AiUsageSnapshot())
         val base = Json.parseToJsonElement(AiSessionCodec.encode(session).toString(Charsets.UTF_8)).jsonObject
         for (schema in 1..2) {
-            val legacy = JsonObject((base - "draftAttachments" - "model" - "inactive" - "ocr" - (if (schema == 1) setOf("context") else emptySet())) + ("schema" to JsonPrimitive(schema)))
+            val legacy = JsonObject((base - "draftAttachments" - "model" - "inactive" - "ocr" - "hoyiScreenshotSourceId" - (if (schema == 1) setOf("context") else emptySet())) + ("schema" to JsonPrimitive(schema)))
             val restored = AiSessionCodec.decode(legacy.toString().toByteArray())
             assertEquals("legacy draft", restored.draft); assertTrue(restored.draftAttachments.isEmpty())
         }
@@ -131,7 +131,44 @@ class AiAttachmentConversationTest {
         assertTrue(request["messages"]!!.jsonArray[1].jsonObject["content"]!!.jsonArray.any { it.jsonObject["type"] == JsonPrimitive("image_url") })
         assertEquals(1, Regex("UNIQUE_OLD_QUESTION").findAll(calls.single().sent.toString("UTF-8")).count())
         assertFalse(request.containsKey("tools")); assertEquals(a.id, lines.first().attachments.single().id)
+        assertTrue(request["messages"]!!.jsonArray.first().jsonObject["content"]!!.jsonPrimitive.content.contains("Separate original-image observations"))
         assertTrue(AiContextPolicy.matches(compacted, lines))
+    }
+
+    @Test fun oldWrongProposalAndImageReplayStillUseCurrentAuthoritativeSystem() = runBlocking {
+        val image = image()
+        val wrong = "跟随按关闭填写，生成后再核对首段10s"
+        val original = AiAttachmentConversation.message("提取官方曲线", listOf(image))
+        val messages = listOf(original,
+            buildJsonObject { put("role", "assistant"); put("content", JsonNull); put("tool_calls", buildJsonArray {
+                add(buildJsonObject { put("id", "old-proposal"); put("type", "function"); put("function", buildJsonObject {
+                    put("name", "propose_custom_curve"); put("arguments", "{\"pressureLogic\":false}")
+                }) })
+            }) },
+            buildJsonObject { put("role", "tool"); put("tool_call_id", "old-proposal"); put("content", "{\"status\":\"awaiting_editor\"}") },
+            buildJsonObject { put("role", "assistant"); put("content", wrong) })
+        val history = AiProtocolHistory.checked(messages)
+        val lines = listOf(AiChatLine(true, "提取官方曲线", listOf(image)), AiChatLine(false, wrong))
+        val call = FakeAiConnection(answer = aiAnswer("需要重新核实原图"))
+        val safe = AiSafeTransport({ "fake-key" }, { true }, AiRequestBudget(), { call })
+        val turn = AiProtocolTurn(history, lines, "重新给卡片", safe,
+            loadAttachment = { AiPreparedAttachment(it, byteArrayOf(-1, -40, -1)) })
+        val request = buildJsonObject { put("model", "deepseek-flash"); put("messages", buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", AiChatPolicy.SYSTEM) })
+            lines.forEach { line -> add(buildJsonObject { put("role", if (line.user) "user" else "assistant"); put("content", line.text) }) }
+            add(buildJsonObject { put("role", "user"); put("content", "重新给卡片") })
+        }) }.toString()
+        turn.post("chat/completions", request, String::class, String::class)
+        val wire = Json.parseToJsonElement(call.sent.toString("UTF-8")).jsonObject.getValue("messages").jsonArray
+        val system = wire.first().jsonObject.getValue("content").jsonPrimitive.content
+        assertTrue(system.contains(AiHoyiCurveGuidance.SCREENSHOT))
+        assertTrue(system.contains("跟随=true"))
+        assertTrue(system.contains("NOT evidence of screenshot values"))
+        assertTrue(system.contains("Never propose first"))
+        assertTrue(wire[1].jsonObject.getValue("content").jsonArray.any { it.jsonObject["type"] == JsonPrimitive("image_url") })
+        assertTrue(wire.toString().contains("old-proposal")) // History remains intact, not silently rewritten.
+        assertEquals(1, wire.count { it.jsonObject["role"] == JsonPrimitive("system") })
+        // This checks actual request construction, not model obedience or real OCR.
     }
 
     @Test fun requestBudgetCountsSchemasAndTextButNotBase64AsText() {

@@ -62,6 +62,7 @@ internal class AiChatViewState : ViewModel() {
     val ocr = mutableListOf<AiOcrRecord>()
     val inactive = mutableListOf<AiSession>()
     val attachments = mutableListOf<AiAttachment>()
+    var hoyiScreenshotSource: AiAttachment? = null // Native picker intent; restored only from validated encrypted session binding.
     var attachmentGeneration = 0L
     val submission = AiChatPendingDraft()
     var draft: String
@@ -75,7 +76,7 @@ internal class AiChatViewState : ViewModel() {
     var failureAttemptId: String? = null
     var failureNotice = 0
     var notice = 0
-    fun clearCurrent() { ocr.clear(); attachmentGeneration++; attachments.clear(); contextGeneration++; usage = AiUsageLedger(); protocol = AiProtocolHistory.empty(protocol.modelId); lines.clear(); submission.clear(); selectionStart = 0; selectionEnd = 0; notice = 0; diagnostic = null; failureAttemptId = null; failureNotice = 0 }
+    fun clearCurrent() { hoyiScreenshotSource = null; ocr.clear(); attachmentGeneration++; attachments.clear(); contextGeneration++; usage = AiUsageLedger(); protocol = AiProtocolHistory.empty(protocol.modelId); lines.clear(); submission.clear(); selectionStart = 0; selectionEnd = 0; notice = 0; diagnostic = null; failureAttemptId = null; failureNotice = 0 }
     fun clear() { clearCurrent(); inactive.clear(); protocol = AiProtocolHistory.empty() }
     override fun onCleared() = clear()
 }
@@ -101,6 +102,7 @@ class AiChatActivity : ThemedActivity() {
     private var attachmentDialog: AlertDialog? = null
     private var pickerEpoch: String? = null
     private var pickerGeneration = -1L
+    private var pickerHoyiScreenshot = false
     private var busy = false
     private var generation = 0L
     private var consentDialog: AlertDialog? = null
@@ -142,6 +144,7 @@ class AiChatActivity : ThemedActivity() {
         restoreSession()
         pickerEpoch = savedInstanceState?.getString("ai-picker-epoch")
         pickerGeneration = savedInstanceState?.getLong("ai-picker-generation", -1L) ?: -1L
+        pickerHoyiScreenshot = savedInstanceState?.getBoolean("ai-picker-hoyi", false) == true
         visual = SettingsVisualStyle(this)
         presentation = AiChatPresentation(this, visual, memory.draft, memory.selectionStart, memory.selectionEnd,
             onBack = { finish() },
@@ -149,7 +152,13 @@ class AiChatActivity : ThemedActivity() {
             onKey = { stop(); startActivity(Intent(this, AiKeyActivity::class.java)) },
             onSendOrStop = { if (busy) stop(preservePartial = true) else sendOrConfirm() },
             onOpenLink = ::confirmExternalLink,
-            onUsage = ::showUsage, onChooseAttachment = ::pickAttachment, onRemoveAttachment = ::removeAttachment, onModel = ::showModels, onReasoning = ::showReasoning,
+            onUsage = ::showUsage, onChooseAttachment = { pickAttachment(it) }, onChooseHoyiScreenshot = { pickAttachment(true, true) },
+            onCancelHoyiScreenshot = {
+                val previous = memory.hoyiScreenshotSource
+                memory.hoyiScreenshotSource = null
+                if (persistSession()) memory.notice = R.string.ai_hoyi_screenshot_cancelled else memory.hoyiScreenshotSource = previous
+                render()
+            }, hasHoyiScreenshot = { memory.hoyiScreenshotSource != null }, onRemoveAttachment = ::removeAttachment, onModel = ::showModels, onReasoning = ::showReasoning,
             onOpenCurve = ::openCurveCard, curveAvailable = ::curveCardAvailable,
             onReviewCurve = ::reviewCurveCard, curveReviewable = ::curveCardReviewable,
             onViewCurve = ::viewCurveInLibrary, curveLibraryAvailable = ::curveLibraryAvailable)
@@ -203,6 +212,7 @@ class AiChatActivity : ThemedActivity() {
             else when (val loaded = sessionStore.load(epoch)) {
                 is AiSessionLoad.Ready -> {
                     val state = loaded.session
+                    memory.hoyiScreenshotSource = state.hoyiScreenshotSource
                     memory.ocr.addAll(state.ocr); memory.inactive.addAll(state.inactive); memory.lines.addAll(state.lines); memory.protocol = state.protocol
                     memory.draft = state.draft; memory.attachments.addAll(state.draftAttachments); memory.usage = AiUsageLedger(state.usage)
                 }
@@ -225,7 +235,7 @@ class AiChatActivity : ThemedActivity() {
         val usageToken = synchronized(sessionLock) {
             sessionUsage = initial
             sessionBase = memory.credentialEpoch?.let { AiSession(it, memory.lines.toList(), memory.protocol,
-                memory.submission.pending ?: memory.draft, initial, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList()) }
+                memory.submission.pending ?: memory.draft, initial, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList(), memory.hoyiScreenshotSource?.id) }
             ++usageGeneration
         }
         memory.usage = AiUsageLedger(initial) { next ->
@@ -249,10 +259,11 @@ class AiChatActivity : ThemedActivity() {
         loadSessionFence()
         val epoch = memory.credentialEpoch
         val saved = synchronized(sessionLock) {
-            sessionBase = epoch?.let { AiSession(it, memory.lines.toList(), memory.protocol,
-                memory.submission.pending ?: memory.draft, sessionUsage, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList()) }
-            val state = sessionBase
-            state != null && AiKeyStore(this).credentialEpoch() == epoch && sessionStore.save(state)
+            val state = epoch?.let { AiSession(it, memory.lines.toList(), memory.protocol,
+                memory.submission.pending ?: memory.draft, sessionUsage, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList(), memory.hoyiScreenshotSource?.id) }
+            state != null && AiSessionTransactions.commit(sessionLock, state,
+                save = { AiKeyStore(this).credentialEpoch() == epoch && sessionStore.save(it) },
+                committed = { sessionBase = it })
         }
         if (!saved) {
             memory.notice = R.string.ai_session_unavailable
@@ -335,7 +346,7 @@ class AiChatActivity : ThemedActivity() {
     }
     private fun allAttachments(): List<AiAttachment> {
         fun ocrItems(records: List<AiOcrRecord>) = records.flatMap { listOfNotNull(it.original, it.extracted) }
-        return memory.lines.flatMap { it.attachments } + memory.attachments + ocrItems(memory.ocr) +
+        return memory.lines.flatMap { it.attachments } + memory.attachments + listOfNotNull(memory.hoyiScreenshotSource) + ocrItems(memory.ocr) +
             memory.inactive.flatMap { it.lines.flatMap { l -> l.attachments } + it.draftAttachments + ocrItems(it.ocr) }
     }
     private fun sendAttachments() = memory.attachments.map { item ->
@@ -457,7 +468,7 @@ class AiChatActivity : ThemedActivity() {
             .setPositiveButton(R.string.ai_model_switch) { _, _ ->
                 if (busy || attachmentBusy || memory.protocol.modelId != source || memory.credentialEpoch != epoch) return@setPositiveButton
                 rememberInput(); cancelCurveProposal()
-                val current = AiSession(epoch, memory.lines.toList(), memory.protocol, memory.draft, sessionUsage, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList())
+                val current = AiSession(epoch, memory.lines.toList(), memory.protocol, memory.draft, sessionUsage, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList(), memory.hoyiScreenshotSource?.id)
                 val candidate = try { AiModelSessions.switch(current, target.id) } catch (_: Exception) { memory.notice = R.string.ai_session_unavailable; render(); return@setPositiveButton }
                 val saved = AiSessionTransactions.commit(sessionLock, candidate,
                     save = { AiKeyStore(this).credentialEpoch() == epoch && sessionStore.save(it) },
@@ -465,6 +476,7 @@ class AiChatActivity : ThemedActivity() {
                 if (!saved) { memory.notice = R.string.ai_session_unavailable; render(); return@setPositiveButton }
                 clearStreamPreview()
                 memory.clear(); memory.contextGeneration++
+                memory.hoyiScreenshotSource = candidate.hoyiScreenshotSource
                 memory.protocol = candidate.protocol; memory.lines.addAll(candidate.lines)
                 memory.draft = candidate.draft; memory.attachments.addAll(candidate.draftAttachments)
                 memory.ocr.addAll(candidate.ocr); memory.inactive.addAll(candidate.inactive); memory.usage = AiUsageLedger(candidate.usage)
@@ -477,7 +489,7 @@ class AiChatActivity : ThemedActivity() {
     }
     private fun confirmAttachments(text: String) {
         val active = memory.protocol.messages.any { AiAttachmentConversation.items(it).isNotEmpty() }
-        if (memory.attachments.isEmpty() && !active) { begin(text); return }
+        if (memory.attachments.isEmpty() && !active && memory.hoyiScreenshotSource == null) { begin(text); return }
         if (attachmentDialog != null || busy || attachmentBusy) return
         val epoch = memory.credentialEpoch
         val version = memory.attachmentGeneration
@@ -491,13 +503,13 @@ class AiChatActivity : ThemedActivity() {
                 dialog.show(); visual.dialog(dialog)
             }
     }
-    private fun pickAttachment(image: Boolean) {
+    private fun pickAttachment(image: Boolean, hoyiScreenshot: Boolean = false) {
         if (busy || attachmentBusy || attachmentDialog != null) return
         if (image && !AiModelPolicy.known(memory.protocol.modelId).images) {
             memory.notice = R.string.ai_model_image_unavailable; render(); return
         }
         rememberInput()
-        pickerEpoch = memory.credentialEpoch; pickerGeneration = memory.attachmentGeneration
+        pickerEpoch = memory.credentialEpoch; pickerGeneration = memory.attachmentGeneration; pickerHoyiScreenshot = hoyiScreenshot
         if (pickerEpoch == null) { memory.notice = R.string.ai_session_unavailable; render() }
         else try { startActivityForResult(if (image) AiAttachmentPicker.imageIntent() else AiAttachmentPicker.documentIntent(), 8417) }
         catch (_: Exception) { memory.notice = R.string.ai_attachment_unavailable; render() }
@@ -507,14 +519,16 @@ class AiChatActivity : ThemedActivity() {
         val index = memory.attachments.indexOfFirst { it.id == item.id }
         if (index < 0) return
         // Retain copies referenced by history/checkpoints; rollback draft removal if persistence fails.
+        val previousHoyiSource = memory.hoyiScreenshotSource
         memory.attachments.removeAt(index)
+        if (previousHoyiSource?.id == item.id) memory.hoyiScreenshotSource = null
         memory.attachmentGeneration++; memory.contextGeneration++; cancelCurveProposal()
         if (persistSession()) {
             val epoch = memory.credentialEpoch
             if (epoch != null && allAttachments().none { it.id == item.id }) scope.launch(NonCancellable + Dispatchers.IO) {
                 AiAttachmentVault(this@AiChatActivity, epoch).remove(item)
             }
-        } else memory.attachments.add(index, item)
+        } else { memory.attachments.add(index, item); memory.hoyiScreenshotSource = previousHoyiSource }
         render()
     }
     @Deprecated("System picker compatibility")
@@ -547,7 +561,8 @@ class AiChatActivity : ThemedActivity() {
         val uri = data?.data ?: return
         val epoch = pickerEpoch ?: return
         val version = pickerGeneration
-        pickerEpoch = null
+        val hoyiScreenshot = pickerHoyiScreenshot
+        pickerEpoch = null; pickerHoyiScreenshot = false
         if (epoch != memory.credentialEpoch || version != memory.attachmentGeneration || busy || attachmentBusy) return
         val existing = memory.attachments.toList()
         attachmentBusy = true; render()
@@ -584,7 +599,8 @@ class AiChatActivity : ThemedActivity() {
                 attachmentTrace.event(AiAttachmentStage.READY, bytes = item.size)
                 memory.attachments.add(item); referenced = true; memory.attachmentGeneration++
                 memory.contextGeneration++; cancelCurveProposal()
-                memory.notice = if (item.kind == AiAttachmentKind.DOCUMENT) R.string.ai_ocr_selected else R.string.ai_attachment_local
+                if (hoyiScreenshot && item.kind == AiAttachmentKind.IMAGE) memory.hoyiScreenshotSource = item
+                memory.notice = if (hoyiScreenshot && item.kind == AiAttachmentKind.IMAGE) R.string.ai_hoyi_screenshot_selected else if (item.kind == AiAttachmentKind.DOCUMENT) R.string.ai_ocr_selected else R.string.ai_attachment_local
                 persistSession()
             } catch (_: CancellationException) { throw CancellationException() }
             catch (failure: AiAttachmentFailure) {
@@ -653,6 +669,10 @@ class AiChatActivity : ThemedActivity() {
         confirmAttachments(text)
     }
     private fun begin(text: String) {
+        val hoyiScreenshot = memory.hoyiScreenshotSource
+        val attachments = try { AiHoyiScreenshotProposal.turnAttachments(sendAttachments(), hoyiScreenshot) } catch (_: Exception) {
+            memory.notice = R.string.ai_attachment_error_count; render(); return
+        }
         if (busy || attachmentBusy || !AiChatPolicy.accepts(memory.lines, text) || !memory.submission.begin(text)) return
         cancelCurveProposal()
         busy = true
@@ -661,7 +681,6 @@ class AiChatActivity : ThemedActivity() {
         val preview = streamPreview
         val token = ++generation
         val retryKeyRevision = AiKeyStore(this).revision()
-        val attachments = sendAttachments()
         val reasoningEffort = AiReasoningPreference.read(this)
         memory.notice = 0
         memory.diagnostic = null
@@ -701,7 +720,7 @@ class AiChatActivity : ThemedActivity() {
                     override fun readDocument(id: String, credentialRevision: Long): CustomCurveDocument? =
                         if (token == generation && AiKeyStore(this@AiChatActivity).revision() == credentialRevision) coordinator?.readDocument(id) else null
                 }
-                val result = AiChatEngine(this@AiChatActivity, data, memory.usage, sink) { id -> app.curves.find(id) }.reply(memory.lines.toList(), text, memory.protocol, attachments, reasoningEffort = reasoningEffort, onProgress = { delta ->
+                val result = AiChatEngine(this@AiChatActivity, data, memory.usage, sink) { id -> app.curves.find(id) }.reply(memory.lines.toList(), text, memory.protocol, attachments, hoyiScreenshotSource = hoyiScreenshot, reasoningEffort = reasoningEffort, onProgress = { delta ->
                     preview.append(delta)
                     scheduleStreamPreview(token, retryKeyRevision, preview)
                 }, onToolStarted = {
@@ -900,11 +919,12 @@ class AiChatActivity : ThemedActivity() {
             } else ""
             else -> ""
         }
+        val hoyiStatus = if (memory.hoyiScreenshotSource != null) getString(R.string.ai_hoyi_screenshot_active) else ""
         val contextStatus = if (memory.protocol.coveredLines > 0) getString(R.string.ai_compacted, memory.protocol.coveredLines / 2) else ""
         val ocrStatus = memory.ocr.filter { record -> memory.attachments.any { it.id == record.original.id } }.joinToString("\n") {
             it.original.name + ": " + getString(ocrNotice(it.status)) + (it.pages?.let { count -> "\n" + getString(R.string.ai_ocr_reference, count, it.referenceInput ?: 0, it.referenceOutput ?: 0) } ?: "")
         }
-        presentation.render(memory.lines, memory.submission.pending ?: memory.draft, busy, listOf(statusText, contextStatus, ocrStatus).filter { it.isNotBlank() }.joinToString("\n"), memory.attachments, attachmentBusy, memory.protocol.modelId, memory.credentialEpoch, "${memory.credentialEpoch}:${memory.protocol.modelId}:${memory.contextGeneration}")
+        presentation.render(memory.lines, memory.submission.pending ?: memory.draft, busy, listOf(statusText, hoyiStatus, contextStatus, ocrStatus).filter { it.isNotBlank() }.joinToString("\n"), memory.attachments, attachmentBusy, memory.protocol.modelId, memory.credentialEpoch, "${memory.credentialEpoch}:${memory.protocol.modelId}:${memory.contextGeneration}")
         presentation.updateStreamPreview(streamPreview.snapshot())
     }
     private fun restorePendingDraft() {
@@ -928,6 +948,7 @@ class AiChatActivity : ThemedActivity() {
         rememberInput()
         outState.putString("ai-picker-epoch", pickerEpoch)
         outState.putLong("ai-picker-generation", pickerGeneration)
+        outState.putBoolean("ai-picker-hoyi", pickerHoyiScreenshot)
         super.onSaveInstanceState(outState)
     }
     override fun onPause() {

@@ -190,7 +190,8 @@ class AiChatSessionTest {
             .single { it.jsonObject.getValue("function").jsonObject["name"] == JsonPrimitive("propose_custom_curve") }
             .jsonObject.getValue("function").jsonObject.getValue("parameters").jsonObject
             .getValue("properties").jsonObject.getValue("proposal_json").jsonObject.getValue("description").jsonPrimitive.content
-        assertTrue(schema.contains(AiHoyiCurveGuidance.SCREENSHOT))
+        assertFalse(schema.contains(AiHoyiCurveGuidance.SCREENSHOT))
+        assertTrue(Json.parseToJsonElement(sent).jsonObject.getValue("messages").jsonArray.first().jsonObject.getValue("content").jsonPrimitive.content.contains(AiHoyiCurveGuidance.SCREENSHOT))
         val draft = AiCurveEditorDraft.open(AiCurveCard.proposal(pending), store)
         assertEquals(0, disk.writes)
         val doc = draft.seed
