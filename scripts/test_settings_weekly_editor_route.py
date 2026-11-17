@@ -165,16 +165,42 @@ class WeeklyEditorRouteContract(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.validate(fixture(False), proof)
 
+    def test_direct_daily_and_per_day_route_and_invalid_scope(self):
+        def direct():
+            proof=fixture(True);current=target(proof);old=current['weeklyEditorRoute']
+            days=copy.deepcopy(current['nodes'][1:])
+            for index,day in enumerate(days):
+                day['semanticId']='product/settings/machine/schedule/day/'+str(index)
+            every=copy.deepcopy(old['toggle'])
+            route={key:old[key] for key in ('ownerActivityIdentity','windowIdentity','decorIdentity',
+                'windowTokenIdentity','rootIdentity','density','locale','scheduleState')}
+            route.update(contract='ACTUAL_WEEKLY_DIRECT_ROUTE_V2',everyDayResource='machine_settings_schedule_every_day',
+                         everyDayLabel=old['collapseLabel'],everyDay=every,days=days)
+            current['weeklyEditorRoute']=route;current['nodes']=[every]+days
+            proof['attempts'][0]['geometryAfter']=copy.deepcopy(proof['attempts'][0]['geometryBefore'])
+            return proof
+        first,second=direct(),direct()
+        self.validate(first,second)
+        for mutation in ('missing_day','wrong_order','changed_readback','stale_owner','short_control'):
+            other=direct();route=target(other)['weeklyEditorRoute']
+            if mutation=='missing_day': route['days'].pop()
+            elif mutation=='wrong_order': route['days'].reverse()
+            elif mutation=='changed_readback': route['scheduleState']['state']='CONFIRMED'
+            elif mutation=='stale_owner': route['scheduleState']['ownerServiceIdentity']=999
+            else: route['everyDay']['rectPx']=[0,0,200,20]
+            other['attempts'][0]['geometryAfter']=copy.deepcopy(other['attempts'][0]['geometryBefore'])
+            with self.subTest(mutation=mutation),self.assertRaises(AssertionError): self.validate(first,other)
+
     def test_actual_driver_keeps_normal_click_and_original_schedule_dialog_gates(self):
         source = (Path(__file__).resolve().parents[1] /
                   'mobile/src/androidTest/kotlin/io/openhoyi/mobile/SettingsVisualMigrationChecks.kt').read_text()
         route = source.split('val routeActivity=activity;', 1)[1].split('val schedule=requireDialog(activity)', 1)[0]
-        self.assertIn('click(activity,toggle)', route)
-        self.assertIn('reveal(activity,toggle)', route)
+        self.assertIn('click(activity,everyDay)', route)
+        self.assertIn('reveal(activity,everyDay)', route)
         self.assertIn('reveal(activity,day)', route)
         self.assertNotIn('setVisibility(', route)
         self.assertNotIn('.performClick(', route)
-        self.assertIn('click(activity,toggle) {weeklyEditorObservation()}', route)
+        self.assertIn('click(activity,everyDay) {weeklyEditorObservation()}', route)
         self.assertIn('click(activity,day) {weeklyEditorObservation()}', route)
         self.assertIn('click(activity,day) {weeklyEditorObservation()};val reopened=', source)
         click_body=source.split('private fun click(activity:Activity,view:View,',1)[1].split('private fun click(activity:Activity,tag:',1)[0]

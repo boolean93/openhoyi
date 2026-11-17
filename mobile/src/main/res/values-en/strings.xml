@@ -591,6 +591,7 @@
     <string name="machine_settings_schedule_current">"Weekly schedule read back · Sunday through Saturday"</string>
     <string name="machine_settings_schedule_day_title">"Edit %1$s"</string>
     <string name="machine_settings_schedule_edit">"Edit weekly times"</string>
+    <string name="machine_settings_schedule_every_day">"Every day"</string>
     <string name="machine_settings_schedule_failed">"First packet write failed"</string>
     <string name="machine_settings_schedule_incomplete">"Schedule readback is incomplete or invalid; check the machine. Unknown entries are marked"</string>
     <string name="machine_settings_schedule_initial">"Time changes: no changes yet"</string>

@@ -125,10 +125,10 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
         return null
     }
 
-    fun changeSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
+    fun changeSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule, allDays: Boolean = false): String? {
         editable()?.let { return it }
         if (expected.days != schedule.days) return text(R.string.mock_runtime_schedule_changed)
-        if (expected.days.indices.count { expected.days[it] != target.days[it] } != 1)
+        if (!SleepScheduleEdit.accepts(expected, target, allDays))
             return text(R.string.mock_runtime_single_day_only)
         schedule = target
         scheduleChanged = true

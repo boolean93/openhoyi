@@ -83,7 +83,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private val settingTabs = mutableListOf<TextView>()
     private val temperatureRows = mutableListOf<SettingsTemperatureRow>()
     private val controlButtons = mutableListOf<Button>()
-    private val scheduleButtons = mutableListOf<Button>()
+    private val scheduleButtons = mutableListOf<View>()
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -247,6 +247,12 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             }
         }
         controlButtons += sleepScheduleButton
+        scheduleButtons += action(sleepCard, getString(R.string.machine_settings_schedule_every_day)) {
+            editScheduleDay(null, getString(R.string.machine_settings_schedule_every_day))
+        }
+        val dayNames = listOf(R.string.machine_settings_sunday, R.string.machine_settings_monday,
+            R.string.machine_settings_tuesday, R.string.machine_settings_wednesday,
+            R.string.machine_settings_thursday, R.string.machine_settings_friday, R.string.machine_settings_saturday)
         scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sleepCard.addView(scheduleGrid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val scheduleColumns = if (resources.configuration.screenWidthDp >= 900) 2 else 1
@@ -258,7 +264,12 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(16), dp(8), dp(16), dp(8))
                     background = style.shape(style.selected)
+                    minimumHeight = dp(48)
+                    tag = "product/settings/machine/schedule/day/$day"
+                    isFocusable = true
+                    setOnClickListener { editScheduleDay(day, getString(dayNames[day])) }
                 }
+                scheduleButtons += cell
                 row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
                     topMargin = dp(8)
                     if (day != days.last()) marginEnd = dp(8)
@@ -269,19 +280,6 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             }
             if (days.size < scheduleColumns) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         }
-        val scheduleEditor = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = android.view.View.GONE }
-        val scheduleToggle = action(sleepCard, getString(R.string.machine_settings_schedule_edit)) {}
-        scheduleToggle.setOnClickListener {
-            scheduleEditor.visibility = if (scheduleEditor.visibility == android.view.View.GONE)
-                android.view.View.VISIBLE else android.view.View.GONE
-            scheduleToggle.text = if (scheduleEditor.visibility == android.view.View.VISIBLE)
-                getString(R.string.machine_settings_schedule_collapse) else getString(R.string.machine_settings_schedule_edit)
-        }
-        sleepCard.addView(scheduleEditor)
-        listOf(getString(R.string.machine_settings_sunday), getString(R.string.machine_settings_monday), getString(R.string.machine_settings_tuesday), getString(R.string.machine_settings_wednesday), getString(R.string.machine_settings_thursday), getString(R.string.machine_settings_friday), getString(R.string.machine_settings_saturday)).forEachIndexed { index, name ->
-            scheduleButtons += action(scheduleEditor, getString(R.string.machine_settings_edit_sleep_day, name)) { editScheduleDay(index, name) }
-        }
-        controlButtons += scheduleButtons
         val cupCard = card(maintenanceSection, getString(R.string.machine_settings_cups_title))
         cupCountValue = text(cupCard, settingsPresentation.cupCount(null, false), 16)
         cupCountValue.tag = "product/settings/machine/cup-count"
@@ -594,11 +592,11 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 else confirm(MachineSettingChange.StandbyDelay(values[index], temperature))
             }.show().also { visual.dialog(it); AppDialog.styleShown(it); dialogs += it }
     }
-    private fun editScheduleDay(index: Int, name: String) {
+    private fun editScheduleDay(index: Int?, name: String) {
         val baseline = service?.snapshot?.let {
             WeeklySleepSchedule.fromReadback(it.sleepFirst, it.sleepSecond)
         } ?: return
-        val previous = baseline.days[index]
+        val previous = baseline.days[index ?: 0]
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
@@ -614,8 +612,11 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         val wakeMinute = numberInput(form, getString(R.string.machine_settings_wake_minute), previous.time.wakeMinute)
         val viewport=SettingsDialogViewport(this).apply {tag="product/settings/machine/schedule/dialog-scroll";addView(form)}
         val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_day_title, name))
-            .setMessage(if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_schedule_mock_message)
-                else getString(R.string.machine_settings_schedule_real_message))
+            .setMessage(when {
+                BuildConfig.MOCK_MODE -> getString(R.string.machine_settings_schedule_mock_message)
+                index != null -> getString(R.string.machine_settings_schedule_real_message)
+                else -> null
+            })
             .setView(viewport).setPositiveButton(getString(R.string.machine_settings_schedule_check), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -628,9 +629,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     Toast.makeText(this, getString(R.string.machine_settings_invalid_time), Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                val target = WeeklySleepSchedule(baseline.days.toMutableList().apply {
-                    this[index] = WeeklySleepDay(enabled.isChecked, SleepDay(sh, sm, wh, wm))
-                })
+                val target = SleepScheduleEdit.target(baseline, index,
+                    WeeklySleepDay(enabled.isChecked, SleepDay(sh, sm, wh, wm)))
                 dialog.dismiss()
                 if (BuildConfig.MOCK_MODE) {
                     AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_mock_title))
@@ -647,7 +647,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                         name, getString(if (enabled.isChecked) R.string.machine_settings_preview_enabled
                             else R.string.setting_off), sh, sm, wh, wm))
                     .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ ->
-                        service?.changeSleepSchedule(baseline, target)?.let {
+                        service?.changeSleepSchedule(baseline, target, allDays = index == null)?.let {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
                         }
                         render()

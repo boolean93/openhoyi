@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "6abf9259e6bc399588fdd5e44cc55c96c6d837ffa42bf591c866c237c387eb28",
+  "sha256": "c07c5012680c8c8964631ec18d9c95d319b7e0027a78d8522f0dba73bccc2cce",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -1083,6 +1083,7 @@
     "curve_editor_bloom_short": "闷蒸",
     "curve_editor_duration_short": "首段限时",
     "curve_editor_compensation_short": "重量补偿",
-    "home_preset_full_name": "曲线完整名称"
+    "home_preset_full_name": "曲线完整名称",
+    "machine_settings_schedule_every_day": "每天"
   }
 }

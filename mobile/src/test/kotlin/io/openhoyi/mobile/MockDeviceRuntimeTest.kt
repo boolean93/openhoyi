@@ -185,6 +185,19 @@ class MockDeviceRuntimeTest {
         assertEquals(30, settings.brewCompensationTenthsC)
     }
 
+    @Test fun uniformWeekRequiresExplicitScopeAndStillRejectsStaleBaseline() {
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
+        val before = mock.sample(1_000)
+        val baseline = requireNotNull(WeeklySleepSchedule.fromReadback(before.sleepFirst, before.sleepSecond))
+        val target = SleepScheduleEdit.target(baseline, null,
+            WeeklySleepDay(true, io.openhoyi.protocol.SleepDay(23, 30, 6, 45)))
+        assertNotNull(mock.changeSchedule(baseline, target))
+        assertNull(mock.changeSchedule(baseline, target, allDays = true))
+        val after = mock.sample(2_000)
+        assertEquals(target.days, requireNotNull(WeeklySleepSchedule.fromReadback(after.sleepFirst, after.sleepSecond)).days)
+        assertNotNull(mock.changeSchedule(baseline, target, allDays = true))
+    }
+
     @Test fun oneDayScheduleEditPreservesOtherSixDaysAndRejectsStaleBaseline() {
         val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         val baseline = requireNotNull(WeeklySleepSchedule.fromReadback(
