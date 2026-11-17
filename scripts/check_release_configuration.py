@@ -17,6 +17,45 @@ PREFIX = "HOYI_RELEASE_"
 VERSION = ["-PhoyiVersionCode=2", "-PhoyiVersionName=0.2.0", "-PhoyiPreviousVersionCode=1"]
 
 
+PREFETCH_INIT = """
+gradle.projectsEvaluated {
+    rootProject.tasks.register('prefetchReleaseFixtureDependencies') {
+        doLast {
+            rootProject.allprojects.each { project ->
+                ['releaseCompileClasspath', 'releaseRuntimeClasspath'].each { name ->
+                    def configuration = project.configurations.findByName(name)
+                    if (configuration != null && configuration.canBeResolved) {
+                        // Resolve real external AAR/JAR files, not just dependency metadata.
+                        // Project outputs are excluded: this task must not compile, package or sign.
+                        configuration.incoming.artifactView {
+                            componentFilter { id -> id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+                        }.files.files.each { file ->
+                            if (!file.isFile()) throw new GradleException('Release dependency artifact is unavailable')
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+"""
+
+
+def prefetch_release_dependencies(init, environment, tools, mirror=None):
+    # Online resolution is separated from the signed, offline disposable build.
+    clean = {key: value for key, value in environment.items()
+             if not key.startswith(PREFIX) and key != 'HOYI_FIXTURE_STORE_PASSWORD'}
+    command = [str(ROOT / 'gradlew'), ':prefetchReleaseFixtureDependencies', '--console=plain',
+               '--init-script', str(init), f"-Pandroid.aapt2FromMavenOverride={tools / 'aapt2'}", *VERSION]
+    if mirror:
+        command.append(f'-PgoogleMirror={mirror}')
+    result = subprocess.run(command, cwd=ROOT, env=clean, capture_output=True, text=True, timeout=360)
+    if result.returncode != 0:
+        print(fixture_failure_summary(result.stdout + result.stderr), flush=True)
+        raise RuntimeError(f'Release dependency prefetch failed; exit={result.returncode}')
+    print('PASS release dependency artifacts prefetched without signing variables', flush=True)
+
+
 def redact_fixture_output(output, environment):
     values = {value for key, value in environment.items() if key.startswith(PREFIX) and value}
     for value in sorted(values, key=len, reverse=True):
@@ -94,8 +133,9 @@ def main():
             outputs = Path(directory) / "outputs"
             escaped = str(outputs).replace("\\", "\\\\").replace("'", "\\'")
             init = Path(directory) / "isolated.gradle"
-            init.write_text(f"allprojects {{ layout.buildDirectory.set(new File('{escaped}', name)) }}\n")
+            init.write_text(f"allprojects {{ layout.buildDirectory.set(new File('{escaped}', name)) }}\n" + PREFETCH_INIT)
             tools = args.sdk / "build-tools" / "35.0.0"
+            prefetch_release_dependencies(init, clean, tools, args.google_mirror)
             command = [str(ROOT / "gradlew"), ":mobile:assembleRelease", "--offline", "--console=plain", "--init-script", str(init),
                        f"-Pandroid.aapt2FromMavenOverride={tools / 'aapt2'}", *VERSION]
             if args.google_mirror:
