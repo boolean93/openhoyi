@@ -14,6 +14,16 @@ class AiChatPolicyTest {
         assertFalse(system.contains("1–3 best fits"))
     }
 
+    @Test fun cardReplyExplainsChoiceWithoutDuplicatingRecipeAndKeepsRequestedDetailsAndSafety() {
+        val system = AiChatPolicy.SYSTEM
+        listOf("Card replies: brief reasons/needed reminders",
+            "not displayed recipe parameters, redundant lists/closings/questions",
+            "Explain details/comparisons on request",
+            "keep uncertainty, safety and confirmation").forEach {
+            assertTrue("Missing card reply boundary: $it", system.contains(it))
+        }
+    }
+
     @Test fun boundsMessagesAndConversationWithoutSilentTruncation() {
         assertFalse(AiChatPolicy.accepts(emptyList(), " "))
         assertTrue(AiChatPolicy.accepts(emptyList(), "x".repeat(4001)))

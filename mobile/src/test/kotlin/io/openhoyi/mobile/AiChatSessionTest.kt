@@ -153,7 +153,12 @@ class AiChatSessionTest {
             }.jsonObject["function"]!!.jsonObject["description"]!!.jsonPrimitive.content
             listOf("Default to exactly one best-fit card unless the user explicitly asks for more",
                 "including counts above three",
-                "per-turn card resource limit is 10").forEach { rule ->
+                "per-turn card resource limit is 10",
+                "Card prose: brief reasons/necessary reminders only",
+                "Do not duplicate displayed recipe data (temperature, weight, stage pressure/flow/water)",
+                "parameter lists, generic closings or needless questions",
+                "Explain parameters/reasons/comparisons when asked",
+                "Retain uncertainty, safety limits and required confirmation").forEach { rule ->
                 assertTrue("Missing selection rule: $rule", selectionDescription.contains(rule))
             }
             assertFalse(selectionDescription.contains("1–3 best fits"))
