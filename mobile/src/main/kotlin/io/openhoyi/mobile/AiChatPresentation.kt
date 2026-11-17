@@ -658,7 +658,9 @@ internal class AiChatPresentation(
                 val cardHost = object : FrameLayout(context) {
                     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                         val available = View.MeasureSpec.getSize(widthMeasureSpec)
-                        getChildAt(0).layoutParams.width = AiCurveCardLayoutPolicy.cardWidth(available, style.dp(520))
+                        getChildAt(0).layoutParams.width = if (card.kind == AiCurveCard.Kind.RECOMMENDATION)
+                            AiCurveCardLayoutPolicy.recommendationWidth(available, style.dp(400))
+                        else AiCurveCardLayoutPolicy.cardWidth(available, style.dp(520))
                         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
                     }
                 }
