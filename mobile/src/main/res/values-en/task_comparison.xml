@@ -14,4 +14,24 @@
     <string name="task_comparison_no_weight_both">No raw scale samples available for comparison; no weight curve is generated</string>
     <string name="task_comparison_short_chart">Not enough chart space. Enlarge the window; record details remain scrollable below</string>
     <string name="task_comparison_scale">Shared scale for both cups · %1$s</string>
+    <string name="comparison_difference_title">Cup differences</string>
+    <string name="comparison_difference_peak_pressure">Sampled peak pressure</string>
+    <string name="comparison_difference_last_water">Last recorded cumulative water</string>
+    <string name="comparison_difference_median_temperature">Sampled median temperature</string>
+    <string name="comparison_difference_last_net_weight">Last recorded confirmed net yield</string>
+    <string name="comparison_difference_line">%1$s: %2$s</string>
+    <string name="comparison_difference_equal">Equal at displayed precision</string>
+    <string name="comparison_difference_a_higher">Cup A higher by %1$s</string>
+    <string name="comparison_difference_b_higher">Cup B higher by %1$s</string>
+    <string name="comparison_difference_unavailable">Not comparable (A: %1$s; B: %2$s)</string>
+    <string name="comparison_difference_not_ended">End not confirmed</string>
+    <string name="comparison_difference_no_brewing">Insufficient brewing samples</string>
+    <string name="comparison_difference_water_reset">Water counter went backwards</string>
+    <string name="comparison_difference_no_net_weight">No confirmed net yield at last sample</string>
+    <string name="comparison_difference_estimated">Only estimated net yield</string>
+    <string name="comparison_difference_net_segments">Scale reference changed</string>
+    <string name="comparison_difference_bar">%1$s bar</string>
+    <string name="comparison_difference_ml">%1$s mL</string>
+    <string name="comparison_difference_celsius">%1$s °C</string>
+    <string name="comparison_difference_grams">%1$s g</string>
 </resources>

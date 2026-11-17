@@ -34,6 +34,24 @@ internal object TwoCupComparisonPageChecks {
             val row = root.findViewWithTag<android.widget.LinearLayout>("comparison-summary-row-$it")
             (row.getChildAt(column + 1) as android.widget.TextView).text.toString()
         }
+        val differences = root.findViewWithTag<ComparisonDifferenceSummary>("comparison-difference-summary")
+        fun difference(metric: ComparisonDifferences.Metric) =
+            root.findViewWithTag<android.widget.TextView>("comparison-difference-${metric.name}")
+        fun assertDifference(label: Int, description: Int, metric: ComparisonDifferences.Metric, vararg args: String) {
+            val line = difference(metric)
+            val expected = activity.getString(R.string.comparison_difference_line, activity.getString(label),
+                activity.getString(description, *args))
+            check(line.text.toString() == expected) { "${metric.name}: expected $expected, got ${line.text}" }
+        }
+        fun assertDifferences(swapped: Boolean) {
+            val aHigher = if (swapped) R.string.comparison_difference_b_higher else R.string.comparison_difference_a_higher
+            assertDifference(R.string.comparison_difference_peak_pressure, aHigher, ComparisonDifferences.Metric.PRESSURE, "0.5 bar")
+            assertDifference(R.string.comparison_difference_last_water, aHigher, ComparisonDifferences.Metric.WATER, "0.4 mL")
+            assertDifference(R.string.comparison_difference_median_temperature, aHigher, ComparisonDifferences.Metric.TEMPERATURE, "0.5 °C")
+            val noNetWeight = activity.getString(R.string.comparison_difference_no_net_weight)
+            assertDifference(R.string.comparison_difference_last_net_weight, R.string.comparison_difference_unavailable,
+                ComparisonDifferences.Metric.NET_WEIGHT, noNetWeight, noNetWeight)
+        }
         var originalSummaries = emptyList<List<String>>()
         var first: String? = null
         var second: String? = null
@@ -47,6 +65,8 @@ internal object TwoCupComparisonPageChecks {
             check(firstSamples.size >= 2 && secondSamples.size >= 2)
             originalSummaries = listOf(summary(0), summary(1))
             originalMetric = chart.metric.ordinal
+            assertDifferences(swapped = false)
+            check(differences.isShown)
             if (activity.resources.configuration.let {
                 it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
             }) {
@@ -85,6 +105,7 @@ internal object TwoCupComparisonPageChecks {
             main {
                 check(chart.firstPoints.isEmpty() && chart.secondPoints.isEmpty() && chart.comparisonMessage != null)
                 check(summary(0) == listOf("—", "—", "—")) { "Cleared cup retained stale outcome values" }
+                check(differences.visibility == View.GONE) { "Cleared cup retained stale differences" }
                 firstSelector.setSelection(originalFirstPosition)
             }
             test.waitForIdleSync()
@@ -102,9 +123,21 @@ internal object TwoCupComparisonPageChecks {
             await { id("firstId") == second && id("secondId") == first && !chart.isLayoutRequested }
             main {
                 check(chart.firstPoints == secondSamples && chart.secondPoints == firstSamples)
+                assertDifferences(swapped = true)
+                val lastDifference = difference(ComparisonDifferences.Metric.NET_WEIGHT)
+                lastDifference.requestRectangleOnScreen(android.graphics.Rect(0, 0, lastDifference.width, lastDifference.height), true)
                 check(summary(0) == originalSummaries[1] && summary(1) == originalSummaries[0]) { "Outcome table did not follow cup identities" }
                 check(root.findViewWithTag<Spinner>("comparison-first").selectedItemPosition !=
                     root.findViewWithTag<Spinner>("comparison-second").selectedItemPosition)
+            }
+            test.waitForIdleSync()
+            main {
+                val lastDifference = difference(ComparisonDifferences.Metric.NET_WEIGHT)
+                val bounds = android.graphics.Rect()
+                check(lastDifference.getGlobalVisibleRect(bounds) && bounds.height() == lastDifference.height &&
+                    bounds.width() == lastDifference.width && lastDifference.height > 0) {
+                    "Last difference row is not fully scrollable into view: $bounds"
+                }
             }
         } finally {
             main {
@@ -114,6 +147,7 @@ internal object TwoCupComparisonPageChecks {
                     val entries = (activity.application as MobileApplication).journalResult.getOrThrow().entries()
                     firstSelector.setSelection(entries.indexOfFirst { it.observation.id == first } + 1)
                 }
+                root.findViewWithTag<android.widget.ScrollView>("comparison-details-scroll").scrollTo(0, 0)
                 selectMetric(historicalMetrics.single { it.ordinal == originalMetric })
             }
             test.waitForIdleSync()

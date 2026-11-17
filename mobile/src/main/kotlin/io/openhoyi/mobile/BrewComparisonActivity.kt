@@ -20,7 +20,10 @@ class BrewComparisonActivity : ThemedActivity() {
     private data class SourceKey(val observation: BrewJournal.Observation)
     private sealed interface Samples {
         data object Loading : Samples
-        data class Loaded(val points: List<ShotPoint>) : Samples
+        data class Loaded(
+            val points: List<ShotPoint>,
+            val differences: Map<ComparisonDifferences.Metric, ComparisonDifferences.Reading>,
+        ) : Samples
         data object Failed : Samples
     }
     private var firstId: String? = null
@@ -157,6 +160,8 @@ class BrewComparisonActivity : ThemedActivity() {
             orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false
             support.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         }
+        val differenceSummary = ComparisonDifferenceSummary(this, style)
+        workspace.setSupplementalDetails(differenceSummary)
         val sourceCards = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false
             support.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
@@ -201,11 +206,13 @@ class BrewComparisonActivity : ThemedActivity() {
             samples[key] = Samples.Loading
             readers.execute {
                 val loaded = runCatching {
-                    (application as MobileApplication).samples.load(entry.observation.id).also { ExtractionReference.align(it) }
+                    val points = (application as MobileApplication).samples.load(entry.observation.id)
+                    ExtractionReference.align(points)
+                    Samples.Loaded(points, ComparisonDifferences.summarize(entry.observation.status, points))
                 }
                 runOnUiThread {
                     if (destroyed || isFinishing || isDestroyed) return@runOnUiThread
-                    samples[key] = loaded.fold({ Samples.Loaded(it) }, { Samples.Failed })
+                    samples[key] = loaded.getOrElse { Samples.Failed }
                     // Cache an old selection, but never project it onto a newly selected cup.
                     val selected = listOfNotNull(firstId?.let(journal::find), secondId?.let(journal::find))
                     if (selected.any { SourceKey(it.observation) == key }) refresh()
@@ -222,6 +229,15 @@ class BrewComparisonActivity : ThemedActivity() {
             val points = selected.map { entry ->
                 entry?.let { (samples[SourceKey(it.observation)] as? Samples.Loaded)?.points }.orEmpty()
             }
+            fun differenceCup(entry: BrewJournal.Entry): ComparisonDifferenceSummary.Cup =
+                when (val state = samples[SourceKey(entry.observation)]) {
+                    is Samples.Loaded -> ComparisonDifferenceSummary.Cup.Readings(state.differences)
+                    Samples.Failed -> ComparisonDifferenceSummary.Cup.Pending(R.string.history_samples_failed)
+                    else -> ComparisonDifferenceSummary.Cup.Pending(R.string.history_loading_samples)
+                }
+            if (first != null && second != null && !same)
+                differenceSummary.update(differenceCup(first), differenceCup(second))
+            else differenceSummary.update(null, null)
             chart.firstPoints = if (valid) points[0] else emptyList()
             chart.secondPoints = if (valid) points[1] else emptyList()
             chart.comparisonMessage = when {

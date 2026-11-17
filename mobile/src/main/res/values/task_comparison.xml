@@ -14,4 +14,24 @@
     <string name="task_comparison_no_weight_both">没有可用于对比的原始秤采样，不生成重量曲线</string>
     <string name="task_comparison_short_chart">图表空间不足，请调大窗口；记录详情仍可在下方滚动查看</string>
     <string name="task_comparison_scale">两杯共用量程 · %1$s</string>
+    <string name="comparison_difference_title">双杯差异</string>
+    <string name="comparison_difference_peak_pressure">采样峰值压力</string>
+    <string name="comparison_difference_last_water">末次记录的累计注水</string>
+    <string name="comparison_difference_median_temperature">采样温度中位数</string>
+    <string name="comparison_difference_last_net_weight">末次记录的确认出杯净重</string>
+    <string name="comparison_difference_line">%1$s：%2$s</string>
+    <string name="comparison_difference_equal">相同（按显示精度）</string>
+    <string name="comparison_difference_a_higher">A 杯高 %1$s</string>
+    <string name="comparison_difference_b_higher">B 杯高 %1$s</string>
+    <string name="comparison_difference_unavailable">无法比较（A：%1$s；B：%2$s）</string>
+    <string name="comparison_difference_not_ended">未确认结束</string>
+    <string name="comparison_difference_no_brewing">萃取阶段采样不足</string>
+    <string name="comparison_difference_water_reset">注水计数发生回退</string>
+    <string name="comparison_difference_no_net_weight">末次采样无确认净重</string>
+    <string name="comparison_difference_estimated">仅有估算净重</string>
+    <string name="comparison_difference_net_segments">秤读数坐标发生变化</string>
+    <string name="comparison_difference_bar">%1$s bar</string>
+    <string name="comparison_difference_ml">%1$s mL</string>
+    <string name="comparison_difference_celsius">%1$s °C</string>
+    <string name="comparison_difference_grams">%1$s g</string>
 </resources>
