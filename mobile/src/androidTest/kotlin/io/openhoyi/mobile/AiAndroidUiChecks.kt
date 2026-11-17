@@ -61,7 +61,7 @@ internal class AiAndroidUiChecks(private val test: Instrumentation, private val 
         check(keyStore.status() == AiKeyStatus.MISSING && !androidKeys.containsAlias(alias)) { "UI fixture requires empty credentials" }
         val oldLanguage = app.languagePreferences.current
         val oldFont = app.fontSizePreferences.current
-        val preferences = listOf("app_language" to "tag", "app_typography" to "size", "appearance" to "dark", "ai_consent" to "deepseek_v4_compact")
+        val preferences = listOf("app_language" to "tag", "app_typography" to "size", "appearance" to "dark", "ai_consent" to "deepseek_v4_compact", "ai_consent" to AiConsentPolicy.VERSION_KEY)
         val before = preferences.associateWith { (file, key) -> context.getSharedPreferences(file, Context.MODE_PRIVATE).all[key] }
         var ownsAlias = false
         app.registerActivityLifecycleCallbacks(callbacks)
@@ -70,7 +70,7 @@ internal class AiAndroidUiChecks(private val test: Instrumentation, private val 
                 expect(app.languagePreferences.select(language) != AppLanguagePreference.Selection.SAVE_FAILED)
                 expect(app.fontSizePreferences.select(font) != AppFontSizePreference.Selection.SAVE_FAILED)
                 expect(context.getSharedPreferences("appearance", Context.MODE_PRIVATE).edit().putBoolean("dark", dark).commit())
-                expect(context.getSharedPreferences("ai_consent", Context.MODE_PRIVATE).edit().remove("deepseek_v4_compact").commit())
+                expect(context.getSharedPreferences("ai_consent", Context.MODE_PRIVATE).edit().remove("deepseek_v4_compact").remove(AiConsentPolicy.VERSION_KEY).commit())
             }
             ownsAlias = true // Alias was absent above; even a failed save may have generated this fixture's alias.
             expect(keyStore.save("fake-sentinel-ui-$id"))
@@ -190,7 +190,7 @@ internal class AiAndroidUiChecks(private val test: Instrumentation, private val 
                 check(app.fontSizePreferences.select(oldFont) != AppFontSizePreference.Selection.SAVE_FAILED)
                 before.forEach { (location, value) ->
                     val editor = context.getSharedPreferences(location.first, Context.MODE_PRIVATE).edit()
-                    when (value) { null -> editor.remove(location.second); is Boolean -> editor.putBoolean(location.second, value); is String -> editor.putString(location.second, value); else -> error("Invalid fixture restore") }
+                    when (value) { null -> editor.remove(location.second); is Int -> editor.putInt(location.second, value); is Boolean -> editor.putBoolean(location.second, value); is String -> editor.putString(location.second, value); else -> error("Invalid fixture restore") }
                     check(editor.commit())
                 }
             } }.onFailure { cleanupFailed = true }
@@ -200,9 +200,18 @@ internal class AiAndroidUiChecks(private val test: Instrumentation, private val 
 
     private fun flow(chat: AiChatActivity) {
         val baseline = sandbox.requestCount
+        onMain {
+            // A legacy assent must not bypass the increased-search disclosure.
+            expect(context.getSharedPreferences("ai_consent", Context.MODE_PRIVATE).edit().putBoolean("deepseek_v4_compact", true).commit())
+        }
         onMain { field<EditText>(chat, "input").setText("Offline fixture question"); field<Button>(chat, "send").performClick() }
         onMain { field<AlertDialog>(chat, "consentDialog").getButton(AlertDialog.BUTTON_NEGATIVE).performClick() }
         expect(sandbox.requestCount == baseline)
+        onMain {
+            expect(field<EditText>(chat, "input").text.toString() == "Offline fixture question")
+            expect(AiKeyStore(context).status() == AiKeyStatus.SAVED)
+            expect(context.getSharedPreferences("ai_consent", Context.MODE_PRIVATE).getInt(AiConsentPolicy.VERSION_KEY, 0) == 0)
+        }
         sandbox.enqueue(body = AiAndroidHttpSandbox.answer("Offline fixture answer"))
         onMain {
             field<Button>(chat, "send").performClick()
