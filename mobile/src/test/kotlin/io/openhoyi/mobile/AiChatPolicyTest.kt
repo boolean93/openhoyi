@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AiChatPolicyTest {
+    @Test fun recommendationsDefaultToOneWithoutOverridingExplicitCounts() {
+        val system = AiChatPolicy.SYSTEM
+        listOf("default to exactly one best-fit card unless the user explicitly asks for more",
+            "including counts above three", "do not impose a three-card cap",
+            "If resource or tool budgets prevent the requested count, explain that explicitly").forEach {
+            assertTrue("Missing recommendation policy: $it", system.contains(it))
+        }
+        assertFalse(system.contains("1–3 best fits"))
+    }
+
     @Test fun boundsMessagesAndConversationWithoutSilentTruncation() {
         assertFalse(AiChatPolicy.accepts(emptyList(), " "))
         assertTrue(AiChatPolicy.accepts(emptyList(), "x".repeat(4001)))

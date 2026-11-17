@@ -148,6 +148,15 @@ class AiChatSessionTest {
             assertEquals("Bearer fake-test-only-key", it.requestHeaders["Authorization"])
             assertTrue(body["messages"].toString().contains("prior answer"))
             val names = body["tools"]!!.jsonArray.map { t -> t.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content }.toSet()
+            val selectionDescription = body["tools"]!!.jsonArray.single {
+                it.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content == "present_curve_cards"
+            }.jsonObject["function"]!!.jsonObject["description"]!!.jsonPrimitive.content
+            listOf("Default to exactly one best-fit card unless the user explicitly asks for more",
+                "including counts above three",
+                "per-turn card resource limit is 10").forEach { rule ->
+                assertTrue("Missing selection rule: $rule", selectionDescription.contains(rule))
+            }
+            assertFalse(selectionDescription.contains("1–3 best fits"))
             assertEquals(setOf("current_status", "curves", "extraction_history", "extraction_samples", "web_search", "propose_custom_curve", "custom_curve_document", "present_curve_cards"), names)
         }
         assertTrue(calls.last().sent.toString("UTF-8").contains("PRIVATE_TOOL_SENTINEL"))
