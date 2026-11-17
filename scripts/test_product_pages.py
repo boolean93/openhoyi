@@ -136,7 +136,7 @@ class ProductPagesTest(unittest.TestCase):
     def test_recipe_copy_does_not_conflate_formats(self):
         recipes = self.section("recipes")
         for text in ("把 OpenHOYI 参数配方复制成文本，或通过 JSON 文件分享",
-                     "先查看参数，再确认保存", "本机压力配方还可以调整温度、目标重量和分段压力、水量",
+                     "先查看参数，再确认保存", "本机压力／流量配方还可以调整温度、目标重量、首段模式、各段参数及控制逻辑",
                      "选中配方", "分享文本或文件", "预览后导入",
                      "执行资格取决于配方模式、参数校验和设备状态",
                      "旧版曲线库导入仍为只读", "并非所有导入文件都能直接执行"):
@@ -144,6 +144,15 @@ class ProductPagesTest(unittest.TestCase):
         for text in ("配方分享的是名称、温度、目标重量和分段控制参数",
                      "不含萃取遥测或私人笔记", "旧版曲线库是独立的只读导入路径"):
             self.assertIn(text, self.section("boundaries"))
+
+    def test_ai_and_current_machine_features_keep_boundaries(self):
+        ai = self.section("ai")
+        for text in ("DeepSeek API Key", "采样明细", "原生界面", "不会自动连接、启动或控制机器",
+                     "最多搜索 4 次", "本机统计不是账户账单", "旧版同意", "真实 API"):
+            self.assertIn(text, ai)
+        more = self.section("more")
+        for text in ("每天统一设置和逐日微调", "累计杯数，未知或过期时显示 —", "应用内检查更新", "不等于稳定发布"):
+            self.assertIn(text, more)
 
     def test_comparison_demo_is_two_cups_and_labeled_example(self):
         compare = self.section("compare")
@@ -186,7 +195,7 @@ class ProductPagesTest(unittest.TestCase):
         compatibility = self.section("compatibility")
         self.assertIn("目前没有 iPhone 或 iPad 版本", compatibility)
         for text in ("固件 1.1.3 有有限实机连接与萃取启停记录",
-                     "1.1.4 已根据协议证据开放控制，启停与设置仍待实机验收",
+                     "1.1.4、1.1.5 已根据协议证据开放控制，启停与设置仍待实机验收",
                      "其他固件不开放控制",
                      "当前开发分支的接入范围",
                      "不同发布版本包含的型号可能不同",

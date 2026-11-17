@@ -105,7 +105,7 @@
             <p class="feature-index">02 · 配方</p>
             <h3>分享参数配方，导入前先看清</h3>
             <a class="guide-link" href="./import-official-curves.html">如何导入官方曲线 →</a>
-            <p>把 OpenHOYI 参数配方复制成文本，或通过 JSON 文件分享。收到配方后，粘贴或选择文件，先查看参数，再确认保存。本机压力配方还可以调整温度、目标重量和分段压力、水量。</p>
+            <p>把 OpenHOYI 参数配方复制成文本，或通过 JSON 文件分享。收到配方后，粘贴或选择文件，先查看参数，再确认保存。本机压力／流量配方还可以调整温度、目标重量、首段模式、各段参数及控制逻辑。</p>
             <p class="adjacent">执行资格取决于配方模式、参数校验和设备状态。旧版曲线库导入仍为只读；并非所有导入文件都能直接执行。</p>
           </div>
           <div class="feature-visual">
@@ -301,8 +301,23 @@
             <div><dt>独立秤工具</dt><dd>查看重量与趋势，按能力显示电量，并提供 App 软件计时。</dd></div>
             <div><dt>数据导出</dt><dd>导出近期历史 ZIP 与长期复盘 JSON；历史 ZIP 目前只有导出，没有回导入口。</dd></div>
             <div><dt>旧数据迁移</dt><dd>通过指定 JSON 显式导入旧曲线与旧历史，只读保留，不会自动读取旧 App 私有数据。</dd></div>
+            <div><dt>机器管理</dt><dd>睡眠计划支持每天统一设置和逐日微调；维护页显示新鲜回读的累计杯数，未知或过期时显示 —。设置写入仍需设备回报确认。</dd></div>
+            <div><dt>应用更新</dt><dd>可在应用内检查更新，也可前往 GitHub Releases 下载；Develop 预发布是测试版，不等于稳定发布或硬件验收通过。</dd></div>
             <div><dt>布局与偏好</dt><dd>手机竖屏、平板横屏，支持深浅主题与中英文界面。</dd></div>
           </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="ai" aria-labelledby="ai-title">
+      <div class="wrap">
+        <p class="eyebrow">HOYI.AI</p>
+        <h2 id="ai-title">让配方与复盘，多一个讨论对象</h2>
+        <p class="section-lede">使用自己的 DeepSeek API Key，讨论萃取思路，按需读取设备状态、曲线、历史与保存的采样明细；支持图片、文本附件、文档文字提取和联网搜索。采样缺失时不会补造数据，AI 建议也不等于口感判断或机器验收。</p>
+        <div class="boundary-list">
+          <article><h3>提案由你确认，机器由你掌控</h3><p>AI 可以提议新增或替换本机自定义曲线，必须在原生界面核对参数并确认才保存；不能修改工厂曲线，不会自动连接、启动或控制机器。保存后仍受配方、固件与设备状态门禁约束。</p></article>
+          <article><h3>先看数据与费用，再发送</h3><p>消息及按需读取的数据会发送至 DeepSeek，附件另需确认；费用由你的 API 账户承担。每次回复最多搜索 4 次，搜索、文档识别与上下文摘要可能额外收费。本机统计不是账户账单；旧版同意需在下次主动发送前重新确认，取消不会发送。</p></article>
+          <article><h3>本机保存，不等于离线模型</h3><p>会话与 Key 在本机加密保存，会话不参与云备份；模型回答仍需联网。真实 API、账户权限、费用与设备端到端体验尚不能用离线测试替代，功能以所下载版本为准。</p></article>
         </div>
       </div>
     </section>
@@ -355,9 +370,9 @@
           </figure>
           <figure class="gallery-item">
             <a class="shot" href="./assets/screens/originals/editor.png?v=7a22e6cb" data-view-image data-image-title="曲线编辑 · 模拟器平板尺寸界面" data-focus-x="1000" data-focus-y="420">
-              <img src="./assets/screens/editor.png?v=7a22e6cb" width="1600" height="1000" alt="模拟器平板尺寸界面，使用模拟数据：示例配方编辑器中的逐段模式选择与压力、流量参数" loading="lazy">
+              <img src="./assets/screens/editor.png?v=7a22e6cb" width="1600" height="1000" alt="模拟器平板尺寸界面，使用模拟数据：示例配方编辑器中的首段模式、各段压力／流量参数及控制逻辑" loading="lazy">
             </a>
-            <figcaption><span class="gallery-label">编辑曲线</span>：示例配方的逐段模式与参数</figcaption>
+            <figcaption><span class="gallery-label">编辑曲线</span>：示例配方的首段模式、各段参数及控制逻辑</figcaption>
           </figure>
         </div>
       </div>
@@ -374,7 +389,7 @@
           </div>
           <div>
             <dt>HOYI 咖啡机</dt>
-            <dd>面向 HOYI 咖啡机。固件 1.1.3 有有限实机连接与萃取启停记录；1.1.4 已根据协议证据开放控制，启停与设置仍待实机验收。其他固件不开放控制。</dd>
+            <dd>面向 HOYI 咖啡机。固件 1.1.3 有有限实机连接与萃取启停记录；1.1.4、1.1.5 已根据协议证据开放控制，启停与设置仍待实机验收。其他固件不开放控制。</dd>
           </div>
         </dl>
 
