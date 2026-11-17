@@ -305,7 +305,7 @@ class AiChatActivity : ThemedActivity() {
             removed.forEach { vault.remove(it) }
         }
     }
-    private fun consented() = getSharedPreferences("ai_consent", MODE_PRIVATE).getBoolean("deepseek_v4_compact", false)
+    private fun consented() = getSharedPreferences("ai_consent", MODE_PRIVATE).getInt(AiConsentPolicy.VERSION_KEY, 0).let(AiConsentPolicy::accepts)
     private fun showUsage() {
         if (usageDialog != null) return
         AiUsageDialog.create(this, memory.usage.snapshot(), AiUsageStore.get(this).snapshot()).also { dialog ->
@@ -618,6 +618,29 @@ class AiChatActivity : ThemedActivity() {
     }
     private fun sendOrConfirm() {
         val text = input.text.toString().ifBlank { if (memory.attachments.isNotEmpty()) getString(R.string.ai_attachment_question) else "" }
+        if (!AiChatPolicy.accepts(memory.lines, text)) { memory.notice = if (text.length > AiChatPolicy.INPUT_CHARS || text.isBlank()) R.string.ai_input_limit else R.string.ai_storage_limit; render(); return }
+        if (AiKeyStore(this).status() != AiKeyStatus.SAVED) {
+            memory.notice = R.string.ai_key_unavailable; render(); return
+        }
+        if (consented()) { sendAfterConsent(text); return }
+        if (consentDialog != null) return
+        consentDialog = AlertDialog.Builder(this).setTitle(R.string.ai_consent_title).setMessage(getString(R.string.ai_consent_body, AiChatPolicy.SEARCH_CALLS))
+            .setNegativeButton(R.string.ai_cancel, null)
+            .setPositiveButton(R.string.ai_agree) { _, _ ->
+                // Memory-only assent is sufficient for this send if persistence fails; retry asks again.
+                getSharedPreferences("ai_consent", MODE_PRIVATE).edit().putInt(AiConsentPolicy.VERSION_KEY, AiConsentPolicy.CURRENT_VERSION).commit()
+                binding.start()
+                sendAfterConsent(text)
+            }.create().also { dialog ->
+                dialog.setOnDismissListener { consentDialog = null }
+                dialog.show(); visual.dialog(dialog)
+                listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE).forEach { which ->
+                    dialog.getButton(which)?.apply { setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null }
+                }
+            }
+    }
+    // Both the chat request and separately confirmed OCR require the current disclosure.
+    private fun sendAfterConsent(text: String) {
         val document = memory.attachments.firstOrNull { it.kind == AiAttachmentKind.DOCUMENT && memory.ocr.none { r -> r.original.id == it.id && r.status == AiOcrStatus.READY } }
         if (document != null) {
             val attempt = memory.ocr.firstOrNull { it.original.id == document.id }
@@ -627,26 +650,7 @@ class AiChatActivity : ThemedActivity() {
         if (memory.attachments.any { it.kind == AiAttachmentKind.DOCUMENT } && AiContextPolicy.projected(AiProtocolHistory.empty(memory.protocol.modelId), text, AiAttachmentConversation.tokens(listOf(AiAttachmentConversation.message(text, sendAttachments())))) > AiContextPolicy.INPUT_TOKENS) {
             memory.notice = R.string.ai_ocr_context_limit; render(); return
         }
-        if (!AiChatPolicy.accepts(memory.lines, text)) { memory.notice = if (text.length > AiChatPolicy.INPUT_CHARS || text.isBlank()) R.string.ai_input_limit else R.string.ai_storage_limit; render(); return }
-        if (AiKeyStore(this).status() != AiKeyStatus.SAVED) {
-            memory.notice = R.string.ai_key_unavailable; render(); return
-        }
-        if (consented()) { confirmAttachments(text); return }
-        if (consentDialog != null) return
-        consentDialog = AlertDialog.Builder(this).setTitle(R.string.ai_consent_title).setMessage(R.string.ai_consent_body)
-            .setNegativeButton(R.string.ai_cancel, null)
-            .setPositiveButton(R.string.ai_agree) { _, _ ->
-                // Memory-only assent is sufficient for this send if persistence fails; retry asks again.
-                getSharedPreferences("ai_consent", MODE_PRIVATE).edit().putBoolean("deepseek_v4_compact", true).commit()
-                binding.start()
-                confirmAttachments(text)
-            }.create().also { dialog ->
-                dialog.setOnDismissListener { consentDialog = null }
-                dialog.show(); visual.dialog(dialog)
-                listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE).forEach { which ->
-                    dialog.getButton(which)?.apply { setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null }
-                }
-            }
+        confirmAttachments(text)
     }
     private fun begin(text: String) {
         if (busy || attachmentBusy || !AiChatPolicy.accepts(memory.lines, text) || !memory.submission.begin(text)) return
