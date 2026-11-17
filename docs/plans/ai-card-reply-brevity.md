@@ -15,3 +15,8 @@
 - 全量门禁发现原新增提示词令既有三POST场景超过8192字节。只压缩本次新增系统/工具文案，不改变既有预算、上限、协议或断言；保留参数去重、简短理由/必要提醒、详情/对比例外和风险确认。
 - 已运行 `JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ANDROID_HOME=/Users/boolean93/Library/Android/sdk ./gradlew :mobile:testMockUnitTest --tests '*AiChatPolicyTest' --tests '*AiChatSessionTest' --tests '*AiProtocolHistoryTest' --tests '*AiLiveProbePolicyTest' --console=plain`，34项通过（4+16+10+4）。
 - 临时字节诊断后已撤销诊断输出。最终三POST为7649、7920、8094字节，最大值距8192上限尚余98字节。再次单跑三POST场景通过。后续完整门禁仍由PR入口执行。
+
+## 同步 HOYI 识图规则
+
+- 在 gh 确认 #127 已 MERGED 后，正常 merge origin/develop（702fc81a337de6aee28933ec07810cefcfef154b）。保留完整新版多行系统提示与HOYI识图规则，唯一系统提示冲突参照已验证集成版本866a7fec解决；Engine/PolicyTest/SessionTest自动合并后也与该版本一致。默认一张、显式多张和正文去重共存。
+- 运行 `JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ANDROID_HOME=/Users/boolean93/Library/Android/sdk ./gradlew :mobile:testMockUnitTest --tests '*AiChatPolicyTest' --tests '*AiChatSessionTest' --tests '*AiProtocolHistoryTest' --tests '*AiLiveProbePolicyTest' --tests '*AiHoyi*Test' --console=plain` 通过；包含既有8192字节协议断言，未修改上限。未调用真实API或设备。

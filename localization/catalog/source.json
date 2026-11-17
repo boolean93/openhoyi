@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "c07c5012680c8c8964631ec18d9c95d319b7e0027a78d8522f0dba73bccc2cce",
+  "sha256": "7ff069710134521ab377f8ef330ea7457fed291d20f8d137341225249ecb3c2f",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -1084,6 +1084,11 @@
     "curve_editor_duration_short": "首段限时",
     "curve_editor_compensation_short": "重量补偿",
     "home_preset_full_name": "曲线完整名称",
-    "machine_settings_schedule_every_day": "每天"
+    "machine_settings_schedule_every_day": "每天",
+    "ai_hoyi_screenshot_pick": "HOYI 曲线截图",
+    "ai_hoyi_screenshot_cancel": "退出 HOYI 截图导入",
+    "ai_hoyi_screenshot_cancelled": "已退出截图导入模式。退出不会保存或删除曲线。",
+    "ai_hoyi_screenshot_selected": "已选择 HOYI 曲线截图。缺失字段会先询问；卡片确认仅打开编辑器，仍需手动保存。",
+    "ai_hoyi_screenshot_active": "HOYI 截图导入模式 · 在＋菜单退出"
   }
 }

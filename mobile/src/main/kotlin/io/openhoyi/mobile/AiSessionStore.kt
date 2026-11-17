@@ -10,9 +10,10 @@ import javax.crypto.spec.GCMParameterSpec
 
 /** Never stringify session contents: protocol includes private tool and reasoning data. */
 internal class AiSession(val epoch: String, val lines: List<AiChatLine>, val protocol: AiProtocolHistory,
-    val draft: String, val usage: AiUsageSnapshot, val draftAttachments: List<AiAttachment> = emptyList(), val inactive: List<AiSession> = emptyList(), val ocr: List<AiOcrRecord> = emptyList()) {
+    val draft: String, val usage: AiUsageSnapshot, val draftAttachments: List<AiAttachment> = emptyList(), val inactive: List<AiSession> = emptyList(), val ocr: List<AiOcrRecord> = emptyList(), val hoyiScreenshotSourceId: String? = null) {
     val modelId get() = protocol.modelId
-    fun withUsage(next: AiUsageSnapshot) = AiSession(epoch, lines, protocol, draft, next, draftAttachments, inactive, ocr)
+    val hoyiScreenshotSource: AiAttachment? get() = AiSessionCodec.resolveHoyiScreenshotSource(hoyiScreenshotSourceId, draftAttachments, lines)
+    fun withUsage(next: AiUsageSnapshot) = AiSession(epoch, lines, protocol, draft, next, draftAttachments, inactive, ocr, hoyiScreenshotSourceId)
     override fun toString() = "AiSession"
 }
 internal object AiSessionCodec {
@@ -35,10 +36,11 @@ internal object AiSessionCodec {
         return raw
     }
     private fun encodeObject(s: AiSession): JsonObject = buildJsonObject {
-            put("schema", 5); put("model", s.modelId);
+            put("schema", 6); put("model", s.modelId);
             require(s.inactive.size <= 1 && s.inactive.all { it.inactive.isEmpty() && it.epoch == s.epoch && it.modelId != s.modelId })
             put("inactive", JsonArray(s.inactive.map(::encodeObject))); put("ocr", AiOcrRecords.encode(s.ocr)); put("epoch", s.epoch); put("draft", s.draft)
             put("draftAttachments", AiAttachmentConversation.encode(s.draftAttachments))
+            put("hoyiScreenshotSourceId", s.hoyiScreenshotSourceId?.let(::JsonPrimitive) ?: JsonNull)
             put("lines", buildJsonArray { s.lines.forEach { add(buildJsonObject { put("user", it.user); put("text", it.text); put("attachments", AiAttachmentConversation.encode(it.attachments)); put("curveCards", JsonArray(it.curveCards.map { card -> Json.parseToJsonElement(card.encode().toString()) })) }) } })
             put("context", buildJsonObject {
                 put("summary", s.protocol.summary?.let(::JsonPrimitive) ?: JsonNull)
@@ -48,6 +50,14 @@ internal object AiSessionCodec {
             })
             put("protocol", JsonArray(s.protocol.messages)); put("usage", Json.parseToJsonElement(AiUsageCodec.encode(s.usage)))
         }
+    internal fun resolveHoyiScreenshotSource(id: String?, draftAttachments: List<AiAttachment>, lines: List<AiChatLine>): AiAttachment? {
+        if (id == null) return null
+        val matches = (draftAttachments + lines.flatMap { it.attachments }).filter { it.id == id }
+        val source = matches.firstOrNull() ?: error("Missing screenshot source")
+        require(source.kind == AiAttachmentKind.IMAGE)
+        require(matches.all { it.kind == source.kind && it.name == source.name && it.mimeType == source.mimeType && it.size == source.size })
+        return source
+    }
     fun decode(raw: ByteArray): AiSession {
         require(raw.size <= MAX_BYTES)
         val text = Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(raw)).toString()
@@ -55,8 +65,8 @@ internal object AiSessionCodec {
     }
     private fun decodeObject(o: JsonObject, allowInactive: Boolean): AiSession {
         val schema = o["schema"]?.jsonPrimitive?.int
-        require(schema in 1..5)
-        require(o.keys == setOf("schema", "epoch", "draft", "lines", "protocol", "usage") + (if (schema != 1) setOf("context") else emptySet()) + (if (schema!! >= 3) setOf("draftAttachments") else emptySet()) + (if (schema!! >= 4) setOf("model", "inactive", "ocr") else emptySet()))
+        require(schema in 1..6)
+        require(o.keys == setOf("schema", "epoch", "draft", "lines", "protocol", "usage") + (if (schema != 1) setOf("context") else emptySet()) + (if (schema!! >= 3) setOf("draftAttachments") else emptySet()) + (if (schema!! >= 4) setOf("model", "inactive", "ocr") else emptySet()) + (if (schema!! >= 6) setOf("hoyiScreenshotSourceId") else emptySet()))
         fun string(obj: JsonObject, name: String) = (obj[name] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: error("Invalid session")
         val epoch = string(o, "epoch"); require(epoch.matches(Regex("[a-f0-9-]{36}")))
         val modelId = if (schema!! >= 4) string(o, "model") else AiModelPolicy.FLASH
@@ -93,7 +103,13 @@ internal object AiSessionCodec {
         val usage = o.getValue("usage").jsonObject
         require(usage.keys == setOf("schema", "since", "incomplete", "searches", "searchNonempty", "searchEmpty", "searchFailed", "models"))
         require(usage.getValue("models").jsonArray.all { it.jsonObject.keys == setOf("model", "requests", "reported", "input", "output", "cacheHit", "cacheMiss", "cacheReported") })
-        return AiSession(epoch, lines, protocol, draft, AiUsageCodec.decode(usage.toString()), AiAttachmentConversation.decode(o["draftAttachments"]), inactive, if (schema!! >= 4) AiOcrRecords.decode(o["ocr"]) else emptyList())
+        val draftAttachments = AiAttachmentConversation.decode(o["draftAttachments"])
+        val sourceId = if (schema!! >= 6) o.getValue("hoyiScreenshotSourceId").let { value ->
+            if (value == JsonNull) null else (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: error("Invalid screenshot binding")
+        } else null
+        resolveHoyiScreenshotSource(sourceId, draftAttachments, lines)
+        return AiSession(epoch, lines, protocol, draft, AiUsageCodec.decode(usage.toString()), draftAttachments, inactive,
+            if (schema >= 4) AiOcrRecords.decode(o["ocr"]) else emptyList(), sourceId)
     }
 }
 internal interface AiSessionStorage {

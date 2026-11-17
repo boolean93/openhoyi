@@ -44,6 +44,7 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
     private val credentials = AiKeyStore(context)
     suspend fun reply(lines: List<AiChatLine>, input: String, history: AiProtocolHistory,
         attachments: List<AiAttachment> = emptyList(),
+        hoyiScreenshotSource: AiAttachment? = null,
         modelId: String = history.modelId,
         reasoningEffort: AiReasoningEffort = AiReasoningEffort.LOW,
         onRetry: (AiRetryProgress?) -> Unit = {},
@@ -53,12 +54,17 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
         val replyScope = AiReplyScope()
         return replyScope.run {
             AiContextPolicy.checkTranscript(lines, input)
-            if (modelId != history.modelId || !AiModelPolicy.accepts(modelId, attachments + history.messages.flatMap { AiAttachmentConversation.items(it) })) throw AiFailure(AiProblem.MODEL)
+            val turnAttachments = AiHoyiScreenshotProposal.turnAttachments(attachments, hoyiScreenshotSource)
+            if (modelId != history.modelId || !AiModelPolicy.accepts(modelId, turnAttachments + history.messages.flatMap { AiAttachmentConversation.items(it) })) throw AiFailure(AiProblem.MODEL)
             if (credentials.status() != AiKeyStatus.SAVED) throw AiFailure(AiProblem.KEY)
             val revision = credentials.revision()
             val epoch = credentials.credentialEpoch() ?: throw AiFailure(AiProblem.KEY)
             val vault = AiAttachmentVault(context, epoch)
-            val attachmentMessages = listOf(AiAttachmentConversation.message(input, attachments))
+            hoyiScreenshotSource?.let { source ->
+                try { vault.load(source).use { require(it.attachment.id == source.id) } }
+                catch (_: Exception) { throw AiFailure(AiProblem.ATTACHMENT) }
+            }
+            val attachmentMessages = listOf(AiAttachmentConversation.message(input, turnAttachments))
             val extraTokens = AiAttachmentConversation.tokens(attachmentMessages)
             val imageBytes = AiAttachmentConversation.imageBytes(attachmentMessages)
             val cards = AiCurveCardCollector(resolveCurveCard)
@@ -69,14 +75,14 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
                 if (credentials.revision() == revision) runCatching { onProgress(delta) }
             })
             // Constructing descriptors executes no tools and reads no local data.
-            val schemaTokens = AiChatSession(data, transport, budget).toolSchemaTokens()
+            val schemaTokens = AiChatSession(data, transport, budget, hoyiScreenshotId = hoyiScreenshotSource?.id).toolSchemaTokens()
             val stopObserving = credentials.observeMutation(transport::close)
             try {
                 val working = if (AiContextPolicy.needsCompact(history, input, extraTokens, imageBytes, schemaTokens)) {
                     val summaryTransport = AiSafeTransport({ credentials.readForRequest(revision) },
                         { credentials.revision() == revision }, budget, diagnostics = diagnostics, usage = usage, retryState = retries, onRetry = onRetry)
                     val stopSummary = credentials.observeMutation(summaryTransport::close)
-                    val compacted = try { AiContextCompactor.prepare(history, lines, input, summaryTransport, attachments, vault::load, schemaTokens) {
+                    val compacted = try { AiContextCompactor.prepare(history, lines, input, summaryTransport, turnAttachments, vault::load, schemaTokens) {
                         if (credentials.revision() != revision) throw AiFailure(AiProblem.KEY)
                         onCompacted(it)
                     } }
@@ -84,10 +90,10 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
                     if (credentials.revision() != revision) throw AiFailure(AiProblem.KEY)
                     compacted
                 } else history
-                val turn = AiProtocolTurn(working, lines, input, transport, diagnostics = diagnostics, attachments = attachments, loadAttachment = vault::load, schemaTokens = schemaTokens)
+                val turn = AiProtocolTurn(working, lines, input, transport, diagnostics = diagnostics, attachments = turnAttachments, loadAttachment = vault::load, schemaTokens = schemaTokens)
                 val result = try {
                     val answer = AiChatSession(data, turn, budget, diagnostics = diagnostics, webSearch = transport::search,
-                        proposeCurve = { curveProposals?.propose(it, revision) ?: AiCurveProposalStatus.UNAVAILABLE },
+                        proposeCurve = { arguments -> curveProposals?.propose(arguments, revision) ?: AiCurveProposalStatus.UNAVAILABLE }, hoyiScreenshotId = hoyiScreenshotSource?.id,
                         curveDocument = { id -> if (AiCurveDetail.validFactoryId(id)) AiCurveDetail.factoryResult(id, curveProposals?.readFactory(id, revision)) else AiCurveDetail.result(id, curveProposals?.readDocument(id, revision)) }, modelId = modelId, reasoningEffort = reasoningEffort,
                         onCurveResult = cards::captureToolResult, presentCurveCards = cards::select, onToolStarted = onToolStarted)
                         .reply(lines.drop(working.coveredLines), input)
@@ -111,6 +117,7 @@ internal class AiChatSession(
     private val diagnostics: AiDiagnostics = AiDiagnostics(),
     private val webSearch: suspend (String) -> String = { AiWebSearch.status("unavailable") },
     private val proposeCurve: (String) -> AiCurveProposalStatus = { AiCurveProposalStatus.UNAVAILABLE },
+    private val hoyiScreenshotId: String? = null,
     private val curveDocument: (String) -> String = { AiCurveDetail.result(it, null) },
     private val modelId: String = AiModelPolicy.FLASH,
     private val reasoningEffort: AiReasoningEffort = AiReasoningEffort.LOW,
@@ -195,13 +202,19 @@ internal class AiChatSession(
             if (args.keys != setOf("id") || id == null || !(AiCurveDetail.validId(id) || AiCurveDetail.validFactoryId(id))) invalid()
             else withContext(statusDispatcher) { curveDocument(id) }
         })
-        tool(readTool("propose_custom_curve", "Propose a complete editable recipe draft; this NEVER saves. The card Confirm only opens the prefilled editor, where the user must explicitly save. Factory changes use copy_from_factory and are saved only as a NEW custom curve, never overwrite the factory source. No deletion, machine actions or approval tokens. Read custom_curve_document first; preserve all intended fields, never send a partial patch.",
+        tool(readTool("propose_custom_curve", (hoyiScreenshotId?.let { "Native HOYI screenshot import is active. Only transcribe_screenshot proposals are allowed; sourceAttachmentId=$it. " } ?: "") + "Propose a complete editable recipe draft; this NEVER saves. The card Confirm only opens the prefilled editor, where the user must explicitly save. Factory changes use copy_from_factory and are saved only as a NEW custom curve, never overwrite the factory source. No deletion, machine actions or approval tokens. For existing edits/copies read custom_curve_document first; new screenshot creations need no source ID. Preserve all intended fields, never send a partial patch.",
             required = listOf(ToolParameterDescriptor("proposal_json", CURVE_PROPOSAL_SCHEMA, ToolParameterType.String)),
             maximumArgumentBytes = 12 * 1024) { args ->
             val proposal = (args["proposal_json"] as? JsonPrimitive)?.takeIf { it.isString }?.content
             if (args.keys != setOf("proposal_json") || proposal == null ||
                 proposal.toByteArray(Charsets.UTF_8).size > AiCurveWriteCoordinator.MAX_ARGUMENT_BYTES) invalid()
-            else withContext(statusDispatcher) { proposeCurve(proposal).json() }
+            else {
+                val converted = runCatching { AiHoyiScreenshotProposal.forTool(proposal, hoyiScreenshotId) }.getOrNull()
+                if (converted == null) invalid()
+                else withContext(statusDispatcher) {
+                    proposeCurve(converted).json()
+                }
+            }
         })
         tool(readTool("present_curve_cards", "Select the exact saved curves actually recommended in this answer, in display order. This ONLY selects UI cards; it never saves or operates a machine. First read their IDs using curves in THIS turn. A successful call REPLACES the previous selection, not append; [] clears it. Duplicates, unknown or changed IDs reject the entire selection and leave it unchanged. Default to exactly one best-fit card unless the user explicitly asks for more; honor the user's explicit requested count, including counts above three. Card prose: brief reasons/necessary reminders only. Do not duplicate displayed recipe data (temperature, weight, stage pressure/flow/water), parameter lists, generic closings or needless questions. Explain parameters/reasons/comparisons when asked. Retain uncertainty, safety limits and required confirmation. The explicit per-turn card resource limit is 10 (candidate registry 100), and existing tool/request budgets still apply. For requests beyond the budget, explain it and offer text or user-initiated later turns; never silently truncate.",
             required = listOf(ToolParameterDescriptor("ids_json", "Strict JSON string array of distinct exact IDs returned by curves this turn, e.g. [\"factory-v3-002\"]. Max 10 selected IDs, 12 KiB UTF-8. No curve documents, names, URLs, approval or commands.", ToolParameterType.String)),
@@ -260,7 +273,7 @@ internal class AiChatSession(
     private fun string(args: JsonObject, name: String) = (args[name] as? JsonPrimitive)?.contentOrNull
     private fun invalid() = "{\"status\":\"invalid_arguments\"}"
     private companion object {
-        const val CURVE_PROPOSAL_SCHEMA = """UTF-8 JSON string, max 8192 bytes. For factory modification exact outer keys {"operation":"copy_from_factory","sourceId":"factory-v3-001..100","curve":{...}}; first read custom_curve_document(sourceId) and preserve its complete copyTemplate unless intentionally changing fields. App assigns a new draft ID; this is NEVER a factory replacement. Other exact outer keys: {"operation":"create","curve":{...}} or {"operation":"replace","targetId":"draft-UUID","curve":{...}}. curve is a complete openhoyi.local-curve document WITHOUT id: schema=1, kind="openhoyi.local-curve", name, temperatureC (integer 75..105 °C), targetHundredthsGram (integer hundredths g, 0 disables, multiple of 10), controlMode="pressure", stages=[{target:integer tenths bar,waterTenthsMl:integer tenths ml, multiple of 10}], 1..4 stages. schema=2 also requires totalWaterLimitMl (integer ml). schema=3 requires 2..4 stages and also requires totalWaterLimitMl (integer ml or null=stage sum), configuration={pressureLogic:boolean,variableFlowLogic:boolean,firstSegmentFlowMode:boolean,preinfusionSeconds:integer seconds,firstDurationSeconds:integer seconds,compensationHundredthsGram:integer hundredths g (multiple of 10),inactiveStages:[{target,waterTenthsMl}]} with exactly 4-active stages inactive slots; controlMode="flow" requires variableFlowLogic=true, otherwise pressure. In flow mode target is tenths ml/s on stages after first (also first if firstSegmentFlowMode=true), otherwise tenths bar. All fields mandatory for selected schema, no extra fields, id, approval or executable bytes. Example: {"operation":"create","curve":{"schema":1,"kind":"openhoyi.local-curve","name":"Gentle","temperatureC":93,"targetHundredthsGram":3600,"controlMode":"pressure","stages":[{"target":30,"waterTenthsMl":100},{"target":90,"waterTenthsMl":400}]}}"""
+        const val CURVE_PROPOSAL_SCHEMA = AiHoyiScreenshotProposal.SCHEMA + """ UTF-8 JSON string, max 8192 bytes. For factory modification exact outer keys {"operation":"copy_from_factory","sourceId":"factory-v3-001..100","curve":{...}}; first read custom_curve_document(sourceId) and preserve its complete copyTemplate unless intentionally changing fields. App assigns a new draft ID; this is NEVER a factory replacement. Other exact outer keys: {"operation":"create","curve":{...}} or {"operation":"replace","targetId":"draft-UUID","curve":{...}}. curve is a complete openhoyi.local-curve document WITHOUT id: schema=1, kind="openhoyi.local-curve", name, temperatureC (integer 75..105 °C), targetHundredthsGram (integer hundredths g, 0 disables, multiple of 10), controlMode="pressure", stages=[{target:integer tenths bar,waterTenthsMl:integer tenths ml, multiple of 10}], 1..4 stages. schema=2 also requires totalWaterLimitMl (integer ml). schema=3 requires 2..4 stages and also requires totalWaterLimitMl (integer ml or null=stage sum), configuration={pressureLogic:boolean,variableFlowLogic:boolean,firstSegmentFlowMode:boolean,preinfusionSeconds:integer seconds,firstDurationSeconds:integer seconds,compensationHundredthsGram:integer hundredths g (multiple of 10),inactiveStages:[{target,waterTenthsMl}]} with exactly 4-active stages inactive slots; controlMode="flow" requires variableFlowLogic=true, otherwise pressure. In flow mode target is tenths ml/s on stages after first (also first if firstSegmentFlowMode=true), otherwise tenths bar. All fields mandatory for selected schema, no extra fields, id, approval or executable bytes. Example: {"operation":"create","curve":{"schema":1,"kind":"openhoyi.local-curve","name":"Gentle","temperatureC":93,"targetHundredthsGram":3600,"controlMode":"pressure","stages":[{"target":30,"waterTenthsMl":100},{"target":90,"waterTenthsMl":400}]}}"""
     }
 
 }
