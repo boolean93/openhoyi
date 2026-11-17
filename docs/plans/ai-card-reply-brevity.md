@@ -9,3 +9,9 @@
 - 发布：不发版、不修改版本/签名，不安装或升级。
 - 回退：revert 本次独立提交，不清理任何数据或未知记录。
 - 未完成与阻塞：真实模型不调用；完整非AVD门禁由PR入口后续执行。
+
+## 完整门禁后的预算回归修正
+
+- 全量门禁发现原新增提示词令既有三POST场景超过8192字节。只压缩本次新增系统/工具文案，不改变既有预算、上限、协议或断言；保留参数去重、简短理由/必要提醒、详情/对比例外和风险确认。
+- 已运行 `JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ANDROID_HOME=/Users/boolean93/Library/Android/sdk ./gradlew :mobile:testMockUnitTest --tests '*AiChatPolicyTest' --tests '*AiChatSessionTest' --tests '*AiProtocolHistoryTest' --tests '*AiLiveProbePolicyTest' --console=plain`，34项通过（4+16+10+4）。
+- 临时字节诊断后已撤销诊断输出。最终三POST为7649、7920、8094字节，最大值距8192上限尚余98字节。再次单跑三POST场景通过。后续完整门禁仍由PR入口执行。

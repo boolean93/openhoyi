@@ -16,12 +16,10 @@ class AiChatPolicyTest {
 
     @Test fun cardReplyExplainsChoiceWithoutDuplicatingRecipeAndKeepsRequestedDetailsAndSafety() {
         val system = AiChatPolicy.SYSTEM
-        listOf("brief selection reason and only necessary reminders",
-            "Do not restate temperatures, target weights, stage pressures, flows, water amounts",
-            "recipe data already displayed on the cards", "Avoid a second parameter list",
-            "generic closing advice or an unnecessary follow-up question",
-            "If the user explicitly asks for parameters, explanation or a detailed comparison, explain the relevant details",
-            "Always preserve important uncertainty, safety limits and required confirmation").forEach {
+        listOf("Card replies: brief reasons/needed reminders",
+            "not displayed recipe parameters, redundant lists/closings/questions",
+            "Explain details/comparisons on request",
+            "keep uncertainty, safety and confirmation").forEach {
             assertTrue("Missing card reply boundary: $it", system.contains(it))
         }
     }

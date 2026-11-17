@@ -154,12 +154,11 @@ class AiChatSessionTest {
             listOf("Default to exactly one best-fit card unless the user explicitly asks for more",
                 "including counts above three",
                 "per-turn card resource limit is 10",
-                "brief selection reason and only necessary reminders",
-                "do not restate recipe data already displayed on the cards",
-                "temperatures, target weights, stage pressures, flows or water amounts",
-                "Avoid a second parameter list, generic closing advice or an unnecessary follow-up question",
-                "If the user explicitly asks for parameters, explanation or a detailed comparison, explain the relevant details",
-                "Always preserve important uncertainty, safety limits and required confirmation").forEach { rule ->
+                "Card prose: brief reasons/necessary reminders only",
+                "Do not duplicate displayed recipe data (temperature, weight, stage pressure/flow/water)",
+                "parameter lists, generic closings or needless questions",
+                "Explain parameters/reasons/comparisons when asked",
+                "Retain uncertainty, safety limits and required confirmation").forEach { rule ->
                 assertTrue("Missing selection rule: $rule", selectionDescription.contains(rule))
             }
             assertFalse(selectionDescription.contains("1–3 best fits"))
