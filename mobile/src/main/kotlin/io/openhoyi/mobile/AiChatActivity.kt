@@ -305,7 +305,7 @@ class AiChatActivity : ThemedActivity() {
             removed.forEach { vault.remove(it) }
         }
     }
-    private fun consented() = getSharedPreferences("ai_consent", MODE_PRIVATE).getBoolean("deepseek_v4_compact", false)
+    private fun consented() = getSharedPreferences("ai_consent", MODE_PRIVATE).getInt(AiConsentPolicy.VERSION_KEY, 0).let(AiConsentPolicy::accepts)
     private fun showUsage() {
         if (usageDialog != null) return
         AiUsageDialog.create(this, memory.usage.snapshot(), AiUsageStore.get(this).snapshot()).also { dialog ->
@@ -633,11 +633,11 @@ class AiChatActivity : ThemedActivity() {
         }
         if (consented()) { confirmAttachments(text); return }
         if (consentDialog != null) return
-        consentDialog = AlertDialog.Builder(this).setTitle(R.string.ai_consent_title).setMessage(R.string.ai_consent_body)
+        consentDialog = AlertDialog.Builder(this).setTitle(R.string.ai_consent_title).setMessage(getString(R.string.ai_consent_body, AiChatPolicy.SEARCH_CALLS))
             .setNegativeButton(R.string.ai_cancel, null)
             .setPositiveButton(R.string.ai_agree) { _, _ ->
                 // Memory-only assent is sufficient for this send if persistence fails; retry asks again.
-                getSharedPreferences("ai_consent", MODE_PRIVATE).edit().putBoolean("deepseek_v4_compact", true).commit()
+                getSharedPreferences("ai_consent", MODE_PRIVATE).edit().putInt(AiConsentPolicy.VERSION_KEY, AiConsentPolicy.CURRENT_VERSION).commit()
                 binding.start()
                 confirmAttachments(text)
             }.create().also { dialog ->
