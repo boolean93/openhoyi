@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -14,6 +15,28 @@ from apk_distribution import inspect_apk
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "HOYI_RELEASE_"
 VERSION = ["-PhoyiVersionCode=2", "-PhoyiVersionName=0.2.0", "-PhoyiPreviousVersionCode=1"]
+
+
+def redact_fixture_output(output, environment):
+    values = {value for key, value in environment.items() if key.startswith(PREFIX) and value}
+    for value in sorted(values, key=len, reverse=True):
+        output = output.replace(value, "<redacted-fixture-signing-value>")
+    return output
+
+
+def fixture_failure_summary(output):
+    """Closed diagnostics only: never forward Gradle exception text, paths or environment."""
+    categories = [name for name, markers in (
+        ("OFFLINE_DEPENDENCY", ("No cached version", "available for offline mode")),
+        ("DEPENDENCY_RESOLUTION", ("Could not resolve all files", "Could not resolve all dependencies")),
+        ("COMPILATION", ("Compilation error", "Compilation failed")),
+        ("RESOURCE_LINK", ("Android resource linking failed",)),
+        ("MEMORY", ("OutOfMemoryError", "Java heap space")),
+        ("DAEMON", ("Gradle build daemon disappeared",)),
+    ) if any(marker in output for marker in markers)]
+    # The literal task token is constrained to Gradle identifier characters, not its error text.
+    tasks = sorted(set(re.findall(r"^> Task (:[A-Za-z0-9_:-]{1,160}) FAILED$", output, re.MULTILINE)))
+    return "fixtureFailure categories=" + (",".join(categories) or "UNCLASSIFIED") + " tasks=" + (",".join(tasks[:8]) or "NONE")
 
 
 def check_case(label, environment, options=VERSION, expected=None, task=":mobile:verifyReleaseDistribution"):
@@ -79,10 +102,11 @@ def main():
                 command.append(f"-PgoogleMirror={args.google_mirror}")
             built = subprocess.run(command, cwd=ROOT, env=signed, capture_output=True, text=True, timeout=360)
             if built.returncode != 0:
+                diagnostics = built.stdout + built.stderr
+                print(fixture_failure_summary(diagnostics), flush=True)
                 if args.failure_log:
-                    diagnostics = built.stdout + built.stderr
-                    for value in sorted(set(signed[key] for key in signed if key.startswith(PREFIX)), key=len, reverse=True):
-                        diagnostics = diagnostics.replace(value, "<redacted-fixture-signing-value>")
+                    diagnostics = redact_fixture_output(diagnostics, signed)
+                    args.failure_log.parent.mkdir(parents=True, exist_ok=True)
                     args.failure_log.write_text(diagnostics)
                 raise RuntimeError(f"Disposable release APK build failed; exit={built.returncode}")
             apk = outputs / "mobile" / "outputs" / "apk" / "release" / "mobile-release.apk"

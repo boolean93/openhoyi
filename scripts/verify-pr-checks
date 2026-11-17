@@ -50,8 +50,10 @@ case "${1:-}" in
       --android-jar "$ANDROID_HOME/platforms/android-35/android.jar" \
       --alpha mobile/build/outputs/apk/debug/mobile-debug.apk \
       --mock mobile/build/outputs/apk/mock/mobile-mock.apk
+    python3 -m unittest discover -s scripts -p test_release_fixture_diagnostics.py
     python3 scripts/check_release_configuration.py \
-      --assemble-fixture --sdk "$ANDROID_HOME"
+      --assemble-fixture --sdk "$ANDROID_HOME" \
+      --failure-log build/reports/release-fixture-failure.log
     ;;
   *) echo "Unknown verification mode" >&2; exit 2 ;;
 esac
