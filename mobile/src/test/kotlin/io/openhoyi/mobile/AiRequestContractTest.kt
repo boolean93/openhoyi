@@ -110,7 +110,7 @@ class AiRequestContractTest {
             // With tools, omitted tool_choice defaults to auto. Safety permits auto or none.
             assertTrue(body["tool_choice"] == null || body["tool_choice"]?.jsonPrimitive?.content in setOf("auto", "none"))
             val tools = body.getValue("tools").jsonArray
-            assertEquals(setOf("current_status", "curves", "extraction_history", "web_search", "custom_curve_document", "propose_custom_curve", "present_curve_cards"),
+            assertEquals(setOf("current_status", "curves", "extraction_history", "extraction_samples", "web_search", "custom_curve_document", "propose_custom_curve", "present_curve_cards"),
                 tools.map { it.jsonObject.getValue("function").jsonObject.getValue("name").jsonPrimitive.content }.toSet())
             tools.forEach {
                 val entry = it.jsonObject
@@ -125,6 +125,12 @@ class AiRequestContractTest {
                     assertEquals(setOf("query"), properties.keys)
                     assertEquals("string", properties.getValue("query").jsonObject["type"]?.jsonPrimitive?.content)
                     assertEquals(buildJsonArray { add("query") }, parameters["required"])
+                } else if (function.getValue("name").jsonPrimitive.content == "extraction_samples") {
+                    assertEquals(setOf("shotId", "offset", "limit"), properties.keys)
+                    assertEquals("string", properties.getValue("shotId").jsonObject["type"]?.jsonPrimitive?.content)
+                    assertEquals("integer", properties.getValue("offset").jsonObject["type"]?.jsonPrimitive?.content)
+                    assertEquals("integer", properties.getValue("limit").jsonObject["type"]?.jsonPrimitive?.content)
+                    assertEquals(buildJsonArray { add("shotId") }, parameters["required"])
                 } else if (function.getValue("name").jsonPrimitive.content == "propose_custom_curve") {
                     assertEquals(buildJsonArray { add("proposal_json") }, parameters["required"])
                 } else if (function.getValue("name").jsonPrimitive.content == "custom_curve_document") {
@@ -163,6 +169,9 @@ class AiRequestContractTest {
             if (function.getValue("name").jsonPrimitive.content == "web_search") {
                 assertEquals(buildJsonArray { add("query") }, parameters["required"])
                 tool
+            } else if (function.getValue("name").jsonPrimitive.content == "extraction_samples") {
+                assertEquals(buildJsonArray { add("shotId") }, parameters["required"])
+                tool
             } else if (function.getValue("name").jsonPrimitive.content == "propose_custom_curve") {
                 assertEquals(buildJsonArray { add("proposal_json") }, parameters["required"])
                 tool
@@ -184,7 +193,7 @@ class AiRequestContractTest {
         assertEquals(streaming(expectedNoEmptyRequired(expected)), Json.parseToJsonElement(calls.last().sent.toString("UTF-8")))
         val first = Json.parseToJsonElement(original.first()).jsonObject
         assertEquals(streaming(expectedNoEmptyRequired(first)), Json.parseToJsonElement(calls.first().sent.toString("UTF-8")))
-        assertEquals(7, first.getValue("tools").jsonArray.size)
+        assertEquals(8, first.getValue("tools").jsonArray.size)
         val second = Json.parseToJsonElement(calls.last().sent.toString("UTF-8")).jsonObject.getValue("messages").jsonArray
         assertTrue(second.any { it.jsonObject["role"]?.jsonPrimitive?.content == "tool" && it.jsonObject["tool_call_id"]?.jsonPrimitive?.content == "synthetic-call" })
     }
