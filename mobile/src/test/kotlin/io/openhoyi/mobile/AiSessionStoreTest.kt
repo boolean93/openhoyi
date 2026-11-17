@@ -82,7 +82,7 @@ class AiSessionStoreTest {
         val mismatch = AiSession(epoch, emptyList(), good.protocol, "", good.usage)
         assertTrue(runCatching { AiSessionCodec.encode(mismatch) }.isFailure)
         val encoded = AiSessionCodec.encode(good).toString(Charsets.UTF_8)
-        assertTrue(runCatching { AiSessionCodec.decode(encoded.replace("\"schema\":5", "\"schema\":6").toByteArray()) }.isFailure)
+        assertTrue(runCatching { AiSessionCodec.decode(encoded.replace("\"schema\":6", "\"schema\":7").toByteArray()) }.isFailure)
         assertTrue(runCatching { AiSessionCodec.decode(ByteArray(AiSessionCodec.MAX_BYTES + 1)) }.isFailure)
     }
     @Test fun unreadableStorageNeverCreatesReplacementKey() {

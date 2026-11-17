@@ -9,3 +9,9 @@
 - 发布：不发版、不改版本、签名或升级。
 - 回退：revert 独立代码提交，数据保持兼容、不清记录。
 - 未完成与阻塞：不运行付费API/设备/本地AVD；实际设备布局/截图验收未执行。
+
+## 同步正文去重与HOYI识图
+
+- 正常 merge origin/develop（262f3d0c8a5f534b0e203ba7c6e47fabe22a39e0，包含 #127/#130）无冲突，保留完整HOYI识图、正文去重、默认单卡/显式多卡规则。相对新develop仍仅本任务五文件差异。
+- 已运行 `JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ANDROID_HOME=/Users/boolean93/Library/Android/sdk ./gradlew :mobile:testMockUnitTest --tests '*AiCurveCardLayoutPolicyTest' --tests '*AiChatPolicyTest' --tests '*AiChatSessionTest' --tests '*AiProtocolHistoryTest' --tests '*AiLiveProbePolicyTest' --tests '*AiHoyi*Test' :mobile:compileMockAndroidTestKotlin --console=plain`，52项测试与androidTest Kotlin编译通过。包含8192字节请求预算断言；未改上限。
+- 此轮仅JVM实际执行和instrumentation源码编译，没有运行instrumentation、安装、设备操作或取得真实布局截图，不能据此宣称设备布局验收完成。

@@ -56,6 +56,9 @@ internal class AiChatPresentation(
     private val onViewCurve: ((AiCurveCard) -> Unit)? = null,
     private val curveLibraryAvailable: (AiCurveCard) -> Boolean = { false },
     private val onChooseAttachment: ((Boolean) -> Unit)? = null,
+    private val onChooseHoyiScreenshot: (() -> Unit)? = null,
+    private val onCancelHoyiScreenshot: (() -> Unit)? = null,
+    private val hasHoyiScreenshot: () -> Boolean = { false },
 ) {
     private val style = visual.palette
     private val assistantTextInset = style.dp(14)
@@ -373,7 +376,7 @@ internal class AiChatPresentation(
             setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
             background = style.shape(style.surface, outline = true, radius = 16)
         }
-        fun choice(label: Int, image: Boolean) {
+        fun choice(label: Int, action: () -> Unit) {
             list.addView(style.button(Button(context)).apply {
                 text = context.getString(label)
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
@@ -381,12 +384,14 @@ internal class AiChatPresentation(
                 setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
                 setOnClickListener {
                     options?.dismiss()
-                    if (anchor.isEnabled) onChooseAttachment?.invoke(image) ?: onAttachment?.invoke()
+                    if (anchor.isEnabled) action()
                 }
             }, LinearLayout.LayoutParams(-1, -2))
         }
-        choice(R.string.ai_attachment_image, true)
-        choice(R.string.ai_attachment_document, false)
+        choice(R.string.ai_attachment_image) { onChooseAttachment?.invoke(true) ?: onAttachment?.invoke() }
+        onChooseHoyiScreenshot?.let { choice(R.string.ai_hoyi_screenshot_pick, it) }
+        if (hasHoyiScreenshot()) onCancelHoyiScreenshot?.let { choice(R.string.ai_hoyi_screenshot_cancel, it) }
+        choice(R.string.ai_attachment_document) { onChooseAttachment?.invoke(false) ?: onAttachment?.invoke() }
         val width = minOf(style.dp(208), (root.width - style.dp(24)).coerceAtLeast(style.dp(48)))
         list.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
