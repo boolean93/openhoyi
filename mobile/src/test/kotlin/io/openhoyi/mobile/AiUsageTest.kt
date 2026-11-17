@@ -117,7 +117,9 @@ class AiUsageTest {
         val ledger = AiUsageLedger(save = { ++writes == 1 })
         val key = "fake-sentinel-key-never-real"
         val transport = AiSafeTransport({ key }, { true }, AiRequestBudget(), { FakeAiConnection() }, usage = AiUsageRecorder(listOf(ledger)))
-        assertEquals(aiAnswer("ok"), transport.post("chat/completions", "{\"model\":\"deepseek-flash\"}", String::class, String::class))
+        // SSE aggregation may reorder object fields, but must preserve every JSON value.
+        assertEquals(Json.parseToJsonElement(aiAnswer("ok")), Json.parseToJsonElement(
+            transport.post("chat/completions", "{\"model\":\"deepseek-flash\"}", String::class, String::class)))
         assertEquals(10L, ledger.snapshot().models.single().input)
         assertEquals(1L, ledger.snapshot().models.single().reported)
         assertTrue(ledger.snapshot().incomplete)

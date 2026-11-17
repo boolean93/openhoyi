@@ -158,7 +158,8 @@ internal object AiSseCompletion {
                     }
                 }
             }
-            message["tool_calls"] = JsonArray(tools.map { (index, tool) -> JsonObject(tool + ("index" to JsonPrimitive(index))) })
+            // index locates streaming fragments; complete tool calls use id/type/function only.
+            message["tool_calls"] = JsonArray(tools.values.map { JsonObject(it) })
         }
         val result = JsonObject(metadata + mapOf("object" to JsonPrimitive("chat.completion"),
             "choices" to JsonArray(listOf(buildJsonObject {

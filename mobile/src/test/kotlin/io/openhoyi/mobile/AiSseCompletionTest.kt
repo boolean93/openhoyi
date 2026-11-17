@@ -31,6 +31,14 @@ class AiSseCompletionTest {
         assertEquals("r", message["reasoning_content"]!!.jsonPrimitive.content)
         assertEquals("{\"x\":1}", message["tool_calls"]!!.jsonArray[0].jsonObject["function"]!!.jsonObject["arguments"]!!.jsonPrimitive.content)
     }
+    @Test fun interleavedToolsKeepIndexOrderButDoNotReplayFragmentIndexes() {
+        val raw = frame("""{"tool_calls":[{"index":1,"id":"second","type":"function","function":{"name":"curves","arguments":"{\"q\":"}},{"index":0,"id":"first","type":"function","function":{"name":"current_status","arguments":"{"}}]}""") +
+            frame("""{"tool_calls":[{"index":0,"function":{"arguments":"}"}},{"index":1,"function":{"arguments":"\"coffee\"}"}}]}""", "\"tool_calls\"") + "data: [DONE]\n\n"
+        val message = Json.parseToJsonElement(read(raw)).jsonObject.getValue("choices").jsonArray.single().jsonObject.getValue("message").jsonObject
+        val expected = Json.parseToJsonElement("""{"role":"assistant","content":null,"tool_calls":[{"id":"first","type":"function","function":{"name":"current_status","arguments":"{}"}},{"id":"second","type":"function","function":{"name":"curves","arguments":"{\"q\":\"coffee\"}"}}]}""")
+        assertEquals(expected, message)
+        assertTrue(message.getValue("tool_calls").jsonArray.all { "index" !in it.jsonObject })
+    }
     @Test fun refusalAndFilterStopBeforeContentEvenWithoutDone() {
         for (raw in listOf(
             frame("""{"refusal":"no","content":"must not emit"}"""),

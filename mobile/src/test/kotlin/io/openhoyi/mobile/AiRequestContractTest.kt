@@ -56,7 +56,7 @@ class AiRequestContractTest {
                 connected = true
                 assertEquals("POST", requestMethod)
                 assertEquals("application/json", requestHeaders["Content-Type"])
-                assertEquals("application/json", requestHeaders["Accept"])
+                assertEquals("text/event-stream", requestHeaders["Accept"])
                 assertEquals("Bearer fake-synthetic-key", requestHeaders["Authorization"])
                 assertFalse(instanceFollowRedirects)
                 assertEquals(15000, connectTimeout); assertEquals(30000, readTimeout)
@@ -75,7 +75,7 @@ class AiRequestContractTest {
         assertEquals("你好", body.getValue("messages").jsonArray.last().jsonObject["content"]?.jsonPrimitive?.content)
         assertEquals(setOf("messages", "model", "stream", "tools", "max_tokens", "thinking", "safety_check", "reasoning_effort"), body.keys)
     }
-    @Test fun realKoogNonStreamingRequestMatchesCurrentDeepSeekContract() = runBlocking {
+    @Test fun realKoogStreamingWireRequestMatchesCurrentDeepSeekContract() = runBlocking {
         val data = object : AiReadOnlyData {
             override fun currentStatus() = "{\"status\":\"unknown\"}"
             override fun curves(query: String, offset: Int, limit: Int) = "{}"
@@ -101,8 +101,8 @@ class AiRequestContractTest {
         for (call in calls) {
             val body = Json.parseToJsonElement(call.sent.toString("UTF-8")).jsonObject
             assertEquals("deepseek-flash", body["model"]?.jsonPrimitive?.content)
-            assertEquals(false, body["stream"]?.jsonPrimitive?.boolean)
-            // Official API rejects stream_options with non-streaming requests.
+            assertEquals(true, body["stream"]?.jsonPrimitive?.boolean)
+            // Streaming is enabled without adding optional stream_options to the SDK request.
             assertFalse(body.containsKey("stream_options"))
             assertEquals(AiContextPolicy.OUTPUT_TOKENS, body["max_tokens"]?.jsonPrimitive?.int)
             assertEquals(buildJsonObject { put("type", "enabled") }, body["thinking"])
@@ -179,9 +179,11 @@ class AiRequestContractTest {
                 JsonObject(tool + ("function" to JsonObject(function + ("parameters" to JsonObject(parameters - "required")))))
             }
         })))
-        assertEquals(expectedNoEmptyRequired(expected), Json.parseToJsonElement(calls.last().sent.toString("UTF-8")))
+        // The transport changes only the streaming flag in addition to the checked schema/content fixes.
+        fun streaming(root: JsonObject) = JsonObject(root + ("stream" to JsonPrimitive(true)))
+        assertEquals(streaming(expectedNoEmptyRequired(expected)), Json.parseToJsonElement(calls.last().sent.toString("UTF-8")))
         val first = Json.parseToJsonElement(original.first()).jsonObject
-        assertEquals(expectedNoEmptyRequired(first), Json.parseToJsonElement(calls.first().sent.toString("UTF-8")))
+        assertEquals(streaming(expectedNoEmptyRequired(first)), Json.parseToJsonElement(calls.first().sent.toString("UTF-8")))
         assertEquals(7, first.getValue("tools").jsonArray.size)
         val second = Json.parseToJsonElement(calls.last().sent.toString("UTF-8")).jsonObject.getValue("messages").jsonArray
         assertTrue(second.any { it.jsonObject["role"]?.jsonPrimitive?.content == "tool" && it.jsonObject["tool_call_id"]?.jsonPrimitive?.content == "synthetic-call" })
