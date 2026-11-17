@@ -165,9 +165,10 @@ class AiChatSessionTest {
             override fun read(): String? = null
             override fun write(value: String) { writes++ }
         }
-        val coordinator = AiCurveWriteCoordinator(CustomCurveStore(disk))
+        val store = CustomCurveStore(disk)
+        val coordinator = AiCurveWriteCoordinator(store)
         val epoch = AiCurveWriteCoordinator.Epoch("test-session", 1)
-        val proposal = """{"operation":"create","curve":{"schema":1,"kind":"openhoyi.local-curve","name":"Proposed","temperatureC":93,"targetHundredthsGram":3600,"controlMode":"pressure","stages":[{"target":30,"waterTenthsMl":100},{"target":90,"waterTenthsMl":400}]}}"""
+        val proposal = """{"operation":"create","curve":{"schema":3,"kind":"openhoyi.local-curve","name":"日晒","temperatureC":92,"targetHundredthsGram":0,"controlMode":"pressure","totalWaterLimitMl":78,"stages":[{"target":20,"waterTenthsMl":250},{"target":60,"waterTenthsMl":50},{"target":90,"waterTenthsMl":480}],"configuration":{"pressureLogic":true,"variableFlowLogic":false,"firstSegmentFlowMode":false,"preinfusionSeconds":5,"firstDurationSeconds":10,"compensationHundredthsGram":0,"inactiveStages":[{"target":0,"waterTenthsMl":0}]}}}"""
         val padded = proposal + " ".repeat(700) // A proposal has its own bound, not the read tool's 512 bytes.
         val args = org.json.JSONObject().put("proposal_json", padded).toString()
         val response = org.json.JSONObject(tool).also {
@@ -184,6 +185,26 @@ class AiChatSessionTest {
         assertTrue(sent.contains("awaiting_editor")); assertFalse(sent.contains(pending.token))
         val tools = Json.parseToJsonElement(sent).jsonObject["tools"]!!.jsonArray.toString()
         assertFalse(tools.contains("confirm_custom")); assertFalse(tools.contains("approved"))
+        // This is a synthetic tool fixture, not a paid model/image-understanding test.
+        val schema = Json.parseToJsonElement(sent).jsonObject.getValue("tools").jsonArray
+            .single { it.jsonObject.getValue("function").jsonObject["name"] == JsonPrimitive("propose_custom_curve") }
+            .jsonObject.getValue("function").jsonObject.getValue("parameters").jsonObject
+            .getValue("properties").jsonObject.getValue("proposal_json").jsonObject.getValue("description").jsonPrimitive.content
+        assertTrue(schema.contains(AiHoyiCurveGuidance.SCREENSHOT))
+        val draft = AiCurveEditorDraft.open(AiCurveCard.proposal(pending), store)
+        assertEquals(0, disk.writes)
+        val doc = draft.seed
+        assertEquals(92, doc.temperatureC); assertEquals(78, doc.totalWaterLimitMl)
+        assertEquals(0, doc.targetHundredthsGram)
+        assertEquals(listOf(20, 60, 90), doc.stages.map { it.target })
+        assertEquals(listOf(250, 50, 480), doc.stages.map { it.waterTenthsMl })
+        val config = requireNotNull(doc.configuration)
+        assertTrue(config.pressureLogic); assertFalse(config.variableFlowLogic); assertFalse(config.firstSegmentFlowMode)
+        assertEquals(5, config.preinfusionSeconds); assertEquals(10, config.firstDurationSeconds)
+        assertEquals(0, config.compensationHundredthsGram)
+        assertEquals(listOf(CustomCurveDocument.Stage(0, 0)), config.inactiveStages)
+        draft.saveFromEditor(doc, store)
+        assertEquals(1, disk.writes); assertEquals(doc, store.find(doc.id))
     }
     @Test fun proposalRejectsModelApprovalAndOversizeBeforeCallback() = runBlocking {
         for (arguments in listOf("""{"proposal_json":"{}","approved":true}""",
