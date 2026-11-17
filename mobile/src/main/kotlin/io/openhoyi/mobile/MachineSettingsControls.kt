@@ -65,6 +65,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private val scheduleCards = mutableListOf<ScheduleCard>()
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
+    private lateinit var cupCountValue: TextView
     private lateinit var cupResetStatus: TextView
     private lateinit var cupResetButton: Button
     private lateinit var brewInput: EditText
@@ -282,6 +283,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         }
         controlButtons += scheduleButtons
         val cupCard = card(maintenanceSection, getString(R.string.machine_settings_cups_title))
+        cupCountValue = text(cupCard, settingsPresentation.cupCount(null, false), 16)
+        cupCountValue.tag = "product/settings/machine/cup-count"
         cupResetStatus = text(cupCard, getString(R.string.machine_settings_cups_initial), 14)
         cupResetButton = action(cupCard, getString(R.string.machine_settings_cups_reset)) { confirmCupReset() }
         listOf(brewInput, compensationInput, steamInput, standbyTemperatureInput).forEachIndexed { index, input ->
@@ -459,6 +462,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             SleepScheduleWriteTracker.State.RECONCILED -> getString(R.string.machine_settings_schedule_reconciled)
             else -> getString(R.string.machine_settings_unchanged)
         })
+        cupCountValue.update(settingsPresentation.cupCount(reported, ready && owner?.machineSettingsFresh == true))
         val pending = owner?.settingWriteState ?: SettingsWriteTracker.State.IDLE
         cupResetStatus.update(getString(R.string.machine_settings_cup_status_prefix) + when (owner?.cupResetState) {
             CupResetTracker.State.WRITING -> getString(R.string.machine_settings_cup_writing)
