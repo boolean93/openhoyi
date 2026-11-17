@@ -11,3 +11,10 @@
 - 发布：不发版，不安装设备；Mock原有只预览流程保留。
 - 回退：回退本分支提交；不更改持久数据/设备未知记录。
 - 未完成与阻塞：真机排程写入验收留待明确设备测试窗口，不以编译代替验收。
+
+## 独立PR推进（2026-11-17）
+
+- 用户要求每功能独立PR；本分支 `feature/weekly-sleep-editor` 只包含每天统一设置与单日微调，不夹带累计杯数显示。
+- 实现者30项单测、8项Python契约、assembleMock、compileMockAndroidTestKotlin和lintMock已通过；独立复核确认显式allDays、单日限制、回读/新鲜空闲/ownership/UNKNOWN/登记安全边界保留。
+- 整合此前删除feedback_replay后重新计算默认XML快照hash，保留该键删除；增加每天键后全目录1083/英文渲染1082，完整逐键校验不变。
+- 适配最新develop后通过scripts/create-pr完整门禁创建独立草稿PR；检查通过后按授权合入，无真实机器写入/设备交互/手工发布或安装。
