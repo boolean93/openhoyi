@@ -5,6 +5,14 @@ import org.junit.Test
 
 /** Pure pixel decisions only. These assertions are not Android View measurement evidence. */
 class AiCurveCardLayoutPolicyTest {
+    @Test fun recommendationUsesAvailableHostWidthWithItsOwnCapNotTheBubbleFraction() {
+        assertEquals(280, AiCurveCardLayoutPolicy.recommendationWidth(280, 400))
+        assertEquals(368, AiCurveCardLayoutPolicy.recommendationWidth(368, 400))
+        assertEquals(400, AiCurveCardLayoutPolicy.recommendationWidth(728, 400))
+        assertEquals(0, AiCurveCardLayoutPolicy.recommendationWidth(0, 400))
+        assertEquals(0, AiCurveCardLayoutPolicy.recommendationWidth(-1, 400))
+        assertEquals(0, AiCurveCardLayoutPolicy.recommendationWidth(280, -1))
+    }
     @Test fun cardHasTheAssistantWidthCapInsteadOfTakingTheWholeTranscript() {
         assertEquals(292, AiCurveCardLayoutPolicy.cardWidth(375, 520))
         assertEquals(249, AiCurveCardLayoutPolicy.cardWidth(320, 520))

@@ -2,6 +2,9 @@ package io.openhoyi.mobile
 
 /** Pixel decisions after the host/font measurements. Never changes font scale or recipe data. */
 internal object AiCurveCardLayoutPolicy {
+    /** Host width is already net of transcript padding/margins; do not inset it again. */
+    fun recommendationWidth(availablePixels: Int, maximumPixels: Int): Int =
+        minOf(availablePixels.coerceAtLeast(0), maximumPixels.coerceAtLeast(0))
     fun cardWidth(availablePixels: Int, maximumPixels: Int): Int =
         minOf(maximumPixels.coerceAtLeast(0), (availablePixels.coerceAtLeast(0).toLong() * 78 / 100).toInt())
     fun diagramWidth(viewportPixels: Int, requiredPixels: Int): Int =

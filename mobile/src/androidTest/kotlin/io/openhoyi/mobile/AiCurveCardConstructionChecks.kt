@@ -12,6 +12,7 @@ internal object AiCurveCardConstructionChecks {
     fun run(test: Instrumentation) {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         test.runOnMainSync {
+            recommendationWidths(test)
             for (language in listOf(AppLanguage.CHINESE, AppLanguage.ENGLISH)) {
                 val context = AppLanguageContext.wrap(test.targetContext, language)
                 val style = TaskProductVisualStyle(context)
@@ -55,12 +56,61 @@ internal object AiCurveCardConstructionChecks {
             }
         }
     }
-    private fun cards(): List<AiCurveCard> {
-        val before = CustomCurveDocument("draft-00000000-0000-0000-0000-000000000142", "合成配方", 92, 3600,
+    /** Detached measurement only: no installation, screenshots or device-fit claim from compilation. */
+    private fun recommendationWidths(test: Instrumentation) {
+        data class Case(val hostDp: Int, val language: AppLanguage, val font: AppFontSize)
+        for (case in listOf(Case(280, AppLanguage.ENGLISH, AppFontSize.LARGE),
+            Case(368, AppLanguage.CHINESE, AppFontSize.MEDIUM),
+            Case(728, AppLanguage.ENGLISH, AppFontSize.MEDIUM))) {
+            val context = AppLanguageContext.wrap(test.targetContext, case.language, fontSize = case.font)
+            val visual = SettingsVisualStyle(context)
+            val style = visual.palette
+            val presentation = AiChatPresentation(context, visual, "", 0, 0, {}, {}, {}, {},
+                onOpenCurve = {}, onReviewCurve = {}, onViewCurve = {})
+            // Reuse the fixed recommendation/proposal fixture, never access stores or a live engine.
+            val fixtures = cards(longEnglishName = case.font == AppFontSize.LARGE).take(2)
+            var previousRecommendationWidth: Int? = null
+            for (text in listOf("OK", "A longer explanation of why this recipe fits. ".repeat(8))) {
+                presentation.render(listOf(AiChatLine(false, text, curveCards = fixtures)), "", false, "")
+                val transcript = presentation.transcript
+                // Transcript owns its padding; requested case width is the net card-host space.
+                val width = style.dp(case.hostDp) + transcript.paddingLeft + transcript.paddingRight
+                transcript.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                transcript.layout(0, 0, width, transcript.measuredHeight)
+                val views = descendants(transcript).filterIsInstance<AiCurveCardView>()
+                check(views.size == 2)
+                val recommendation = views[0]
+                val host = recommendation.parent as ViewGroup
+                check(host.width == style.dp(case.hostDp))
+                check(recommendation.width == minOf(host.width, style.dp(400)))
+                check(recommendation.left == host.paddingLeft)
+                previousRecommendationWidth?.let { check(recommendation.width == it) }
+                previousRecommendationWidth = recommendation.width
+                val proposal = views[1]
+                check(proposal.width == AiCurveCardLayoutPolicy.cardWidth((proposal.parent as ViewGroup).width, style.dp(520)))
+                for (card in views) {
+                    for (label in descendants(card).filterIsInstance<TextView>().filter { it.visibility == View.VISIBLE }) {
+                        val layout = requireNotNull(label.layout)
+                        check((0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 })
+                        check(layout.height <= label.height - label.compoundPaddingTop - label.compoundPaddingBottom)
+                        if (label is Button) check(label.height >= style.dp(48))
+                    }
+                }
+            }
+        }
+    }
+    private fun cards(longEnglishName: Boolean = false): List<AiCurveCard> {
+        val baseline = CustomCurveDocument("draft-00000000-0000-0000-0000-000000000142", "合成配方", 92, 3600,
             CustomCurveDocument.ControlMode.PRESSURE,
             listOf(CustomCurveDocument.Stage(25, 180), CustomCurveDocument.Stage(90, 400), CustomCurveDocument.Stage(60, 140)),
             72, CustomCurveDocument.Configuration(preinfusionSeconds = 5, firstDurationSeconds = 6,
                 inactiveStages = listOf(CustomCurveDocument.Stage(0, 0))))
+        // One narrow/large-font stress fixture, not another language/size matrix.
+        val before = if (longEnglishName) baseline.copy(
+            name = "Synthetic extended medium roast recipe with a gentle finishing stage",
+            stages = baseline.stages + CustomCurveDocument.Stage(45, 120),
+            configuration = requireNotNull(baseline.configuration).copy(inactiveStages = emptyList())) else baseline
         val item = CurveLibraryItem(before.id, before.name, "", "", null, customDocument = before)
         val after = before.copy(name = "合成修改", targetHundredthsGram = 4000)
         return listOf(AiCurveCard.recommendation(item), AiCurveCard.proposal(AiCurveWriteCoordinator.Proposal(
