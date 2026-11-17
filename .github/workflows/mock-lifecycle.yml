@@ -5,6 +5,11 @@ on:
     branches: [main, develop, 'release/**', 'hotfix/**']
   workflow_dispatch:
     inputs:
+      ai_card_checks:
+        description: Run only existing detached AI card construction checks on a disposable cloud emulator
+        required: false
+        default: false
+        type: boolean
       cloudflare_live_checks:
         description: Run public Cloudflare index/APK and GitHub fallback verification (no install)
         required: false
@@ -39,12 +44,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      AI_CARD_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.ai_card_checks == true && 'true' || 'false' }}
+      CI_CARD_AVD: openhoyi-card-${{ github.run_id }}-${{ github.run_attempt }}
       CLOUDFLARE_LIVE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.cloudflare_live_checks == true && 'true' || 'false' }}
       DOWNLOAD_PROGRESS_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.download_progress_checks == true && 'true' || 'false' }}
       SLEEP_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.sleep_checks == true && 'true' || 'false' }}
       PREHEAT_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.preheat_checks == true && 'true' || 'false' }}
       UPDATE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_checks == true && 'true' || 'false' }}
     steps:
+      - name: Reject mixed card-only and other acceptance requests
+        if: env.AI_CARD_CHECKS == 'true'
+        run: |
+          test "$CLOUDFLARE_LIVE_CHECKS" = false
+          test "$DOWNLOAD_PROGRESS_CHECKS" = false
+          test "$SLEEP_CHECKS" = false
+          test "$PREHEAT_CHECKS" = false
+          test "$UPDATE_CHECKS" = false
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -73,14 +88,27 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
+          avd-name: ${{ env.AI_CARD_CHECKS == 'true' && env.CI_CARD_AVD || 'test' }}
+          force-avd-creation: true
+          emulator-port: 5554
           target: default
           arch: x86_64
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_mock_or_update_acceptance.sh
+          script: >-
+            if [ "$AI_CARD_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py;
+            else bash scripts/check_mock_or_update_acceptance.sh; fi
+      - name: Upload card construction and APK identity evidence
+        if: always() && env.AI_CARD_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ai-card-construction-${{ github.sha }}
+          path: build/ai-card-construction/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload lifecycle logs
-        if: always() && env.UPDATE_CHECKS != 'true' && env.PREHEAT_CHECKS != 'true'
+        if: always() && env.UPDATE_CHECKS != 'true' && env.PREHEAT_CHECKS != 'true' && env.AI_CARD_CHECKS != 'true'
         uses: actions/upload-artifact@v6
         with:
           name: mock-lifecycle
