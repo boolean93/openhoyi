@@ -7,7 +7,9 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 
 /** Pure home layout: the machine image never contains telemetry or controls. */
-internal class MachineHomeView(context: Context, private val spacious: Boolean) : LinearLayout(context) {
+internal class MachineHomeView(
+    context: Context, private val spacious: Boolean, private val onOpenAi: (() -> Unit)? = null,
+) : LinearLayout(context) {
     private var machineImage: ImageView? = null
     private var inlinePortrait = false
     private var tightInlinePortrait = false
@@ -28,6 +30,7 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
                 tag="product/home/machine-hero"; setImageResource(R.drawable.hoyi_machine)
                 scaleType=ImageView.ScaleType.FIT_CENTER
                 contentDescription=context.getString(R.string.home_machine_description)
+                configureAiEntry(this)
             },LayoutParams(-1,dp(156)).apply {bottomMargin=dp(12)})
         }
         if (spacious) setPadding(dp(40),0,dp(40),0)
@@ -39,10 +42,21 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 adjustViewBounds = true
                 contentDescription = context.getString(R.string.home_machine_description)
+                configureAiEntry(this)
             }, LayoutParams(0, -1, 39f).apply { marginEnd = dp(16) })
         }
         addView(boilers, LayoutParams(if (spacious) 0 else -1, if (spacious) -1 else -2,
             if (spacious) 61f else 0f))
+    }
+
+    private fun configureAiEntry(image: ImageView) {
+        val open = onOpenAi ?: return
+        image.minimumWidth = dp(48)
+        image.minimumHeight = dp(48)
+        image.isFocusable = true
+        image.contentDescription = context.getString(R.string.home_machine_description) + " · " + context.getString(R.string.ai_title)
+        image.tooltipText = context.getString(R.string.ai_title)
+        image.setOnClickListener { open() }
     }
 
     fun portraitDialLimit(): Int? = if (inlinePortrait)

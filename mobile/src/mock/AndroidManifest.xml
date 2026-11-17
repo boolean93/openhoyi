@@ -8,7 +8,14 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
     <uses-feature android:name="android.hardware.bluetooth_le" tools:node="remove" />
     <application>
+        <provider android:name=".AiStorageProbeProvider" android:authorities="io.openhoyi.mobile.mock.ai_storage_probe"
+            android:exported="false" android:grantUriPermissions="false" android:process=":ai_offline_preview" />
         <!-- Display-only candidate, not a product navigation destination or hardware acceptance. -->
         <activity android:name=".StrictVisualSampleActivity" android:exported="false" />
+        <activity android:name=".AiChatPreviewActivity" android:exported="false" />
+        <!-- No real engine/storage/service; exact process is fenced before Application owner init. -->
+        <activity android:name=".AiOfflinePreviewActivity" android:exported="true"
+            android:process=":ai_offline_preview" android:excludeFromRecents="true"
+            android:taskAffinity="io.openhoyi.mobile.mock.ai_offline_preview" />
     </application>
 </manifest>

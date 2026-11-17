@@ -172,7 +172,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             }
         }.apply { isBaselineAligned = false }
         detailPanel.addView(detailToolbar, LinearLayout.LayoutParams(-1, -2))
-        detailBack = HoyiUi.button(host, detailToolbar, getString(R.string.curve_back)) { showBrowser() }.apply {
+        detailBack = HoyiUi.button(host, detailToolbar, getString(R.string.curve_back)) { if (!host.returnToAiCurveChat()) showBrowser() }.apply {
             iconOnly(this, "back", getString(R.string.curve_back))
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         }
@@ -658,6 +658,17 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     override fun onDestroy() {
         unregisterDetailBack()
         super.onDestroy()
+    }
+
+    internal fun openAiCurveReference(reference: AiCurveCard) {
+        val item = library.find(reference.id)?.takeIf { reference.matches(it) }
+        if (item == null) {
+            AlertDialog.Builder(requireContext()).setMessage(if (resources.configuration.locales[0].language == "zh")
+                "来源曲线不存在或已变化，请返回聊天重新获取。" else "The source curve is missing or changed. Return to chat and request it again.")
+                .setPositiveButton(android.R.string.ok, null).let(::showTransient)
+            return
+        }
+        show(item) // Preview only: no selection preferences, editor or machine action.
     }
 
     private fun show(item: CurveLibraryItem) {

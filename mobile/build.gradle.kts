@@ -83,6 +83,17 @@ val externalSigningComplete = extra["hoyiExternalSigningComplete"] as Boolean
 val updateChecks = providers.gradleProperty("hoyiUpdateChecks").orNull?.let {
     when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiUpdateChecks must be true or false") }
 } ?: false
+// Candidate-only opt-in: do not change normal Mock, Debug or Release behavior.
+val optimizeMock = providers.gradleProperty("hoyiOptimizeMock").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiOptimizeMock must be true or false") }
+} ?: false
+if (optimizeMock && updateChecks) throw GradleException("Optimized Mock cannot be used for update fixtures")
+val mockOptimizationControl = providers.gradleProperty("hoyiMockOptimizationControl").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiMockOptimizationControl must be true or false") }
+} ?: false
+if (mockOptimizationControl && (optimizeMock || updateChecks)) {
+    throw GradleException("Mock optimization control cannot be combined with optimization or update fixtures")
+}
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
@@ -117,6 +128,20 @@ android {
             applicationIdSuffix = ".mock"
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "MOCK_MODE", "true")
+            if (mockOptimizationControl) {
+                // Same non-debuggable baseline as the optimized candidate.
+                isDebuggable = false
+                isMinifyEnabled = false
+                isShrinkResources = false
+            }
+            if (optimizeMock) {
+                // R8 debug mode limits optimizations. Keep Mock behavior/signing,
+                // but build this explicit candidate in non-debuggable mode.
+                isDebuggable = false
+                isMinifyEnabled = true
+                isShrinkResources = true
+                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-mock-optimize.pro")
+            }
         }
     }
     if (updateChecks) {
@@ -134,10 +159,23 @@ android {
             java.setSrcDirs(listOf("src/updateFixtureTest/kotlin"))
         }
     }
+    sourceSets.getByName("test").java.srcDir("src/compatTest/kotlin")
+    sourceSets.getByName("androidTest").java.srcDir("src/compatTest/kotlin")
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 }
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+configurations.configureEach {
+    exclude(group = "org.slf4j", module = "slf4j-simple")
+    exclude(group = "ai.koog", module = "prompt-executor-deepseek-client-android")
+}
 dependencies {
+    implementation("ai.koog:agents-core:1.3.0")
+    // The Android 1.3.0-beta publication invokes List.removeLast (API35) in its merge path.
+    // Use the official same-version JVM client as one closed module; keep shared dependencies Android-native.
+    implementation("ai.koog:prompt-executor-deepseek-client-jvm:1.3.0-beta") { isTransitive = false }
+    implementation("ai.koog:prompt-executor-openai-client-base:1.3.0")
+    implementation("io.github.oshai:kotlin-logging:8.0.01")
+    implementation("org.slf4j:slf4j-nop:2.0.17")
     implementation("androidx.fragment:fragment:1.8.6")
     implementation(project(":bean-core"))
     implementation(project(":bluetooth-android"))

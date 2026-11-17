@@ -32,6 +32,8 @@ class MainActivity : ThemedActivity() {
     private var extractionVisible = false
     private var extractionSlot = 7
     private var pendingShow = false
+    private var pendingAiCurveReference: String? = null
+    private var aiCurveReturnToChat = false
     private var pageId = View.generateViewId()
     private var service: MobileService? = null
     private val bound: Boolean get() = serviceBinding.bound
@@ -242,6 +244,8 @@ class MainActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingAiCurveReference = savedInstanceState?.getString(AiCurveLibraryRoute.EXTRA_CARD)
+        aiCurveReturnToChat = !isTaskRoot && (savedInstanceState?.getBoolean(AiCurveLibraryRoute.EXTRA_RETURN_TO_CHAT) ?: false)
         shortcutPreferenceFiles.forEach { it.registerOnSharedPreferenceChangeListener(shortcutPreferenceListener) }
         stopShortcutPreferenceObserver = shortcutPreferences.observe(::revokeShortcutStart)
         destination = (savedInstanceState?.getString(STATE_DESTINATION)
@@ -290,6 +294,7 @@ class MainActivity : ThemedActivity() {
         }
         showCurrent()
         if (savedInstanceState == null) {
+            routeAiCurveLibrary(intent)
             routeHistorySource(intent)
             intent.getStringExtra("settingsSection")?.let(::openSettingsSection)
         }
@@ -353,6 +358,14 @@ class MainActivity : ThemedActivity() {
         scaleSettingsReturn = true
     }
     internal fun select(next: TaskDestination) {
+        if (aiCurveReturnToChat && next != TaskDestination.CURVES) {
+            aiCurveReturnToChat = false
+            // Let the origin close itself and route to the ordinary shell. CLEAR_TOP here
+            // would match this temporary MainActivity instead of the shell below the chat.
+            setResult(RESULT_OK, Intent().putExtra(AiCurveLibraryRoute.EXTRA_EXIT_DESTINATION, next.name))
+            finish()
+            return
+        }
         revokeShortcutStart()
         if (next == destination && !extractionVisible) return
         if (extractionVisible) leaveCurvePreparation()
@@ -531,6 +544,8 @@ class MainActivity : ThemedActivity() {
         outState.putString("extractionOrigin",extractionOrigin?.name)
         outState.putString("settingsOrigin",settingsOrigin?.name)
         outState.putBoolean("settingsScaleReturn", scaleSettingsReturn)
+        outState.putString(AiCurveLibraryRoute.EXTRA_CARD, pendingAiCurveReference)
+        outState.putBoolean(AiCurveLibraryRoute.EXTRA_RETURN_TO_CHAT, aiCurveReturnToChat)
         outState.putString(STATE_DESTINATION, destination.name)
         outState.putInt(STATE_PAGE_ID, pageId)
         outState.putBoolean(STATE_EXTRACTION, extractionVisible)
@@ -539,17 +554,69 @@ class MainActivity : ThemedActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    override fun onPostResume() { super.onPostResume(); if (pendingShow) showCurrent() }
+    override fun onPostResume() {
+        super.onPostResume()
+        if (pendingShow) showCurrent()
+        // ComponentActivity marks its lifecycle RESUMED after this callback returns.
+        // Retry on the next main-loop turn; consume rechecks pause/state-save and reads
+        // the latest pending request rather than capturing an obsolete intent.
+        window.decorView.post { consumeAiCurveLibraryRoute() }
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Ordinary navigation must also unwind the chat relationship, not merely hide its flag.
+        if (aiCurveReturnToChat && !(intent.hasExtra(AiCurveLibraryRoute.EXTRA_CARD) &&
+                intent.getBooleanExtra(AiCurveLibraryRoute.EXTRA_RETURN_TO_CHAT, false))) {
+            aiCurveReturnToChat = false
+            setResult(RESULT_OK, Intent().putExtra(AiCurveLibraryRoute.EXTRA_EXIT_INTENT, Intent(intent)))
+            finish()
+            return
+        }
+        // A newer navigation intent supersedes any deferred AI browse request.
+        pendingAiCurveReference = null
+        aiCurveReturnToChat = false
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_OPEN_EXTRACTION, false)) showExtraction(intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7))
         else if(!intent.hasExtra("settingsSection")) intent.getStringExtra(EXTRA_INITIAL_DESTINATION)?.let { name ->
             runCatching { TaskDestination.valueOf(name) }.getOrNull()?.let(::select)
         }
+        routeAiCurveLibrary(intent)
         routeHistorySource(intent)
         intent.getStringExtra("settingsSection")?.let(::openSettingsSection)
+    }
+
+    private fun routeAiCurveLibrary(intent: Intent) {
+        if (!intent.hasExtra(AiCurveLibraryRoute.EXTRA_CARD)) return
+        // A dedicated browse Activity sits above the original live chat. Never clear/relaunch it.
+        aiCurveReturnToChat = !isTaskRoot && intent.getBooleanExtra(AiCurveLibraryRoute.EXTRA_RETURN_TO_CHAT, false)
+        intent.removeExtra(AiCurveLibraryRoute.EXTRA_RETURN_TO_CHAT)
+        val encoded = intent.getStringExtra(AiCurveLibraryRoute.EXTRA_CARD)
+        intent.removeExtra(AiCurveLibraryRoute.EXTRA_CARD)
+        pendingAiCurveReference = encoded?.takeIf { it.toByteArray(Charsets.UTF_8).size <= AiCurveCard.MAX_ENCODED_BYTES } ?: ""
+        consumeAiCurveLibraryRoute()
+    }
+
+    private fun consumeAiCurveLibraryRoute() {
+        val encoded = pendingAiCurveReference ?: return
+        // onCreate's commitNow can attach a Fragment before onCreateView has run.
+        // Keep the evidence pending until onPostResume, including cold launches/recreation.
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) || supportFragmentManager.isStateSaved) return
+        val library = (application as MobileApplication).curves
+        val item = AiCurveLibraryRoute.receive(encoded, library::find)
+        if (item == null) {
+            pendingAiCurveReference = null
+            AppDialog.show(android.app.AlertDialog.Builder(this).setMessage(if (resources.configuration.locales[0].language == "zh")
+                "来源曲线不存在或已变化，请返回聊天重新获取。" else "The source curve is missing or changed. Return to chat and request it again.")
+                .setPositiveButton(android.R.string.ok, null).create())
+            return
+        }
+        select(TaskDestination.CURVES)
+        if (pendingShow || supportFragmentManager.isStateSaved) return
+        val fragment = supportFragmentManager.findFragmentByTag(tag(TaskDestination.CURVES)) as? CurveFragment ?: return
+        if (fragment.view == null || !fragment.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        pendingAiCurveReference = null
+        fragment.openAiCurveReference(AiCurveCard.recommendation(item))
     }
 
     private fun routeHistorySource(intent: Intent) {
@@ -561,8 +628,16 @@ class MainActivity : ThemedActivity() {
         (supportFragmentManager.findFragmentByTag(tag(TaskDestination.HISTORY)) as? HistoryFragment)?.showSource(journal)
     }
 
+    internal fun returnToAiCurveChat(): Boolean {
+        if (!aiCurveReturnToChat || extractionVisible || destination != TaskDestination.CURVES) return false
+        aiCurveReturnToChat = false
+        finish()
+        return true
+    }
+
     private fun navigateBack() {
         revokeShortcutStart()
+        if (returnToAiCurveChat()) return
         val current = supportFragmentManager.primaryNavigationFragment
         val consumed = when (current) {
             is CurveFragment -> current.consumeBack()

@@ -130,6 +130,15 @@ class AppSettingsFragment : Fragment() {
         val visual = SettingsVisualStyle(activity)
         val style = visual.palette
         val root = SettingsDocumentLayout(activity, state ?: documentState).also { document=it }
+        style.action(root.body, getString(R.string.ai_title), "settings/ai-assistant", top = 0) {
+            activity.startActivity(Intent(activity, AiChatActivity::class.java))
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        if (BuildConfig.MOCK_MODE) {
+            style.action(root.body, getString(R.string.ai_preview_title), "settings/ai-chat-preview", top = 8) {
+                // Mock-only fixed destination. No Key, service, or live chat route is opened.
+                activity.startActivity(Intent().setClassName(activity, "io.openhoyi.mobile.AiChatPreviewActivity"))
+            }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        }
         val sections = linkedMapOf(
             "devices" to root.section("devices", getString(R.string.home_device_connection)),
             "machine" to root.section("machine", getString(R.string.settings_section_machine)),
