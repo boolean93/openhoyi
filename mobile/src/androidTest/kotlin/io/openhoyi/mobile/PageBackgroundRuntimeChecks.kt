@@ -41,6 +41,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     private val owner get() = app.pageBackgrounds
     private val output get() = File(context.filesDir, "page-background-evidence")
     private val realPrefs get() = context.getSharedPreferences("page_background", Context.MODE_PRIVATE)
+    private val rejectedEvidence = mutableListOf<String>()
+    private class PixelEvidenceFailure(message: String) : IllegalStateException(message)
+    private inline fun requirePixelEvidence(ok: Boolean, reason: () -> String) {
+        if (!ok) throw PixelEvidenceFailure(reason())
+    }
     private fun <T> main(action: () -> T) = BoundedInstrumentationMain.run("page background", action = action)
 
     fun run() {
@@ -58,6 +63,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             verifyLightFlow(sample, invalid)
             verifyDarkFlow(sample)
             verifyShortLandscape(sample)
+            check(rejectedEvidence.isEmpty()) {
+                rejectedEvidence.joinToString(separator = "\n", prefix = "Window evidence failed:\n")
+            }
         } finally {
             ownedMedia.forEach { context.contentResolver.delete(it, null, null) }
             main {
@@ -369,12 +377,14 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val history = go(TaskDestination.HISTORY)
         captureApplied(host, history, "$mode-history.png", backing = style.surface,
             requiredWallpaper = { shieldCorners(history, history.findViewWithTag("product/history/header")) },
-            foregroundSurfaces = { listOf(history.findViewWithTag("product/history/empty-card")) },
+            foregroundSurfaces = { listOf(NativeBacking(history.findViewWithTag("product/history/empty-card"),
+                host.appColor(R.color.mobile_surface))) },
         ) { history.findViewWithTag("product/history/count") }
         val beans = go(TaskDestination.BEANS)
         captureApplied(host, beans, "$mode-beans.png", backing = style.surface,
             requiredWallpaper = { shieldCorners(beans, beans.findViewWithTag("product/inventory/header")) },
-            foregroundSurfaces = { listOf(beans.findViewWithTag("product/inventory/empty-card")) },
+            foregroundSurfaces = { listOf(NativeBacking(beans.findViewWithTag("product/inventory/empty-card"),
+                host.appColor(R.color.mobile_surface))) },
         ) { beans.findViewWithTag("product/inventory/header-summary") }
 
         // Selecting this read-only view is not a start/prepare gesture. Assert both remain idle.
@@ -384,7 +394,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             host.showExtraction()
         }
         val extraction = visiblePage(host, "extraction")
-        captureApplied(host, extraction, "$mode-extraction.png", nativeCover = true,
+        captureApplied(host, extraction, "$mode-extraction.png", nativeCoverFill = style.surface,
             requiredWallpaper = {
                 val plot = checkNotNull(localRect(extraction, extraction.findViewWithTag("product/extraction/chart")))
                 listOf(Point(plot.left / 2, plot.centerY()),
@@ -430,7 +440,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 true
             }
             captureApplied(chat, root, "$mode-ai.png",
-                foregroundSurfaces = { listOf(checkNotNull(assistantBody()), checkNotNull(card())) },
+                foregroundSurfaces = {
+                    listOf(NativeBacking(checkNotNull(assistantBody()), style.surface), NativeBacking(checkNotNull(card()), style.surface))
+                },
                 decorativeGuttersOf = { checkNotNull(card()) },
             ) { root.findViewWithTag("ai/chat/input-frame") }
             PageBackgroundAiChecks(test, chat, presentation, output).run(mode)
@@ -487,7 +499,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 val paper = root.background as PageBackdrop
                 val toolBounds = checkNotNull(localRect(root, filters))
                 val listBounds = checkNotNull(localRect(root, list))
-                val tools = checkNotNull(paper.roundedAreas.singleOrNull { it.clip.contains(toolBounds) })
+                val countBounds = checkNotNull(localRect(root, root.findViewWithTag("product/curve-library/count")))
+                val tools = checkNotNull(paper.roundedAreas.singleOrNull { it.clip.contains(toolBounds) && it.clip.contains(countBounds) })
                 val results = checkNotNull(paper.roundedAreas.singleOrNull { it.clip.contains(listBounds) })
                 check(tools != results && tools.bounds.bottom < results.bounds.top && list.clipToOutline)
                 shieldCorners(root, list) + shieldCorners(root, filters)
@@ -690,7 +703,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             main { host.select(TaskDestination.BREW) }
             val root = main { checkNotNull(host.supportFragmentManager.findFragmentByTag("root:BREW")?.view) }
             val style = TaskProductVisualStyle(host)
-            captureApplied(host, root, "$mode-home-mist.png", base = style.homePage, nativeCover = true) {
+            captureApplied(host, root, "$mode-home-mist.png", base = style.homePage, nativeCoverFill = style.surface) {
                 // The quiet gradient can match the quiet footer fill at some pixels. Use the
                 // native dial's real face and keep the same strict contrast filter.
                 nodes(root).filterIsInstance<BoilerTemperatureDial>().first { it.getGlobalVisibleRect(Rect()) }
@@ -705,6 +718,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         } finally { main { editor.takeUnless { it.isDestroyed }?.finish() } }
     }
 
+    private data class NativeBacking(val view: View, val fill: Int)
+
     private fun captureApplied(
         page: ThemedActivity,
         root: View,
@@ -712,9 +727,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         base: Int = TaskProductVisualStyle(page).page,
         backing: Int = base,
         requiredWallpaper: ((Rect) -> Point) -> List<Point> = { emptyList() },
-        foregroundSurfaces: () -> List<View> = { emptyList() },
+        foregroundSurfaces: () -> List<NativeBacking> = { emptyList() },
         decorativeGuttersOf: (() -> View)? = null,
-        nativeCover: Boolean = false,
+        nativeCoverFill: Int? = null,
         protectedView: () -> View,
     ) {
         await("$name has current backdrop and laid-out protected rows") {
@@ -731,15 +746,14 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         fun distance(a: Int, b: Int) = maxOf(abs(Color.red(a) - Color.red(b)),
             abs(Color.green(a) - Color.green(b)), abs(Color.blue(a) - Color.blue(b)))
         data class Pixel(val x: Int, val y: Int, val color: Int)
-        data class PixelProof(val decorative: List<Pixel>, val protection: List<List<Pixel>>,
-            val solidColors: Set<Int>, val wallpaperGaps: List<Pixel>)
+        data class Protection(val points: List<Pixel>, val expectedFills: Set<Int>)
+        data class PixelProof(val decorative: List<Pixel>, val protection: List<Protection>, val wallpaperGaps: List<Pixel>)
         val failureName = name.removeSuffix(".png") + ".failed.png"
-        val (exposed, protectedPixels, solidColors, wallpaperGaps) = try {
+        val (exposed, protection, wallpaperGaps) = try {
             main {
                 val paper = root.background as PageBackdrop
                 val style = TaskProductVisualStyle(page)
                 val solidColors = setOf(base, backing, style.surface, style.selected)
-                val backdropFills = solidColors + paper.roundedAreas.map { it.fill }
                 fun againstFills(color: Int, fills: Set<Int>) = fills.all { distance(color, it) >= contrastThreshold }
                 // Visible rects use decor coordinates; translate the decor origin to display pixels.
                 val decorOffset = IntArray(2)
@@ -749,7 +763,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     offset(decorOffset[0], decorOffset[1])
                 }
                 val cover = screenBounds(protectedView())
-                val surfaces = foregroundSurfaces().map(::screenBounds) + if (nativeCover) listOf(cover) else emptyList()
+                val surfaces = foregroundSurfaces().map { screenBounds(it.view) to it.fill } +
+                    if (nativeCoverFill != null) listOf(cover to nativeCoverFill) else emptyList()
+                val backdropFills = solidColors + paper.roundedAreas.map { it.fill } + surfaces.map { it.second }
                 val gutterNeighbor = decorativeGuttersOf?.invoke()?.let(::screenBounds)
                 val start = IntArray(2)
                 root.getLocationOnScreen(start)
@@ -766,7 +782,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         val inDecorativeArea = gutterNeighbor == null ||
                             displayY in gutterNeighbor.top until gutterNeighbor.bottom && !gutterNeighbor.contains(displayX, displayY)
                         if (inDecorativeArea && againstFills(expected, backdropFills) && !cover.contains(displayX, displayY) &&
-                            surfaces.none { it.contains(displayX, displayY) }) photo += Pixel(displayX, displayY, expected)
+                            surfaces.none { (bounds, _) -> bounds.contains(displayX, displayY) }) photo += Pixel(displayX, displayY, expected)
                         if (expected == backing && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
                     }
                     // Recreate the bare wallpaper. Any pixel already close to a permitted solid
@@ -779,32 +795,36 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     }
                     fun contrast(x: Int, y: Int) = againstFills(bitmap.getPixel(x, y), solidColors)
                     val verifiedProtection = protected.filter { pixel -> contrast(pixel.x - start[0], pixel.y - start[1]) }
-                    // Foreground bubbles/cards already own their opaque fill. Probe within each native
-                    // view separately, including where no backing rectangle is needed underneath.
-                    val nativeProtection = surfaces.map { surface ->
-                        buildList {
+                    // Each native view has an explicit fill; a nearby swatch from another
+                    // plane must not make this own surface look protected.
+                    val nativeProtection = surfaces.map { (bounds, fill) ->
+                        val expectedFills = setOf(fill)
+                        val points = buildList {
                             for (y in step until root.height step step) for (x in step until root.width step step) {
-                                if (surface.contains(start[0] + x, start[1] + y) && contrast(x, y)) {
-                                    add(Pixel(start[0] + x, start[1] + y, base))
+                                if (bounds.contains(start[0] + x, start[1] + y) &&
+                                    againstFills(bitmap.getPixel(x, y), expectedFills)) {
+                                    add(Pixel(start[0] + x, start[1] + y, fill))
                                 }
                             }
                         }
+                        Protection(points, expectedFills)
                     }
                     val gaps = requiredWallpaper { band ->
                         stableGapSample(band, bitmap, contrastThreshold, backdropFills, ::distance)
                     }.map { point ->
                         Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
                     }
-                    check(gaps.isEmpty() || gaps.count { againstFills(it.color, backdropFills) } >= minOf(2, (gaps.size + 1) / 2)) {
+                    requirePixelEvidence(gaps.isEmpty() || gaps.count { againstFills(it.color, backdropFills) } >= minOf(2, (gaps.size + 1) / 2)) {
                         "$name needs contrast-sensitive wallpaper samples outside the rounded surfaces: " +
                             "gaps=$gaps fills=$backdropFills"
                     }
-                    val protection = (if (nativeCover) emptyList() else listOf(verifiedProtection)) + nativeProtection
-                    check(photo.size >= 5 && protection.all { it.size >= 5 }) {
+                    val protection = (if (nativeCoverFill != null) emptyList() else listOf(Protection(verifiedProtection, solidColors))) +
+                        nativeProtection
+                    requirePixelEvidence(photo.size >= 5 && protection.all { it.points.size >= 5 }) {
                         "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
-                            "(decorative=${photo.size}, protection=${protection.map { it.size }}, base=${Integer.toHexString(base)})"
+                            "(decorative=${photo.size}, protection=${protection.map { it.points.size }}, base=${Integer.toHexString(base)})"
                     }
-                    PixelProof(photo, protection, solidColors, gaps)
+                    PixelProof(photo, protection, gaps)
                 } finally { bitmap.recycle() }
             }
         } catch (failure: IllegalStateException) {
@@ -812,6 +832,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 val image = captureCommittedFrame(root)
                 try { writeScreenshot(failureName, image) } finally { image.recycle() }
             }.onFailure(failure::addSuppressed)
+            if (failure is PixelEvidenceFailure) {
+                rejectedEvidence += "$name: ${failure.message}"
+                return
+            }
             throw failure
         }
         // Compare real compositor pixels, not the backdrop object or only the offscreen drawing.
@@ -823,8 +847,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 fun sample(point: Pixel) = if (point.x in 0 until image.width && point.y in 0 until image.height)
                     image.getPixel(point.x, point.y) else null
                 val artVisible = exposed.count { probe -> sample(probe)?.let { matches(it, probe.color) } == true }
-                val solidCounts = protectedPixels.map { region ->
-                    region.count { probe -> sample(probe)?.let { ink -> solidColors.any { matches(ink, it) } } == true }
+                val solidCounts = protection.map { region ->
+                    region.points.count { probe ->
+                        sample(probe)?.let { ink -> region.expectedFills.any { matches(ink, it) } } == true
+                    }
                 }
                 val unmatchedGaps = wallpaperGaps.mapNotNull { probe ->
                     val observed = sample(probe)
@@ -838,15 +864,16 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 }
                 if (attempt == 4) {
                     writeScreenshot(failureName, image)
-                    val solidExamples = protectedPixels.map { region ->
-                        region.take(3).map { probe -> "(${probe.x},${probe.y})=#${sample(probe)?.toUInt()?.toString(16)}" }
+                    val solidExamples = protection.map { region ->
+                        region.points.take(3).map { probe -> "(${probe.x},${probe.y})=#${sample(probe)?.toUInt()?.toString(16)}" }
                     }
-                    details = "decorative=$artVisible/${exposed.size} solid=$solidCounts/${protectedPixels.map { it.size }} " +
+                    details = "decorative=$artVisible/${exposed.size} solid=$solidCounts/${protection.map { it.points.size }} " +
+                        "expectedFills=${protection.map { it.expectedFills.map { fill -> fill.toUInt().toString(16) } }} " +
                         "solidExamples=$solidExamples gapMismatches=$unmatchedGaps"
                 }
             } finally { image.recycle() }
         }
-        error("$name never presented both visible photo and protected content: $details")
+        rejectedEvidence += "$name never presented both visible photo and protected content: $details"
     }
 
     /**
@@ -870,9 +897,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 if (flat) candidates += Point(x, y)
             }
         }
-        return checkNotNull(candidates.minByOrNull { point ->
+        return candidates.minByOrNull { point ->
             abs(point.x - band.centerX()) + abs(point.y - band.centerY())
-        }) { "No flat, contrast-sensitive bare wallpaper sample inside Home gap $band" }
+        } ?: throw PixelEvidenceFailure("No flat, contrast-sensitive bare wallpaper sample inside Home gap $band")
     }
 
     private fun captureCommittedFrame(root: View): Bitmap {
