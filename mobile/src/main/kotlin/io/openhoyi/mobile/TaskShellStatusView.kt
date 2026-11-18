@@ -306,7 +306,8 @@ internal class TaskShellStatusView(
             owner?.brewPreparationState ?: BrewPreparation.State.IDLE,
             owner?.brewPreparationTargetC?.let {target->owner.currentCorrectedBrewTemperature()?.let {
                 BrewPreparation.isAtTarget(it,target)
-            }}==true)
+            }}==true,
+            alarmBlocked=idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true)
         val status = host.getString(statusId)
         val compactStatus=host.getString(SleepPresentation.compactStatus(statusId))
         val coffeeLine = "● $compactStatus"

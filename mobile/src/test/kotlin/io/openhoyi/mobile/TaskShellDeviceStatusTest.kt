@@ -42,4 +42,20 @@ class TaskShellDeviceStatusTest {
         assertEquals(R.string.task_shell_machine_unconfirmed, TaskShellDeviceStatus.coffee(
             false, null, null, false, true, DeviceState.READY, null))
     }
+    @Test fun realDisconnectAndAlarmPrecedeOldSettingsFeedbackAndRecoverOnReconnect() {
+        for(setting in listOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK,
+            SettingsWriteTracker.State.UNKNOWN)) {
+            assertEquals(R.string.device_state_disconnected,TaskShellDeviceStatus.coffee(
+                false,null,setting,true,true,DeviceState.DISCONNECTED,null))
+            assertEquals(R.string.device_state_connecting,TaskShellDeviceStatus.coffee(
+                false,null,setting,true,true,DeviceState.CONNECTING,null))
+            assertEquals(R.string.task_shell_machine_unavailable,TaskShellDeviceStatus.coffee(
+                false,null,setting,true,true,DeviceState.READY,0,alarmBlocked=true))
+        }
+        assertEquals(R.string.device_state_disconnected,TaskShellDeviceStatus.coffee(
+            true,null,null,false,true,DeviceState.DISCONNECTED,null))
+        assertEquals(R.string.task_shell_machine_awake,TaskShellDeviceStatus.coffee(
+            false,null,SettingsWriteTracker.State.CONFIRMED,false,true,DeviceState.READY,0))
+    }
+
 }
