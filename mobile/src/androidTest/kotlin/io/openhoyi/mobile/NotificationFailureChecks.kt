@@ -18,7 +18,7 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
     fun run() {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
-        val names = listOf("shot_safety", "machine_write_safety")
+        val names = listOf("shot_safety", "machine_write_safety","temperature_confirmation")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         val fixtureNames = names.associateWith { "notification_failure_$it" }
         check(fixtureNames.values.all { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.isEmpty() })
