@@ -11,19 +11,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class InterruptedShotTimingTest {
-    private class Disk : ShotHistory.Storage, BrewJournal.Storage {
+    private class Disk : ShotHistory.Storage {
         var text = ""
         var fail = false
         override fun read() = text
         override fun write(value: String) { check(!fail); text = value }
     }
+    private fun Disk.openJournal() = BrewJournal(object : BrewJournal.Storage {
+        override fun read() = this@openJournal.text.takeIf { it.isNotEmpty() }
+        override fun write(value: String) = this@openJournal.write(value)
+    })
     private fun frame(seconds: Int) =
         ExtractionTelemetry(1, seconds, 90, 300, 9200, 20, 64, 0, ByteFrame(byteArrayOf()))
 
     @Test fun fastUnknownThenObservedEndKeepsPreInterruptionTimerAndContinuousCoverage() {
         val recent = Disk()
         val permanent = Disk()
-        val journal = BrewJournal(permanent)
+        val journal = permanent.openJournal()
         val ids = listOf("interrupted", "normal").iterator()
         val history = ShotHistory(recent, now = { 100_000L }, newId = ids::next,
             onEntryChanged = { journal.observe(it.journalObservation()) })
@@ -47,7 +51,7 @@ class InterruptedShotTimingTest {
         assertEquals("14", restored.timingValue)
         assertEquals(4, JSONObject(permanent.text).getInt("schema"))
         assertEquals(restored.journalObservation(),
-            BrewJournal(permanent).find(id)?.observation)
+            permanent.openJournal().find(id)?.observation)
 
         val next = history.begin("capture-1")
         cup.begin(next, 30_000)
@@ -74,12 +78,12 @@ class InterruptedShotTimingTest {
         assertEquals(true, observed.machineTimingInterrupted)
         assertNull(observed.observedMachineElapsedSeconds)
         val diskJournal = Disk()
-        val journal = BrewJournal(diskJournal)
+        val journal = diskJournal.openJournal()
         journal.observe(observed)
         journal.edit("cup", BrewJournal.Notes(taste = "kept"))
         journal.reconcileRecent(listOf(observed.copy(machineTimingInterrupted = null, observedMachineElapsedSeconds = 29)))
         journal.observe(observed.copy(machineTimingInterrupted = false, observedMachineElapsedSeconds = 31))
-        val restored = BrewJournal(diskJournal).find("cup")!!
+        val restored = diskJournal.openJournal().find("cup")!!
         assertEquals(true, restored.observation.machineTimingInterrupted)
         assertNull(restored.observation.observedMachineElapsedSeconds)
         assertEquals("kept", restored.notes.taste)
@@ -137,9 +141,9 @@ class InterruptedShotTimingTest {
         assertEquals(true, restored.getValue("unfinished").machineTimingInterrupted)
         assertNull(restored.getValue("unfinished").observedMachineElapsedSeconds)
         val journalDisk = Disk()
-        BrewJournal(journalDisk).observe(restored.getValue("legacy").journalObservation())
+        journalDisk.openJournal().observe(restored.getValue("legacy").journalObservation())
         assertEquals(3, JSONObject(journalDisk.text).getInt("schema"))
-        assertNull(BrewJournal(journalDisk).entries().single().observation.machineTimingInterrupted)
+        assertNull(journalDisk.openJournal().entries().single().observation.machineTimingInterrupted)
 
         val oldUnknown = Disk()
         val h = ShotHistory(oldUnknown, now = { 300L }, newId = { "old-unknown" })
