@@ -162,7 +162,7 @@ class ShotHistory(
 
     /** A disconnected passive shot has no session to reconcile; retain UNKNOWN and free the next slot. */
     fun abandon(id: String, reason: String, atMs: Long = now(), timing: ShotTimingEvidence? = null) {
-        if (activeId != id) return
+        if (activeId != id || (timing != null && timing.shotId != id)) return
         transition(ExtractionState.OUTCOME_UNKNOWN, reason, null, atMs, timing)
         activeId = null
     }

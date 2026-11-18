@@ -117,6 +117,8 @@ class InterruptedShotTimingTest {
         val history = ShotHistory(disk, now = { 100L }, newId = ids::next)
         history.begin("manual", slot = 6)
         val evidence = ShotTimingEvidence("manual", 14, null, true)
+        history.abandon("manual", "wrong ID", timing = evidence.copy(shotId = "previous"))
+        assertEquals(ShotHistory.Status.STARTING, history.entries.single().status)
         disk.fail = true
         assertTrue(runCatching { history.abandon("manual", "lost", timing = evidence) }.isFailure)
         assertEquals(ShotHistory.Status.STARTING, history.entries.single().status)
