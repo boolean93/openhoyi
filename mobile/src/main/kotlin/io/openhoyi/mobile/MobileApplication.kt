@@ -16,6 +16,8 @@ class MobileApplication : Application() {
     init { AiSdkLogging.install() }
     internal var offlinePreviewProcessReady = false
         private set
+    internal lateinit var appearancePreferences: AppAppearancePreference
+        private set
     internal lateinit var languagePreferences: AppLanguagePreference
         private set
     internal lateinit var fontSizePreferences: AppFontSizePreference
@@ -66,6 +68,7 @@ class MobileApplication : Application() {
     }.getOrNull()
 
     override fun attachBaseContext(base: Context) {
+        appearancePreferences = AppAppearancePreference(SharedAppearanceStorage(base))
         val prefs = base.getSharedPreferences("app_language", MODE_PRIVATE)
         languagePreferences = AppLanguagePreference(object : AppLanguagePreference.Storage {
             override fun read(): String? = prefs.getString("tag", null)

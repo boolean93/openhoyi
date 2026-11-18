@@ -47,7 +47,9 @@ internal class AppFontSizePreferencesCard(
         fun renderPreview() {
             preview.removeAllViews()
             val configuration = Configuration(activity.resources.configuration).apply { fontScale = selected.scale }
-            val context = android.view.ContextThemeWrapper(activity.createConfigurationContext(configuration), R.style.MobileTheme)
+            val base = AppAppearanceContext(activity.createConfigurationContext(configuration),
+                AppAppearance(HoyiUi.dark(activity), activity.themePalette()))
+            val context = android.view.ContextThemeWrapper(base, activity.theme)
             val sample = TaskProductVisualStyle(context)
             sample.add(preview, sample.text(activity.getString(R.string.font_size_preview), TaskProductVisualStyle.title))
             sample.add(preview, sample.text(activity.getString(R.string.font_size_preview_detail), TaskProductVisualStyle.body), 8)

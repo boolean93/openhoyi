@@ -15,8 +15,8 @@ import android.widget.Button
 internal class TaskShellVisualStyle(private val context: Context) {
     val surface = context.getColor(R.color.task_shell_surface)
     val ink = context.getColor(R.color.task_shell_ink)
-    val accent = context.getColor(R.color.mobile_accent)
-    val selected = context.getColor(R.color.mobile_accent_soft)
+    val accent = context.appColor(R.color.mobile_accent)
+    val selected = context.appColor(R.color.mobile_accent_soft)
     val card = context.getColor(R.color.task_shell_card)
     val muted = context.getColor(R.color.task_shell_muted)
     private val border = context.getColor(R.color.task_shell_border)

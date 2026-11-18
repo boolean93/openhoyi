@@ -23,6 +23,7 @@ class ScaleFragment : Fragment() {
     private val refresh=object:Runnable {override fun run(){renderScale();handler.postDelayed(this,250)}}
     private fun changesAllowed():Boolean = owner?.let { !it.manualShotActive && DeviceConnectionGate.mayChangeScale(it.shotState) } == true
     private fun message(value:String) {Toast.makeText(requireContext(),value,Toast.LENGTH_SHORT).show()}
+    private fun appColor(id:Int)=requireContext().appColor(id)
     private fun getColor(id:Int)=requireContext().getColor(id)
     private fun getSharedPreferences(name:String,mode:Int)=requireActivity().getSharedPreferences(name,mode)
     private val MODE_PRIVATE=android.content.Context.MODE_PRIVATE
@@ -226,7 +227,7 @@ class ScaleFragment : Fragment() {
             gravity=if(centered)android.view.Gravity.CENTER else android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
             setTextColor(android.content.res.ColorStateList(
                 arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
-                intArrayOf(getColor(R.color.mobile_muted),getColor(R.color.mobile_accent))))
+                intArrayOf(getColor(R.color.mobile_muted),appColor(R.color.mobile_accent))))
             val states=android.graphics.drawable.StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused),
                     HoyiUi.shape(requireActivity() as MainActivity,android.R.color.transparent,8,R.color.mobile_accent))
@@ -234,7 +235,7 @@ class ScaleFragment : Fragment() {
             }
             background=android.graphics.drawable.RippleDrawable(
                 android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
-                    intArrayOf(android.graphics.Color.TRANSPARENT,getColor(R.color.mobile_accent_soft))),
+                    intArrayOf(android.graphics.Color.TRANSPARENT,appColor(R.color.mobile_accent_soft))),
                 states,HoyiUi.shape(requireActivity() as MainActivity,android.R.color.white,8))
         }
     private fun setWeightReading(value: String) {

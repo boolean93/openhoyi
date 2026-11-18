@@ -126,7 +126,7 @@ class HistoryActivity : ThemedActivity() {
                     setPadding(dp(16), dp(8), dp(16), dp(8))
                     background = style.shape(style.surface, radius = 0)
                     val day = HoyiUi.label(this@HistoryActivity, this, "", 14, true).apply {
-                        setTextColor(getColor(R.color.mobile_accent))
+                        setTextColor(appColor(R.color.mobile_accent))
                         setPadding(0, 0, 0, dp(8))
                     }
                     val header = LinearLayout(this@HistoryActivity).apply {

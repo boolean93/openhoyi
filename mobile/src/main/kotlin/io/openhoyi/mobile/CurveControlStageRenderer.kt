@@ -38,7 +38,7 @@ internal class CurveControlStageRenderer(private val view: CurveStageView) {
         val muted = style?.muted ?: view.context.getColor(R.color.mobile_muted)
         val border = style?.border ?: view.context.getColor(R.color.chart_grid)
         val pressure = style?.pressure ?: view.context.getColor(R.color.chart_pressure)
-        val flow = style?.accent ?: view.context.getColor(R.color.mobile_accent)
+        val flow = style?.flowMetric ?: view.context.getColor(R.color.chart_control_flow)
         fun line(x1: Float, y1: Float, x2: Float, y2: Float, color: Int, dashed: Boolean, role: String) {
             paint.color = color; paint.style = Paint.Style.STROKE; paint.strokeWidth = dp(if (role == "target") 2.5f else 1f)
             paint.pathEffect = if (dashed) DashPathEffect(floatArrayOf(dp(5f), dp(3f)), 0f) else null

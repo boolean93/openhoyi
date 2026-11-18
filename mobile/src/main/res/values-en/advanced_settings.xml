@@ -19,4 +19,18 @@
     <string name="settings_info_package">Package</string>
     <string name="settings_info_version_value">%1$s (%2$d)</string>
     <string name="settings_curve_import_guide">Curve import tips ↗</string>
+    <string name="theme_palette_title">Color palette</string>
+    <string name="theme_palette_classic">Classic Green</string>
+    <string name="theme_palette_sea_salt">Sea Salt Blue</string>
+    <string name="theme_palette_coffee">Coffee Brown</string>
+    <string name="theme_palette_graphite">Graphite Gray</string>
+    <string name="theme_palette_current">Color palette: %1$s</string>
+    <string name="theme_palette_preview">%1$s mode preview</string>
+    <string name="theme_palette_dark_preview">Dark</string>
+    <string name="theme_palette_light_preview">Light</string>
+    <string name="theme_palette_preview_action">Primary button</string>
+    <string name="theme_palette_preview_switch">Switch</string>
+    <string name="theme_palette_cancel">Cancel</string>
+    <string name="theme_palette_apply">Apply</string>
+    <string name="theme_palette_save_failed">Could not save the palette. Your current theme has not changed.</string>
 </resources>

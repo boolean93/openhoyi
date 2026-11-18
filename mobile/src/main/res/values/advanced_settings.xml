@@ -19,4 +19,18 @@
     <string name="settings_info_package">包名</string>
     <string name="settings_info_version_value">%1$s (%2$d)</string>
     <string name="settings_curve_import_guide">导入曲线技巧 ↗</string>
+    <string name="theme_palette_title">主题配色</string>
+    <string name="theme_palette_classic">经典绿</string>
+    <string name="theme_palette_sea_salt">海盐蓝</string>
+    <string name="theme_palette_coffee">咖啡棕</string>
+    <string name="theme_palette_graphite">石墨灰</string>
+    <string name="theme_palette_current">主题配色：%1$s</string>
+    <string name="theme_palette_preview">%1$s模式预览</string>
+    <string name="theme_palette_dark_preview">深色</string>
+    <string name="theme_palette_light_preview">浅色</string>
+    <string name="theme_palette_preview_action">主按钮</string>
+    <string name="theme_palette_preview_switch">开关</string>
+    <string name="theme_palette_cancel">取消</string>
+    <string name="theme_palette_apply">应用</string>
+    <string name="theme_palette_save_failed">无法保存配色，当前主题未更改。</string>
 </resources>
