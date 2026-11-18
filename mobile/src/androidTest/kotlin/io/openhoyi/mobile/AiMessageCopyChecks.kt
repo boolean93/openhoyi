@@ -58,7 +58,12 @@ internal object AiMessageCopyChecks {
         val longPress = ViewConfiguration.getLongPressTimeout().toLong() + 200
         try {
             test.runOnMainSync {
-                val context = AppLanguageContext.wrap(activity, AppLanguage.ENGLISH)
+                // Representative non-default dark theme; shared presentation and gestures stay identical.
+                val base = AppLanguageContext.wrap(activity, AppLanguage.ENGLISH, true)
+                val context = android.view.ContextThemeWrapper(
+                    AppAppearanceContext(base, AppAppearance(true, AppThemePalette.COFFEE)), R.style.MobileTheme
+                ).apply { theme.applyStyle(AppThemePalette.COFFEE.nativeOverlay, true) }
+                check(context.themePalette() == AppThemePalette.COFFEE)
                 chat = AiChatPresentation(context, SettingsVisualStyle(context), "", 0, 0,
                     {}, {}, {}, { error("No request is allowed") },
                     onOpenLink = { check(it == "https://example.test/local"); opened++ },
