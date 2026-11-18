@@ -654,9 +654,9 @@ class MobileService : Service() {
                 manualSafetyResource = R.string.service_event_manual_disconnect_warning
                 event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
             } else {
-                // A short passive water release was never a cup: drop its provisional chart and
-                // this round's guard without abandoning history or raising an unknown warning.
-                discardPassiveSeries(requireDeviceMatch = false)
+                // A short passive water release was never a cup: close its provisional series
+                // without confirming an end, abandoning history or raising a recovery warning.
+                discardPassiveSeries(requireDeviceMatch = false, observedEnd = false)
             }
         }
         event("${getString(if (role == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale)}: ${state.name}")
@@ -741,7 +741,7 @@ class MobileService : Service() {
         val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
             passiveShot.observe(frame, observedAt, appShotInProgress) else emptyList()
         // Water is flowing now, so the realtime chart and navigation start at Started under a
-        // provisional identity. Only Committed keeps a manual identity and a history entry.
+        // provisional identity. Only Committed creates a history entry.
         passiveEvents.forEach { passiveEvent ->
             when (passiveEvent) {
                 is PassiveShotDetector.Event.Started -> {
@@ -810,7 +810,7 @@ class MobileService : Service() {
                         if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
                         event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
                     } else {
-                        discardPassiveSeries(requireDeviceMatch = true)
+                        discardPassiveSeries(requireDeviceMatch = true, observedEnd = true)
                     }
                 }
                 PassiveShotDetector.Event.Interrupted -> Unit
@@ -837,15 +837,13 @@ class MobileService : Service() {
 
     /**
      * Ends a provisional passive series that never became a cup: no history entry is written and
-     * only this round's recovery guard is cleared. finishSeries(false) clears only the active id,
-     * so the page keeps showing the just-observed realtime curve and its manual identity until the
-     * next series.begin (an App shot or another passive release) replaces them.
+     * only this round's recovery guard is cleared. Keep the final elapsed time only if the
+     * detector observed the end, not when a connection or service stops mid-observation.
      */
-    private fun discardPassiveSeries(requireDeviceMatch: Boolean) {
+    private fun discardPassiveSeries(requireDeviceMatch: Boolean, observedEnd: Boolean) {
         passiveCommitted = false
-        manualPresentation.ended(terminalManualPoints())
-        finishBrewFeedback(false)
-        finishSeries(false)
+        if (observedEnd) manualPresentation.ended(terminalManualPoints())
+        finishSeries(observedEnd, countsAsCup = false)
         passiveHistoryId = null
         passiveStartedWallMs = 0L
         discardPassiveRecovery(requireDeviceMatch)
@@ -2293,12 +2291,13 @@ class MobileService : Service() {
     internal fun discardBrewFeedback() = feedbackDelivery.clear()
     private fun currentTimingEvidence() = series.timingEvidence(appElapsedOutcomeWasUnknown)
 
-    private fun finishSeries(observedEnd: Boolean) {
-        finishBrewFeedback(observedEnd)
+    private fun finishSeries(observedEnd: Boolean, countsAsCup: Boolean = true) {
+        val completedCup = observedEnd && countsAsCup
+        finishBrewFeedback(completedCup)
         extractionScaleReadout.finish(observedEnd)
         val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
         val app = application as MobileApplication
-        if (observedEnd && finished.second.isNotEmpty() &&
+        if (completedCup && finished.second.isNotEmpty() &&
             history?.entries?.any { it.id == finished.first } == true) {
             app.samples.save(finished.first, finished.second)
         }
@@ -2611,7 +2610,7 @@ class MobileService : Service() {
                 }
                 saveSeriesCheckpoint(force = true)
                 finishSeries(false)
-            } else discardPassiveSeries(requireDeviceMatch = false)
+            } else discardPassiveSeries(requireDeviceMatch = false, observedEnd = false)
             passiveHistoryId = null
             passiveStartedWallMs = 0L
             passiveArmedRecovery = false
