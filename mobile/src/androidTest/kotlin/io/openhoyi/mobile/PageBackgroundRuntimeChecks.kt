@@ -347,8 +347,38 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         check(AiKeyStore(context).status() == AiKeyStatus.MISSING)
         val chat = launched(AiChatActivity::class.java) { host.startActivity(Intent(host, AiChatActivity::class.java)) }
         try {
-            val root = chat.window.decorView.findViewWithTag<View>("ai/chat/root")
-            captureApplied(chat, root, "$mode-ai.png") { root.findViewWithTag("ai/chat/input-frame") }
+            val presentation = main {
+                val field = AiChatActivity::class.java.getDeclaredField("presentation").apply { isAccessible = true }
+                (field.get(chat) as AiChatPresentation).also {
+                    // Real Activity and production presentation, but no memory/session write or send action.
+                    val previewCard = AiCurveCardConstructionChecks.cards().first()
+                    it.render(listOf(
+                        AiChatLine(true, "这支豆子怎么萃取？"),
+                        AiChatLine(false, "先用较低压力预浸。\n\n再平稳升压，后段放缓。", curveCards = listOf(previewCard)),
+                    ), it.input.text.toString(), false, "")
+                }
+            }
+            val root = presentation.root
+            fun assistantBody(): TextView? = root.findViewWithTag<View>("ai/chat/assistant")?.let {
+                nodes(it).filterIsInstance<TextView>().firstOrNull()
+            }
+            fun card(): AiCurveCardView? = nodes(presentation.transcript).filterIsInstance<AiCurveCardView>().singleOrNull()
+            await("AI user text, multi-line assistant body and recommendation are visible") {
+                val assistant = assistantBody() ?: return@await false
+                val recommendation = card() ?: return@await false
+                val user = root.findViewWithTag<View>("ai/chat/user") ?: return@await false
+                val cardBounds = localRect(root, recommendation) ?: return@await false
+                if (assistant.lineCount < 2 || localRect(root, assistant) == null || localRect(root, user) == null) return@await false
+                check(assistant.text.contains("后段放缓"))
+                val hostWidth = (recommendation.parent as View).width
+                check(recommendation.width == minOf(hostWidth, HoyiUi.dp(chat, 400)) &&
+                    cardBounds.left > 0 && cardBounds.right < root.width) { "Backdrop must not stretch the AI recommendation" }
+                true
+            }
+            captureApplied(chat, root, "$mode-ai.png",
+                foregroundSurfaces = { listOf(checkNotNull(assistantBody()), checkNotNull(card())) },
+                decorativeGuttersOf = { checkNotNull(card()) },
+            ) { root.findViewWithTag("ai/chat/input-frame") }
         } finally { main { chat.finish() } }
         await("same settings host after chat") { chat.isDestroyed && host.hasWindowFocus() && !host.isDestroyed }
     }
@@ -406,6 +436,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         root: View,
         name: String,
         base: Int = TaskProductVisualStyle(page).page,
+        foregroundSurfaces: () -> List<View> = { emptyList() },
+        decorativeGuttersOf: (() -> View)? = null,
         protectedView: () -> View,
     ) {
         await("$name has current backdrop and laid-out protected rows") {
@@ -418,12 +450,16 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val (exposed, protectedPixels, solidColors) = main {
             val paper = root.background as PageBackdrop
             val style = TaskProductVisualStyle(page)
-            val cover = Rect()
-            check(protectedView().getGlobalVisibleRect(cover))
             // Visible rects use decor coordinates; translate the decor origin to display pixels.
             val decorOffset = IntArray(2)
             page.window.decorView.getLocationOnScreen(decorOffset)
-            cover.offset(decorOffset[0], decorOffset[1])
+            fun screenBounds(view: View) = Rect().apply {
+                check(view.getGlobalVisibleRect(this))
+                offset(decorOffset[0], decorOffset[1])
+            }
+            val cover = screenBounds(protectedView())
+            val surfaces = foregroundSurfaces().map(::screenBounds)
+            val gutterNeighbor = decorativeGuttersOf?.invoke()?.let(::screenBounds)
             val start = IntArray(2)
             root.getLocationOnScreen(start)
             val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
@@ -438,7 +474,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     val expected = bitmap.getPixel(x, y)
                     val displayX = start[0] + x
                     val displayY = start[1] + y
-                    if (visibleDifference(expected, base) && !cover.contains(displayX, displayY)) photo += Pixel(displayX, displayY, expected)
+                    val inDecorativeArea = gutterNeighbor == null ||
+                        displayY in gutterNeighbor.top until gutterNeighbor.bottom && !gutterNeighbor.contains(displayX, displayY)
+                    if (inDecorativeArea && visibleDifference(expected, base) && !cover.contains(displayX, displayY) &&
+                        surfaces.none { it.contains(displayX, displayY) }) photo += Pixel(displayX, displayY, expected)
                     if (expected == base && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
                 }
                 // A near-white/near-black side could accidentally look like the baseline.
@@ -449,14 +488,25 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     setBounds(0, 0, root.width, root.height)
                     draw(Canvas(bitmap))
                 }
-                val verifiedProtection = protected.filter { pixel ->
-                    visibleDifference(bitmap.getPixel(pixel.x - start[0], pixel.y - start[1]), base)
+                fun contrast(x: Int, y: Int) = visibleDifference(bitmap.getPixel(x, y), base)
+                val verifiedProtection = protected.filter { pixel -> contrast(pixel.x - start[0], pixel.y - start[1]) }
+                // Foreground bubbles/cards already own their opaque fill. Probe within each native
+                // view separately, including where no backing rectangle is needed underneath.
+                val nativeProtection = surfaces.map { surface ->
+                    buildList {
+                        for (y in step until root.height step step) for (x in step until root.width step step) {
+                            if (surface.contains(start[0] + x, start[1] + y) && contrast(x, y)) {
+                                add(Pixel(start[0] + x, start[1] + y, base))
+                            }
+                        }
+                    }
                 }
-                check(photo.size >= 5 && verifiedProtection.size >= 5) {
-                    "$name needs at least five decorative and five contrast-sensitive protection probes " +
-                        "(decorative=${photo.size}, protection=${verifiedProtection.size}, base=${Integer.toHexString(base)})"
+                val protection = listOf(verifiedProtection) + nativeProtection
+                check(photo.size >= 5 && protection.all { it.size >= 5 }) {
+                    "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
+                        "(decorative=${photo.size}, protection=${protection.map { it.size }}, base=${Integer.toHexString(base)})"
                 }
-                Triple(photo, verifiedProtection, setOf(base, style.surface, style.selected))
+                Triple(photo, protection, setOf(base, style.surface, style.selected))
             } finally { bitmap.recycle() }
         }
         // Compare real compositor pixels, not the backdrop object or only the offscreen drawing.
@@ -475,10 +525,12 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 fun sample(point: Pixel) = if (point.x in 0 until image.width && point.y in 0 until image.height)
                     image.getPixel(point.x, point.y) else null
                 val artVisible = exposed.count { probe -> sample(probe)?.let { matches(it, probe.color) } == true }
-                val contentSolid = protectedPixels.count { probe ->
-                    sample(probe)?.let { ink -> solidColors.any { matches(ink, it) } } == true
+                val contentSolid = protectedPixels.all { region ->
+                    region.count { probe ->
+                        sample(probe)?.let { ink -> solidColors.any { matches(ink, it) } } == true
+                    } >= 5
                 }
-                if (artVisible < 5 || contentSolid < 5) continue
+                if (artVisible < 5 || !contentSolid) continue
                 File(output, name).outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                 return
             } finally { image.recycle() }
