@@ -69,6 +69,24 @@ class ExtractionActiveOrderingTest {
     @Test fun runningKeepsNewestActiveReceiptBeforeAllowingNextShot() = olderActiveCannotAdvanceCompletion(ExtractionState.RUNNING)
     @Test fun pendingManualStopKeepsNewestActiveReceipt() = olderActiveCannotAdvanceCompletion(ExtractionState.STOP_REQUESTED)
     @Test fun uncertainDisconnectKeepsNewestActiveReceipt() = olderActiveCannotAdvanceCompletion(ExtractionState.OUTCOME_UNKNOWN)
+    @Test fun displayUncertaintySurvivesLateIdleBeforeObserversCanPollAndResetsOnAcceptedStart() {
+        val f = Fixture()
+        val c = f.controller
+        assertTrue(c.start(profile, 0, 0))
+        f.now = 2_000
+        c.machineFrame(active, f.now)
+        c.manualStop()
+        f.now = 7_000
+        // No state observer runs between the timeout and the fresh idle.
+        c.tick()
+        c.machineFrame(idle, f.now)
+        assertEquals(ExtractionState.ENDED_OBSERVED, c.state)
+        assertTrue(c.displayOutcomeWasUnknown)
+        assertFalse(c.start(profile, 0, 0) { false })
+        assertTrue(c.displayOutcomeWasUnknown)
+        assertTrue(c.start(profile, 0, 0))
+        assertFalse(c.displayOutcomeWasUnknown)
+    }
     @Test fun sameTimestampAndNewerActiveEvidenceKeepOriginalBoundary() {
         val f = Fixture()
         val c = f.controller

@@ -75,7 +75,14 @@ private const val STOP_CONFIRMATION_TIMEOUT_MS=5_000L
 class ExtractionController(private val coffee:CoffeeControl,private val scale:ScaleControl,private val clock:()->Long,
     private val observationSerial:()->Long?) {
     constructor(coffee:CoffeeControl,scale:ScaleControl,clock:()->Long):this(coffee,scale,clock,{null})
-    var state=ExtractionState.IDLE;private set
+    var state=ExtractionState.IDLE
+        private set(value) {
+            if (value == ExtractionState.OUTCOME_UNKNOWN) displayOutcomeWasUnknown = true
+            field = value
+        }
+    /** Per-shot display evidence: a later idle can settle the machine, not undo uncertainty. */
+    var displayOutcomeWasUnknown = false
+        private set
     var stopReason:StopReason?=null;private set
     private val policy=ExtractionPolicy()
     private var serial=0L
@@ -118,6 +125,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram>0&&(!scale.capabilities.supportsTargetWeight || !scale.capabilities.tare || !scale.ready||sample==null||!ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,now)))return false
         if(!coffee.prepareStart(parameters))return false
         val id=++serial
+        displayOutcomeWasUnknown = false
         clearDisplayBaseline()
         clearStopIdleEvidence()
         started=now;lastActiveFrame=null;startNotSubmitted=false;stopWrittenAt=null;target=targetHundredthsGram;postStartTareSent=false;stopReason=null

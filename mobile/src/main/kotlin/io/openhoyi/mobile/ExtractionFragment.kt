@@ -610,8 +610,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val displayCurveName = recipe?.name ?: displayCurve?.name ?: getString(if (observedCup) {
             if (owner?.chartCurveId == "manual") R.string.extraction_manual_label else R.string.profiles_missing
         } else R.string.extraction_unselected)
-        val elapsed = (LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
-            MobileMonotonicClock.elapsedRealtime()) as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.elapsedSeconds
+        val now = MobileMonotonicClock.elapsedRealtime()
+        val elapsed = owner?.extractionElapsedSeconds(now)
         val elapsedText = elapsed?.let { String.format(Locale.ROOT, "%02d:%02d", it / 60, it % 60) } ?: "—"
         curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
             if (observedCup) "" else slotLabel))
@@ -700,9 +700,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             getString(R.string.extraction_notification_warning))
         alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             MobileMonotonicClock.elapsedRealtime()))
-        val now = MobileMonotonicClock.elapsedRealtime()
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
-        elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
+        elapsedValue.show(elapsed?.let { "$it s" } ?: "—")
         pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {
             is ExtractionTelemetry -> String.format(Locale.ROOT, "%.1f", frame.pressureTenthsBar / 10.0)
             is IdleTelemetry -> String.format(Locale.ROOT, "%.1f", frame.brewPressureTenthsBar / 10.0)
