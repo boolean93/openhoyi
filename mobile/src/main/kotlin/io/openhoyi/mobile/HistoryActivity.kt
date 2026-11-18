@@ -98,7 +98,6 @@ class HistoryActivity : ThemedActivity() {
             else startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
-        if (showJournal) action(getString(R.string.journal_compare)) { startActivity(Intent(this, BrewComparisonActivity::class.java)) }
         val ioMenu = ImageButton(this).apply {
             tag = "product/history/io-menu"; contentDescription = getString(R.string.task_tools)
             setImageDrawable(HomeVisualIcon.drawable(this@HistoryActivity, "more", style.accent))
@@ -211,6 +210,7 @@ class HistoryActivity : ThemedActivity() {
             body.removeView(control)
             collection.browserBody.addView(control, LinearLayout.LayoutParams(-1, -2))
         }
+        style.addHistoryComparisonEntry(this, collection.browserBody)
         val back = style.button(HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() })
         collection.onPresentationChanged = { split, visible ->
             compact = !split
