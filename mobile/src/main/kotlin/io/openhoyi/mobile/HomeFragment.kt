@@ -183,12 +183,15 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         acknowledgeManual = button(content, getString(R.string.home_recovery_button)) {
             val recoveryKind = if (service?.manualSafetyMessage == null)
                 service?.machineWriteRecoveryKind else null
+            if (recoveryKind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
+                host.showBrewWaitRecovery()
+                return@button
+            }
             val title = when (recoveryKind) {
                 MachineWriteRecoveryState.Kind.CUP_RESET -> getString(R.string.home_recovery_cups_title)
                 MachineWriteRecoveryState.Kind.SETTING -> getString(R.string.home_recovery_setting_title)
                 MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> getString(R.string.home_recovery_schedule_title)
                 MachineWriteRecoveryState.Kind.SLEEP_NOW -> getString(R.string.home_recovery_sleep_title)
-                MachineWriteRecoveryState.Kind.BREW_WAIT -> getString(R.string.home_recovery_preheat_title)
                 else -> getString(R.string.home_recovery_shot_title)
             }
             val message = when (recoveryKind) {
@@ -200,8 +203,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     getString(R.string.home_recovery_schedule_message)
                 MachineWriteRecoveryState.Kind.SLEEP_NOW ->
                     getString(R.string.home_recovery_sleep_message)
-                MachineWriteRecoveryState.Kind.BREW_WAIT ->
-                    getString(R.string.home_recovery_preheat_message)
                 else -> getString(R.string.home_recovery_shot_message)
             }
             AlertDialog.Builder(host).setTitle(title).setMessage(message)
@@ -884,6 +885,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
             (owner?.machineWriteAcknowledgementAvailable != true || localWriteProgress)) View.GONE else View.VISIBLE
+        acknowledgeManual.text = getString(if (owner?.brewWaitRecoveryPending == true && owner.manualSafetyMessage == null)
+            R.string.home_recovery_preheat_title else R.string.home_recovery_button)
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
             owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)

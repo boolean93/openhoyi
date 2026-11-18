@@ -80,9 +80,14 @@ class MainActivity : ThemedActivity() {
     }
     internal fun revokeShortcutStart() { shortcutStart?.revoke(); shortcutStart = null }
     private val subscribers = mutableSetOf<(MobileService?) -> Unit>()
+    private val brewWaitRecoveryDialog = BrewWaitRecoveryDialog(this) { currentService }
+    internal fun showBrewWaitRecovery(): Boolean = brewWaitRecoveryDialog.show()
     private val transientDialogs = mutableListOf<AlertDialog>()
     internal fun trackDialog(dialog: AlertDialog) { transientDialogs += dialog }
-    private fun dismissTransientDialogs() { transientDialogs.forEach { it.dismiss() }; transientDialogs.clear() }
+    private fun dismissTransientDialogs() {
+        brewWaitRecoveryDialog.dismiss()
+        transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
+    }
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             if (!bound) return // Ignore a delivery after the visible binding lease was released.

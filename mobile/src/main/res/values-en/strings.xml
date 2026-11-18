@@ -399,7 +399,8 @@
     <string name="home_recovery_clear">"Clear reminder"</string>
     <string name="home_recovery_cups_message">"First check the total cup count on the coffee machine screen. Reconnect the original machine and wait for the settings and standby cup counts to agree before clearing the reminder; clearing does not resend the reset command."</string>
     <string name="home_recovery_cups_title">"Check total cup count"</string>
-    <string name="home_recovery_preheat_message">"Check whether the original coffee machine is still preheating. If needed, tap “Cancel preheat” on the extraction page first; a successful cancel write does not mean the machine has canceled. Wait for a new awake standby report and confirm the machine is safe before clearing; clearing sends no commands."</string>
+    <string name="home_recovery_preheat_can_confirm">"The original machine has sent a new standby report. Once you verify it is no longer preheating and is safe, you can clear the reminder."</string>
+    <string name="home_recovery_preheat_message">"No separate readback confirms the last preheat or cancellation. Check whether the original machine is still preheating. If needed, tap “Cancel preheat” on the extraction page. Acknowledging only clears the reminder; it sends no command."</string>
     <string name="home_recovery_preheat_title">"Check machine preheat state"</string>
     <string name="home_recovery_schedule_message">"The schedule may have been only partially written. Check the full weekly schedule on the machine; reconnect the original machine and wait for two new, complete schedule report parts before clearing the reminder. Clearing does not send missing schedule packets."</string>
     <string name="home_recovery_schedule_title">"Check full weekly sleep schedule"</string>
@@ -1012,6 +1013,7 @@
     <string name="task_shell_machine_awake">"Standby"</string>
     <string name="task_shell_machine_extraction">"Brewing"</string>
     <string name="task_shell_machine_preheat_ready">"Preheat ready"</string>
+    <string name="task_shell_machine_preheat_unconfirmed">"Check preheat"</string>
     <string name="task_shell_machine_preheating">"Preheating"</string>
     <string name="task_shell_machine_setting">"Updating"</string>
     <string name="task_shell_machine_sleeping">"Waiting for the coffee machine to confirm sleep"</string>

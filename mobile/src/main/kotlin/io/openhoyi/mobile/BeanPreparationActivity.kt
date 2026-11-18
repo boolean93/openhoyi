@@ -382,7 +382,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         workspace.actionRowButtons = select to back
         renderScale()
     }
-    private fun captureAllowed(): Boolean = !BuildConfig.MOCK_MODE && changesAllowed() && owner?.machineControlSafetyMessage == null
+    private fun captureAllowed(): Boolean = !BuildConfig.MOCK_MODE && owner?.beanDoseRecoveryBlocked == false
     override fun renderScale() {
         capture?.isEnabled = newSelection && captureAllowed()
         scaleGuard?.text = when {

@@ -31,6 +31,7 @@ import java.util.Locale
 
 /** First native product screen: BLE connection, live values, and a selected captured curve. */
 class HomeActivity : ThemedActivity() {
+    private val brewWaitRecoveryDialog = BrewWaitRecoveryDialog(this) { service }
     internal lateinit var feedbackUi: BrewFeedbackDialog
         private set
     private val machineAlarms by lazy { MachineAlarms(this) }
@@ -216,12 +217,15 @@ class HomeActivity : ThemedActivity() {
         acknowledgeManual = button(content, getString(R.string.home_recovery_button)) {
             val recoveryKind = if (service?.manualSafetyMessage == null)
                 service?.machineWriteRecoveryKind else null
+            if (recoveryKind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
+                brewWaitRecoveryDialog.show()
+                return@button
+            }
             val title = when (recoveryKind) {
                 MachineWriteRecoveryState.Kind.CUP_RESET -> getString(R.string.home_recovery_cups_title)
                 MachineWriteRecoveryState.Kind.SETTING -> getString(R.string.home_recovery_setting_title)
                 MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> getString(R.string.home_recovery_schedule_title)
                 MachineWriteRecoveryState.Kind.SLEEP_NOW -> getString(R.string.home_recovery_sleep_title)
-                MachineWriteRecoveryState.Kind.BREW_WAIT -> getString(R.string.home_recovery_preheat_title)
                 else -> getString(R.string.home_recovery_shot_title)
             }
             val message = when (recoveryKind) {
@@ -233,8 +237,6 @@ class HomeActivity : ThemedActivity() {
                     getString(R.string.home_recovery_schedule_message)
                 MachineWriteRecoveryState.Kind.SLEEP_NOW ->
                     getString(R.string.home_recovery_sleep_message)
-                MachineWriteRecoveryState.Kind.BREW_WAIT ->
-                    getString(R.string.home_recovery_preheat_message)
                 else -> getString(R.string.home_recovery_shot_message)
             }
             AlertDialog.Builder(this).setTitle(title).setMessage(message)
@@ -538,6 +540,7 @@ class HomeActivity : ThemedActivity() {
     }
     override fun onStop() {
         if (redirectedRoot) { super.onStop(); return }
+        brewWaitRecoveryDialog.dismiss()
         feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         deviceDialog?.dismiss()
@@ -670,6 +673,8 @@ class HomeActivity : ThemedActivity() {
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
             (owner?.machineWriteAcknowledgementAvailable != true || owner?.machineModeWritePending==true)) View.GONE else View.VISIBLE
+        acknowledgeManual.text = getString(if (owner?.brewWaitRecoveryPending == true && owner.manualSafetyMessage == null)
+            R.string.home_recovery_preheat_title else R.string.home_recovery_button)
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
             owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)

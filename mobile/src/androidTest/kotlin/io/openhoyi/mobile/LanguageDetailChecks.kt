@@ -245,6 +245,60 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             }
         }, { onMain { resource.set(service, original); invoke(home, "render") } })
     }
+    fun preheatRecoveryBack(activity: MainActivity) {
+        check(BuildConfig.MOCK_MODE && activity.packageName == "io.openhoyi.mobile.mock")
+        val service = requireNotNull(activity.currentService)
+        val delegate = field(service, "machineWriteRecovery\$delegate")
+        val recovery = io.openhoyi.session.MachineWriteRecoveryState(object : io.openhoyi.session.MachineWriteRecoveryState.Storage {
+            override fun read() = io.openhoyi.session.MachineWriteRecoveryState.Record(
+                io.openhoyi.session.MachineWriteRecoveryState.Kind.BREW_WAIT, "AA:BB:CC:DD:EE:01")
+            override fun write(record: io.openhoyi.session.MachineWriteRecoveryState.Record): Boolean =
+                error("Displaying or dismissing recovery must not write")
+        })
+        val controller = field(activity, "brewWaitRecoveryDialog").get(activity) as BrewWaitRecoveryDialog
+        val window = field(controller, "shown")
+        val original = onMainValue { delegate.get(service) }
+        try {
+            onMain {
+                delegate.set(service, lazyOf(recovery))
+                val shell = field(activity, "shellStatus").get(activity) as TaskShellStatusView
+                shell.present(service)
+                val facts = requireNotNull(shell.findViewWithTag<View>("task-shell-coffee-facts"))
+                check(facts.contentDescription.toString().contains(activity.getString(R.string.task_shell_machine_preheat_unconfirmed)))
+                val home = page(activity)
+                check(facts.performClick())
+                val dialog = window.get(controller) as android.app.AlertDialog
+                check(dialog.isShowing && !dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).isEnabled)
+                check(activity.showBrewWaitRecovery() && window.get(controller) === dialog)
+                check(page(activity) === home)
+            }
+            test.waitForIdleSync()
+            test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            test.waitForIdleSync()
+            onMain {
+                check(window.get(controller) == null && recovery.pending && page(activity) is HomeFragment)
+                invoke(activity, "render")
+                val homeAction = value(activity, "acknowledgeManual") as Button
+                check(homeAction.isShown && homeAction.text == activity.getString(R.string.home_recovery_preheat_title))
+                check(homeAction.performClick())
+                val dialog = window.get(controller) as android.app.AlertDialog
+                dialog.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).performClick()
+                check(recovery.pending && page(activity) is HomeFragment)
+            }
+        } finally {
+            onMain {
+                controller.dismiss()
+                delegate.set(service, original)
+                (field(activity, "shellStatus").get(activity) as TaskShellStatusView).present(service)
+                invoke(activity, "render")
+            }
+        }
+    }
+    private fun <T> onMainValue(action: () -> T): T {
+        var value: Result<T>? = null
+        onMain { value = runCatching(action) }
+        return requireNotNull(value).getOrThrow()
+    }
     fun cancelLowTemperaturePreparation(activity: MainActivity, fixture: String) {
         check(BuildConfig.MOCK_MODE && activity.packageName == "io.openhoyi.mobile.mock")
         val service = value(activity, "service") as MobileService

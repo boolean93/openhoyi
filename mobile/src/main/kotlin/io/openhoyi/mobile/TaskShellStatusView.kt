@@ -68,7 +68,13 @@ internal class TaskShellStatusView(
         addView(name, LayoutParams(-1, -2)); addView(status, LayoutParams(-1, -2))
         setOnClickListener { host.openSettingsSection("devices") }
     }
-    private val coffeeFacts = facts("task-shell-coffee-facts", coffeeName, coffeeStatus)
+    private var showPreheatRecovery = false
+    private val coffeeFacts = facts("task-shell-coffee-facts", coffeeName, coffeeStatus).apply {
+        setOnClickListener {
+            if (!showPreheatRecovery || !host.showBrewWaitRecovery())
+                host.openSettingsSection("devices")
+        }
+    }
     private val scaleFacts = facts("task-shell-scale-facts", scaleName, scaleStatus)
     private fun action(id: String, click: () -> Unit) = Button(host).apply {
         tag = id; style.button(this); setOnClickListener { click() }
@@ -307,7 +313,9 @@ internal class TaskShellStatusView(
             owner?.brewPreparationTargetC?.let {target->owner.currentCorrectedBrewTemperature()?.let {
                 BrewPreparation.isAtTarget(it,target)
             }}==true,
-            alarmBlocked=idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true)
+            alarmBlocked=idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true,
+            preheatRecoveryPending=owner?.brewWaitRecoveryActionAvailable == true)
+        showPreheatRecovery = statusId == R.string.task_shell_machine_preheat_unconfirmed
         val status = host.getString(statusId)
         val compactStatus=host.getString(SleepPresentation.compactStatus(statusId))
         val coffeeLine = "● $compactStatus"
@@ -367,7 +375,8 @@ internal class TaskShellStatusView(
             scaleStatus.text = colored
         }
         coffeeFacts.contentDescription = "${coffeeName.text} · $status" +
-            (fullHint?.let {" · "+host.getString(it)} ?: "") + " · ${host.getString(R.string.home_device_connection)}"
+            (fullHint?.let {" · "+host.getString(it)} ?: "") + " · " +
+            host.getString(if (showPreheatRecovery) R.string.home_recovery_preheat_title else R.string.home_device_connection)
         scaleFacts.contentDescription = "${scaleName.text} · $scaleLabel · ${host.getString(R.string.home_device_connection)}"
         val connected = state == DeviceState.READY
         reconnect.visibility = if (connected) View.GONE else View.VISIBLE

@@ -58,4 +58,14 @@ class TaskShellDeviceStatusTest {
             false,null,SettingsWriteTracker.State.CONFIRMED,false,true,DeviceState.READY,0))
     }
 
+    @Test fun unresolvedPreheatIsSpecificButLiveDeviceStateHasPriority() {
+        fun status(connection: DeviceState = DeviceState.READY, active: Boolean = false, alarm: Boolean = false) =
+            TaskShellDeviceStatus.coffee(active, null, null, true, true, connection, 0,
+                alarmBlocked = alarm, preheatRecoveryPending = true)
+        assertEquals(R.string.task_shell_machine_preheat_unconfirmed, status())
+        assertEquals(R.string.task_shell_machine_extraction, status(active = true))
+        assertEquals(R.string.task_shell_machine_unavailable, status(alarm = true))
+        assertEquals(R.string.device_state_disconnected, status(connection = DeviceState.DISCONNECTED))
+    }
+
 }

@@ -116,6 +116,19 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                         field(instance, "snapshot").set(instance, MobileSnapshot(coffeeState = DeviceState.READY,
                             coffee = idle, coffeeAt = now, settings = settings, settingsAt = now,
                             sleepFirst = first, sleepSecond = second, sleepFirstAt = now, sleepSecondAt = now))
+                        fun automaticScaleAllowed() = instance.automaticConnectionAllowed(io.openhoyi.session.DeviceRole.BOOKOO,
+                            enabled = true, paused = false, visible = true)
+                        val isBrewWait = kind == MachineWriteRecoveryState.Kind.BREW_WAIT
+                        check(automaticScaleAllowed() == isBrewWait)
+                        check(instance.beanDoseRecoveryBlocked != isBrewWait)
+                        val extraction = owner.extraction
+                        val extractionState = field(extraction, "state")
+                        val oldExtractionState = extractionState.get(extraction)
+                        extractionState.set(extraction, io.openhoyi.session.ExtractionState.RUNNING)
+                        try {
+                            check(!automaticScaleAllowed() && instance.beanDoseRecoveryBlocked)
+                            if (isBrewWait) check(!instance.canConfirmBrewWaitRecovery)
+                        } finally { extractionState.set(extraction, oldExtractionState) }
                         val warning = requireNotNull(instance.machineControlSafetyMessage)
                         val waitingResource = when (kind) {
                             MachineWriteRecoveryState.Kind.CUP_RESET -> R.string.recovery_event_cups_recovery_waiting
@@ -136,6 +149,10 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                         fun checkAcknowledgementBlocked() {
                             refreshPresentTimestamps()
                             check(instance.machineWriteAcknowledgementAvailable)
+                            if (kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
+                                check(!instance.canConfirmBrewWaitRecovery)
+                                check(requireNotNull(instance.brewWaitRecoveryConfirmation())() != null)
+                            }
                             instance.acknowledgeManualSafety()
                             check(attempts == 0 && recovery.pending && prefs.all == before && shotPrefs.all == shotBefore)
                             check(instance.machineControlSafetyMessage == warning)
@@ -206,6 +223,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                                 instance.changeSleepSchedule(plan, plan), instance.enterSleepNow(),
                                 instance.prepareBrew("fixture", false, 7))
                             if (tracker is BrewPreparation) {
+                                check(!automaticScaleAllowed())
                                 if (tracker.state == BrewPreparation.State.CANCELLING) {
                                     check(busyWarning == instance.getString(R.string.machine_recovery_brew_wait))
                                     check(entries.all { it == busyWarning })
@@ -268,11 +286,30 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                         check(instance.snapshot.messageForDisplay { resource, args -> instance.getString(resource, *args) } == instance.getString(errorResource))
                         check(instance.changeMachineSetting(MachineSettingChange.BrewTemperature(93)) == warning)
                         writable = true
-                        instance.acknowledgeManualSafety()
-                        check(attempts == 2 && !recovery.pending && instance.machineControlSafetyMessage == null)
+                        if (kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
+                            // New standby is necessary; a settings frame is not. Use the real frame handler.
+                            field(instance, "recoveryAfterBrewWaitIdleSerial").setLong(instance, 2)
+                            field(instance, "snapshot").set(instance, instance.snapshot.copy(settings = null, settingsAt = null))
+                            val frameHandler = MobileService::class.java.getDeclaredMethod("onCoffeeFrame", io.openhoyi.protocol.HoyiMessage::class.java)
+                                .apply { isAccessible = true }
+                            val confirm = requireNotNull(instance.brewWaitRecoveryConfirmation())
+                            check(!instance.canConfirmBrewWaitRecovery && confirm() != null && attempts == 1)
+                            frameHandler.invoke(instance, idle.copy(alarmBits = 1))
+                            check(!instance.canConfirmBrewWaitRecovery && confirm() != null && attempts == 1)
+                            frameHandler.invoke(instance, idle)
+                            check(instance.snapshot.settings == null && instance.canConfirmBrewWaitRecovery)
+                            check(recovery.pending && attempts == 1) // Seeing a report never confirms cancellation.
+                            check(confirm() == null)
+                            check(confirm() != null) // This dialog cannot confirm twice.
+                            check(attempts == 2 && recovery.arm(kind, address))
+                            check(instance.canConfirmBrewWaitRecovery && confirm() != null && recovery.pending && attempts == 3)
+                            check(requireNotNull(instance.brewWaitRecoveryConfirmation())() == null && attempts == 4)
+                        } else instance.acknowledgeManualSafety()
+                        val expectedAttempts = if (isBrewWait) 4 else 2
+                        check(attempts == expectedAttempts && !recovery.pending && instance.machineControlSafetyMessage == null)
                         check(!prefs.contains("pending_kind") && !prefs.contains("pending_address"))
                         instance.acknowledgeManualSafety()
-                        check(attempts == 2 && shotPrefs.all == shotBefore)
+                        check(attempts == expectedAttempts && shotPrefs.all == shotBefore)
                         check(drivers.all { it.executions == 0 })
                         check(devices.all { !(field(it.session, "queue").get(it.session) as GattQueue).active })
                     } catch (error: Throwable) { failure = error }

@@ -167,7 +167,11 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     }
                     checkPage(activity, fixture)
                     when (page) {
-                        "Home" -> detailChecks.warnings(home, fixture) { checkPage(home, it) }
+                        "Home" -> {
+                            detailChecks.warnings(home, fixture) { checkPage(home, it) }
+                            if (profile == "landscape" && language == AppLanguage.entries.first() && !dark)
+                                detailChecks.preheatRecoveryBack(home)
+                        }
                         "Curve" -> detailChecks.curves(home, fixture) { checkPage(home, it) }
                         "Extraction" -> {
                             onMain { TrendChartTextChecks.run(home, fixture) }

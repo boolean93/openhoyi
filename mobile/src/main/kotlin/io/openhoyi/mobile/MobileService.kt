@@ -154,6 +154,30 @@ class MobileService : Service() {
             brewWait && !pendingShot && ShotGate.active(shotState))
     }
     val machineWriteRecoveryKind: MachineWriteRecoveryState.Kind? get() = machineWriteRecovery.kind
+    internal val brewWaitRecoveryPending: Boolean get() =
+        machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT && machineWriteSafetyResource != null
+    internal val brewWaitRecoveryActionAvailable: Boolean get() =
+        brewWaitRecoveryPending && manualSafetyResource == null && leverWriteBlock == null &&
+            !manualShotActive && machineWriteAcknowledgementAvailable
+    /** UI guidance is not a permit; acknowledgement reacquires evidence on the main thread. */
+    internal val canConfirmBrewWaitRecovery: Boolean get() =
+        brewWaitRecoveryActionAvailable && snapshot.coffeeState == DeviceState.READY &&
+            brewWaitAcknowledgementRequest().let { machineWriteRecovery.canClearBrewWait(it.evidence, it.afterIdleSerial) }
+    internal fun brewWaitRecoveryConfirmation(): (() -> String?)? {
+        if (!brewWaitRecoveryActionAvailable) return null
+        val owner = machineWriteRecovery.captureOwnership() ?: return null
+        return {
+            if (!machineWriteRecovery.owns(owner) || !canConfirmBrewWaitRecovery)
+                getString(R.string.recovery_event_brew_wait_recovery_waiting)
+            else if (acknowledgeBrewWaitRecovery() == MachineWriteAcknowledgement.Result.ACKNOWLEDGED) null
+            else getString(R.string.recovery_event_brew_wait_recovery_clear_failed)
+        }
+    }
+    internal val beanDoseRecoveryBlocked: Boolean get() =
+        manualShotActive || !io.openhoyi.session.DeviceConnectionGate.mayChangeScale(shotState) ||
+            leverWriteBlock != null || shotRecovery.pending ||
+            (machineWriteSafetyResource != null &&
+                (!brewWaitRecoveryPending || MachineRecoveryActivity.isBusy(brewPreparation.state)))
     private var recoveryAfterSettingsSerial = 0L
     private var recoveryAfterIdleSerial = 0L
     private var recoveryAfterFirstSleepSerial = 0L
@@ -414,10 +438,15 @@ class MobileService : Service() {
         hub?.scanner?.cancel(io.openhoyi.bluetooth.ScanCoordinator.Owner.MANUAL)
         snapshot=snapshot.copy(scanning=false)
     }
-    private fun automaticAllowed(role:DeviceRole):Boolean = io.openhoyi.session.AutomaticConnectionGate.allows(
-        role,autoConnect.enabled(role),autoConnect.paused(role),appVisibility.visible,
+    private fun automaticAllowed(role:DeviceRole):Boolean =
+        automaticConnectionAllowed(role, autoConnect.enabled(role), autoConnect.paused(role), appVisibility.visible)
+    internal fun automaticConnectionAllowed(role: DeviceRole, enabled: Boolean, paused: Boolean, visible: Boolean): Boolean =
+        io.openhoyi.session.AutomaticConnectionGate.allows(
+        role,enabled,paused,visible,
         selectingDevice || snapshot.scanning,manualShotActive,shotState,shotRecovery.pending,
-        machineWriteRecovery.kind!=null,cupResetBusy || scheduleBusy || brewPreparation.active)
+        machineWriteRecovery.pending && !(role == DeviceRole.BOOKOO && brewWaitRecoveryPending),
+        cupResetBusy || scheduleBusy || (if (role == DeviceRole.BOOKOO && brewWaitRecoveryPending)
+            MachineRecoveryActivity.isBusy(brewPreparation.state) else brewPreparation.active))
     private fun refreshAutomaticIntent(){
         hub?.refreshAutomaticIntent(autoConnect.paused(DeviceRole.BOOKOO),autoConnect.paused(DeviceRole.COFFEE))
         initialKnownCoffeeChecked=false
@@ -722,7 +751,8 @@ class MobileService : Service() {
                     }
                 }) refreshSafetyNotification()
                 val currentSettings = snapshot.settings
-                if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
+                idleSampleSerial++
+                if (currentSettings != null && brewPreparation.observe(idleSampleSerial,
                         BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
                             currentSettings.brewCompensationTenthsC)))
                     event(ResourceMessage(R.string.service_event_preheat_ready), "brew_wait.ready")
@@ -2413,29 +2443,34 @@ class MobileService : Service() {
             Log.w(TAG, "notification cleanup failed: ${error.javaClass.simpleName}")
         }
     }
+    private fun brewWaitAcknowledgementRequest(): MachineWriteAcknowledgement.Request.BrewWait {
+        val idle = snapshot.coffee as? IdleTelemetry
+        val evidence = MachineWriteRecoveryState.BrewWaitEvidence(hub?.coffeeAddress,
+            idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
+            idleSampleSerial, snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime(),
+            MachineRecoveryActivity.isBusy(brewPreparation.state))
+        return MachineWriteAcknowledgement.Request.BrewWait(evidence, recoveryAfterBrewWaitIdleSerial)
+    }
+
+    private fun acknowledgeBrewWaitRecovery(): MachineWriteAcknowledgement.Result =
+        acknowledgeMachineWrite(brewWaitAcknowledgementRequest(),
+            R.string.recovery_event_brew_wait_recovery_waiting,
+            R.string.recovery_event_brew_wait_recovery_clear_failed,
+            R.string.recovery_event_brew_wait_recovery_acknowledged, "brew_wait",
+            onAcknowledged = {
+                brewPreparation.consumed()
+                autoPreheatResource = null
+                autoPreheatInitialTemperature = null
+                autoPreheatIntent = null
+            })
+
     fun acknowledgeManualSafety() {
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
-            if (shotRecovery.pending || ShotGate.active(shotState)) {
+            if (manualShotActive || shotRecovery.pending || ShotGate.active(shotState)) {
                 event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_shot_active), "brew_wait.recovery_shot_active")
                 return
             }
-            val now = MobileMonotonicClock.elapsedRealtime()
-            val idle = snapshot.coffee as? IdleTelemetry
-            val state = brewPreparation.state
-            val evidence = MachineWriteRecoveryState.BrewWaitEvidence(hub?.coffeeAddress,
-                idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
-                idleSampleSerial, snapshot.coffeeAt, now,
-                MachineRecoveryActivity.isBusy(state))
-            acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.BrewWait(evidence, recoveryAfterBrewWaitIdleSerial),
-                R.string.recovery_event_brew_wait_recovery_waiting,
-                R.string.recovery_event_brew_wait_recovery_clear_failed,
-                R.string.recovery_event_brew_wait_recovery_acknowledged, "brew_wait",
-                onAcknowledged = {
-                    brewPreparation.consumed()
-                    autoPreheatResource = null
-                    autoPreheatInitialTemperature = null
-                    autoPreheatIntent = null
-                })
+            acknowledgeBrewWaitRecovery()
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
@@ -2513,7 +2548,7 @@ class MobileService : Service() {
         acknowledgedResource: Int,
         eventPrefix: String,
         onAcknowledged: () -> Unit = {}
-    ) {
+    ): MachineWriteAcknowledgement.Result {
         val result = MachineWriteAcknowledgement.acknowledge(machineWriteRecovery,
             snapshot.coffeeState == DeviceState.READY, request)
         if (result == MachineWriteAcknowledgement.Result.ACKNOWLEDGED) onAcknowledged()
@@ -2524,6 +2559,7 @@ class MobileService : Service() {
         }
         event(ResourceMessage(resource), "${eventPrefix}.recovery_$suffix")
         if (result == MachineWriteAcknowledgement.Result.ACKNOWLEDGED) refreshSafetyNotification()
+        return result
     }
     private fun closeDeviceOwner() {
         check(Looper.myLooper() == Looper.getMainLooper()) { "Device owner close must use main looper" }
