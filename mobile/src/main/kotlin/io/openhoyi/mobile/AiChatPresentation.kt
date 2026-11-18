@@ -456,20 +456,40 @@ internal class AiChatPresentation(
             val text = body()
             if (text.isBlank()) return@setOnLongClickListener false
             ((view as? TextView)?.movementMethod as? MessageLinkMovement)?.copiedByLongPress = true
-            try {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
-                    context.getString(R.string.ai_title), text))
-                // Android 13+ supplies its own copy confirmation.
-                if (Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(
-                    context, R.string.ai_message_copied, android.widget.Toast.LENGTH_SHORT).show()
-            } catch (_: RuntimeException) {
-                android.widget.Toast.makeText(context, R.string.ai_message_copy_failed,
-                    android.widget.Toast.LENGTH_SHORT).show()
-            }
+            copyMessage(text)
             true
         }
     }
+    private fun copyMessage(text: String) {
+        if (text.isBlank()) return
+        try {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                context.getString(R.string.ai_title), text))
+            // Android 13+ supplies its own copy confirmation.
+            if (Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(
+                context, R.string.ai_message_copied, android.widget.Toast.LENGTH_SHORT).show()
+        } catch (_: RuntimeException) {
+            android.widget.Toast.makeText(context, R.string.ai_message_copy_failed,
+                android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    private fun messageCopyButton(user: Boolean = false, body: () -> String) =
+        style.button(Button(context), outline = false).apply {
+            tag = "ai/chat/message-copy"
+            setText(R.string.ai_message_copy)
+            minHeight = style.dp(48); minimumHeight = style.dp(48)
+            if (user) {
+                setTextColor(Color.WHITE)
+                val focus = StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), style.shape(0x33FFFFFF, radius = 12))
+                    addState(intArrayOf(), style.shape(Color.TRANSPARENT, radius = 12))
+                }
+                background = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF),
+                    focus, style.shape(Color.WHITE, radius = 12))
+            }
+            setOnClickListener { copyMessage(body()) }
+        }
     private fun bubble(text: String, user: Boolean, images: List<AiAttachment> = emptyList()) {
         val row = object : LinearLayout(context) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -529,6 +549,10 @@ internal class AiChatPresentation(
                 addView(strip, FrameLayout.LayoutParams(-2, -2))
             }, LinearLayout.LayoutParams(-2, style.dp(180)).apply { if (text.isNotBlank()) topMargin = style.dp(8) })
         }
+        if (message.text.isNotBlank()) {
+            content.addView(messageCopyButton(user) { message.text.toString() },
+                LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.END })
+        }
         row.addView(content, LinearLayout.LayoutParams(-2, -2))
         style.add(transcript, row, 10)
     }
@@ -562,6 +586,7 @@ internal class AiChatPresentation(
             bindMessageCopy(this) { streamSnapshot.content }
         }
     }
+    private val partialCopy by lazy { messageCopyButton { streamSnapshot.content } }
     private val toolProgress by lazy { style.text(context.getString(R.string.ai_stream_tool), TaskProductVisualStyle.auxiliary, secondary = true) }
     fun resetStreamPreview() { streamExpanded = false; updateStreamPreview(AiStreamPreview.Snapshot()) }
     fun updateStreamPreview(snapshot: AiStreamPreview.Snapshot) {
@@ -571,6 +596,7 @@ internal class AiChatPresentation(
             style.add(streamHost, thinkingBody)
             style.add(streamHost, toolProgress)
             style.add(streamHost, partialAnswer)
+            streamHost.addView(partialCopy, LinearLayout.LayoutParams(-2, -2))
         }
         val hasThinking = snapshot.reasoning.isNotBlank()
         thinkingToggle.visibility = if (hasThinking) View.VISIBLE else View.GONE
@@ -584,6 +610,7 @@ internal class AiChatPresentation(
             (if (snapshot.contentTruncated) "\n\n" + context.getString(R.string.ai_stream_preview_truncated) else "") +
             (if (interrupted) "\n\n" + context.getString(R.string.ai_stream_incomplete) else "") else ""
         partialAnswer.visibility = if (showContent) View.VISIBLE else View.GONE
+        partialCopy.visibility = partialAnswer.visibility
         streamHost.visibility = if (hasThinking || showContent || (busy && snapshot.toolStarted)) View.VISIBLE else View.GONE
         val phase = when {
             snapshot.phase == AiStreamPreview.Phase.TOOL -> R.string.ai_stream_tool

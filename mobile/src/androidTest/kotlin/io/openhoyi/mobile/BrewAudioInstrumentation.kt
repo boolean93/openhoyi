@@ -130,7 +130,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         super.onCreate(arguments); start()
     }
     override fun onStart() {
-        if (aiPreviewArguments?.keySet()?.any { it !in setOf("aiPreviewOnly", "aiCardConstructionOnly", "previewLanguage", "previewFont", "previewDark", "previewId") } == true) {
+        if (aiPreviewArguments?.keySet()?.any { it !in setOf("aiPreviewOnly", "aiCardConstructionOnly", "aiMessageCopyOnly", "previewLanguage", "previewFont", "previewDark", "previewId") } == true) {
             finish(Activity.RESULT_CANCELED, Bundle().apply { putString("stream", "AI_PREVIEW_ARGUMENTS_CONFLICT\n") })
             return
         }

@@ -8,8 +8,9 @@ import check_ai_card_construction as check
 class CardConstructionEntryTest(unittest.TestCase):
     def test_non_ci_cannot_reach_adb(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(check.subprocess, 'run') as run:
-            with self.assertRaisesRegex(ValueError, 'GitHub runner'):
-                check.main()
+            for message_copy in (False, True):
+                with self.assertRaisesRegex(ValueError, 'GitHub runner'):
+                    check.main(message_copy)
             run.assert_not_called()
 
     def test_non_dedicated_avd_cannot_reach_adb(self):
@@ -38,7 +39,9 @@ class CardConstructionEntryTest(unittest.TestCase):
         self.assertIn("github.event_name == 'workflow_dispatch' && inputs.ai_card_checks == true", source)
         self.assertIn('else bash scripts/check_mock_or_update_acceptance.sh; fi', source)
         self.assertIn('test "$UPDATE_CHECKS" = false', source)
-        self.assertIn("env.AI_CARD_CHECKS == 'true' && env.CI_CARD_AVD || 'test'", source)
+        self.assertIn("github.event_name == 'workflow_dispatch' && inputs.ai_copy_checks == true", source)
+        self.assertIn('test "$AI_CARD_CHECKS" != "$AI_COPY_CHECKS"', source)
+        self.assertIn("|| env.AI_COPY_CHECKS == 'true') && env.CI_CARD_AVD || 'test'", source)
 
 
 if __name__ == '__main__':
