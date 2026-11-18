@@ -310,6 +310,7 @@
     <string name="history_no_reason">"No app stop reason recorded"</string>
     <string name="history_no_samples">"No saved sample points yet"</string>
     <string name="history_outcome_title">"End information"</string>
+    <string name="history_pre_interruption_duration">"Machine timer before interruption"</string>
     <string name="history_record_elapsed">"Record elapsed"</string>
     <string name="history_record_elapsed_legacy">"Record elapsed (legacy)"</string>
     <string name="history_sample_coverage">"Sample coverage"</string>

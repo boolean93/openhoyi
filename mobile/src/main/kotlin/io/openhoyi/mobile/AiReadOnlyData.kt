@@ -69,7 +69,9 @@ internal class LocalAiReadOnlyData(context: Context, private val snapshot: () ->
         if (!AiReadOnlyQuery.validCurveId(curveId)) return AiReadOnlyQuery.invalidArguments()
         return safe {
             val document = readBounded(File(context.filesDir, "brew_journal_v1.json"))
-            val observations = document?.let(BrewJournal::readOnlyObservations).orEmpty()
+            val observations = document?.let {
+                BrewJournal.readOnlyObservations(it, readPersistedShotTimingEvidence(context))
+            }.orEmpty()
             AiReadOnlyQuery.history(observations, curveId, offset, limit)
         }
     }
@@ -209,7 +211,11 @@ internal object AiReadOnlyQuery {
         return page(matching, offset, limit) { shot ->
             JSONObject().put("shotId", shot.id).put("startedAtEpochMs", shot.startedAtMs).put("status", shot.status)
                 .put("curveId", shot.curveId.take(80))
-                .put("observedDurationSeconds", shot.observedMachineElapsedSeconds ?: JSONObject.NULL)
+                .put("observedDurationSeconds", shot.observedMachineElapsedSeconds
+                    ?.takeUnless { shot.machineTimingInterrupted == true } ?: JSONObject.NULL)
+                .put("preInterruptionMachineElapsedSeconds", shot.observedMachineElapsedSeconds
+                    ?.takeIf { shot.machineTimingInterrupted == true } ?: JSONObject.NULL)
+                .put("machineTimingInterrupted", shot.machineTimingInterrupted ?: JSONObject.NULL)
                 .put("finalWeightGrams", shot.weightHundredthsGram?.div(100.0) ?: JSONObject.NULL)
         }
     }
