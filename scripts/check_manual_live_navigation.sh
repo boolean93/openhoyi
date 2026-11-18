@@ -46,12 +46,15 @@ from pathlib import Path
 import subprocess, sys
 output = Path(sys.argv[1])
 with output.open('w') as capture:
-    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w',
+    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-r',
         '-e', 'mainNavigationChecks', 'manual-live', '-e', 'disposableCiEmulator', 'true',
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=capture, stderr=subprocess.STDOUT, timeout=180)
 text = output.read_text()
 print(text)
-if result.returncode or 'MANUAL_LIVE_NAVIGATION_PASSED' not in text or 'INSTRUMENTATION_CODE: -1' not in text:
+# With -r, the special stream is not substituted for the result bundle and exit code.
+lines = text.splitlines()
+if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGATION_PASSED' not in lines
+        or 'INSTRUMENTATION_CODE: -1' not in lines):
     raise SystemExit('Manual live navigation failed; evidence retained')
 PY
