@@ -17,7 +17,7 @@ internal object MachineSettingsEditGate {
         val idle = snapshot.coffee as? IdleTelemetry
         val freshIdle = idle?.sleepStateRaw == 0 &&
             snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
-        val pending = owner?.settingWriteState ?: SettingsWriteTracker.State.IDLE
+        val pending = owner?.blockingSettingWriteState ?: SettingsWriteTracker.State.IDLE
         return snapshot.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshIdle &&
             owner.manualShotActive != true && owner.machineControlSafetyMessage == null &&
             !ShotGate.active(owner.shotState) && owner.brewPreparationState == BrewPreparation.State.IDLE &&

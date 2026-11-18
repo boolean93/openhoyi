@@ -449,7 +449,7 @@ class ExtractionActivity : ThemedActivity() {
             BrewPreparation.isAtTarget(corrected, profile.temperatureC)
         val preparation = owner?.brewPreparationState ?: BrewPreparation.State.IDLE
         val studioBlocked = if (owner != null && profile != null) owner.studioStartBlock(profile) else null
-        val settingBusy = owner?.settingWriteState in setOf(
+        val settingBusy = owner?.blockingSettingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,

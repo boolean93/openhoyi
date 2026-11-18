@@ -21,6 +21,18 @@ class SettingsWriteTracker {
         return ++serial
     }
 
+    /** An explicit new temperature intent replaces observation of an older one, never its write.
+     * This is used only by the isolated non-blocking temperature controller. */
+    internal fun beginTemperature(value: MachineSettingChange): Long? {
+        if (!SettingsReadbackPolicy.isTemperature(value) || state == State.WRITING) return null
+        if (state in setOf(State.WAITING_READBACK, State.UNKNOWN)) {
+            if (!SettingsReadbackPolicy.isTemperature(change)) return null
+            // Invalidate the old callbacks before the new intent is dispatched.
+            state = State.IDLE
+        }
+        return begin(value)
+    }
+
     /** Only the original operation in WRITING owns dispatch permission. */
     fun permitsWrite(token:Long):Boolean = token == serial && state == State.WRITING
 

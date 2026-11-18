@@ -597,7 +597,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             BrewPreparation.isAtTarget(corrected, profile.temperatureC)
         val preparation = owner?.brewPreparationState ?: BrewPreparation.State.IDLE
         val studioBlocked = if (owner != null && profile != null) owner.studioStartBlock(profile) else null
-        val settingBusy = owner?.settingWriteState in setOf(
+        val settingBusy = owner?.blockingSettingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
@@ -820,7 +820,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val facts=ExtractionStatusPresentation.Facts(state,active,owner?.running==true,blocked!=null || studioBlocked!=null,
             owner?.manualShotActive==true,owner?.scalePreflight==true,preparation,!normalPreparation,
             snapshot.alarmBits,snapshot.alarmAt,now,!owner?.machineControlSafetyMessage.isNullOrBlank(),!owner?.manualSafetyMessage.isNullOrBlank(),
-            settingBusy || sleepBusy,owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN || owner?.sleepNowState==SleepNowTracker.State.UNKNOWN,
+            settingBusy || sleepBusy,owner?.blockingSettingWriteState==SettingsWriteTracker.State.UNKNOWN || owner?.sleepNowState==SleepNowTracker.State.UNKNOWN,
             notificationStatus.text.isNotBlank(),frame!=null,
             (profile?.targetHundredthsGram ?: 0)>0 || rawPoints.any { it.weightHundredthsGram!=null } || snapshot.scaleState==DeviceState.READY,
             LiveTelemetry.scale(snapshot.scaleObservation,snapshot.scaleState,now)!=null)
@@ -832,7 +832,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 ExtractionStatusPresentation.Kind.MACHINE_SAFETY -> owner?.machineControlSafetyMessage.orEmpty()
                 ExtractionStatusPresentation.Kind.MANUAL_SAFETY -> owner?.manualSafetyMessage.orEmpty()
                 ExtractionStatusPresentation.Kind.WRITE -> listOfNotNull(
-                    if(settingBusy) getString(when(owner?.settingWriteState) {
+                    if(settingBusy) getString(when(owner?.blockingSettingWriteState) {
                         SettingsWriteTracker.State.WRITING -> R.string.machine_settings_setting_writing
                         SettingsWriteTracker.State.UNKNOWN -> R.string.machine_settings_setting_unknown
                         else -> R.string.machine_settings_setting_waiting
