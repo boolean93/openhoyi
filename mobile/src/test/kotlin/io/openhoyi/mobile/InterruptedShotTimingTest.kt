@@ -194,6 +194,34 @@ class InterruptedShotTimingTest {
         assertTrue(ShotHistory(disk, now = { 200L }).entries.isEmpty())
     }
 
+    @Test fun transitionalInlineDocumentsAreNotOverwrittenBeforeEvidenceMigrates() {
+        val recent = Disk()
+        val permanent = Disk()
+        val journal = permanent.openJournal(recent)
+        val history = ShotHistory(recent, now = { 100L }, newId = { "cup" },
+            onEntryChanged = { journal.observe(it.journalObservation()) })
+        history.begin("capture-1")
+        history.transition(ExtractionState.ENDED_OBSERVED, null, null, 200,
+            timing = ShotTimingEvidence("cup", 14, null, true))
+        permanent.text = journal.exportJson()
+        val inlineJournal = permanent.text
+        val fields = recent.text.trimEnd('\n').split('\t').toMutableList()
+        fields[10] = "14"
+        recent.text = (fields + "true").joinToString("\t") + "\n"
+        recent.sidecar = null
+        val reopened = permanent.openJournal(recent)
+        assertTrue(runCatching { reopened.edit("cup", BrewJournal.Notes(taste = "still waiting")) }.isFailure)
+        assertEquals(inlineJournal, permanent.text)
+        val migrated = ShotHistory(recent, now = { 300L }).entries.single()
+        assertEquals(14, migrated.observedMachineElapsedSeconds)
+        assertEquals(13, recent.text.trimEnd('\n').split('\t').size)
+        reopened.edit("cup", BrewJournal.Notes(taste = "preserved timing"))
+        assertEquals(3, JSONObject(permanent.text).getInt("schema"))
+        val final = permanent.openJournal(recent).find("cup")!!
+        assertEquals(14, final.observation.observedMachineElapsedSeconds)
+        assertEquals("preserved timing", final.notes.taste)
+    }
+
     @Test fun historyExportAndAiKeepIncompleteSecondsSeparateFromDuration() {
         val entry = ShotHistory.Entry("cup", "capture-1", 100, 250, 150, ShotHistory.Status.ENDED,
             null, null, observedMachineElapsedSeconds = 14, timingEvidenceVersion = 1,
