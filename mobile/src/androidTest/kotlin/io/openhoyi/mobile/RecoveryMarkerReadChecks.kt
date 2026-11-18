@@ -28,7 +28,7 @@ internal class RecoveryMarkerReadChecks(private val test:Instrumentation) {
         var records=0;var blocked=0;var clear=0;var tares=0
         for(role in listOf("SHOT","MACHINE","TARE")) for(mode in if(role=="TARE")listOf("ABSENT","EMPTY","DIRECTORY","BAD_JSON") else cases) {
             val id=UUID.randomUUID().toString();val folder=File(app.cacheDir,"recovery-marker-read-$id")
-            val names=listOf("shot_safety","machine_write_safety","scale_tare_safety")
+            val names=listOf("shot_safety","machine_write_safety","temperature_confirmation","scale_tare_safety")
             val original=names.associateWith { app.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
             var systemCalls=0
             val context=object:ContextWrapper(app) {

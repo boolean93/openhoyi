@@ -33,7 +33,7 @@ internal class ServiceRecoveryCacheFailureChecks(private val test:Instrumentatio
         for(kind in kinds) for(throws in listOf(false,true)) {
             val id=UUID.randomUUID().toString()
             val folder=File(app.cacheDir,"recovery-cache-$id")
-            val names=listOf("shot_safety","machine_write_safety")
+            val names=listOf("shot_safety","machine_write_safety","temperature_confirmation")
             val original=names.associateWith { app.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
             var failClear=false;var systemCalls=0
             val context=object:ContextWrapper(app) {

@@ -19,7 +19,7 @@ internal class ServiceStopFeedbackChecks(private val test:Instrumentation) {
     fun run() {
         val app=test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName=="io.openhoyi.mobile.mock")
-        val names=listOf("shot_safety","machine_write_safety","curves")
+        val names=listOf("shot_safety","machine_write_safety","temperature_confirmation","curves")
         val original=names.associateWith { app.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
         var fixtures=0;var writes=0;var retained=0
         for(fault in listOf(false,true)) {
