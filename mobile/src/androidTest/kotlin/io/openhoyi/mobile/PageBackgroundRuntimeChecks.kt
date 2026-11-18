@@ -354,11 +354,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         }
         val home = go(TaskDestination.BREW)
         captureApplied(host, home, "$mode-home.png", base = style.homePage, backing = style.surface,
-            requiredWallpaper = {
+            requiredWallpaper = { sampleGap ->
                 check(home === originalHome.root && homeBounds(home) == originalHome.bounds) {
                     "Applying the backdrop must not move Home labels or hit targets"
                 }
-                homeWallpaperGaps(home)
+                homeWallpaperGaps(home, sampleGap)
             },
         ) { home.findViewWithTag("product/home/${if (mode == "light") "brew" else "steam"}-boiler/pressure") }
         if (mode == "dark") captureDisabledHomeModes(home)
@@ -622,7 +622,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         }
     }
 
-    private fun homeWallpaperGaps(root: View): List<Point> {
+    private fun homeWallpaperGaps(root: View, sampleGap: (Rect) -> Point): List<Point> {
         val paper = root.background as PageBackdrop
         fun home(key: String): View = checkNotNull(root.findViewWithTag<View>("product/home/$key"))
         fun roundPanel(vararg views: View): Rect {
@@ -649,10 +649,18 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             if (fromLeft) dial.left + dial.width() / 11 else dial.right - dial.width() / 11,
             dial.top + dial.height() / 11,
         )
+        fun intercolumn(first: Rect, second: Rect): Rect {
+            val space = second.left - first.right
+            check(space > 0)
+            val sideInset = space / 4
+            val radius = (root.resources.displayMetrics.density * 5).toInt().coerceAtLeast(1)
+            val y = minOf(first.centerY(), second.centerY())
+            return Rect(first.right + sideInset, maxOf(first.top, second.top, y - radius),
+                second.left - sideInset, minOf(first.bottom, second.bottom, y + radius + 1))
+        }
         return buildList {
             addAll(listOf(corner(left, true), corner(left, false), corner(right, true), corner(right, false),
-                Point((left.right + right.left) / 2, minOf(left.centerY(), right.centerY())),
-                Point((brew.right + steam.left) / 2, minOf(brew.centerY(), steam.centerY()))))
+                sampleGap(intercolumn(left, right)), sampleGap(intercolumn(brew, steam))))
             val control = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/control")))
             val logic = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/logic")))
             if (control.right < logic.left && control.centerY() in logic.top until logic.bottom) {
@@ -703,7 +711,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         name: String,
         base: Int = TaskProductVisualStyle(page).page,
         backing: Int = base,
-        requiredWallpaper: () -> List<Point> = { emptyList() },
+        requiredWallpaper: ((Rect) -> Point) -> List<Point> = { emptyList() },
         foregroundSurfaces: () -> List<View> = { emptyList() },
         decorativeGuttersOf: (() -> View)? = null,
         nativeCover: Boolean = false,
@@ -782,7 +790,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                             }
                         }
                     }
-                    val gaps = requiredWallpaper().map { point ->
+                    val gaps = requiredWallpaper { band ->
+                        stableGapSample(band, bitmap, contrastThreshold, backdropFills, ::distance)
+                    }.map { point ->
                         Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
                     }
                     check(gaps.isEmpty() || gaps.count { againstFills(it.color, backdropFills) } >= minOf(2, (gaps.size + 1) / 2)) {
@@ -837,6 +847,32 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             } finally { image.recycle() }
         }
         error("$name never presented both visible photo and protected content: $details")
+    }
+
+    /**
+     * Choose a point before looking at the window shot. At a hard bitmap edge, CPU and
+     * GPU interpolation can differ by several values while both still show wallpaper.
+     * A locally flat 7×7 patch eliminates edge samples without widening the match rule.
+     */
+    private fun stableGapSample(
+        band: Rect, bareWallpaper: Bitmap, minimumContrast: Int, fills: Set<Int>,
+        distance: (Int, Int) -> Int,
+    ): Point {
+        val radius = 3
+        val candidates = mutableListOf<Point>()
+        for (y in band.top + radius until band.bottom - radius) {
+            for (x in band.left + radius until band.right - radius) {
+                val color = bareWallpaper.getPixel(x, y)
+                if (fills.any { distance(color, it) < minimumContrast }) continue
+                val flat = (y - radius..y + radius).all { dy ->
+                    (x - radius..x + radius).all { dx -> distance(color, bareWallpaper.getPixel(dx, dy)) <= 1 }
+                }
+                if (flat) candidates += Point(x, y)
+            }
+        }
+        return checkNotNull(candidates.minByOrNull { point ->
+            abs(point.x - band.centerX()) + abs(point.y - band.centerY())
+        }) { "No flat, contrast-sensitive bare wallpaper sample inside Home gap $band" }
     }
 
     private fun captureCommittedFrame(root: View): Bitmap {
