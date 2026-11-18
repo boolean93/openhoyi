@@ -1461,7 +1461,7 @@ class MobileService : Service() {
         if (idle.sleepStateRaw != 0) return getString(R.string.lever_gate_asleep)
         if (!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)) return getString(R.string.lever_gate_alarm)
         if (!machineSettingsFresh) return getString(R.string.lever_gate_sync)
-        if (coffeeFirmware !in listOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5)))
+        if (coffeeFirmware !in listOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5), CoffeeFirmware(1, 1, 6)))
             return getString(R.string.lever_firmware_unsupported)
         return null
     }

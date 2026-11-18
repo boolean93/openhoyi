@@ -37,7 +37,7 @@ class CustomFlowCurveTest {
         val parameters=requireNotNull(CustomCurveAdapter.profile(restored,false)).parameters
         assertTrue(parameters.pressureLogic);assertFalse(parameters.variableFlowLogic)
         assertEquals(47,parameters.target3);assertEquals(121,parameters.thirdFlowTenths)
-        for(patch in listOf(2,3,4,5,6)) assertEquals(patch in 3..5,
+        for(patch in listOf(2,3,4,5,6,7)) assertEquals(patch in 3..6,
             io.openhoyi.session.CustomCurveFirmwarePolicy.permits(parameters,io.openhoyi.session.CoffeeFirmware(1,1,patch)))
     }
 
@@ -55,12 +55,12 @@ class CustomFlowCurveTest {
             assertTrue(library.canStart(row))
             val parameters=requireNotNull(library.resolve(doc.id,false)).parameters
             assertTrue(library.permitsCustomStart(doc.id,parameters))
-            for(patch in listOf(3,4,5,6)) {
+            for(patch in listOf(3,4,5,6,7)) {
                 val firmware=io.openhoyi.session.CoffeeFirmware(1,1,patch)
                 val uiMayStart=io.openhoyi.session.CoffeeFirmwareProfiles.permitsControl(0x110+patch) &&
                     io.openhoyi.session.CustomCurveFirmwarePolicy.permits(parameters,firmware)
                 assertEquals("Ls=${!pressureLogic} firstFlow=$firstFlow patch=$patch",
-                    patch in 3..5,uiMayStart)
+                    patch in 3..6,uiMayStart)
             }
         }
     }

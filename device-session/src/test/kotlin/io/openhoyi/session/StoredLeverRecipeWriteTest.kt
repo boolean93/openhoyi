@@ -32,7 +32,7 @@ class StoredLeverRecipeWriteTest {
             val settings=bytes("830113FD5C007D0F350019006E")
             settings[2]=firmware.toByte();settings[settings.lastIndex]=settings.dropLast(1).fold(0){a,b->a xor (b.toInt() and 255)}.toByte()
             receive(settings);idle()
-            assertEquals(if(firmware in 0x13..0x15) DeviceState.READY else DeviceState.UNSUPPORTED,session.state)
+            assertEquals(if(firmware in 0x13..0x16) DeviceState.READY else DeviceState.UNSUPPORTED,session.state)
         }
         fun complete(result:OperationResult=OperationResult.Success()) {
             val (g,t,_)=driver.calls.last();session.onComplete(g,t,result)
@@ -46,7 +46,7 @@ class StoredLeverRecipeWriteTest {
         fun write(guard:()->Boolean={true},done:(OperationResult)->Unit)=session.writeStoredLeverRecipe(recipe,guard,done)
     }
     @Test fun supportedFirmwareAcceptsUnselectedCustomRecipeAndSuccessOnlyReportsTransport() {
-        for(firmware in listOf(0x13,0x14,0x15)) {
+        for(firmware in listOf(0x13,0x14,0x15,0x16)) {
             val f=Fixture(firmware);var result:OperationResult?=null
             f.write {result=it}
             assertEquals(1,f.driver.recipeWrites.size)
@@ -59,7 +59,7 @@ class StoredLeverRecipeWriteTest {
     }
     @Test fun unsupportedFirmwareStaleAndBlockingAlarmNeverWrite() {
         var result:OperationResult?=null
-        for(firmware in listOf(0x12,0x16)) {
+        for(firmware in listOf(0x12,0x17)) {
             val unsupported=Fixture(firmware)
             unsupported.write {result=it};assertTrue(result is OperationResult.Failed);assertTrue(unsupported.driver.recipeWrites.isEmpty())
         }
@@ -145,7 +145,7 @@ class StoredLeverRecipeWriteTest {
     }
     @Test fun persistentFollowRejectsInvalidShapeAndUnknownVersionWithoutTransport() {
         val follow=recipe.copy(pressureLogic=true)
-        for (firmware in listOf(null,CoffeeFirmware(1,1,2),CoffeeFirmware(1,1,6)))
+        for (firmware in listOf(null,CoffeeFirmware(1,1,2),CoffeeFirmware(1,1,7)))
             assertFalse(CustomCurveFirmwarePolicy.permitsStoredRecipe(follow,firmware))
         for (bad in listOf(follow.copy(firstSegmentFlowMode=true),follow.copy(firstDurationSeconds=255),
             follow.copy(target1=255),follow.copy(firstFlowTenths=0))) {
@@ -172,7 +172,7 @@ class StoredLeverRecipeWriteTest {
         val follow=recipe.copy(pressureLogic=true)
         val variants=listOf(bloom,bloom.copy(pressureLogic=false),bloom.copy(firstSegmentFlowMode=true),
             bloom.copy(pressureLogic=false,firstSegmentFlowMode=true),follow)
-        for (firmware in listOf(0x13,0x14,0x15)) for (parameters in variants) {
+        for (firmware in listOf(0x13,0x14,0x15,0x16)) for (parameters in variants) {
             val f=Fixture(firmware);var result:OperationResult?=null
             f.session.writeStoredLeverRecipe(parameters,{true}){result=it}
             assertArrayEquals(CoffeeCommands.storedLeverRecipe(parameters).frame.toByteArray(),f.driver.recipeWrites.single().bytes)
@@ -180,7 +180,7 @@ class StoredLeverRecipeWriteTest {
             f.now=10000;f.session.tick();assertEquals(1,f.driver.recipeWrites.size)
         }
         for (parameters in variants) for (fault in listOf("stale","alarm","unsupported")) {
-            val f=Fixture(if(fault=="unsupported")0x16 else 0x13)
+            val f=Fixture(if(fault=="unsupported")0x17 else 0x13)
             if(fault=="stale")f.now=1501
             if(fault=="alarm")f.idle(true)
             var result:OperationResult?=null
