@@ -63,6 +63,7 @@ def main(message_copy=False):
                    '-e', 'aiMessageCopyOnly' if message_copy else 'aiCardConstructionOnly', 'true', RUNNER]
         result = adb(*command, timeout=180)
         (output / 'instrumentation.txt').write_text(result + '\n')
+        (output / 'android-runtime.txt').write_text(adb('logcat', '-d', '-s', 'AndroidRuntime:E') + '\n')
         require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and
                 'AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true' in result,
                 'AI preview fixture failed')

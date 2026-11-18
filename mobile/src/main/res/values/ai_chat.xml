@@ -82,7 +82,6 @@
     <string name="ai_curve_editor_expired">草稿不可用或来源已变化。未保存的输入仍保留，请回聊天卡片重新确定；不会自动保存曲线。</string>
     <string name="ai_curve_editor_save_changes">保存修改</string>
     <string name="ai_error_protocol">响应校验未通过，本轮未完成。可手动重试；若再次出现，请导出诊断。</string>
-    <string name="ai_message_copy">复制</string>
     <string name="ai_message_copied">已复制</string>
     <string name="ai_message_copy_failed">无法复制，请重试</string>
     <string name="ai_retry_wait">连接重试 %1$d/%2$d，等待 %3$d 秒，可停止（受当前时限限制）</string>
