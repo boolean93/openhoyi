@@ -1,5 +1,6 @@
 """Source wiring guards; Android gesture delivery still needs UI verification."""
 import pathlib
+import re
 import unittest
 
 SOURCE = pathlib.Path(__file__).resolve().parents[1] / 'mobile/src/main/kotlin/io/openhoyi/mobile/AiChatPresentation.kt'
@@ -25,11 +26,17 @@ class MessageCopyTest(unittest.TestCase):
     def test_long_press_opens_menu_without_copying_and_drag_cancels(self):
         self.assertEqual(self.s.count('bindMessageCopy('), 4)  # definition + three sites
         bind = self.section('private fun bindMessageCopy(', 'private fun showMessageCopy(')
-        for text in ('scaledTouchSlop', 'MotionEvent.ACTION_MOVE', 'dx * dx + dy * dy > slop * slop',
-                     'dragged = true', 'view.cancelLongPress()'):
-            self.assertIn(text, bind)
+        self.assertIn('scaledTouchSlop', bind)
+        self.assertRegex(bind, r'fun suppressLinkRelease\(\)\s*\{\s*if \(view is TextView\)\s*'
+                               r'\(view\.movementMethod as\? MessageLinkMovement\)\?\.suppressRelease\(view\)')
+        move = bind.split('MotionEvent.ACTION_MOVE', 1)[1].split('MotionEvent.ACTION_UP', 1)[0]
+        self.assertRegex(move, r'if \(dx \* dx \+ dy \* dy > slop \* slop\)\s*\{\s*'
+                               r'(?://[^\n]*\n\s*)?dragged = true\s*view\.cancelLongPress\(\)\s*'
+                               r'suppressLinkRelease\(\)\s*\}')
         long_press = bind.split('view.setOnLongClickListener', 1)[1]
-        self.assertRegex(long_press, r'dragged\s*\|\|\s*body\(\)\.isBlank\(\)\s*\|\|\s*!showMessageCopy\(')
+        self.assertRegex(long_press, r'if \(dragged\s*\|\|\s*body\(\)\.isBlank\(\)\s*\|\|\s*'
+                                     r'!showMessageCopy\(view, touchLocation, body\)\)\s*'
+                                     r'return@setOnLongClickListener false\s*suppressLinkRelease\(\)\s*true')
         self.assertNotIn('copyMessage(', bind)
         self.assertNotIn('setPrimaryClip', bind)
         self.assertNotIn('reasoning', bind)
@@ -47,7 +54,7 @@ class MessageCopyTest(unittest.TestCase):
         writer = self.section('private fun copyMessage(', 'private fun bubble(')
         self.assertIn('if (text.isBlank()) return', writer)
         self.assertEqual(writer.count('clipboard.setPrimaryClip('), 1)
-        self.assertEqual(self.s.count('clipboard.setPrimaryClip('), 1)
+        self.assertEqual(len(re.findall(r'\bsetPrimaryClip\s*\(', self.s)), 1)
 
     def test_popup_dismissal_and_session_render_invalidate_copy_owner(self):
         dismissal = self.section('fun dismissOptions()', 'private var waitingDotsFrame')
@@ -61,6 +68,7 @@ class MessageCopyTest(unittest.TestCase):
 
     def test_link_release_after_long_press_or_drag_is_consumed(self):
         movement = self.section('private class MessageLinkMovement', 'private fun bindMessageCopy(')
+        self.assertRegex(movement, r'fun suppressRelease\(widget: TextView\)\s*\{\s*suppressRelease = true\b')
         self.assertIn('ACTION_DOWN -> suppressRelease = false', movement)
         self.assertRegex(movement, r'ACTION_CANCEL ->\s*\{\s*suppressRelease = false')
         self.assertRegex(movement, r'ACTION_UP -> if \(suppressRelease\)\s*\{\s*suppressRelease = false\s*return true')
