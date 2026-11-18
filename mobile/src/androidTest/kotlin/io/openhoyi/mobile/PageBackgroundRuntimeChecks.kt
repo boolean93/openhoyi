@@ -338,6 +338,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             val start = IntArray(2)
             root.getLocationOnScreen(start)
             val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+            fun visibleDifference(a: Int, b: Int) = abs(Color.red(a) - Color.red(b)) >= 5 ||
+                abs(Color.green(a) - Color.green(b)) >= 5 || abs(Color.blue(a) - Color.blue(b)) >= 5
             try {
                 paper.draw(Canvas(bitmap))
                 val photo = mutableListOf<Pixel>()
@@ -347,11 +349,24 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     val expected = bitmap.getPixel(x, y)
                     val displayX = start[0] + x
                     val displayY = start[1] + y
-                    if (expected != base && !cover.contains(displayX, displayY)) photo += Pixel(displayX, displayY, expected)
+                    if (visibleDifference(expected, base) && !cover.contains(displayX, displayY)) photo += Pixel(displayX, displayY, expected)
                     if (expected == base && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
                 }
-                check(photo.isNotEmpty() && protected.isNotEmpty()) { "$name needs exposed photo and protection probes" }
-                Triple(photo, protected, setOf(base, style.surface, style.selected))
+                // A near-white/near-black side could accidentally look like the baseline.
+                // Keep only probes where the unprotected image would be measurably different.
+                PageBackdrop(base, HoyiUi.dark(page)).apply {
+                    snapshot = paper.snapshot
+                    protectedAreas = emptyList()
+                    setBounds(0, 0, root.width, root.height)
+                    draw(Canvas(bitmap))
+                }
+                val verifiedProtection = protected.filter { pixel ->
+                    visibleDifference(bitmap.getPixel(pixel.x - start[0], pixel.y - start[1]), base)
+                }
+                check(photo.size >= 5 && verifiedProtection.size >= 5) {
+                    "$name needs at least five decorative and five contrast-sensitive protection probes"
+                }
+                Triple(photo, verifiedProtection, setOf(base, style.surface, style.selected))
             } finally { bitmap.recycle() }
         }
         // Compare real compositor pixels, not the backdrop object or only the offscreen drawing.
@@ -396,14 +411,52 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     private fun verifyScrolledRootGeometry(page: BackgroundSettingsActivity) {
         await("preview backing ready") { preview(page)?.protectedAreas?.isNotEmpty() == true }
         val sample = main { page.window.decorView.findViewWithTag<View>("product/background/preview") }
+        val card = main { sample.findViewWithTag<View>("product/background/preview/card") }
         val inset = HoyiUi.dp(page, 4)
-        val initial = main { Rect(preview(page)!!.protectedAreas!!.first()) }
-        main { sample.scrollTo(inset, 0) }
-        await("background coordinates compensate the owning root's scroll") {
-            preview(page)?.protectedAreas?.firstOrNull()?.left == initial.left - inset
+        fun cardInViewport(): Rect {
+            val visible = Rect()
+            check(card.getGlobalVisibleRect(visible))
+            val rootInWindow = IntArray(2).also { sample.rootView.getLocationInWindow(it) }
+            val sampleInWindow = IntArray(2).also { sample.getLocationInWindow(it) }
+            // getLocationInWindow describes the view origin, excluding its own scroll.
+            visible.offset(rootInWindow[0] - sampleInWindow[0], rootInWindow[1] - sampleInWindow[1])
+            return visible
         }
-        main { sample.scrollTo(0, 0) }
-        await("restored root backdrop coordinates") { preview(page)?.protectedAreas?.firstOrNull() == initial }
+        val before = main {
+            cardInViewport().also { check(preview(page)!!.protectedAreas!!.single() == it) }
+        }
+        main { sample.scrollTo(inset, 0) }
+        val after = main {
+            cardInViewport().also {
+                check(sample.scrollX == inset && it != before && it.right == before.right - inset) {
+                    "Expected a clipped card to shift in its real viewport: scroll=${sample.scrollX} before=$before after=$it"
+                }
+            }
+        }
+        var actual: Rect? = null
+        try {
+            await("background coordinates match the scrolled visible card") {
+                actual = preview(page)?.protectedAreas?.singleOrNull()
+                actual == after
+            }
+        } catch (failure: IllegalStateException) {
+            throw IllegalStateException("Scrolled root protection mismatch: scroll=$inset before=$before expected=$after actual=$actual", failure)
+        }
+        main {
+            val paper = checkNotNull(preview(page))
+            val style = TaskProductVisualStyle(page)
+            val bitmap = Bitmap.createBitmap(sample.width, sample.height, Bitmap.Config.ARGB_8888)
+            try {
+                paper.draw(Canvas(bitmap))
+                val releasedX = before.right - 1
+                val y = after.centerY()
+                check(before.contains(releasedX, y) && !after.contains(releasedX, y))
+                check(bitmap.getPixel(after.centerX(), y) == style.page) { "Scrolled card lost its solid backing" }
+                check(bitmap.getPixel(releasedX, y) != style.page) { "Previously covered edge did not reveal the photo" }
+            } finally { bitmap.recycle() }
+            sample.scrollTo(0, 0)
+        }
+        await("restored root backdrop coordinates") { preview(page)?.protectedAreas?.singleOrNull() == before }
     }
 
     private fun verifyPixelsAndCapture(page: BackgroundSettingsActivity, name: String) {
