@@ -6,15 +6,19 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
 import android.os.Build
 import android.text.InputFilter
 import android.text.InputType
+import android.text.Selection
+import android.text.Spannable
 import android.text.method.LinkMovementMethod
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -72,6 +76,7 @@ internal class AiChatPresentation(
     val scroll: ScrollView
     var options: PopupWindow? = null
         private set
+    private var messageCopyAnchor: View? = null
     private var currentModelId = AiModelPolicy.FLASH
     private var busy = false
     private var lastEnterDownTime = Long.MIN_VALUE
@@ -335,8 +340,30 @@ internal class AiChatPresentation(
         root.addView(draftImageScroll, LinearLayout.LayoutParams(-1, -2))
         root.addView(draftFiles, LinearLayout.LayoutParams(-1, -2))
         root.addView(composerFrame, LinearLayout.LayoutParams(-1, -2))
+        root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) = Unit
+            override fun onViewDetachedFromWindow(view: View) { dismissOptions() }
+        })
     }
-    fun dismissOptions() { options?.dismiss() }
+    fun dismissOptions() {
+        val popup = options
+        options = null
+        messageCopyAnchor = null
+        popup?.dismiss()
+    }
+    private fun dismissMessageCopy() {
+        if (messageCopyAnchor != null) dismissOptions()
+    }
+    private fun trackOptions(popup: PopupWindow, copyAnchor: View? = null) {
+        options = popup
+        messageCopyAnchor = copyAnchor
+        popup.setOnDismissListener {
+            if (options === popup) {
+                options = null
+                messageCopyAnchor = null
+            }
+        }
+    }
     private var waitingDotsFrame = 0
     private var waitingStatus: String? = null
     private val waitingDots = object : Runnable {
@@ -370,6 +397,7 @@ internal class AiChatPresentation(
         }
     }
     fun closeImagePreviews() {
+        dismissMessageCopy()
         stopWaitingDots()
         imagePreviews?.close()
         imagePreviews = null
@@ -377,7 +405,7 @@ internal class AiChatPresentation(
     }
     private fun showAttachmentMenu(anchor: View) {
         if (!anchor.isEnabled || !anchor.isAttachedToWindow) return
-        options?.dismiss()
+        dismissOptions()
         val list = style.column("ai/chat/attachment-menu").apply {
             setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
             background = style.shape(style.surface, outline = true, radius = 16)
@@ -389,7 +417,7 @@ internal class AiChatPresentation(
                 setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(8))
                 setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
                 setOnClickListener {
-                    options?.dismiss()
+                    dismissOptions()
                     if (anchor.isEnabled) action()
                 }
             }, LinearLayout.LayoutParams(-1, -2))
@@ -399,19 +427,19 @@ internal class AiChatPresentation(
         val width = minOf(style.dp(208), (root.width - style.dp(24)).coerceAtLeast(style.dp(48)))
         list.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        options = PopupWindow(list, width, -2, true).apply {
+        PopupWindow(list, width, -2, true).apply {
             isOutsideTouchable = true
             isClippingEnabled = true
             inputMethodMode = PopupWindow.INPUT_METHOD_NEEDED
             elevation = style.dp(8).toFloat()
             setBackgroundDrawable(style.shape(Color.TRANSPARENT))
-            setOnDismissListener { options = null }
+            trackOptions(this)
             // Anchor above +, including while the IME is present; never a screen-centred dialog.
             showAsDropDown(anchor, 0, -anchor.height - list.measuredHeight - style.dp(4), Gravity.START)
         }
     }
     private fun showOptions(anchor: View) {
-        options?.dismiss()
+        dismissOptions()
         val list = style.column("ai/chat/options").apply {
             setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
             background = style.shape(style.surface, outline = true, radius = 16)
@@ -423,7 +451,7 @@ internal class AiChatPresentation(
                 setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(8))
                 setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
                 isEnabled = enabled
-                setOnClickListener { options?.dismiss(); action() }
+                setOnClickListener { dismissOptions(); action() }
             }, LinearLayout.LayoutParams(-1, -2))
         }
         option(R.string.ai_new) { onNewChat() }
@@ -432,37 +460,103 @@ internal class AiChatPresentation(
         onUsage?.let { show -> option(R.string.ai_usage_title) { show() } }
         option(R.string.ai_key_title, keyEnabled) { onKey() }
         val available = (anchor.parent as View).width - style.dp(24)
-        options = PopupWindow(list, minOf(style.dp(208), available.coerceAtLeast(style.dp(48))), -2, true).apply {
+        PopupWindow(list, minOf(style.dp(208), available.coerceAtLeast(style.dp(48))), -2, true).apply {
             isOutsideTouchable = true
             elevation = style.dp(8).toFloat()
             setBackgroundDrawable(style.shape(Color.TRANSPARENT))
-            setOnDismissListener { options = null }
+            trackOptions(this)
             showAsDropDown(anchor, 0, style.dp(4), Gravity.END)
         }
     }
     private class MessageLinkMovement : LinkMovementMethod() {
-        var copiedByLongPress = false
-        override fun onTouchEvent(widget: TextView, buffer: android.text.Spannable, event: android.view.MotionEvent): Boolean {
+        var handledLongPress = false
+        override fun onTouchEvent(widget: TextView, buffer: Spannable, event: MotionEvent): Boolean {
             when (event.actionMasked) {
-                android.view.MotionEvent.ACTION_DOWN -> copiedByLongPress = false
-                android.view.MotionEvent.ACTION_CANCEL -> copiedByLongPress = false
-                android.view.MotionEvent.ACTION_UP -> if (copiedByLongPress) {
-                    copiedByLongPress = false
-                    android.text.Selection.removeSelection(buffer)
-                    return true // A copied link must not also open on finger-up.
+                MotionEvent.ACTION_DOWN -> handledLongPress = false
+                MotionEvent.ACTION_CANCEL -> {
+                    handledLongPress = false
+                    Selection.removeSelection(buffer)
+                }
+                MotionEvent.ACTION_UP -> if (handledLongPress) {
+                    handledLongPress = false
+                    return true // Showing the menu must not also open the link on finger-up.
                 }
             }
             return super.onTouchEvent(widget, buffer, event)
         }
     }
     private fun bindMessageCopy(view: View, body: () -> String) {
+        var touchLocation: Pair<Int, Int>? = null
+        view.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> touchLocation = event.rawX.toInt() to event.rawY.toInt()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touchLocation = null
+            }
+            false // View and ScrollView still own press timing, slop and cancellation.
+        }
         view.setOnLongClickListener {
-            val text = body()
-            if (text.isBlank()) return@setOnLongClickListener false
-            ((view as? TextView)?.movementMethod as? MessageLinkMovement)?.copiedByLongPress = true
-            copyMessage(text)
+            if (body().isBlank() || !showMessageCopy(view, touchLocation, body)) return@setOnLongClickListener false
+            if (view is TextView && view.movementMethod is MessageLinkMovement) {
+                (view.movementMethod as MessageLinkMovement).handledLongPress = true
+                (view.text as? Spannable)?.let(Selection::removeSelection)
+            }
             true
         }
+    }
+    private fun showMessageCopy(anchor: View, touchLocation: Pair<Int, Int>?, body: () -> String): Boolean {
+        val visible = Rect()
+        if (!anchor.isAttachedToWindow || !anchor.getLocalVisibleRect(visible)) return false
+        val (x, y) = touchLocation ?: IntArray(2).let {
+            // Accessibility long click has no pointer; use the visible portion of the message.
+            anchor.getLocationOnScreen(it)
+            (it[0] + visible.centerX()) to (it[1] + visible.centerY())
+        }
+
+        // Keep the whole action inside the usable app window, including with the IME
+        // or a long message that extends well outside the transcript viewport.
+        val location = IntArray(2).also { root.getLocationOnScreen(it) }
+        val window = Rect().also { root.getWindowVisibleDisplayFrame(it) }
+        val gap = style.dp(4)
+        if (!window.intersect(location[0] + root.paddingLeft + gap, location[1] + root.paddingTop + gap,
+                location[0] + root.width - root.paddingRight - gap, location[1] + root.height - root.paddingBottom - gap) ||
+            window.width() < style.dp(56) || window.height() < style.dp(56)) return false
+
+        val list = style.column("ai/chat/message-copy-menu").apply {
+            setPadding(gap, gap, gap, gap)
+            background = style.shape(style.surface, outline = true, radius = 16)
+        }
+        val copy = style.button(Button(context)).apply {
+            text = context.getString(R.string.ai_message_copy)
+            tag = "ai/chat/message-copy"
+            setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
+        }
+        list.addView(copy, LinearLayout.LayoutParams(-1, -2))
+        val width = minOf(style.dp(132), window.width())
+        list.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        val height = list.measuredHeight
+        if (height > window.height()) return false
+        val left = (x - width / 2).coerceIn(window.left, window.right - width)
+        val above = y - gap - height
+        val top = (if (above >= window.top) above else y + gap).coerceIn(window.top, window.bottom - height)
+        dismissOptions()
+        val popup = PopupWindow(list, width, height, true).apply {
+            isOutsideTouchable = true
+            inputMethodMode = PopupWindow.INPUT_METHOD_NEEDED
+            elevation = style.dp(8).toFloat()
+            setBackgroundDrawable(style.shape(Color.TRANSPARENT))
+        }
+        copy.setOnClickListener {
+            if (options === popup && popup.isShowing && anchor.isAttachedToWindow && anchor.isShown) {
+                val text = body()
+                dismissOptions()
+                copyMessage(text)
+            }
+        }
+        trackOptions(popup, anchor)
+        // Anchor to the shell so showing the menu never scrolls the message into view.
+        popup.showAsDropDown(root, left - location[0], top - location[1] - root.height, Gravity.LEFT)
+        return popup.isShowing
     }
     private fun copyMessage(text: String) {
         if (text.isBlank()) return
@@ -566,7 +660,7 @@ internal class AiChatPresentation(
     }
     private val partialAnswer by lazy {
         style.text("", TaskProductVisualStyle.body, "ai/chat/partial-answer").apply {
-            // One long-press action, without selection menus or appended status labels.
+            // Copy only the current answer, never the appended status labels.
             bindMessageCopy(this) { streamSnapshot.content }
         }
     }
@@ -592,6 +686,7 @@ internal class AiChatPresentation(
             (if (snapshot.contentTruncated) "\n\n" + context.getString(R.string.ai_stream_preview_truncated) else "") +
             (if (interrupted) "\n\n" + context.getString(R.string.ai_stream_incomplete) else "") else ""
         partialAnswer.visibility = if (showContent) View.VISIBLE else View.GONE
+        if (!showContent && messageCopyAnchor === partialAnswer) dismissMessageCopy()
         streamHost.visibility = if (hasThinking || showContent || (busy && snapshot.toolStarted)) View.VISIBLE else View.GONE
         val phase = when {
             snapshot.phase == AiStreamPreview.Phase.TOOL -> R.string.ai_stream_tool
@@ -709,6 +804,7 @@ internal class AiChatPresentation(
         val content = ContentRender(lines.toList(), busy, draft.takeIf { busy }, attachments.toList(),
             !busy && !attachmentBusy, ownerEpoch, previewSession, cardActions)
         if (content != renderedContent) {
+            dismissMessageCopy()
             renderContent(content)
             renderedContent = content
         }
