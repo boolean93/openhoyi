@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import java.io.File
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ListView
@@ -521,6 +522,54 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         }
     }
 
+    private fun checkHistoryComparisonEntry(host: MainPageTestHost, history: HistoryFragment) {
+        val page = requireNotNull(history.view)
+        val activity = host.activity
+
+        fun source(label: Int) = descendants(page).filterIsInstance<TextView>()
+            .single { it.isShown && it.text.toString() == activity.getString(label) }
+
+        fun openComparisonFrom(label: Int) {
+            val monitor = test.addMonitor(BrewComparisonActivity::class.java.name, null, false)
+            var comparison: BrewComparisonActivity? = null
+            try {
+                test.runOnMainSync {
+                    check(source(label).isSelected)
+                    val entry = requireNotNull(page.findViewWithTag<Button>("product/history/compare-entry"))
+                    val visible = Rect()
+                    val minimum = HoyiUi.dp(activity, 48)
+                    check(entry.isShown && entry.isEnabled && entry.getGlobalVisibleRect(visible))
+                    check(visible.width() == entry.width && visible.height() == entry.height &&
+                        entry.width >= minimum && entry.height >= minimum)
+                    val layout = requireNotNull(entry.layout)
+                    check(entry.text.toString() == activity.getString(R.string.journal_compare) &&
+                        layout.getLineEnd(layout.lineCount - 1) == entry.text.length &&
+                        (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 })
+                    check(entry.performClick())
+                }
+                comparison = test.waitForMonitorWithTimeout(monitor, 10000) as? BrewComparisonActivity
+                    ?: error("History comparison entry did not open the comparison page")
+                check(!comparison.intent.hasExtra(BrewComparisonActivity.FIRST_SHOT_ID) &&
+                    !comparison.intent.hasExtra(BrewComparisonActivity.SECOND_SHOT_ID)) {
+                    "The entry must retain the comparison page's default journal selections"
+                }
+            } finally {
+                test.removeMonitor(monitor)
+                comparison?.let { test.runOnMainSync { it.finish() } }
+                test.waitForIdleSync()
+            }
+            check(host.active("root:HISTORY") === history)
+            test.runOnMainSync { check(source(label).isSelected) }
+        }
+
+        openComparisonFrom(R.string.history_local_tab)
+        test.runOnMainSync { check(source(R.string.journal_tab).performClick()) }
+        test.waitForIdleSync()
+        openComparisonFrom(R.string.journal_tab)
+        test.runOnMainSync { check(source(R.string.history_local_tab).performClick()) }
+        test.waitForIdleSync()
+    }
+
     fun run() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         startupAndRestore(TaskDestination.BREW)
@@ -557,7 +606,8 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 check(search != null) { "Curve filter search is absent" }
                 search!!.setText("navigation-state")
             }
-            val history = host.select(TaskDestination.HISTORY)
+            val history = host.select(TaskDestination.HISTORY) as HistoryFragment
+            checkHistoryComparisonEntry(host, history)
             var historyList: ListView? = null
             var historyPosition = 0
             test.runOnMainSync {

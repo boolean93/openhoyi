@@ -26,6 +26,11 @@ internal class AiChatPreviewChecks(private val test: Instrumentation) {
     fun run(arguments: Bundle) {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         check(arguments.getString("aiPreviewOnly") == "true" && arguments.getString("aiSafetyChecks") != "true")
+        if (arguments.getString("aiMessageCopyOnly") == "true") {
+            check(arguments.getString("aiCardConstructionOnly") != "true")
+            AiMessageCopyChecks.run(test)
+            return
+        }
         if (arguments.getString("aiCardConstructionOnly") == "true") {
             AiCurveCardConstructionChecks.run(test)
             return
