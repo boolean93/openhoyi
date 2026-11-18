@@ -48,7 +48,7 @@ internal class ExtractionTrendView(context: Context, private val metric: Extract
         textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
             11f, resources.displayMetrics)
     }
-    private val emptyArea = Paint().apply { color = context.getColor(R.color.mobile_accent_soft); alpha = 75 }
+    private val emptyArea = Paint().apply { color = context.getColor(R.color.chart_future_area); alpha = 75 }
     private val path = Path()
 
     override fun onDraw(canvas: Canvas) {

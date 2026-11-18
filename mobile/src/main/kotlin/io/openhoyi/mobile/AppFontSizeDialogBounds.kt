@@ -10,7 +10,7 @@ internal object AppFontSizeDialogBounds {
     fun width(ownerWidthPx: Int, density: Float): Int =
         minOf((560 * density).toInt(), (ownerWidthPx - 32 * density).toInt()).coerceAtLeast(1)
 
-    fun bind(activity: Activity, dialog: AlertDialog) {
+    fun bind(activity: Activity, dialog: AlertDialog, onDismiss: () -> Unit = {}) {
         val host = activity.window.decorView
         val density = activity.resources.displayMetrics.density
         fun update() {
@@ -23,7 +23,10 @@ internal object AppFontSizeDialogBounds {
         }
         val listener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> update() }
         host.addOnLayoutChangeListener(listener)
-        dialog.setOnDismissListener { host.removeOnLayoutChangeListener(listener) }
+        dialog.setOnDismissListener {
+            host.removeOnLayoutChangeListener(listener)
+            onDismiss()
+        }
         update()
     }
 }

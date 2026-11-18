@@ -274,7 +274,7 @@ class ScaleActivity:ScaleOwnerActivity() {
             gravity=if(centered)android.view.Gravity.CENTER else android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
             setTextColor(android.content.res.ColorStateList(
                 arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
-                intArrayOf(getColor(R.color.mobile_muted),getColor(R.color.mobile_accent))))
+                intArrayOf(getColor(R.color.mobile_muted),appColor(R.color.mobile_accent))))
             val states=android.graphics.drawable.StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused),
                     HoyiUi.shape(this@ScaleActivity,android.R.color.transparent,8,R.color.mobile_accent))
@@ -282,7 +282,7 @@ class ScaleActivity:ScaleOwnerActivity() {
             }
             background=android.graphics.drawable.RippleDrawable(
                 android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
-                    intArrayOf(android.graphics.Color.TRANSPARENT,getColor(R.color.mobile_accent_soft))),
+                    intArrayOf(android.graphics.Color.TRANSPARENT,appColor(R.color.mobile_accent_soft))),
                 states,HoyiUi.shape(this@ScaleActivity,android.R.color.white,8))
         }
     private fun setWeightReading(value: String) {

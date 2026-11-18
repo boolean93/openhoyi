@@ -9,12 +9,12 @@ import android.widget.Button
 internal fun Button.asTaskTextAction() {
     val activity = context as ThemedActivity
     setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
-        intArrayOf(context.getColor(R.color.mobile_muted), context.getColor(R.color.mobile_accent))))
+        intArrayOf(context.getColor(R.color.mobile_muted), context.appColor(R.color.mobile_accent))))
     val states = StateListDrawable().apply {
         addState(intArrayOf(android.R.attr.state_focused),
             HoyiUi.shape(activity, android.R.color.transparent, 8, R.color.mobile_accent))
         addState(intArrayOf(), HoyiUi.shape(activity, android.R.color.transparent, 8))
     }
-    background = RippleDrawable(ColorStateList.valueOf(context.getColor(R.color.mobile_accent_soft)), states,
+    background = RippleDrawable(ColorStateList.valueOf(context.appColor(R.color.mobile_accent_soft)), states,
         HoyiUi.shape(activity, android.R.color.white, 8))
 }

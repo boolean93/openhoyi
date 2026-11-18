@@ -77,7 +77,7 @@ internal class AiCurveRecipeDiagramView(
                 val y = bottom - plotHeight * fraction
                 paint.color = if (stage.unit == CurveStageParameters.Unit.FLOW_ML_PER_SECOND ||
                     resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES)
-                    style.accent else style.pressure
+                    style.flowMetric else style.pressure
                 paint.strokeWidth = style.dp(3).toFloat()
                 // Only the target of this stage: no cross-stage join and no sample marker.
                 val center = left + step * (index + .5f)

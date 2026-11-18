@@ -23,6 +23,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var autoPreheatChecks = false
     private var unifiedSwitchChecks = false
     private var fontSizeChecks = false
+    private var themePaletteChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
     private var shortcutTheme: Boolean? = null
@@ -77,6 +78,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
+        themePaletteChecks = arguments?.getString("themePaletteChecks") == "true"
         darkThemeWindow = arguments?.getString("darkThemeWindow")?.let { check(it in setOf("light", "dark")); it == "dark" }
         connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
         settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
@@ -154,6 +156,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (downloadRoutingChecks) {
                 ReleaseDownloadRoutingChecks(this).run()
                 report.putString("stream", "DOWNLOAD_ROUTING_PASSED settingsInline=true otherPagePopup=true navigation=true recreation=true transferPreserved=true noInstaller=true noNetwork=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (themePaletteChecks) {
+                check(disposableCiEmulator) { "Palette checks require a disposable CI emulator" }
+                ThemePaletteRuntimeChecks(this).run()
+                report.putString("stream", "THEME_PALETTE_CHECKS_PASSED previewCancelApply=true twoModes=true fixedMetricColors=true switchInkStates=true screenshots=24 sameService=true retainedDrafts=true noModelRequest=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (fontSizeChecks) {

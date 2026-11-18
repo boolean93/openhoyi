@@ -326,7 +326,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val flow="━ " + getString(R.string.curve_control_mode_flow)
             text=android.text.SpannableString("$pressure    $flow").apply {
                 setSpan(android.text.style.ForegroundColorSpan(productStyle.pressure),0,pressure.length,0)
-                setSpan(android.text.style.ForegroundColorSpan(productStyle.accent),pressure.length+4,length,0)
+                setSpan(android.text.style.ForegroundColorSpan(productStyle.flowMetric),pressure.length+4,length,0)
             }
             contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
         }
@@ -873,7 +873,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
         prominentAlarm.show(alarmBanner?.message.orEmpty())
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
-            R.color.mobile_danger else R.color.mobile_accent))
+            R.color.mobile_danger else R.color.mobile_alarm_advisory))
         // Connection/readiness already belongs to the shell. Only exceptional shot state
         // needs a second label here; keep mode controls in their existing header.
         val manualShot = owner?.manualShotActive == true
@@ -1205,10 +1205,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun dotShape(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
-        setColor(when (color) { R.color.mobile_success -> homeAccent; R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
+        setColor(when (color) { R.color.mobile_success -> getColor(R.color.home_device_ready); R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
     }
     private fun View.showDot(colorResource: Int) {
-        val color = when (colorResource) { R.color.mobile_success -> homeAccent; R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
+        val color = when (colorResource) { R.color.mobile_success -> getColor(R.color.home_device_ready); R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
         val dot = background as? GradientDrawable
         // Replacing an unchanged background emits native accessibility subtree events.
         if (dot == null) background = dotShape(colorResource)
