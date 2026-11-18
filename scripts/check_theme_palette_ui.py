@@ -20,11 +20,13 @@ SAMPLES = tuple(f'{mode}-{palette}'
 STATES = ('on', 'off', 'disabled')
 SCREENSHOTS = tuple(f'{sample}-{state}.png' for sample in SAMPLES for state in STATES)
 BACKGROUND_MARKER = ('PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivityRecreateOnApply=true '
-                     'cancelFailureStale=true privateFiles=true aiHeaderFade=true aiComposer=true '
-                     'screenshots=16 noModelRequest=true noBle=true')
+                     'cancelFailureStale=true privateFiles=true aiHeaderFade=true aiComposer=true aiAttachmentMenu=true '
+                     'screenshots=18 noModelRequest=true noBle=true')
 BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
-                    for page in ('photo', 'settings', 'home', 'curve', 'ai', 'home-mist', 'ai-fade', 'ai-composer'))
-BACKGROUND_FAILURE_FRAMES = ('light-ai-composer.failed.png', 'dark-ai-composer.failed.png')
+                    for page in ('photo', 'settings', 'home', 'curve', 'ai', 'home-mist', 'ai-fade', 'ai-composer',
+                                 'ai-attachment-menu'))
+BACKGROUND_FAILURE_FRAMES = tuple(f'{mode}-{page}.failed.png' for mode in ('light', 'dark')
+                                  for page in ('ai-composer', 'ai-attachment-menu'))
 
 
 def validate_distinct_screenshots(hashes):

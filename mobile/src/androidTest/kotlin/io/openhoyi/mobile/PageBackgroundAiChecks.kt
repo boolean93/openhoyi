@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.os.SystemClock
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -81,34 +82,55 @@ internal class PageBackgroundAiChecks(
                 it.contentDescription == chat.getString(R.string.ai_attachment_add)
             }
         }
+        fun composerReady() = inputFrame.isActivated &&
+            fullyVisible(plus) && fullyVisible(ui.send) && ui.send.isEnabled && ui.send.isClickable
+        fun composerGeometry(menu: View? = null) = ComposerGeometry(
+            screenBounds(inputFrame), listOf(screenBounds(plus), screenBounds(ui.send)), menu?.let(::screenBounds),
+        )
+
         tap(ui.input)
         await("actual keyboard and activated shared composer outline") {
-            ui.input.hasFocus() && inputFrame.isActivated && imeVisible() &&
-                fullyVisible(plus) && fullyVisible(ui.send) && ui.send.isEnabled && ui.send.isClickable
+            ui.input.hasFocus() && imeVisible() && composerReady()
         }
+        captureComposer("$mode-ai-composer") {
+            composerGeometry().takeIf { ui.input.hasFocus() && imeVisible() && composerReady() && ui.options == null }
+        }
+        test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        await("Back closes only the software keyboard") {
+            imeHidden() && chat.hasWindowFocus() && !chat.isFinishing && ui.input.hasFocus() && composerReady()
+        }
+
         tap(plus)
         fun visibleAttachmentMenu(): ViewGroup? {
             val menu = ui.options?.takeIf { it.isShowing }?.contentView as? ViewGroup ?: return null
             return menu.takeIf {
-                it.tag == "ai/chat/attachment-menu" && imeVisible() && inputFrame.isActivated && it.childCount == 2 &&
+                it.tag == "ai/chat/attachment-menu" && composerReady() && it.childCount == 2 &&
                     (0 until it.childCount).map(it::getChildAt).all { choice ->
                         choice is Button && choice.isEnabled && choice.isClickable && fullyVisible(choice)
                     } && screenBounds(it).bottom <= screenBounds(inputFrame).top
             }
         }
-        await("attachment popup and keyboard visible together") { visibleAttachmentMenu() != null }
+        await("attachment popup displayed above the composer") { imeHidden() && visibleAttachmentMenu() != null }
+        captureComposer("$mode-ai-attachment-menu") {
+            if (imeHidden()) visibleAttachmentMenu()?.let(::composerGeometry) else null
+        }
+        test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        await("Back closes only the attachment menu") {
+            ui.options == null && chat.hasWindowFocus() && !chat.isFinishing && ui.input.hasFocus() && composerReady()
+        }
+    }
+
+    private data class ComposerGeometry(val outline: Rect, val buttons: List<Rect>, val menu: Rect?)
+
+    private fun captureComposer(name: String, geometry: () -> ComposerGeometry?) {
         var composerPixels = "no compositor sample"
-        screenshot("$mode-ai-composer.png", "$mode-ai-composer.failed.png", detail = { composerPixels }) { frame ->
-            // Read current geometry on each retry, in case the IME insets are still settling.
-            val (outline, buttons, menu) = main {
-                visibleAttachmentMenu()?.let { Triple(screenBounds(inputFrame),
-                    listOf(screenBounds(plus), screenBounds(ui.send)), screenBounds(it)) }
-            } ?: run {
-                composerPixels = "attachment/IME geometry changed during capture"
+        screenshot("$name.png", "$name.failed.png", detail = { composerPixels }) { frame ->
+            // Read the expected state's current geometry on each compositor sample.
+            val (outline, buttons, menu) = main(geometry) ?: run {
+                composerPixels = "$name geometry changed during capture"
                 return@screenshot false
             }
-            // Probe the real shared stroke across each button, including while the popup is visible.
-            // The inset button drawables must never paint through these top/bottom segments.
+            // Both states must show the real shared stroke on top and bottom of each button.
             val edge = style.dp(2).coerceAtLeast(2)
             val segments = buttons.flatMap { button ->
                 (-1..1).map { offset ->
@@ -118,17 +140,25 @@ internal class PageBackgroundAiChecks(
                     Triple(x, top, bottom)
                 }
             }
-            // The popup has a separate surface: this interior sample must be in the compositor image.
-            val menuX = menu.left + style.dp(7)
-            val menuY = menu.centerY()
-            val menuColor = frame.getPixel(menuX, menuY)
-            val menuError = distance(menuColor, style.surface)
+            // The popup has a separate surface: its interior must also appear in the compositor.
+            var menuResult = "menu not expected"
+            val menuError = menu?.let {
+                val x = it.left + style.dp(7)
+                val y = it.centerY()
+                val color = frame.getPixel(x, y)
+                distance(color, style.surface).also { error ->
+                    menuResult = "menu=$it sample($x,$y)=#${color.toUInt().toString(16)} menuError=$error"
+                }
+            }
             composerPixels = "frame=$outline buttons=$buttons accent=#${style.accent.toUInt().toString(16)} " +
-                "segments(x,topError,bottomError)=$segments menu=$menu " +
-                "sample($menuX,$menuY)=#${menuColor.toUInt().toString(16)} menuError=$menuError"
-            segments.all { (_, top, bottom) -> top <= 8 && bottom <= 8 } && menuError <= 8
+                "segments(x,topError,bottomError)=$segments $menuResult"
+            segments.all { (_, top, bottom) -> top <= 8 && bottom <= 8 } && (menuError == null || menuError <= 8)
         }
-        main { ui.dismissOptions() }
+    }
+
+    private fun imeHidden(): Boolean {
+        val type = WindowInsets.Type.ime()
+        return ui.root.rootWindowInsets?.let { !it.isVisible(type) && it.getInsets(type).bottom == 0 } == true
     }
 
     private fun imeVisible(): Boolean {
