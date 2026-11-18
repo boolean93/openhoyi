@@ -6,8 +6,8 @@ import org.junit.Test
 
 class Firmware115CompatibilityTest {
     @Test fun controlProfilesAreExplicitRatherThanFutureVersionRange() {
-        for(version in listOf(0x113,0x114,0x115))assertTrue(CoffeeFirmwareProfiles.permitsControl(version))
-        for(version in listOf(0,0x112,0x116,0x120,0x200))assertFalse(CoffeeFirmwareProfiles.permitsControl(version))
+        for(version in listOf(0x113,0x114,0x115,0x116))assertTrue(CoffeeFirmwareProfiles.permitsControl(version))
+        for(version in listOf(0,0x112,0x117,0x120,0x200))assertFalse(CoffeeFirmwareProfiles.permitsControl(version))
     }
     @Test fun firmware115RetainsSettingsReadbackGateAndExactExistingWrite() {
         val f=CoffeeSessionFixture()
