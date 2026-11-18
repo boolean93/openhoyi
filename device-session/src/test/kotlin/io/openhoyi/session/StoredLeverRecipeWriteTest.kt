@@ -180,7 +180,7 @@ class StoredLeverRecipeWriteTest {
             f.now=10000;f.session.tick();assertEquals(1,f.driver.recipeWrites.size)
         }
         for (parameters in variants) for (fault in listOf("stale","alarm","unsupported")) {
-            val f=Fixture(if(fault=="unsupported")0x16 else 0x13)
+            val f=Fixture(if(fault=="unsupported")0x17 else 0x13)
             if(fault=="stale")f.now=1501
             if(fault=="alarm")f.idle(true)
             var result:OperationResult?=null
