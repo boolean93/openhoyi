@@ -36,7 +36,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
-        val names = listOf("shot_safety", "machine_write_safety", "curves")
+        val names = listOf("shot_safety", "machine_write_safety", "temperature_confirmation", "curves")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         var checkedFixtures=0;var fakeWrites=0;var fakeBarriers=0;var blocked=0;var reloadedRecords=0;var clearedShots=0;var retainedShots=0;var clearedPreheat=0;var retainedPreheat=0
         val modes=if(completion)listOf("OWNER_ALLOW","OWNER_SHOT_REARM","OWNER_SHOT_OTHER","OWNER_HUB",
