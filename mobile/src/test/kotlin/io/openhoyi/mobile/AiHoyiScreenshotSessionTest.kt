@@ -7,85 +7,40 @@ import org.junit.Test
 class AiHoyiScreenshotSessionTest {
     private val epoch = "00000000-0000-0000-0000-000000000001"
     private val image = AiAttachment("00000000-0000-0000-0000-000000000002", "curve.jpg", "image/jpeg", 4, AiAttachmentKind.IMAGE)
-    private fun state(items: List<AiAttachment> = listOf(image), id: String? = image.id, model: String = AiModelPolicy.FLASH,
-        inactive: List<AiSession> = emptyList()) = AiSession(epoch, emptyList(), AiProtocolHistory.empty(model), "", AiUsageSnapshot(),
-        items, inactive, hoyiScreenshotSourceId = id)
-    private fun changed(s: AiSession, value: JsonElement): ByteArray {
-        val o = Json.parseToJsonElement(AiSessionCodec.encode(s).toString(Charsets.UTF_8)).jsonObject
-        return JsonObject(o + ("hoyiScreenshotSourceId" to value)).toString().toByteArray()
-    }
-    @Test fun explicitBindingRoundTripsAndUsageUpdatesPreserveItWhileLegacyCannotInventIt() {
-        val restored = AiSessionCodec.decode(AiSessionCodec.encode(state()))
-        assertEquals(image.id, restored.hoyiScreenshotSourceId); assertEquals(image.name, restored.hoyiScreenshotSource!!.name)
-        assertEquals(image.id, restored.withUsage(AiUsageSnapshot()).hoyiScreenshotSourceId)
+    private fun state(draft: String = "", model: String = AiModelPolicy.FLASH) = AiSession(epoch, emptyList(), AiProtocolHistory.empty(model), draft,
+        AiUsageSnapshot(), listOf(image))
+    // Build the actual legacy field explicitly. The new encoder intentionally never writes an active mode.
+    private fun legacy(value: JsonElement = JsonPrimitive(image.id)): ByteArray {
         val root = Json.parseToJsonElement(AiSessionCodec.encode(state()).toString(Charsets.UTF_8)).jsonObject
-        val old = JsonObject((root - "hoyiScreenshotSourceId") + ("schema" to JsonPrimitive(5)))
-        assertNull(AiSessionCodec.decode(old.toString().toByteArray()).hoyiScreenshotSource)
-        assertNull(AiSessionCodec.decode(AiSessionCodec.encode(state(id = null))).hoyiScreenshotSource)
+        return JsonObject(root + ("hoyiScreenshotSourceId" to value)).toString().toByteArray()
     }
-    @Test fun unknownNonImageMalformedAndConflictingMetadataNeverDowngradeToUnbound() {
+    @Test fun legacySchema6RemainsReadableWithoutRevivingModeOrDeletingImages() {
+        val restored = AiSessionCodec.decode(legacy())
+        assertEquals(image.id, restored.draftAttachments.single().id)
+        val saved = Json.parseToJsonElement(AiSessionCodec.encode(restored).toString(Charsets.UTF_8)).jsonObject
+        assertEquals(JsonNull, saved["hoyiScreenshotSourceId"])
+        val pro = AiModelSessions.switch(restored, AiModelPolicy.PRO)
+        val returned = AiModelSessions.switch(AiSessionCodec.decode(AiSessionCodec.encode(pro)), AiModelPolicy.FLASH)
+        assertEquals(image.id, returned.draftAttachments.single().id)
+        val old = JsonObject((saved - "hoyiScreenshotSourceId") + ("schema" to JsonPrimitive(5)))
+        assertEquals(image.id, AiSessionCodec.decode(old.toString().toByteArray()).draftAttachments.single().id)
+    }
+    @Test fun malformedLegacyBindingRemainsStrictInsteadOfSilentlyDiscardingCorruption() {
         for (bad in listOf<JsonElement>(JsonPrimitive("unknown"), JsonPrimitive(1), JsonPrimitive(true), JsonObject(emptyMap()))) {
-            assertTrue(runCatching { AiSessionCodec.decode(changed(state(), bad)) }.isFailure)
+            assertTrue(runCatching { AiSessionCodec.decode(legacy(bad)) }.isFailure)
         }
-        val text = AiAttachment(image.id, "curve.txt", "text/plain", 4, AiAttachmentKind.TEXT)
-        assertTrue(runCatching { AiSessionCodec.encode(state(listOf(text))) }.isFailure)
-        val lines = listOf(AiChatLine(true, "question", listOf(image)), AiChatLine(false, "answer"))
-        val protocol = AiProtocolHistory.checked(AiContextPolicy.lines(lines))
-        val consistent = AiSession(epoch, lines, protocol, "", AiUsageSnapshot(), listOf(image), hoyiScreenshotSourceId = image.id)
-        assertNotNull(AiSessionCodec.decode(AiSessionCodec.encode(consistent)).hoyiScreenshotSource)
-        val different = AiAttachment(image.id, "different.jpg", "image/jpeg", 4, AiAttachmentKind.IMAGE)
-        val conflicting = AiSession(epoch, lines, protocol, "", AiUsageSnapshot(), listOf(different), hoyiScreenshotSourceId = image.id)
-        assertTrue(runCatching { AiSessionCodec.encode(conflicting) }.isFailure)
     }
-    @Test fun inactiveModelBindingIsIsolatedAndCannotProvideActiveSource() {
-        val inactive = state()
-        val active = state(items = emptyList(), id = null, model = AiModelPolicy.PRO, inactive = listOf(inactive))
-        val restored = AiSessionCodec.decode(AiSessionCodec.encode(active))
-        assertNull(restored.hoyiScreenshotSource); assertEquals(image.id, restored.inactive.single().hoyiScreenshotSourceId)
-        assertTrue(runCatching { AiSessionCodec.encode(state(items = emptyList(), model = AiModelPolicy.PRO, inactive = listOf(inactive))) }.isFailure)
-        val switched = AiModelSessions.switch(state(), AiModelPolicy.PRO)
-        assertNull(switched.hoyiScreenshotSource)
-        assertTrue(AiModelPolicy.accepts(switched.modelId, switched.draftAttachments))
-        assertEquals("switch must retain the inactive source", image.id, switched.inactive.single().hoyiScreenshotSourceId)
-        val switchedRoundTrip = AiSessionCodec.decode(AiSessionCodec.encode(switched))
-        assertEquals("codec must retain the inactive source", image.id, switchedRoundTrip.inactive.single().hoyiScreenshotSourceId)
-        val returned = AiModelSessions.switch(switchedRoundTrip, AiModelPolicy.FLASH)
-        assertEquals(image.id, returned.hoyiScreenshotSourceId)
-        assertEquals(image.name, returned.hoyiScreenshotSource!!.name)
-    }
-    @Test fun failedCancellationCannotReplaceSnapshotOrLoseBindingOnLaterUsageSave() {
-        val lock = Any()
-        val original = state()
-        var snapshot = original
-        val cancelled = state(id = null)
-        var commits = 0
-        assertFalse(AiSessionTransactions.commit(lock, cancelled, save = { false }, committed = {
-            snapshot = it; commits++
-        }))
+    @Test fun failedCommitCannotReplaceSnapshotOrLoseDraftOnLaterUsageSave() {
+        val lock = Any(); val original = state("original")
+        var snapshot = original; var commits = 0
+        val candidate = state("changed")
+        assertFalse(AiSessionTransactions.commit(lock, candidate, save = { false }, committed = { snapshot = it; commits++ }))
         assertSame(original, snapshot); assertEquals(0, commits)
-        assertEquals(image.id, snapshot.hoyiScreenshotSourceId)
-        val usageUpdate = snapshot.withUsage(AiUsageSnapshot())
-        assertTrue(AiSessionTransactions.commit(lock, usageUpdate, save = {
-            assertEquals(image.id, AiSessionCodec.decode(AiSessionCodec.encode(it)).hoyiScreenshotSourceId)
-            true
+        assertTrue(AiSessionTransactions.commit(lock, snapshot.withUsage(AiUsageSnapshot()), save = {
+            assertEquals("original", AiSessionCodec.decode(AiSessionCodec.encode(it)).draft); true
         }, committed = { snapshot = it; commits++ }))
-        assertEquals(image.id, snapshot.hoyiScreenshotSourceId)
-        assertTrue(AiSessionTransactions.commit(lock, cancelled, save = {
-            assertNull(AiSessionCodec.decode(AiSessionCodec.encode(it)).hoyiScreenshotSourceId)
-            true
-        }, committed = { snapshot = it; commits++ }))
-        assertNull(snapshot.hoyiScreenshotSource); assertEquals(2, commits)
+        assertEquals("original", snapshot.draft)
+        assertTrue(AiSessionTransactions.commit(lock, candidate, save = { true }, committed = { snapshot = it; commits++ }))
+        assertEquals("changed", snapshot.draft); assertEquals(2, commits)
     }
-    @Test fun clearingCurrentConversationClearsNativeScreenshotBinding() {
-        val memory = AiChatViewState().apply {
-            hoyiScreenshotSource = image
-            attachments += image
-            draft = "missing values follow-up"
-        }
-        val generation = memory.contextGeneration
-        memory.clearCurrent()
-        assertNull(memory.hoyiScreenshotSource); assertTrue(memory.attachments.isEmpty())
-        assertTrue(memory.draft.isEmpty()); assertTrue(memory.contextGeneration > generation)
-    }
-
 }

@@ -10,10 +10,9 @@ import javax.crypto.spec.GCMParameterSpec
 
 /** Never stringify session contents: protocol includes private tool and reasoning data. */
 internal class AiSession(val epoch: String, val lines: List<AiChatLine>, val protocol: AiProtocolHistory,
-    val draft: String, val usage: AiUsageSnapshot, val draftAttachments: List<AiAttachment> = emptyList(), val inactive: List<AiSession> = emptyList(), val ocr: List<AiOcrRecord> = emptyList(), val hoyiScreenshotSourceId: String? = null) {
+    val draft: String, val usage: AiUsageSnapshot, val draftAttachments: List<AiAttachment> = emptyList(), val inactive: List<AiSession> = emptyList(), val ocr: List<AiOcrRecord> = emptyList()) {
     val modelId get() = protocol.modelId
-    val hoyiScreenshotSource: AiAttachment? get() = AiSessionCodec.resolveHoyiScreenshotSource(hoyiScreenshotSourceId, draftAttachments, lines)
-    fun withUsage(next: AiUsageSnapshot) = AiSession(epoch, lines, protocol, draft, next, draftAttachments, inactive, ocr, hoyiScreenshotSourceId)
+    fun withUsage(next: AiUsageSnapshot) = AiSession(epoch, lines, protocol, draft, next, draftAttachments, inactive, ocr)
     override fun toString() = "AiSession"
 }
 internal object AiSessionCodec {
@@ -40,7 +39,7 @@ internal object AiSessionCodec {
             require(s.inactive.size <= 1 && s.inactive.all { it.inactive.isEmpty() && it.epoch == s.epoch && it.modelId != s.modelId })
             put("inactive", JsonArray(s.inactive.map(::encodeObject))); put("ocr", AiOcrRecords.encode(s.ocr)); put("epoch", s.epoch); put("draft", s.draft)
             put("draftAttachments", AiAttachmentConversation.encode(s.draftAttachments))
-            put("hoyiScreenshotSourceId", s.hoyiScreenshotSourceId?.let(::JsonPrimitive) ?: JsonNull)
+            put("hoyiScreenshotSourceId", JsonNull)
             put("lines", buildJsonArray { s.lines.forEach { add(buildJsonObject { put("user", it.user); put("text", it.text); put("attachments", AiAttachmentConversation.encode(it.attachments)); put("curveCards", JsonArray(it.curveCards.map { card -> Json.parseToJsonElement(card.encode().toString()) })) }) } })
             put("context", buildJsonObject {
                 put("summary", s.protocol.summary?.let(::JsonPrimitive) ?: JsonNull)
@@ -107,9 +106,10 @@ internal object AiSessionCodec {
         val sourceId = if (schema!! >= 6) o.getValue("hoyiScreenshotSourceId").let { value ->
             if (value == JsonNull) null else (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: error("Invalid screenshot binding")
         } else null
+        // Legacy binding is validated for compatibility only, never restored as a routing mode.
         resolveHoyiScreenshotSource(sourceId, draftAttachments, lines)
         return AiSession(epoch, lines, protocol, draft, AiUsageCodec.decode(usage.toString()), draftAttachments, inactive,
-            if (schema >= 4) AiOcrRecords.decode(o["ocr"]) else emptyList(), sourceId)
+            if (schema >= 4) AiOcrRecords.decode(o["ocr"]) else emptyList())
     }
 }
 internal interface AiSessionStorage {
