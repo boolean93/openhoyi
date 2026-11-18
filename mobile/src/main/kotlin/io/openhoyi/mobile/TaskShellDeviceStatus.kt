@@ -11,7 +11,10 @@ internal object TaskShellDeviceStatus {
     fun coffee(active: Boolean, sleep: SleepNowTracker.State?, setting: SettingsWriteTracker.State?,
         unavailable: Boolean, running: Boolean, connection: DeviceState, sleepRaw: Int?,
         failure: CoffeeSessionFailure? = null,lastSleepRaw:Int?=sleepRaw,
-        preparation:BrewPreparation.State=BrewPreparation.State.IDLE,preparationAtTarget:Boolean=false): Int = when {
+        preparation:BrewPreparation.State=BrewPreparation.State.IDLE,preparationAtTarget:Boolean=false,alarmBlocked:Boolean=false): Int = when {
+        !running -> R.string.device_state_disconnected
+        connection != DeviceState.READY -> DeviceStatusText.coffeeResource(connection, failure)
+        alarmBlocked -> R.string.task_shell_machine_unavailable
         active -> R.string.task_shell_machine_extraction
         sleep in setOf(SleepNowTracker.State.UNKNOWN,SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ->
             SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)
@@ -20,8 +23,6 @@ internal object TaskShellDeviceStatus {
             R.string.task_shell_machine_setting
         sleep == SleepNowTracker.State.CONFIRMED && sleepRaw==null && lastSleepRaw==1 -> R.string.sleep_status_last_confirmed
         unavailable || PreheatStatusPresentation.abnormal(preparation) -> R.string.task_shell_machine_unavailable
-        !running -> R.string.device_state_disconnected
-        connection != DeviceState.READY -> DeviceStatusText.coffeeResource(connection, failure)
         sleepRaw!=1 && preparation in setOf(BrewPreparation.State.WRITING,BrewPreparation.State.WAITING_TEMP) ->
             R.string.auto_preheat_heating
         sleepRaw!=1 && preparation==BrewPreparation.State.READY -> if(preparationAtTarget)

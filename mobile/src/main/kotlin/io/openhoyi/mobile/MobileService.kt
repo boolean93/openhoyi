@@ -136,7 +136,7 @@ class MobileService : Service() {
     /** Display-only update gate. The service remains the sole machine-control authority. */
     internal val updateInterruptionBlocked: Boolean get() = releaseUpdateInterruptionBlocked(
         shotState, manualShotActive, scalePreflight, brewPreparation.active, tareState,
-        shotRecovery.pending, machineWriteRecovery.pending, settingsWrite.state,
+        shotRecovery.pending, machineWriteRecovery.pending, blockingSettingWriteState,
         cupResetBusy, scheduleBusy, sleepNow.state, leverInFlight != null, leverStore.blocked) ||
         (hub == null && io.openhoyi.bluetooth.SharedPreferenceTareStorage(this).read())
     val machineControlSafetyMessage: String? get() = leverWriteBlock ?: MachineControlGate.block(
@@ -164,6 +164,14 @@ class MobileService : Service() {
     private var scheduleRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
     private var sleepRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
     private val settingsWrite = SettingsWriteTracker()
+    private val temperatureWrite by lazy { io.openhoyi.session.BackgroundTemperatureWrite(
+        RecoveryPreferenceStorage.machine(this, backgroundTemperature=true)) }
+    private var lastSettingWasTemperature = false
+    /** Machine-level interlocks do not inherit a background temperature readback wait. */
+    val machineSettingStatusState: SettingsWriteTracker.State get() =
+        TemperatureWritePresentation.machineStatus(settingsWrite.state,temperatureWrite.state)
+    val blockingSettingWriteState: SettingsWriteTracker.State get() =
+        TemperatureWritePresentation.controlState(settingsWrite.state,temperatureWrite.state)
     private val cupReset = CupResetTracker()
     val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
         CupResetTracker.State.CONFIRMED else cupReset.state
@@ -210,8 +218,10 @@ class MobileService : Service() {
     private val settingWriteUnresolved: Boolean get() = settingsWrite.state == SettingsWriteTracker.State.UNKNOWN
     private val settingWriteUnresolvedMessage: String get() = getString(R.string.service_setting_unresolved)
     val settingWriteState: SettingsWriteTracker.State get() = if (mock?.lastSetting != null)
-        SettingsWriteTracker.State.CONFIRMED else settingsWrite.state
-    val pendingSetting: MachineSettingChange? get() = mock?.lastSetting ?: settingsWrite.change
+        SettingsWriteTracker.State.CONFIRMED else TemperatureWritePresentation.feedbackState(settingsWrite.state,temperatureWrite.state,
+            lastSettingWasTemperature,temperatureWrite.pendingAfterRestart,settingsWrite.change!=null)
+    val pendingSetting: MachineSettingChange? get() = mock?.lastSetting ?:
+        if(lastSettingWasTemperature) temperatureWrite.change else settingsWrite.change
     val scheduleWriteState: SleepScheduleWriteTracker.State get() = if (mock?.scheduleChanged == true)
         SleepScheduleWriteTracker.State.CONFIRMED else scheduleWrite.state
     val pendingSchedule: WeeklySleepSchedule? get() = scheduleWrite.target
@@ -620,6 +630,7 @@ class MobileService : Service() {
             }
             else -> Unit
         }
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY) temperatureWrite.disconnected(settingsSampleSerial)
         // The controller consumes idle synchronously; a link loss between that proof and
         // watchShot finalization cannot undo it. A passive cup has its own end boundary.
         if (role == DeviceRole.COFFEE && state != DeviceState.READY)
@@ -658,6 +669,12 @@ class MobileService : Service() {
         snapshot = when (frame) {
             is Settings -> {
                 observeCupCount(true, frame.cupCount)
+                temperatureWrite.observe(hub?.coffeeAddress,settingsSampleSerial+1,frame)?.let { result ->
+                    if(result == SettingsWriteTracker.State.CONFIRMED)
+                        event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.temperature_observed")
+                    else if(result == SettingsWriteTracker.State.RECONCILED)
+                        event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.temperature_different")
+                }
                 if (OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,++settingsSampleSerial,frame,{ machineWriteRecovery.clear(settingRecoveryOwner) },
                     machineWriteRecovery.owns(settingRecoveryOwner) && hub?.boilerReconciliationReady==true &&
                         hub?.coffeeAddress?.equals(machineWriteRecovery.address,ignoreCase=true)==true) { feedback ->
@@ -667,7 +684,7 @@ class MobileService : Service() {
                         OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                     }
                 }) refreshSafetyNotification()
-                if(settingsWrite.state in setOf(SettingsWriteTracker.State.CONFIRMED,SettingsWriteTracker.State.RECONCILED) &&
+                if(!lastSettingWasTemperature && settingsWrite.state in setOf(SettingsWriteTracker.State.CONFIRMED,SettingsWriteTracker.State.RECONCILED) &&
                     !machineWriteRecovery.pending) {
                     boilerFallback=null
                     hub?.completeBoilerReadbackRecovery()
@@ -1006,7 +1023,7 @@ class MobileService : Service() {
             MobileMonotonicClock.elapsedRealtime()) as? IdleTelemetry
         return SleepReconnectPolicy.allowed(running, snapshot.coffeeState, sleepNowState,
             idle?.sleepStateRaw, (snapshot.coffee as? IdleTelemetry)?.sleepStateRaw,
-            manualShotActive || ShotGate.active(shotState), settingWriteState,
+            manualShotActive || ShotGate.active(shotState), blockingSettingWriteState,
             brewPreparationState != BrewPreparation.State.IDLE,
             cupResetBusy || scheduleBusy || leverInFlight != null || leverStore.blocked || machineWriteRecovery.pending)
     }
@@ -1255,6 +1272,7 @@ class MobileService : Service() {
         if (manualShotActive) return getString(R.string.service_write_setting_manual_block)
         machineControlSafetyMessage?.let { return it }
         val current = hub ?: return getString(R.string.service_unavailable)
+        if (temperatureWrite.busy) return getString(R.string.service_write_setting_pending)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
         if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
@@ -1281,8 +1299,13 @@ class MobileService : Service() {
             change.temperatureC != observed.standbyTemperatureC) return getString(R.string.service_write_standby_temperature_changed)
         if (change is MachineSettingChange.StandbyTemperature &&
             change.minutes != observed.standbyMinutes) return getString(R.string.service_write_standby_delay_changed)
-        if (change.matches(observed)) return getString(R.string.service_write_setting_already_observed)
+        if (change.matches(observed) && !(io.openhoyi.session.SettingsReadbackPolicy.isTemperature(change) &&
+            temperatureWrite.requiresExplicitRetry))
+            return getString(R.string.service_write_setting_already_observed)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_setting_identity_missing)
+        if(io.openhoyi.session.SettingsReadbackPolicy.isTemperature(change))
+            return changeTemperatureInBackground(current,coffeeAddress,change)
+        lastSettingWasTemperature=false
         val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
             coffeeAddress, MachineWriteRegistration.Request.Setting(settingsWrite, change, settingsSampleSerial))) {
             MachineWriteRegistration.Result.Busy -> return getString(R.string.service_write_setting_pending)
@@ -1335,6 +1358,38 @@ class MobileService : Service() {
         }
         return null
     }
+    private fun changeTemperatureInBackground(current:NativeDeviceHub,address:String,change:MachineSettingChange):String? {
+        if(!temperatureWrite.companionAvailable(change,settingsSampleSerial,address))
+            return getString(R.string.service_write_settings_stale)
+        val replacingObserver=temperatureWrite.requiresExplicitRetry
+        val token=temperatureWrite.begin(change,address,settingsSampleSerial)
+            ?: return getString(R.string.service_write_setting_record_failed)
+        lastSettingWasTemperature=true
+        if(replacingObserver) logs.record("settings.temperature_observer_replaced",mapOf("ownerId" to ownerId,
+            "previousOutcome" to "unconfirmed","automaticReplay" to "false"))
+        event(ResourceMessage(R.string.service_write_setting_queued,settingsPresentation.changeMessage(change)),"settings.requested")
+        fun safe()=hub===current && current.coffeeAddress?.equals(address,ignoreCase=true)==true &&
+            snapshot.coffeeState==DeviceState.READY && machineControlSafetyMessage==null && boilerRecoveryProductSafe()
+        current.writeSetting(change,{safe() && temperatureWrite.permitsWrite(token,current.coffeeAddress)}) done@{ result ->
+            if(!temperatureWrite.written(token,result,settingsSampleSerial))return@done
+            when(result) {
+                is OperationResult.Success -> {
+                    event(ResourceMessage(R.string.service_write_setting_written),"settings.written")
+                    writeWatchdog.await(token,MachineWriteWatchdog.Request.Setting(temperatureWrite.tracker)) {
+                        event(ResourceMessage(R.string.service_write_setting_no_readback),"settings.unknown")
+                    }
+                    current.refreshBoilerSettings({safe() && temperatureWrite.permitsRefresh(token,current.coffeeAddress)}) {attempt,refreshResult->
+                        recordBoilerRefresh(false,attempt,refreshResult)
+                    }
+                }
+                is OperationResult.Failed,is OperationResult.Cancelled ->
+                    event(ResourceMessage(R.string.service_write_setting_not_written),"settings.failed")
+                is OperationResult.Unknown ->
+                    event(ResourceMessage(R.string.service_write_setting_unknown),"settings.unknown")
+            }
+        }
+        return null
+    }
     private val settingsRefreshBudget = SettingsRefreshBudget()
     private var staleSettingsRefreshBusy = false
     private fun settingsRefreshSafe(): Boolean {
@@ -1347,7 +1402,7 @@ class MobileService : Service() {
             controlRecoveryBlocked = MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning) != null,
             leverActive = leverInFlight != null || leverStore.active,
             operationActive = manualShotActive || ShotGate.active(shotState) || brewPreparation.active || cupResetBusy || scheduleBusy ||
-                settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+                blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
                     SettingsWriteTracker.State.UNKNOWN) || sleepNow.state in setOf(SleepNowTracker.State.WRITING,
                     SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
     }
@@ -1398,7 +1453,7 @@ class MobileService : Service() {
     private fun leverRecipeConditions(): String? {
         MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)?.let { return it }
         if (manualShotActive || ShotGate.active(shotState) || brewPreparation.active || cupResetBusy || scheduleBusy ||
-            settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+            blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
                 SettingsWriteTracker.State.UNKNOWN) || sleepNow.state in setOf(SleepNowTracker.State.WRITING,
                 SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
             return getString(R.string.service_write_operation_pending)
@@ -1458,7 +1513,7 @@ class MobileService : Service() {
                         snapshot.coffeeState == DeviceState.READY && !leverStore.blocked &&
                         !manualShotActive && !ShotGate.active(shotState) && !brewPreparation.active &&
                         !machineWriteRecovery.pending && !cupResetBusy && !scheduleBusy &&
-                        settingWriteState !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+                        blockingSettingWriteState !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
                 }) { refresh ->
                     if (refresh !is OperationResult.Success)
                         logs.record("lever_recipe.settings_refresh_unconfirmed", mapOf("result" to refresh.javaClass.simpleName))
@@ -1513,7 +1568,7 @@ class MobileService : Service() {
         if (cupReset.state == CupResetTracker.State.UNKNOWN)
             return getString(R.string.service_write_cups_previous_unknown)
         if (cupResetBusy) return getString(R.string.service_write_cups_pending)
-        if (scheduleBusy || settingWriteState in
+        if (scheduleBusy || blockingSettingWriteState in
             setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) ||
             sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
             return getString(R.string.service_write_operation_pending)
@@ -1587,7 +1642,7 @@ class MobileService : Service() {
         if (ShotGate.active(shotState)) return getString(R.string.service_write_schedule_shot_block)
         if (scheduleWriteState == SleepScheduleWriteTracker.State.UNKNOWN)
             return getString(R.string.service_write_schedule_previous_unknown)
-        if (scheduleBusy || settingWriteState in
+        if (scheduleBusy || blockingSettingWriteState in
             setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return getString(R.string.service_write_setting_previous_pending)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
@@ -1670,7 +1725,7 @@ class MobileService : Service() {
         if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
         if (scheduleBusy) return getString(R.string.service_write_schedule_waiting)
         if (ShotGate.active(shotState)) return getString(R.string.service_write_sleep_shot_block)
-        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
+        if (blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return getString(R.string.service_write_setting_waiting)
         if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
@@ -1755,7 +1810,7 @@ class MobileService : Service() {
         shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), shotState,
             validated = profile?.let((application as MobileApplication).curves::validated) == true)?.let { return it }
-        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+        if (blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
                 SettingsWriteTracker.State.UNKNOWN)) return getString(R.string.service_shot_settings_start_block)
         if (sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP,
                 SleepNowTracker.State.UNKNOWN)) return getString(R.string.service_shot_sleep_start_block)
@@ -1886,7 +1941,7 @@ class MobileService : Service() {
         if (brewPreparation.active) return getString(R.string.service_shot_preheat_pending)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
             return getString(R.string.service_write_sleep_waiting)
-        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
+        if (blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return getString(R.string.service_write_setting_waiting)
         val settings = snapshot.settings ?: return getString(R.string.settings_missing)
         if (!machineBrewSettingsAvailable) return getString(R.string.service_shot_preheat_settings_stale)
@@ -2089,7 +2144,7 @@ class MobileService : Service() {
         if (scheduleBusy) return getString(R.string.service_shot_schedule_start_block)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
             return getString(R.string.service_shot_sleep_start_block)
-        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
+        if (blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return getString(R.string.service_shot_settings_start_block)
         val library = (application as MobileApplication).curves
         val profile = selectedCurve(profileId, slot)
@@ -2129,7 +2184,7 @@ class MobileService : Service() {
                 val selected=selectedCurve(profileId,slot)
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
-                    settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
+                    blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
                 callerPermits() && shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
                 ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,

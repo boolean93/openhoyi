@@ -91,6 +91,18 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         revision++
         return true
     }
+    /** Explicit replacement in a dedicated background-temperature journal, not acknowledgement.
+     * Existing global safety callers must continue to use arm(). */
+    internal fun replaceSetting(owner:Ownership?, address:String?):Boolean {
+        if (!pending) return arm(Kind.SETTING,address)
+        if (!owns(owner) || kind != Kind.SETTING) return false
+        val normalized=normalize(address) ?: return false
+        val next=Record(Kind.SETTING,normalized)
+        if (!runCatching { storage.write(next) }.getOrDefault(false)) return false
+        record=next
+        revision++
+        return true
+    }
     fun clear(): Boolean {
         if (!pending) return true
         val next=Record(null,null)

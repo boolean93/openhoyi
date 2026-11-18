@@ -83,7 +83,7 @@ class AppSettingsFragment : Fragment() {
             "WAITING_READBACK","WAITING_ZERO"->getString(R.string.home_setting_waiting)
             else->null
         }
-        document?.setStatus("machine",badge(it?.settingWriteState?.name))
+        document?.setStatus("machine",badge(it?.machineSettingStatusState?.name))
         document?.setStatus("schedule",badge(it?.scheduleWriteState?.name))
         document?.setStatus("maintenance",badge(it?.cupResetState?.name))
         val current = it?.snapshot

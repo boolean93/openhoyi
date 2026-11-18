@@ -69,6 +69,73 @@ class BoilerSettingsRefreshTest {
     }
     private fun hex(value:String)=value.chunked(2).map {it.toInt(16).toByte()}.toByteArray()
 
+    private val temperatureChanges = listOf(
+        MachineSettingChange.BrewTemperature(93), MachineSettingChange.BrewCompensation(1),
+        MachineSettingChange.SteamTemperature(130), MachineSettingChange.StandbyTemperature(60,15),
+        MachineSettingChange.StandbyDelay(30,53)
+    )
+    private fun temperatureReport(initial:ByteArray, change:MachineSettingChange):ByteArray = initial.copyOf().also {
+        when(change) {
+            is MachineSettingChange.BrewTemperature -> it[4]=change.celsius.toByte()
+            is MachineSettingChange.BrewCompensation -> it[5]=(change.celsius*10).toByte()
+            is MachineSettingChange.SteamTemperature -> it[6]=change.celsius.toByte()
+            is MachineSettingChange.StandbyTemperature -> it[8]=change.celsius.toByte()
+            is MachineSettingChange.StandbyDelay -> it[7]=change.minutes.toByte()
+            else -> error("not a temperature setting")
+        }
+        it[it.lastIndex]=it.dropLast(1).fold(0){a,v->a xor (v.toInt() and 255)}.toByte()
+    }
+
+    @Test fun temperatureWritesConfirmOnFirstFreshSyncWithoutWaitingForPhysicalHeating() {
+        for(change in temperatureChanges) {
+            val f=Fixture();val before=f.driver.writes.size
+            f.begin(change);f.complete()
+            assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
+            f.advance(250)
+            assertEquals(before+2,f.driver.writes.size)
+            assertArrayEquals(CoffeeCommands.authenticate(f.wallTime,"123456").frame.toByteArray(),f.driver.writes.last().bytes)
+            f.receive(temperatureReport(f.initial,change));f.complete()
+            assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
+            f.advance(1250);f.advance(6000)
+            assertEquals(before+2,f.driver.writes.size)
+            assertFalse(f.session.canReconnectBoilerSettings)
+            assertEquals(1,f.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(change).frame.toByteArray())})
+        }
+    }
+
+    @Test fun missingTemperatureReadbackUsesTwoSyncsThenExplicitRecoveryNeverControlReplay() {
+        for(change in temperatureChanges) {
+            val f=Fixture();val token=f.begin(change);f.complete()
+            f.advance(250);f.complete();f.advance(1250);f.complete()
+            val count=f.driver.writes.size
+            assertEquals(4,count) // initial authentication + one setting + two refreshes
+            f.receive(f.initial) // nonmatching report cannot confirm WAITING
+            assertEquals(SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
+            f.advance(6000);assertTrue(f.tracker.timeout(token,f.serial))
+            assertFalse(f.session.canReconnectBoilerSettings)
+            assertTrue(f.session.canRefreshUnknownBoilerSettings)
+            f.session.refreshUnknownBoilerSettings({f.tracker.permitsBoilerRecovery(token)}) {_,_->}
+            f.advance(6250);f.receive(temperatureReport(f.initial,change));f.complete()
+            assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
+            assertEquals(count+1,f.driver.writes.size)
+            assertEquals(1,f.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(change).frame.toByteArray())})
+        }
+    }
+
+    @Test fun failedOrDisconnectedTemperatureWritesCannotSynchronizeOrReplay() {
+        for(result in listOf(OperationResult.Failed("rejected"),OperationResult.Unknown("lost"))) {
+            val f=Fixture();f.begin(MachineSettingChange.BrewTemperature(93));val count=f.driver.writes.size
+            f.complete(result);f.advance(250);f.advance(1250)
+            assertEquals(count,f.driver.writes.size)
+            assertFalse(f.session.canRefreshUnknownBoilerSettings)
+        }
+        val f=Fixture();f.begin(MachineSettingChange.BrewTemperature(93));f.complete()
+        f.session.disconnect();val count=f.driver.writes.size
+        f.advance(250);f.advance(1250)
+        assertEquals(count,f.driver.writes.size)
+        assertFalse(f.session.canRefreshUnknownBoilerSettings)
+    }
+
     @Test fun leverModesRequestBoundedReadbackWithoutControlReplayOrReconnect() {
         for(change in listOf(MachineSettingChange.LeverMode(false,false),
             MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true))) {

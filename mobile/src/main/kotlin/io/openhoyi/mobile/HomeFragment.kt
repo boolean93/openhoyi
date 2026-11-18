@@ -206,6 +206,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
             AlertDialog.Builder(host).setTitle(title).setMessage(message)
                 .setPositiveButton(getString(R.string.home_recovery_clear)) { _, _ -> service?.acknowledgeManualSafety(); render() }
+                .apply {
+                    if (recoveryKind == MachineWriteRecoveryState.Kind.SETTING &&
+                        service?.canRefreshUnknownBoilerSettings == true)
+                        setNeutralButton(getString(R.string.home_boiler_refresh)) { _, _ ->
+                            service?.refreshUnknownBoilerSettings()?.let(::toast)
+                            render()
+                        }
+                }
                 .setNegativeButton(getString(R.string.machine_settings_cancel), null).let(::showTransient)
         }.apply { visibility = View.GONE }
         prominentAlarm = TextView(host).apply {
@@ -898,7 +906,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
         emergencyStop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
-        val settingBusy = owner?.settingWriteState in setOf(
+        val settingBusy = owner?.blockingSettingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE

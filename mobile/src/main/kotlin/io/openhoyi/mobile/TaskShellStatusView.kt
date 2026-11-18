@@ -295,10 +295,10 @@ internal class TaskShellStatusView(
             MobileMonotonicClock.elapsedRealtime()) as? IdleTelemetry
         val active = owner?.manualShotActive == true || owner?.shotState in setOf(
             ExtractionState.STARTING, ExtractionState.RUNNING, ExtractionState.STOP_REQUESTED)
-        val settingBusy = owner?.settingWriteState in setOf(SettingsWriteTracker.State.WRITING,
+        val settingBusy = owner?.machineSettingStatusState in setOf(SettingsWriteTracker.State.WRITING,
             SettingsWriteTracker.State.WAITING_READBACK, SettingsWriteTracker.State.UNKNOWN)
         val statusId = TaskShellDeviceStatus.coffee(
-            active, owner?.sleepNowState, owner?.settingWriteState,
+            active, owner?.sleepNowState, owner?.machineSettingStatusState,
             owner?.machineControlSafetyMessage != null ||
                 idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true,
             owner?.running == true,
@@ -306,7 +306,8 @@ internal class TaskShellStatusView(
             owner?.brewPreparationState ?: BrewPreparation.State.IDLE,
             owner?.brewPreparationTargetC?.let {target->owner.currentCorrectedBrewTemperature()?.let {
                 BrewPreparation.isAtTarget(it,target)
-            }}==true)
+            }}==true,
+            alarmBlocked=idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true)
         val status = host.getString(statusId)
         val compactStatus=host.getString(SleepPresentation.compactStatus(statusId))
         val coffeeLine = "● $compactStatus"
