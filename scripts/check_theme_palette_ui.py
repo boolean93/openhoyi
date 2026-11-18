@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run palette windows and switch evidence on this workflow's disposable AVD only."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,10 @@ SAMPLES = tuple(f'{mode}-{palette}'
                 for mode in ('light', 'dark') for palette in ('classic', 'sea-salt', 'coffee', 'graphite'))
 STATES = ('on', 'off', 'disabled')
 SCREENSHOTS = tuple(f'{sample}-{state}.png' for sample in SAMPLES for state in STATES)
+BACKGROUND_MARKER = ('PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivityRecreateOnApply=true '
+                     'cancelFailureStale=true privateFiles=true screenshots=10 noModelRequest=true noBle=true')
+BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
+                    for page in ('photo', 'settings', 'home', 'curve', 'ai'))
 
 
 def validate_distinct_screenshots(hashes):
@@ -25,13 +30,15 @@ def validate_distinct_screenshots(hashes):
                 f'Duplicate switch screenshots for {sample}')
 
 
-def main():
+def main(with_backgrounds=False):
+    flag, avd_var, avd_kind = ('PAGE_BACKGROUND_CHECKS', 'CI_BACKGROUND_AVD', 'background') if with_backgrounds else (
+        'THEME_PALETTE_CHECKS', 'CI_THEME_AVD', 'theme')
     require(os.environ.get('GITHUB_ACTIONS') == 'true' and
             os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and
-            os.environ.get('THEME_PALETTE_CHECKS') == 'true', 'Manual disposable GitHub runner required')
+            os.environ.get(flag) == 'true', 'Manual disposable GitHub runner required')
     run_id, attempt = os.environ['GITHUB_RUN_ID'], os.environ['GITHUB_RUN_ATTEMPT']
-    avd = os.environ.get('CI_THEME_AVD')
-    require(run_id.isdecimal() and attempt.isdecimal() and avd == f'openhoyi-theme-{run_id}-{attempt}',
+    avd = os.environ.get(avd_var)
+    require(run_id.isdecimal() and attempt.isdecimal() and avd == f'openhoyi-{avd_kind}-{run_id}-{attempt}',
             'Dedicated AVD identity required')
     sha = run('git', 'rev-parse', 'HEAD')
     require(re.fullmatch(r'[0-9a-f]{40}', sha) and sha == os.environ['GITHUB_SHA'],
@@ -52,7 +59,7 @@ def main():
     packages = set(adb('shell', 'pm', 'list', 'packages').splitlines())
     require({f'package:{APP}', f'package:{TEST}'}.isdisjoint(packages), 'App pair is already installed')
 
-    output = Path('build/theme-palette-ui')
+    output = Path('build/page-background-ui' if with_backgrounds else 'build/theme-palette-ui')
     output.mkdir(parents=True, exist_ok=False)
     apks = {}
     for kind, source in DESTINATIONS.items():
@@ -66,22 +73,33 @@ def main():
         for kind, source in DESTINATIONS.items():
             require(digest(source) == apks[kind]['sha256'], 'APK changed before install')
             require(adb('install', source, timeout=120).splitlines()[-1] == 'Success', 'Fixture install failed')
-        result = adb('shell', 'am', 'instrument', '-w', '-r', '-e', 'themePaletteChecks', 'true',
-                     '-e', 'disposableCiEmulator', 'true', RUNNER, timeout=240)
-        (output / 'instrumentation.txt').write_text(result + '\n')
-        require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and MARKER in result, 'Palette fixture failed')
-        for name in SCREENSHOTS:
-            data = adb('exec-out', 'run-as', APP, 'cat', f'files/theme-palette-evidence/{name}', binary=True)
-            require(data.startswith(b'\x89PNG\r\n\x1a\n'), 'Invalid palette screenshot output')
-            destination = output / name
-            destination.write_bytes(data)
-            receipt['screenshots'][name] = digest(destination)
+        fixtures = [('themePaletteChecks', 'theme-palette-evidence', MARKER, SCREENSHOTS, 'instrumentation.txt')]
+        if with_backgrounds:
+            fixtures.append(('pageBackgroundChecks', 'page-background-evidence', BACKGROUND_MARKER, BACKGROUNDS,
+                             'background-instrumentation.txt'))
+        for arg, directory, marker, names, log in fixtures:
+            result = adb('shell', 'am', 'instrument', '-w', '-r', '-e', arg, 'true',
+                         '-e', 'disposableCiEmulator', 'true', RUNNER, timeout=240)
+            (output / log).write_text(result + '\n')
+            require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and marker in result,
+                    f'{arg} fixture failed')
+            for name in names:
+                data = adb('exec-out', 'run-as', APP, 'cat', f'files/{directory}/{name}', binary=True)
+                require(data.startswith(b'\x89PNG\r\n\x1a\n'), 'Invalid appearance screenshot output')
+                destination = output / name
+                destination.write_bytes(data)
+                receipt['screenshots'][name] = digest(destination)
         validate_distinct_screenshots(receipt['screenshots'])
+        receipt['appearanceCombined'] = with_backgrounds
         receipt['passed'] = True
     finally:
         (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(MARKER)
+    if with_backgrounds:
+        print(BACKGROUND_MARKER)
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--with-backgrounds', action='store_true')
+    main(parser.parse_args().with_backgrounds)

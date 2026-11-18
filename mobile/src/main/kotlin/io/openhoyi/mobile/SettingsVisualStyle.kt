@@ -77,6 +77,7 @@ internal class SettingsVisualStyle(val context:Context) {
         (0 until words.childCount).map(words::getChildAt).filterIsInstance<TextView>().forEach {it.setPadding(0,0,0,0)}
         words.addView(palette.text(activity.getString(subtitle),TaskProductVisualStyle.auxiliary,secondary=true),
             LinearLayout.LayoutParams(-1,-2).apply {topMargin=palette.dp(8)})
+        activity.installPageBackdrop(root, palette.page)
         return root to body
     }
     fun group(parent:LinearLayout,title:String):LinearLayout {

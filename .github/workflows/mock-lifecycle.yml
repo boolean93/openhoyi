@@ -40,6 +40,11 @@ on:
         required: false
         default: false
         type: boolean
+      page_background_checks:
+        description: Run theme palettes and page backgrounds together on a disposable cloud emulator
+        required: false
+        default: false
+        type: boolean
       update_checks:
         description: 'Run fixed isolated update runtime and UI acceptance instead of lifecycle'
         required: false
@@ -62,14 +67,21 @@ jobs:
       SLEEP_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.sleep_checks == true && 'true' || 'false' }}
       PREHEAT_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.preheat_checks == true && 'true' || 'false' }}
       THEME_PALETTE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.theme_palette_checks == true && 'true' || 'false' }}
+      PAGE_BACKGROUND_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.page_background_checks == true && 'true' || 'false' }}
+      CI_BACKGROUND_AVD: openhoyi-background-${{ github.run_id }}-${{ github.run_attempt }}
       CI_THEME_AVD: openhoyi-theme-${{ github.run_id }}-${{ github.run_attempt }}
       UPDATE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_checks == true && 'true' || 'false' }}
     steps:
       - name: Reject mixed isolated acceptance requests
-        if: env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true' || env.THEME_PALETTE_CHECKS == 'true'
+        if: env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true' || env.THEME_PALETTE_CHECKS == 'true' || env.PAGE_BACKGROUND_CHECKS == 'true'
         run: |
           if [ "$AI_CARD_CHECKS" = true ] || [ "$AI_COPY_CHECKS" = true ]; then
             test "$AI_CARD_CHECKS" != "$AI_COPY_CHECKS"
+            test "$THEME_PALETTE_CHECKS" = false
+          fi
+          if [ "$PAGE_BACKGROUND_CHECKS" = true ]; then
+            test "$AI_CARD_CHECKS" = false
+            test "$AI_COPY_CHECKS" = false
             test "$THEME_PALETTE_CHECKS" = false
           fi
           test "$CLOUDFLARE_LIVE_CHECKS" = false
@@ -105,7 +117,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          avd-name: ${{ env.THEME_PALETTE_CHECKS == 'true' && env.CI_THEME_AVD || (env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true') && env.CI_CARD_AVD || 'test' }}
+          avd-name: ${{ env.PAGE_BACKGROUND_CHECKS == 'true' && env.CI_BACKGROUND_AVD || env.THEME_PALETTE_CHECKS == 'true' && env.CI_THEME_AVD || (env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true') && env.CI_CARD_AVD || 'test' }}
           force-avd-creation: true
           emulator-port: 5554
           target: default
@@ -114,7 +126,8 @@ jobs:
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: >-
-            if [ "$THEME_PALETTE_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py;
+            if [ "$PAGE_BACKGROUND_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py --with-backgrounds;
+            elif [ "$THEME_PALETTE_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py;
             elif [ "$AI_CARD_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py;
             elif [ "$AI_COPY_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py --message-copy;
             else bash scripts/check_mock_or_update_acceptance.sh; fi
@@ -135,7 +148,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Upload lifecycle logs
-        if: always() && env.UPDATE_CHECKS != 'true' && env.PREHEAT_CHECKS != 'true' && env.AI_CARD_CHECKS != 'true' && env.AI_COPY_CHECKS != 'true' && env.THEME_PALETTE_CHECKS != 'true'
+        if: always() && env.UPDATE_CHECKS != 'true' && env.PREHEAT_CHECKS != 'true' && env.AI_CARD_CHECKS != 'true' && env.AI_COPY_CHECKS != 'true' && env.THEME_PALETTE_CHECKS != 'true' && env.PAGE_BACKGROUND_CHECKS != 'true'
         uses: actions/upload-artifact@v6
         with:
           name: mock-lifecycle
@@ -148,6 +161,14 @@ jobs:
         with:
           name: theme-palette-ui-${{ github.sha }}
           path: build/theme-palette-ui/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload combined appearance windows and APK identity evidence
+        if: always() && env.PAGE_BACKGROUND_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: page-background-ui-${{ github.sha }}
+          path: build/page-background-ui/
           if-no-files-found: warn
           retention-days: 7
       - name: Upload isolated update acceptance evidence

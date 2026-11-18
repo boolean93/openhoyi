@@ -221,6 +221,7 @@ class AppSettingsFragment : Fragment() {
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val theme = sections.getValue("appearance")
         appearanceCard = AppThemePreferencesCard(activity, theme, visual) { activity.recreate() }
+        addBackgroundSettingsRow(activity, theme, visual)
         settingsDivider(activity, theme, visual)
         languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()

@@ -33,6 +33,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private var pendingNavigation: String? = null
     init {
         orientation = VERTICAL; setBackgroundColor(style.page)
+        host.installPageBackdrop(this, style.page)
         setPadding(style.dp(16), style.dp(8), style.dp(16), 0)
         addView(style.text(host.getString(R.string.app_settings_title), TaskProductVisualStyle.section).apply {
             setPadding(style.dp(8), style.dp(8), 0, style.dp(16)); androidx.core.view.ViewCompat.setAccessibilityHeading(this,true)

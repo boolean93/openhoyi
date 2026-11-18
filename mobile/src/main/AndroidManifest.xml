@@ -20,6 +20,7 @@
         <activity android:name=".ExtractionActivity" android:exported="false" />
         <activity android:name=".MachineSettingsActivity" android:exported="false" />
         <activity android:name=".AppSettingsActivity" android:exported="false" />
+        <activity android:name=".BackgroundSettingsActivity" android:exported="false" />
         <activity android:name=".ScaleActivity" android:exported="false" />
         <activity android:name=".DeviceConnectionActivity" android:exported="false" />
         <activity android:name=".ScaleConnectionActivity" android:exported="false" />

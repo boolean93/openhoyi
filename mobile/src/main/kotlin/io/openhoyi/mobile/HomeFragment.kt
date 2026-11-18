@@ -146,6 +146,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(productStyle.homePage)
+            host.installPageBackdrop(this, productStyle.homePage)
         }
         val phoneHome = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
         val compactType = HomePortraitBudget.compactTypography(

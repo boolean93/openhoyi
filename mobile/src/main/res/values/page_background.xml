@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="background_title">页面背景</string>
+    <string name="background_customize">自定义</string>
+    <string name="background_hint">背景独立于主题配色和深浅模式。图片只保存在本机，文字与图表保留纯色底。</string>
+    <string name="background_preview">背景预览</string>
+    <string name="background_preview_detail">正文和数据使用不透明底色</string>
+    <string name="background_solid">默认纯色</string>
+    <string name="background_mist">薄雾</string>
+    <string name="background_slate">浅影</string>
+    <string name="background_photo">导入的照片</string>
+    <string name="background_choose_photo">选择本地图</string>
+    <string name="background_mask">遮罩 %1$d%%</string>
+    <string name="background_restore">恢复默认</string>
+    <string name="background_cancel">取消</string>
+    <string name="background_apply">应用</string>
+    <string name="background_preparing">正在准备预览…</string>
+    <string name="background_saving">正在保存背景…</string>
+    <string name="background_import_failed">无法读取图片。请选择不超过 20 MB 的静态 JPEG、PNG 或 WebP。</string>
+    <string name="background_photo_unavailable">本地图不可用，暂时显示纯色。可重新选图或恢复默认。</string>
+    <string name="background_restore_interrupted">未保存的背景不可用，已恢复当前背景。</string>
+    <string name="background_save_failed">背景保存失败，当前背景未更改。</string>
+    <string name="background_changed_elsewhere">背景已在其他窗口更改。请检查预览后再应用。</string>
+</resources>

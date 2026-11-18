@@ -119,6 +119,7 @@ class HomeActivity : ThemedActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(productStyle.page)
+            this@HomeActivity.installPageBackdrop(this, productStyle.page)
         }
         root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {

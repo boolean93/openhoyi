@@ -107,6 +107,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             orientation = LinearLayout.VERTICAL
             tag = "product/curve-library/root"
             setBackgroundColor(productStyle.page)
+            host.installPageBackdrop(this, productStyle.page)
         }
         val body = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL

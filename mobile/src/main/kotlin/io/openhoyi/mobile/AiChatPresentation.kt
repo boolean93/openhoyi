@@ -220,6 +220,7 @@ internal class AiChatPresentation(
         root.addView(conversation, LinearLayout.LayoutParams(-1, 0, 1f))
         // Transcript alone scrolls. The composer never follows the growing message history.
         val composer = style.row("ai/chat/composer").apply {
+            protectBackdropContent()
             gravity = Gravity.CENTER_VERTICAL
             setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(8))
         }
