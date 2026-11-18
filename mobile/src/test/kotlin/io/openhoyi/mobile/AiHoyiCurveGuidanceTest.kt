@@ -8,7 +8,7 @@ class AiHoyiCurveGuidanceTest {
         val text = AiHoyiCurveGuidance.SCREENSHOT
         for (required in listOf("schema=3", "Checklist:", "unseen never means false/0", "BEFORE proposing",
             "not measured timelines", "do not tune or optimize", "independent water ceiling",
-            "first-stage time limit", "preserve the complete source", "failed local lookup")) {
+            "first-stage time limit", "final-stage water is not an independent hard stop", "preserve the complete source", "failed local lookup")) {
             assertTrue(required, text.contains(required))
         }
     }

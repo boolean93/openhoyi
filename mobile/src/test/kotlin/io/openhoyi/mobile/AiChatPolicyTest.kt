@@ -44,7 +44,7 @@ class AiChatPolicyTest {
             "Read saved curves before recommending", "card Confirm only opens a prefilled editor",
             "Only successful explicit native editor Save establishes saving",
             "You cannot approve/confirm/delete curves, change app data or operate/connect/stop/change machines/scales",
-            "never claim such actions", "NOT evidence of screenshot values", "Never propose first").forEach {
+            "never claim such actions", "not screenshot evidence", "ask BEFORE proposing").forEach {
             assertTrue("Missing safety boundary: $it", system.contains(it))
         }
     }

@@ -44,7 +44,6 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
     private val credentials = AiKeyStore(context)
     suspend fun reply(lines: List<AiChatLine>, input: String, history: AiProtocolHistory,
         attachments: List<AiAttachment> = emptyList(),
-        hoyiScreenshotSource: AiAttachment? = null,
         modelId: String = history.modelId,
         reasoningEffort: AiReasoningEffort = AiReasoningEffort.LOW,
         onRetry: (AiRetryProgress?) -> Unit = {},
@@ -54,17 +53,12 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
         val replyScope = AiReplyScope()
         return replyScope.run {
             AiContextPolicy.checkTranscript(lines, input)
-            val turnAttachments = AiHoyiScreenshotProposal.turnAttachments(attachments, hoyiScreenshotSource)
-            if (modelId != history.modelId || !AiModelPolicy.accepts(modelId, turnAttachments + history.messages.flatMap { AiAttachmentConversation.items(it) })) throw AiFailure(AiProblem.MODEL)
+            if (modelId != history.modelId || !AiModelPolicy.accepts(modelId, attachments + history.messages.flatMap { AiAttachmentConversation.items(it) })) throw AiFailure(AiProblem.MODEL)
             if (credentials.status() != AiKeyStatus.SAVED) throw AiFailure(AiProblem.KEY)
             val revision = credentials.revision()
             val epoch = credentials.credentialEpoch() ?: throw AiFailure(AiProblem.KEY)
             val vault = AiAttachmentVault(context, epoch)
-            hoyiScreenshotSource?.let { source ->
-                try { vault.load(source).use { require(it.attachment.id == source.id) } }
-                catch (_: Exception) { throw AiFailure(AiProblem.ATTACHMENT) }
-            }
-            val attachmentMessages = listOf(AiAttachmentConversation.message(input, turnAttachments))
+            val attachmentMessages = listOf(AiAttachmentConversation.message(input, attachments))
             val extraTokens = AiAttachmentConversation.tokens(attachmentMessages)
             val imageBytes = AiAttachmentConversation.imageBytes(attachmentMessages)
             val cards = AiCurveCardCollector(resolveCurveCard)
@@ -75,14 +69,14 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
                 if (credentials.revision() == revision) runCatching { onProgress(delta) }
             })
             // Constructing descriptors executes no tools and reads no local data.
-            val schemaTokens = AiChatSession(data, transport, budget, hoyiScreenshotId = hoyiScreenshotSource?.id).toolSchemaTokens()
+            val schemaTokens = AiChatSession(data, transport, budget).toolSchemaTokens()
             val stopObserving = credentials.observeMutation(transport::close)
             try {
                 val working = if (AiContextPolicy.needsCompact(history, input, extraTokens, imageBytes, schemaTokens)) {
                     val summaryTransport = AiSafeTransport({ credentials.readForRequest(revision) },
                         { credentials.revision() == revision }, budget, diagnostics = diagnostics, usage = usage, retryState = retries, onRetry = onRetry)
                     val stopSummary = credentials.observeMutation(summaryTransport::close)
-                    val compacted = try { AiContextCompactor.prepare(history, lines, input, summaryTransport, turnAttachments, vault::load, schemaTokens) {
+                    val compacted = try { AiContextCompactor.prepare(history, lines, input, summaryTransport, attachments, vault::load, schemaTokens) {
                         if (credentials.revision() != revision) throw AiFailure(AiProblem.KEY)
                         onCompacted(it)
                     } }
@@ -90,10 +84,10 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
                     if (credentials.revision() != revision) throw AiFailure(AiProblem.KEY)
                     compacted
                 } else history
-                val turn = AiProtocolTurn(working, lines, input, transport, diagnostics = diagnostics, attachments = turnAttachments, loadAttachment = vault::load, schemaTokens = schemaTokens)
+                val turn = AiProtocolTurn(working, lines, input, transport, diagnostics = diagnostics, attachments = attachments, loadAttachment = vault::load, schemaTokens = schemaTokens)
                 val result = try {
                     val answer = AiChatSession(data, turn, budget, diagnostics = diagnostics, webSearch = transport::search,
-                        proposeCurve = { arguments -> curveProposals?.propose(arguments, revision) ?: AiCurveProposalStatus.UNAVAILABLE }, hoyiScreenshotId = hoyiScreenshotSource?.id,
+                        proposeCurve = { arguments -> curveProposals?.propose(arguments, revision) ?: AiCurveProposalStatus.UNAVAILABLE }, availableImageIds = AiAttachmentConversation.availableImageIds(working.messages + attachmentMessages),
                         curveDocument = { id -> if (AiCurveDetail.validFactoryId(id)) AiCurveDetail.factoryResult(id, curveProposals?.readFactory(id, revision)) else AiCurveDetail.result(id, curveProposals?.readDocument(id, revision)) }, modelId = modelId, reasoningEffort = reasoningEffort,
                         onCurveResult = cards::captureToolResult, presentCurveCards = cards::select, onToolStarted = onToolStarted)
                         .reply(lines.drop(working.coveredLines), input)
@@ -117,7 +111,7 @@ internal class AiChatSession(
     private val diagnostics: AiDiagnostics = AiDiagnostics(),
     private val webSearch: suspend (String) -> String = { AiWebSearch.status("unavailable") },
     private val proposeCurve: (String) -> AiCurveProposalStatus = { AiCurveProposalStatus.UNAVAILABLE },
-    private val hoyiScreenshotId: String? = null,
+    private val availableImageIds: Set<String> = emptySet(),
     private val curveDocument: (String) -> String = { AiCurveDetail.result(it, null) },
     private val modelId: String = AiModelPolicy.FLASH,
     private val reasoningEffort: AiReasoningEffort = AiReasoningEffort.LOW,
@@ -202,14 +196,14 @@ internal class AiChatSession(
             if (args.keys != setOf("id") || id == null || !(AiCurveDetail.validId(id) || AiCurveDetail.validFactoryId(id))) invalid()
             else withContext(statusDispatcher) { curveDocument(id) }
         })
-        tool(readTool("propose_custom_curve", (hoyiScreenshotId?.let { "Native HOYI screenshot import is active. Only transcribe_screenshot proposals are allowed; sourceAttachmentId=$it. " } ?: "") + "Propose a complete editable recipe draft; this NEVER saves. The card Confirm only opens the prefilled editor, where the user must explicitly save. Factory changes use copy_from_factory and are saved only as a NEW custom curve, never overwrite the factory source. No deletion, machine actions or approval tokens. For existing edits/copies read custom_curve_document first; new screenshot creations need no source ID. Preserve all intended fields, never send a partial patch.",
+        tool(readTool("propose_custom_curve", "Propose a complete editable recipe draft; this NEVER saves. The card Confirm only opens the prefilled editor, where the user must explicitly save. Factory changes use copy_from_factory and are saved only as a NEW custom curve, never overwrite the factory source. No deletion, machine actions or approval tokens. For existing edits/copies read custom_curve_document first; new screenshot creations need no existing curve ID. Preserve all intended fields, never send a partial patch.",
             required = listOf(ToolParameterDescriptor("proposal_json", CURVE_PROPOSAL_SCHEMA, ToolParameterType.String)),
             maximumArgumentBytes = 12 * 1024) { args ->
             val proposal = (args["proposal_json"] as? JsonPrimitive)?.takeIf { it.isString }?.content
             if (args.keys != setOf("proposal_json") || proposal == null ||
                 proposal.toByteArray(Charsets.UTF_8).size > AiCurveWriteCoordinator.MAX_ARGUMENT_BYTES) invalid()
             else {
-                val converted = runCatching { AiHoyiScreenshotProposal.forTool(proposal, hoyiScreenshotId) }.getOrNull()
+                val converted = runCatching { AiHoyiScreenshotProposal.forTool(proposal, availableImageIds) }.getOrNull()
                 if (converted == null) invalid()
                 else withContext(statusDispatcher) {
                     proposeCurve(converted).json()

@@ -14,22 +14,15 @@ class AiHoyiScreenshotProposalTest {
         assertEquals(3, curve.getInt("schema")); assertFalse(curve.has("id"))
         return CustomCurveDocument.decode(curve.put("id", CustomCurveDocument.newId()).toString())
     }
-    @Test fun trustedModeBlocksRawCreateButLeavesExistingOperationsAndOrdinaryImagesAlone() {
+    @Test fun transcriptionRequiresActualImageButDoesNotLockOtherBusinessOperations() {
         val structured = JsonObject(mapOf("operation" to JsonPrimitive("transcribe_screenshot"), "transcription" to Json.parseToJsonElement(raw))).toString()
-        assertEquals("create", JSONObject(AiHoyiScreenshotProposal.forTool(structured, id)).getString("operation"))
-        assertTrue(runCatching { AiHoyiScreenshotProposal.forTool(structured, null) }.isFailure)
-        val rawCreate = "{\"operation\":\"create\",\"curve\":{}}"
-        assertEquals(rawCreate, AiHoyiScreenshotProposal.forTool(rawCreate, null))
-        assertTrue(runCatching { AiHoyiScreenshotProposal.forTool(rawCreate, id) }.isFailure)
-        for (operation in listOf("replace", "copy_from_factory")) {
+        assertEquals("create", JSONObject(AiHoyiScreenshotProposal.forTool(structured, setOf(id))).getString("operation"))
+        assertTrue(runCatching { AiHoyiScreenshotProposal.forTool(structured, emptySet()) }.isFailure)
+        for (operation in listOf("create", "replace", "copy_from_factory")) {
             val value = "{\"operation\":\"$operation\",\"curve\":{}}"
-            assertEquals(value, AiHoyiScreenshotProposal.forTool(value, null))
-            assertTrue(runCatching { AiHoyiScreenshotProposal.forTool(value, id) }.isFailure)
+            assertEquals(value, AiHoyiScreenshotProposal.forTool(value, emptySet()))
+            assertEquals(value, AiHoyiScreenshotProposal.forTool(value, setOf(id)))
         }
-        val source = AiAttachment(id, "curve.jpg", "image/jpeg", 4, AiAttachmentKind.IMAGE)
-        assertEquals(listOf(source), AiHoyiScreenshotProposal.turnAttachments(emptyList(), source))
-        assertEquals(listOf(source), AiHoyiScreenshotProposal.turnAttachments(listOf(source), source))
-        assertTrue(runCatching { AiHoyiScreenshotProposal.turnAttachments(listOf(AiAttachment(id, "other.jpg", "image/jpeg", 4, AiAttachmentKind.IMAGE)), source) }.isFailure)
     }
     @Test fun officialDisplayedValuesBecomeCompleteSchema3WithoutModelFlags() {
         val d = document(); val c = requireNotNull(d.configuration)
