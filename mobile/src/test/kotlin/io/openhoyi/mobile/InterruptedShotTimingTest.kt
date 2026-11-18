@@ -195,23 +195,27 @@ class InterruptedShotTimingTest {
     }
 
     @Test fun failedPlatformCommitCannotLeakCandidateIntoReadersOrNextMainWrite() {
-        var platformMemory: String? = "committed"
-        var durable: String? = "committed"
+        var platformMain = "committed history"
+        var platformTiming: String? = "committed timing"
+        var durable = platformMain to platformTiming
         var fail = true
-        val storage = CommittedShotHistoryStorage(readMain = { "" }, readSidecar = { platformMemory },
-            commitBoth = { _, timing ->
-                platformMemory = timing // Android editor publishes to its own cache first.
-                if (!fail) durable = timing
+        val storage = CommittedShotHistoryStorage(readMain = { platformMain }, readSidecar = { platformTiming },
+            commitBoth = { main, timing ->
+                // Android editor publishes both proposed values to its own cache first.
+                platformMain = main
+                platformTiming = timing
+                if (!fail) durable = main to timing
                 !fail
             })
-        assertTrue(runCatching { storage.writeWithTiming("new history", "candidate") }.isFailure)
-        assertEquals("candidate", platformMemory)
-        assertEquals("committed", storage.readTiming())
-        assertEquals("committed", durable)
+        assertTrue(runCatching { storage.writeWithTiming("candidate history", "candidate timing") }.isFailure)
+        assertEquals("candidate history" to "candidate timing", platformMain to platformTiming)
+        assertEquals("committed history" to "committed timing", storage.read() to storage.readTiming())
+        assertEquals("committed history" to "committed timing", durable)
         fail = false
         storage.write("next main-only write")
-        assertEquals("committed", platformMemory)
-        assertEquals("committed", durable)
+        assertEquals("next main-only write" to "committed timing", durable)
+        assertEquals(durable, storage.read() to storage.readTiming())
+        assertEquals(durable, platformMain to platformTiming)
     }
 
     @Test fun transitionalInlineDocumentsAreNotOverwrittenBeforeEvidenceMigrates() {

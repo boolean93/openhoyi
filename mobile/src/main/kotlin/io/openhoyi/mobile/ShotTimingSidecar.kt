@@ -61,9 +61,11 @@ internal class CommittedShotHistoryStorage(
     readSidecar: () -> String?,
     private val commitBoth: (String, String?) -> Boolean,
 ) : ShotHistory.AtomicTimingStorage {
+    private var committedMain: String? = null
     private var committedSidecar = runCatching(readSidecar)
 
-    override fun read(): String = readMain()
+    @Synchronized
+    override fun read(): String = committedMain ?: readMain().also { committedMain = it }
 
     @Synchronized
     override fun readTiming(): String? = committedSidecar.getOrThrow()
@@ -75,7 +77,9 @@ internal class CommittedShotHistoryStorage(
     override fun writeWithTiming(value: String, timing: String) = commit(value, timing)
 
     private fun commit(value: String, timing: String?) {
+        read() // Capture the previous main document before Android can publish a failed edit.
         check(commitBoth(value, timing)) { "Cannot save shot history and timing evidence" }
+        committedMain = value
         committedSidecar = Result.success(timing)
     }
 }
