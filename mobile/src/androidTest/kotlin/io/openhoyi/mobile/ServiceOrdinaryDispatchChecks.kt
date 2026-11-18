@@ -35,7 +35,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
         val first = decode("8340FE0A00071E0A00071E0A00071E0A00071E3D") as SleepPart
         val second = decode("83800A00071E0A00071E0A00071E10") as SleepPart
         val settings = decode("830113FD5C007D0F350019006E") as Settings
-        val change = MachineSettingChange.BrewTemperature(93)
+        val change = MachineSettingChange.Light(false)
         val expected = requireNotNull(WeeklySleepSchedule.fromReadback(first, second))
         val target = WeeklySleepSchedule(expected.days.mapIndexed { index, day ->
             if (index == 0) day.copy(enabled = !day.enabled) else day
@@ -224,7 +224,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             }else {
                                 val read=MobileService::class.java.getDeclaredMethod("onCoffeeFrame",HoyiMessage::class.java).apply { isAccessible=true }
                                 when(kind) {
-                                    MachineWriteRecoveryState.Kind.SETTING->read.invoke(instance,settings.copy(brewTemperatureC=93))
+                                    MachineWriteRecoveryState.Kind.SETTING->read.invoke(instance,settings.copy(flags=settings.flags and 0x08.inv()))
                                     MachineWriteRecoveryState.Kind.CUP_RESET->{read.invoke(instance,settings.copy(cupCount=0));read.invoke(instance,idle.copy(cupCount=0))}
                                     MachineWriteRecoveryState.Kind.SLEEP_NOW->read.invoke(instance,idle.copy(sleepStateRaw=1))
                                     else->{read.invoke(instance,decode("83407E0A00071E0A00071E0A00071E0A00071E3D"));read.invoke(instance,second)}

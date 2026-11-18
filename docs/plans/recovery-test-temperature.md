@@ -10,3 +10,5 @@
 - 发布：不手工发布；既有 Develop 自动预发布仍需同 SHA 的全部门禁成功。
 - 回退：revert 本 PR，不清用户数据。
 - 原始证据：GitHub lifecycle run 44328083447 的 language-instrumentation.txt，ServiceRecoveryPersistenceChecks.kt 的 fixtures[name] 空值异常。
+
+- 同类测试语义核查：六个通用 settingsWrite 夹具仍以 BrewTemperature 验证旧通用持久门禁；改用有效普通设置 Light(false)，同步对应回读 fixture，保持原断言不变。温度生产路径不变。

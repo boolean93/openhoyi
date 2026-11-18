@@ -145,7 +145,7 @@ internal class ServiceWriteRegistrationChecks(private val test: Instrumentation)
                             val snapshotBefore = instance.snapshot
                             check(!recovery.pending && instance.machineControlSafetyMessage == null)
                             val result = when (kind) {
-                                MachineWriteRecoveryState.Kind.SETTING -> instance.changeMachineSetting(MachineSettingChange.BrewTemperature(93))
+                                MachineWriteRecoveryState.Kind.SETTING -> instance.changeMachineSetting(MachineSettingChange.Light(false))
                                 MachineWriteRecoveryState.Kind.CUP_RESET -> instance.resetCupCount(settings.cupCount)
                                 MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> instance.changeSleepSchedule(expected, target)
                                 MachineWriteRecoveryState.Kind.SLEEP_NOW -> instance.enterSleepNow()
