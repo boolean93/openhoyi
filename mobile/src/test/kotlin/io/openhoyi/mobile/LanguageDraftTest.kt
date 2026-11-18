@@ -38,7 +38,7 @@ class LanguageDraftTest {
                 .parse(file).getElementsByTagName("string")
             val keys = (0 until nodes.length).map { nodes.item(it).attributes.getNamedItem("name").nodeValue }
             val catalog = JSONObject(File("../localization/catalog/${language.tag}.json").readText())
-            assertEquals(1083, keys.size)
+            assertEquals(1085, keys.size)
             assertFalse(keys.contains("feedback_replay"))
             assertEquals(keys.size, keys.toSet().size)
             assertEquals(catalog.keys().asSequence().toSet() - "app_name", keys.toSet())
