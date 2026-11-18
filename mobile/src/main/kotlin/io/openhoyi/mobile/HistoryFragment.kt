@@ -124,7 +124,6 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             else startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
-        if (showJournal) action(getString(R.string.journal_compare)) { startActivity(Intent(host, BrewComparisonActivity::class.java)) }
         val ioMenu = ImageButton(host).apply {
             tag = "product/history/io-menu"; contentDescription = getString(R.string.task_tools)
             setImageDrawable(HomeVisualIcon.drawable(host, "more", style.accent))
@@ -235,6 +234,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         // Source tabs belong to the browser; count stays in the compact page tools row.
         body.removeView(sources)
         collection.browserBody.addView(sources, LinearLayout.LayoutParams(-1, -2))
+        style.addHistoryComparisonEntry(host, collection.browserBody)
         val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }).also { portraitDetailBack = it }
         collection.onPresentationChanged = { split, visible ->
             compact = !split
@@ -396,5 +396,16 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         private const val EXPORT_HISTORY = 41
         private const val IMPORT_LEGACY = 42
         private const val EXPORT_JOURNAL = 43
+    }
+}
+
+/** Keep this independent of the selected source; comparison itself reads the long-term journal. */
+internal fun TaskProductVisualStyle.addHistoryComparisonEntry(activity: ThemedActivity, browser: LinearLayout) {
+    action(browser, activity.getString(R.string.journal_compare), "product/history/compare-entry", outline = true) {
+        activity.startActivity(Intent(activity, BrewComparisonActivity::class.java))
+    }.apply {
+        setSingleLine(false)
+        maxLines = Int.MAX_VALUE
+        ellipsize = null
     }
 }
