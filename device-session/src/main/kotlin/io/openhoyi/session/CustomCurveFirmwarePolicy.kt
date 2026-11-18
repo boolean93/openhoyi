@@ -10,12 +10,12 @@ object CustomCurveFirmwarePolicy {
     fun requiresReviewedFlowProfile(p: StartParameters): Boolean = p.variableFlowLogic && (!p.pressureLogic || p.firstSegmentFlowMode)
     fun isPressureFollow(p: StartParameters): Boolean = p.pressureLogic && !p.variableFlowLogic
     fun permits(p: StartParameters, firmware: CoffeeFirmware?): Boolean = when {
-        isPressureFollow(p) -> firmware in setOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5))
-        requiresReviewedFlowProfile(p) -> firmware in setOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5))
+        isPressureFollow(p) -> firmware in setOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5), CoffeeFirmware(1, 1, 6))
+        requiresReviewedFlowProfile(p) -> firmware in setOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5), CoffeeFirmware(1, 1, 6))
         else -> true
     }
     /** Mode/version gate only; DeviceSession separately validates parameters and transaction state. */
     fun permitsStoredRecipe(p: StartParameters, firmware: CoffeeFirmware?): Boolean =
-        firmware in setOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5)) &&
+        firmware in setOf(CoffeeFirmware(1, 1, 3), CoffeeFirmware(1, 1, 4), CoffeeFirmware(1, 1, 5), CoffeeFirmware(1, 1, 6)) &&
             (!isPressureFollow(p) || io.openhoyi.protocol.CustomCurveStartPolicy.permits(p))
 }

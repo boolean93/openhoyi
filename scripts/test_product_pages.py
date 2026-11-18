@@ -195,7 +195,7 @@ class ProductPagesTest(unittest.TestCase):
         compatibility = self.section("compatibility")
         self.assertIn("目前没有 iPhone 或 iPad 版本", compatibility)
         for text in ("固件 1.1.3 有有限实机连接与萃取启停记录",
-                     "1.1.4、1.1.5 已根据协议证据开放控制，启停与设置仍待实机验收",
+                     "1.1.4、1.1.5、1.1.6 已根据协议证据开放控制，启停与设置仍待实机验收",
                      "其他固件不开放控制",
                      "当前开发分支的接入范围",
                      "不同发布版本包含的型号可能不同",
