@@ -20,6 +20,7 @@ import android.os.SystemClock
 import android.provider.MediaStore
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.Button
 import android.widget.ListView
 import android.widget.ScrollView
@@ -360,7 +361,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 homeWallpaperGaps(home)
             },
         ) { home.findViewWithTag("product/home/${if (mode == "light") "brew" else "steam"}-boiler/pressure") }
-        captureCurvePage(host, go(TaskDestination.CURVES), "$mode-curve.png")
+        if (mode == "dark") captureDisabledHomeModes(home)
+        val curves = go(TaskDestination.CURVES)
+        captureCurvePage(host, curves, "$mode-curve.png")
+        if (mode == "dark") captureDarkCurveDetails(host, curves)
         captureScalePage(host, go(TaskDestination.SCALE), "$mode-scale.png")
         val history = go(TaskDestination.HISTORY)
         captureApplied(host, history, "$mode-history.png", backing = style.surface,
@@ -491,6 +495,65 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         ) { list }
     }
 
+    private fun captureDarkCurveDetails(host: MainActivity, root: View) {
+        val outputName = "dark-curve-detail.png"
+        main {
+            val list = nodes(root).filterIsInstance<ListView>().first { it.isShown }
+            val index = list.firstVisiblePosition
+            val item = checkNotNull(list.getChildAt(0))
+            // View-only navigation: do not assign a recipe or enter preparation.
+            check(list.performItemClick(item, index, list.adapter.getItemId(index)))
+        }
+        val style = TaskProductVisualStyle(host)
+        val detailPane = root.findViewWithTag<ViewGroup>("product/curve-library/detail")
+        val toolbar = main { detailPane.getChildAt(0) }
+        await("real Curve detail toolbar backed after selecting a list row") {
+            val visible = localRect(root, toolbar) ?: return@await false
+            (root.background as PageBackdrop).roundedAreas.any { it.clip.contains(visible) }
+        }
+        captureApplied(host, root, outputName, backing = style.surface,
+            requiredWallpaper = { shieldCorners(root, toolbar) },
+        ) { toolbar }
+    }
+
+    private fun captureDisabledHomeModes(home: View) {
+        val controls = main {
+            listOf("machine-mode/control", "machine-mode/logic").map {
+                checkNotNull(home.findViewWithTag<CurveEditorSegments>(it)).also { view ->
+                    check(localRect(home, view) != null)
+                }
+            }
+        }
+        val enabled = main { controls.map { it.isEnabled } }
+        val committed = CountDownLatch(1)
+        val listener = ViewTreeObserver.OnPreDrawListener {
+            // Drawing-only fixture. The service and state gates remain untouched; production
+            // deliberately uses 45% whole-control alpha for the disabled native segments.
+            controls.forEach { it.isEnabled = false }
+            check(controls.all { !it.isEnabled && abs(it.alpha - .45f) < .001f })
+            home.viewTreeObserver.registerFrameCommitCallback { committed.countDown() }
+            true
+        }
+        main {
+            home.viewTreeObserver.addOnPreDrawListener(listener)
+            home.invalidate()
+        }
+        try {
+            check(committed.await(5, TimeUnit.SECONDS))
+            val image = checkNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(output, "dark-home-disabled-modes.png").outputStream().use {
+                    check(image.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { image.recycle() }
+        } finally {
+            main {
+                home.viewTreeObserver.removeOnPreDrawListener(listener)
+                controls.zip(enabled).forEach { (control, wasEnabled) -> control.isEnabled = wasEnabled }
+            }
+        }
+    }
+
     private fun verifyShortLandscape(sample: Uri) {
         val imported = runBlocking { owner.import(sample, UUID.randomUUID().toString()) }
         val config = AppBackgroundConfig(imported.choice, AppBackgroundConfig.MAX_STRENGTH)
@@ -619,8 +682,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             main { host.select(TaskDestination.BREW) }
             val root = main { checkNotNull(host.supportFragmentManager.findFragmentByTag("root:BREW")?.view) }
             val style = TaskProductVisualStyle(host)
-            captureApplied(host, root, "$mode-home-mist.png", base = style.homePage, backing = style.surface) {
-                root.findViewWithTag("product/home/quick-title")
+            captureApplied(host, root, "$mode-home-mist.png", base = style.homePage, nativeCover = true) {
+                // The quiet gradient can match the quiet footer fill at some pixels. Use the
+                // native dial's real face and keep the same strict contrast filter.
+                nodes(root).filterIsInstance<BoilerTemperatureDial>().first { it.getGlobalVisibleRect(Rect()) }
             }
 
             editor = edit()
@@ -650,105 +715,143 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     it.hasProtection()
             } == true
         }
+        // A two-level per-channel match is allowed for device compositing; a probe must exceed that
+        // tolerance against every solid outcome, not merely against the page base.
+        val matchTolerance = 2
+        val contrastThreshold = 5
+        check(contrastThreshold > matchTolerance * 2) // Matching ranges must not overlap.
+        fun distance(a: Int, b: Int) = maxOf(abs(Color.red(a) - Color.red(b)),
+            abs(Color.green(a) - Color.green(b)), abs(Color.blue(a) - Color.blue(b)))
         data class Pixel(val x: Int, val y: Int, val color: Int)
         data class PixelProof(val decorative: List<Pixel>, val protection: List<List<Pixel>>,
             val solidColors: Set<Int>, val wallpaperGaps: List<Pixel>)
-        val (exposed, protectedPixels, solidColors, wallpaperGaps) = main {
-            val paper = root.background as PageBackdrop
-            val style = TaskProductVisualStyle(page)
-            // Visible rects use decor coordinates; translate the decor origin to display pixels.
-            val decorOffset = IntArray(2)
-            page.window.decorView.getLocationOnScreen(decorOffset)
-            fun screenBounds(view: View) = Rect().apply {
-                check(view.getGlobalVisibleRect(this))
-                offset(decorOffset[0], decorOffset[1])
-            }
-            val cover = screenBounds(protectedView())
-            val surfaces = foregroundSurfaces().map(::screenBounds) + if (nativeCover) listOf(cover) else emptyList()
-            val gutterNeighbor = decorativeGuttersOf?.invoke()?.let(::screenBounds)
-            val start = IntArray(2)
-            root.getLocationOnScreen(start)
-            val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
-            fun visibleDifference(a: Int, b: Int) = abs(Color.red(a) - Color.red(b)) >= 5 ||
-                abs(Color.green(a) - Color.green(b)) >= 5 || abs(Color.blue(a) - Color.blue(b)) >= 5
-            try {
-                paper.draw(Canvas(bitmap))
-                val photo = mutableListOf<Pixel>()
-                val protected = mutableListOf<Pixel>()
-                val step = HoyiUi.dp(page, 6).coerceAtLeast(1)
-                for (y in step until root.height step step) for (x in step until root.width step step) {
-                    val expected = bitmap.getPixel(x, y)
-                    val displayX = start[0] + x
-                    val displayY = start[1] + y
-                    val inDecorativeArea = gutterNeighbor == null ||
-                        displayY in gutterNeighbor.top until gutterNeighbor.bottom && !gutterNeighbor.contains(displayX, displayY)
-                    if (inDecorativeArea && visibleDifference(expected, base) && !cover.contains(displayX, displayY) &&
-                        surfaces.none { it.contains(displayX, displayY) }) photo += Pixel(displayX, displayY, expected)
-                    if (expected == backing && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
+        val failureName = name.removeSuffix(".png") + ".failed.png"
+        val (exposed, protectedPixels, solidColors, wallpaperGaps) = try {
+            main {
+                val paper = root.background as PageBackdrop
+                val style = TaskProductVisualStyle(page)
+                val solidColors = setOf(base, backing, style.surface, style.selected)
+                val backdropFills = solidColors + paper.roundedAreas.map { it.fill }
+                fun againstFills(color: Int, fills: Set<Int>) = fills.all { distance(color, it) >= contrastThreshold }
+                // Visible rects use decor coordinates; translate the decor origin to display pixels.
+                val decorOffset = IntArray(2)
+                page.window.decorView.getLocationOnScreen(decorOffset)
+                fun screenBounds(view: View) = Rect().apply {
+                    check(view.getGlobalVisibleRect(this))
+                    offset(decorOffset[0], decorOffset[1])
                 }
-                // A near-white/near-black side could accidentally look like the baseline.
-                // Keep only probes where the unprotected image would be measurably different.
-                PageBackdrop(base, HoyiUi.dark(page)).apply {
-                    snapshot = paper.snapshot
-                    protectedAreas = emptyList()
-                    setBounds(0, 0, root.width, root.height)
-                    draw(Canvas(bitmap))
-                }
-                fun contrast(x: Int, y: Int) = visibleDifference(bitmap.getPixel(x, y), base)
-                val verifiedProtection = protected.filter { pixel -> contrast(pixel.x - start[0], pixel.y - start[1]) }
-                // Foreground bubbles/cards already own their opaque fill. Probe within each native
-                // view separately, including where no backing rectangle is needed underneath.
-                val nativeProtection = surfaces.map { surface ->
-                    buildList {
-                        for (y in step until root.height step step) for (x in step until root.width step step) {
-                            if (surface.contains(start[0] + x, start[1] + y) && contrast(x, y)) {
-                                add(Pixel(start[0] + x, start[1] + y, base))
+                val cover = screenBounds(protectedView())
+                val surfaces = foregroundSurfaces().map(::screenBounds) + if (nativeCover) listOf(cover) else emptyList()
+                val gutterNeighbor = decorativeGuttersOf?.invoke()?.let(::screenBounds)
+                val start = IntArray(2)
+                root.getLocationOnScreen(start)
+                val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+                try {
+                    paper.draw(Canvas(bitmap))
+                    val photo = mutableListOf<Pixel>()
+                    val protected = mutableListOf<Pixel>()
+                    val step = HoyiUi.dp(page, 6).coerceAtLeast(1)
+                    for (y in step until root.height step step) for (x in step until root.width step step) {
+                        val expected = bitmap.getPixel(x, y)
+                        val displayX = start[0] + x
+                        val displayY = start[1] + y
+                        val inDecorativeArea = gutterNeighbor == null ||
+                            displayY in gutterNeighbor.top until gutterNeighbor.bottom && !gutterNeighbor.contains(displayX, displayY)
+                        if (inDecorativeArea && againstFills(expected, backdropFills) && !cover.contains(displayX, displayY) &&
+                            surfaces.none { it.contains(displayX, displayY) }) photo += Pixel(displayX, displayY, expected)
+                        if (expected == backing && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
+                    }
+                    // Recreate the bare wallpaper. Any pixel already close to a permitted solid
+                    // fill is ineligible, including for a separate native bubble, chart or card.
+                    PageBackdrop(base, HoyiUi.dark(page)).apply {
+                        snapshot = paper.snapshot
+                        protectedAreas = emptyList()
+                        setBounds(0, 0, root.width, root.height)
+                        draw(Canvas(bitmap))
+                    }
+                    fun contrast(x: Int, y: Int) = againstFills(bitmap.getPixel(x, y), solidColors)
+                    val verifiedProtection = protected.filter { pixel -> contrast(pixel.x - start[0], pixel.y - start[1]) }
+                    // Foreground bubbles/cards already own their opaque fill. Probe within each native
+                    // view separately, including where no backing rectangle is needed underneath.
+                    val nativeProtection = surfaces.map { surface ->
+                        buildList {
+                            for (y in step until root.height step step) for (x in step until root.width step step) {
+                                if (surface.contains(start[0] + x, start[1] + y) && contrast(x, y)) {
+                                    add(Pixel(start[0] + x, start[1] + y, base))
+                                }
                             }
                         }
                     }
-                }
-                val gaps = requiredWallpaper().map { point ->
-                    Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
-                }
-                check(gaps.isEmpty() || gaps.count { visibleDifference(it.color, base) } >= minOf(2, (gaps.size + 1) / 2)) {
-                    "$name needs contrast-sensitive wallpaper samples outside the rounded surfaces"
-                }
-                val protection = (if (nativeCover) emptyList() else listOf(verifiedProtection)) + nativeProtection
-                check(photo.size >= 5 && protection.all { it.size >= 5 }) {
-                    "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
-                        "(decorative=${photo.size}, protection=${protection.map { it.size }}, base=${Integer.toHexString(base)})"
-                }
-                PixelProof(photo, protection, setOf(base, style.surface, style.selected), gaps)
-            } finally { bitmap.recycle() }
+                    val gaps = requiredWallpaper().map { point ->
+                        Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
+                    }
+                    check(gaps.isEmpty() || gaps.count { againstFills(it.color, backdropFills) } >= minOf(2, (gaps.size + 1) / 2)) {
+                        "$name needs contrast-sensitive wallpaper samples outside the rounded surfaces: " +
+                            "gaps=$gaps fills=$backdropFills"
+                    }
+                    val protection = (if (nativeCover) emptyList() else listOf(verifiedProtection)) + nativeProtection
+                    check(photo.size >= 5 && protection.all { it.size >= 5 }) {
+                        "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
+                            "(decorative=${photo.size}, protection=${protection.map { it.size }}, base=${Integer.toHexString(base)})"
+                    }
+                    PixelProof(photo, protection, solidColors, gaps)
+                } finally { bitmap.recycle() }
+            }
+        } catch (failure: IllegalStateException) {
+            runCatching {
+                val image = captureCommittedFrame(root)
+                try { writeScreenshot(failureName, image) } finally { image.recycle() }
+            }.onFailure(failure::addSuppressed)
+            throw failure
         }
         // Compare real compositor pixels, not the backdrop object or only the offscreen drawing.
-        fun matches(actual: Int, expected: Int) = abs(Color.red(actual) - Color.red(expected)) <= 2 &&
-            abs(Color.green(actual) - Color.green(expected)) <= 2 && abs(Color.blue(actual) - Color.blue(expected)) <= 2
+        fun matches(actual: Int, expected: Int) = distance(actual, expected) <= matchTolerance
+        var details = ""
         for (attempt in 1..4) {
-            val frame = CountDownLatch(1)
-            main {
-                check(root.isAttachedToWindow && root.isHardwareAccelerated)
-                root.viewTreeObserver.registerFrameCommitCallback { frame.countDown() }
-                root.invalidate()
-            }
-            check(frame.await(5, TimeUnit.SECONDS))
-            val image = checkNotNull(test.uiAutomation.takeScreenshot())
+            val image = captureCommittedFrame(root)
             try {
                 fun sample(point: Pixel) = if (point.x in 0 until image.width && point.y in 0 until image.height)
                     image.getPixel(point.x, point.y) else null
                 val artVisible = exposed.count { probe -> sample(probe)?.let { matches(it, probe.color) } == true }
-                val contentSolid = protectedPixels.all { region ->
-                    region.count { probe ->
-                        sample(probe)?.let { ink -> solidColors.any { matches(ink, it) } } == true
-                    } >= 5
+                val solidCounts = protectedPixels.map { region ->
+                    region.count { probe -> sample(probe)?.let { ink -> solidColors.any { matches(ink, it) } } == true }
                 }
-                val gapsVisible = wallpaperGaps.all { probe -> sample(probe)?.let { matches(it, probe.color) } == true }
-                if (artVisible < 5 || !contentSolid || !gapsVisible) continue
-                File(output, name).outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-                return
+                val unmatchedGaps = wallpaperGaps.mapNotNull { probe ->
+                    val observed = sample(probe)
+                    if (observed != null && matches(observed, probe.color)) null
+                    else "(${probe.x},${probe.y}) expected=#${probe.color.toUInt().toString(16)} " +
+                        "observed=${observed?.toUInt()?.toString(16)}"
+                }
+                if (artVisible >= 5 && solidCounts.all { it >= 5 } && unmatchedGaps.isEmpty()) {
+                    writeScreenshot(name, image)
+                    return
+                }
+                if (attempt == 4) {
+                    writeScreenshot(failureName, image)
+                    val solidExamples = protectedPixels.map { region ->
+                        region.take(3).map { probe -> "(${probe.x},${probe.y})=#${sample(probe)?.toUInt()?.toString(16)}" }
+                    }
+                    details = "decorative=$artVisible/${exposed.size} solid=$solidCounts/${protectedPixels.map { it.size }} " +
+                        "solidExamples=$solidExamples gapMismatches=$unmatchedGaps"
+                }
             } finally { image.recycle() }
         }
-        error("$name never presented both visible photo and protected content")
+        error("$name never presented both visible photo and protected content: $details")
+    }
+
+    private fun captureCommittedFrame(root: View): Bitmap {
+        val frame = CountDownLatch(1)
+        main {
+            check(root.isAttachedToWindow && root.isHardwareAccelerated)
+            root.viewTreeObserver.registerFrameCommitCallback { frame.countDown() }
+            root.invalidate()
+        }
+        check(frame.await(5, TimeUnit.SECONDS))
+        return checkNotNull(test.uiAutomation.takeScreenshot())
+    }
+
+    private fun writeScreenshot(name: String, image: Bitmap) {
+        File(output, name).outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
     }
 
     private fun preview(page: Activity) = page.window.decorView
