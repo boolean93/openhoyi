@@ -100,7 +100,7 @@ internal object AiCurveCardConstructionChecks {
             }
         }
     }
-    private fun cards(longEnglishName: Boolean = false): List<AiCurveCard> {
+    fun cards(longEnglishName: Boolean = false): List<AiCurveCard> {
         val baseline = CustomCurveDocument("draft-00000000-0000-0000-0000-000000000142", "合成配方", 92, 3600,
             CustomCurveDocument.ControlMode.PRESSURE,
             listOf(CustomCurveDocument.Stage(25, 180), CustomCurveDocument.Stage(90, 400), CustomCurveDocument.Stage(60, 140)),

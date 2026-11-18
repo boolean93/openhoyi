@@ -82,6 +82,7 @@
     <string name="ai_curve_editor_expired">This draft is unavailable or its source has changed. Your unsaved fields are kept; return to the chat card to confirm again. No curve was saved automatically.</string>
     <string name="ai_curve_editor_save_changes">Save changes</string>
     <string name="ai_error_protocol">Response validation failed; this turn is incomplete. You can retry manually. If it happens again, export diagnostics.</string>
+    <string name="ai_message_copy">Copy</string>
     <string name="ai_message_copied">Copied</string>
     <string name="ai_message_copy_failed">Could not copy. Please try again.</string>
     <string name="ai_retry_wait">Connection retry %1$d/%2$d in %3$d seconds. You can stop; the current time limit still applies.</string>
