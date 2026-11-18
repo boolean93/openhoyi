@@ -139,6 +139,25 @@ jobs:
           path: build/ai-card-construction/
           if-no-files-found: warn
           retention-days: 7
+      - name: Collect AI copy emulator host failure context
+        if: failure() && env.AI_COPY_CHECKS == 'true'
+        run: |
+          mkdir -p build/ai-message-copy
+          {
+            free -m
+            group=$(sed -n 's/^0:://p' /proc/self/cgroup)
+            for control in memory.max memory.events; do
+              for directory in /sys/fs/cgroup "/sys/fs/cgroup${group%/}"; do
+                if [ -r "$directory/$control" ]; then
+                  printf '\n%s\n' "$directory/$control"
+                  cat "$directory/$control"
+                fi
+              done
+            done
+            printf '\nRecent kernel OOM/emulator warnings (if accessible):\n'
+            sudo -n dmesg --time-format iso --level=emerg,alert,crit,err,warn |
+              grep -Ei 'out of memory|oom[-_ ]|killed process|segfault|qemu|kvm|emulat' | tail -100
+          } > build/ai-message-copy/host-failure.txt 2>&1 || true
       - name: Upload AI message copy evidence
         if: always() && env.AI_COPY_CHECKS == 'true'
         uses: actions/upload-artifact@v6

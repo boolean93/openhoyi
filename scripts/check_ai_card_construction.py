@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Execute AI preview fixtures only on a fresh disposable CI emulator."""
 import argparse
+from contextlib import contextmanager, nullcontext
 import hashlib
 import json
 import os
@@ -24,6 +25,34 @@ def require_fresh_emulator(adb):
     # Unlike pm path, list packages succeeds for an absent package.
     installed = set(adb('shell', 'pm', 'list', 'packages').splitlines())
     require('package:' + APP not in installed and 'package:' + TEST not in installed, 'Fresh emulator required')
+
+
+@contextmanager
+def capture_copy_logcat(serial, output):
+    # Keep a host-side trace even if the emulator exits and a final logcat dump is impossible.
+    with (output / 'gesture-logcat.txt').open('wb') as log:
+        command = ['adb', '-s', serial, 'logcat', '-b', 'main,system,crash', '-v', 'threadtime',
+                   'OpenHoyiAiCopy:I', 'AndroidRuntime:E', 'ActivityManager:W',
+                   'ActivityTaskManager:W', 'lmkd:I', 'libc:F', 'DEBUG:F', '*:S']
+        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
+        try:
+            yield
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+
+
+def run_instrumentation(serial, command, output):
+    # External files preserve partial stdout/stderr on timeout or ADB error, too.
+    stdout = output / 'instrumentation.txt'
+    with stdout.open('wb') as stream, (output / 'instrumentation-stderr.txt').open('wb') as errors:
+        subprocess.run(['adb', '-s', serial, *command], check=True, stdout=stream, stderr=errors, timeout=180)
+    return stdout.read_text(encoding='utf-8', errors='replace').strip()
 
 
 def main(message_copy=False):
@@ -56,17 +85,17 @@ def main(message_copy=False):
                    apks=pair, passed=False, detachedViewsOnly=not message_copy, windowGestures=message_copy, visualAcceptance=False,
                    noModelRequest=True, noPhysicalDevice=True)
     try:
-        for path, identity in zip(paths, pair):
-            require(hashlib.sha256(path.read_bytes()).hexdigest() == identity['sha256'], 'APK changed')
-            require('Success' in adb('install', str(path), timeout=120), 'Fixture install failed')
-        command = ['shell', 'am', 'instrument', '-w', '-r', '-e', 'aiPreviewOnly', 'true',
-                   '-e', 'aiMessageCopyOnly' if message_copy else 'aiCardConstructionOnly', 'true', RUNNER]
-        result = adb(*command, timeout=180)
-        (output / 'instrumentation.txt').write_text(result + '\n')
-        (output / 'android-runtime.txt').write_text(adb('logcat', '-d', '-s', 'AndroidRuntime:E') + '\n')
-        require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and
-                'AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true' in result,
-                'AI preview fixture failed')
+        with capture_copy_logcat(serial, output) if message_copy else nullcontext():
+            for path, identity in zip(paths, pair):
+                require(hashlib.sha256(path.read_bytes()).hexdigest() == identity['sha256'], 'APK changed')
+                require('Success' in adb('install', str(path), timeout=120), 'Fixture install failed')
+            command = ['shell', 'am', 'instrument', '-w', '-r', '-e', 'aiPreviewOnly', 'true',
+                       '-e', 'aiMessageCopyOnly' if message_copy else 'aiCardConstructionOnly', 'true', RUNNER]
+            result = run_instrumentation(serial, command, output)
+            (output / 'android-runtime.txt').write_text(adb('logcat', '-d', '-s', 'AndroidRuntime:E') + '\n')
+            require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and
+                    'AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true' in result,
+                    'AI preview fixture failed')
         receipt['passed'] = True
     finally:
         (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
