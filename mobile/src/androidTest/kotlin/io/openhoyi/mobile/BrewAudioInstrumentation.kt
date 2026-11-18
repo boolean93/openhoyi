@@ -161,7 +161,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (themePaletteChecks) {
                 check(disposableCiEmulator) { "Palette checks require a disposable CI emulator" }
                 ThemePaletteRuntimeChecks(this).run()
-                report.putString("stream", "THEME_PALETTE_CHECKS_PASSED previewCancelApply=true twoModes=true fixedMetricColors=true sameService=true retainedDrafts=true noModelRequest=true noBle=true\n")
+                report.putString("stream", "THEME_PALETTE_CHECKS_PASSED previewCancelApply=true twoModes=true fixedMetricColors=true switchInkStates=true screenshots=6 sameService=true retainedDrafts=true noModelRequest=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (fontSizeChecks) {

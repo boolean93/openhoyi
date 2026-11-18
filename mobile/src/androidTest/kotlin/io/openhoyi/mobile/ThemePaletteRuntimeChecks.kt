@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
@@ -20,18 +22,24 @@ import android.widget.EditText
 import android.widget.RadioButton
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 
 /** Actual settings/preview window and configuration restoration. Disposable Mock emulator only. */
 internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
     private val context get() = test.targetContext
     private val app get() = context.applicationContext as MobileApplication
     private val preferences get() = app.appearancePreferences
+    private val evidence get() = File(context.filesDir, "theme-palette-evidence")
     private val store get() = context.getSharedPreferences(SharedAppearanceStorage.PREFERENCES, Context.MODE_PRIVATE)
     private fun <T> main(action: () -> T) = BoundedInstrumentationMain.run("theme palette", action = action)
 
     fun run() {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock" &&
             Build.HARDWARE in setOf("ranchu", "goldfish")) { "Palette fixtures require the disposable Mock emulator" }
+        check(evidence.mkdir()) { "Fresh palette evidence directory required" }
         val original = store.all.toMap()
         try {
             verifyStorageAndTokens()
@@ -95,7 +103,69 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
                 for (id in listOf(R.color.mobile_danger, R.color.mobile_stop_button, R.color.mobile_alarm_advisory))
                     check(candidate.appColor(id) == baseline.getColor(id))
                 check(nativeAccent(candidate) == brand.accent)
+                verifySwitchInk(candidate, product.surface)
             }
+        }
+    }
+
+    /** Exercise all eight palettes/modes through the actual Switch painter, not just token values. */
+    private fun verifySwitchInk(context: Context, surface: Int) {
+        val toggle = HoyiSwitch(context)
+        val style = TaskProductVisualStyle(context)
+        val width = style.dp(120)
+        val height = style.dp(56)
+        toggle.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+        toggle.layout(0, 0, width, height)
+        fun ink(checked: Boolean, enabled: Boolean): Pair<Double, Double> {
+            toggle.isEnabled = enabled
+            toggle.isChecked = checked
+            toggle.jumpDrawablesToCurrentState()
+            val image = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            try {
+                image.eraseColor(surface)
+                toggle.draw(Canvas(image))
+                val track = toggle.trackDrawable.bounds
+                check(track.width() > 0 && track.height() > 0)
+                val first = track.left + track.width() / 4
+                val last = track.right - track.width() / 4
+                return ColorUtils.calculateLuminance(image.getPixel(first, track.centerY())) to
+                    ColorUtils.calculateLuminance(image.getPixel(last, track.centerY()))
+            } finally { image.recycle() }
+        }
+        val off = ink(checked = false, enabled = true)
+        val on = ink(checked = true, enabled = true)
+        val disabled = ink(checked = true, enabled = false)
+        // Positional contrast still distinguishes checked/unchecked without hue perception.
+        check(off.first - off.second > .14 && on.second - on.first > .14)
+        check(abs(disabled.first - on.first) > .025 || abs(disabled.second - on.second) > .025)
+    }
+
+    private fun captureSwitchStates(dialog: AlertDialog, sample: String) {
+        val toggle = waitFor("preview switch laid out") {
+            dialog.window!!.decorView.findViewWithTag<HoyiSwitch>("product/settings/app/palette/preview/switch")
+                ?.takeIf { it.isLaidOut && it.width > 0 && !it.isLayoutRequested }
+        }
+        for ((name, checked, enabled) in listOf(
+            Triple("on", true, true), Triple("off", false, true), Triple("disabled", true, false)
+        )) {
+            val drawn = CountDownLatch(1)
+            main {
+                toggle.isChecked = checked
+                toggle.isEnabled = enabled
+                toggle.jumpDrawablesToCurrentState()
+                toggle.requestRectangleOnScreen(Rect(0, 0, toggle.width, toggle.height), true)
+                toggle.postOnAnimation { toggle.postOnAnimation { drawn.countDown() } }
+            }
+            check(drawn.await(5, TimeUnit.SECONDS))
+            main {
+                val visible = Rect()
+                check(toggle.getGlobalVisibleRect(visible) && visible.height() == toggle.height && visible.width() == toggle.width)
+            }
+            val image = checkNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(evidence, "$sample-$name.png").outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            } finally { image.recycle() }
         }
     }
 
@@ -137,6 +207,7 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
             val initial = AppAppearance()
             val cancelled = open()
             click(cancelled, AppThemePalette.SEA_SALT)
+            captureSwitchStates(cancelled, "light-sea-salt")
             main {
                 val apply = cancelled.getButton(AlertDialog.BUTTON_POSITIVE)
                 val visible = Rect()
@@ -181,8 +252,12 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
             main {
                 check(preferences.current == AppAppearance(true, AppThemePalette.GRAPHITE))
                 check(screen.themePalette() == AppThemePalette.GRAPHITE && fragment().themeCheckBox.isChecked)
-                screen.select(TaskDestination.BREW)
             }
+            val darkPreview = open()
+            captureSwitchStates(darkPreview, "dark-graphite")
+            main { darkPreview.getButton(AlertDialog.BUTTON_NEGATIVE).performClick() }
+            waitFor("dark preview dismissed") { Unit.takeUnless { darkPreview.isShowing } }
+            main { screen.select(TaskDestination.BREW) }
             waitFor("live Home flow legend") {
                 val group = screen.supportFragmentManager.findFragmentByTag("root:BREW")?.view
                 val label = group?.findViewWithTag<TextView>("product/home/preview-legend")

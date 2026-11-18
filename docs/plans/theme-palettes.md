@@ -12,13 +12,12 @@
 - 回退：使用 revert PR；旧版继续读取 `appearance.dark`，忽略新增的 `palette`；不删除偏好、草稿或历史，不卸载。
 - 未完成与阻塞：背景图及其可读性、导入和持久化属于后续单独 PR。
 
-Mock 设备用例仅在隔离的 CI 模拟器运行，入口：
+Mock 设备用例仅在隔离的 CI 模拟器运行（不新增常规 PR 门槛）：
 
 ```sh
-adb shell am instrument -w -e themePaletteChecks true -e disposableCiEmulator true \
-  io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation
+gh workflow run mock-lifecycle.yml --ref feature/theme-palettes -f theme_palette_checks=true
 ```
 
-它使用合成的萃取和输入验证重建，不发送 BLE 或模型请求；测试通过不代表真实设备验收。
+它使用合成的萃取和输入验证重建，不发送 BLE 或模型请求。检查四套色板在深浅模式下真实绘制的开、关、禁用状态，上传浅色海盐蓝和深色石墨灰示例窗口、精确源码及 Mock 包身份凭据。测试通过不代表真实设备验收。
 
 具体规则以 [Git工作流](../git-workflow.md) 为准。
