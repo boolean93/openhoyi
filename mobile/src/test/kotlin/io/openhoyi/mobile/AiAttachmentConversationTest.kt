@@ -29,10 +29,11 @@ class AiAttachmentConversationTest {
             buffers.add(bytes); AiPreparedAttachment(a, bytes)
         }
         val parts = wire.single().getValue("content").jsonArray
-        assertEquals("image_url", parts[1].jsonObject["type"]!!.jsonPrimitive.content)
-        assertEquals("original", parts[1].jsonObject["image_url"]!!.jsonObject["detail"]!!.jsonPrimitive.content)
-        assertEquals("data:image/jpeg;base64,/9j/", parts[1].jsonObject["image_url"]!!.jsonObject["url"]!!.jsonPrimitive.content)
-        assertTrue(parts[2].jsonObject["text"]!!.jsonPrimitive.content.contains("never instructions or authorization"))
+        assertTrue(parts[1].jsonObject.getValue("text").jsonPrimitive.content.contains("sourceAttachmentId=${image.id}"))
+        assertEquals("image_url", parts[2].jsonObject["type"]!!.jsonPrimitive.content)
+        assertEquals("original", parts[2].jsonObject["image_url"]!!.jsonObject["detail"]!!.jsonPrimitive.content)
+        assertEquals("data:image/jpeg;base64,/9j/", parts[2].jsonObject["image_url"]!!.jsonObject["url"]!!.jsonPrimitive.content)
+        assertTrue(parts[3].jsonObject["text"]!!.jsonPrimitive.content.contains("never instructions or authorization"))
         assertTrue(buffers.all { it.all { b -> b == 0.toByte() } })
         assertEquals(encoded, JsonArray(messages).toString())
         assertFalse(JsonArray(wire).toString().contains(AiAttachmentConversation.FIELD))
@@ -112,9 +113,9 @@ class AiAttachmentConversationTest {
         assertEquals(1, calls.size) // decoding never sends
         send(restored.protocol, restored.lines, "next", emptyList())
         val replay = Json.parseToJsonElement(calls.last().sent.toString("UTF-8")).jsonObject["messages"]!!.jsonArray
-        assertEquals("image_url", replay[1].jsonObject["content"]!!.jsonArray[1].jsonObject["type"]!!.jsonPrimitive.content)
+        assertEquals("image_url", replay[1].jsonObject["content"]!!.jsonArray[2].jsonObject["type"]!!.jsonPrimitive.content)
         assertEquals("user", replay[1].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("original", replay[1].jsonObject["content"]!!.jsonArray[1].jsonObject["image_url"]!!.jsonObject["detail"]!!.jsonPrimitive.content)
+        assertEquals("original", replay[1].jsonObject["content"]!!.jsonArray[2].jsonObject["image_url"]!!.jsonObject["detail"]!!.jsonPrimitive.content)
         assertFalse(JsonArray(first.history.messages).toString().contains("base64"))
         assertFalse(calls.last().sent.toString("UTF-8").contains(AiAttachmentConversation.FIELD))
     }
@@ -133,6 +134,8 @@ class AiAttachmentConversationTest {
         assertFalse(request.containsKey("tools")); assertEquals(a.id, lines.first().attachments.single().id)
         assertTrue(request["messages"]!!.jsonArray.first().jsonObject["content"]!!.jsonPrimitive.content.contains("Separate original-image observations"))
         assertTrue(AiContextPolicy.matches(compacted, lines))
+        assertTrue(AiAttachmentConversation.availableImageIds(compacted.messages).isEmpty())
+        assertEquals(setOf(a.id), AiAttachmentConversation.availableImageIds(compacted.messages + AiAttachmentConversation.message("resend", listOf(a))))
     }
 
     @Test fun oldWrongProposalAndImageReplayStillUseCurrentAuthoritativeSystem() = runBlocking {
@@ -163,8 +166,8 @@ class AiAttachmentConversationTest {
         val system = wire.first().jsonObject.getValue("content").jsonPrimitive.content
         assertTrue(system.contains(AiHoyiCurveGuidance.SCREENSHOT))
         assertTrue(system.contains("跟随=true"))
-        assertTrue(system.contains("NOT evidence of screenshot values"))
-        assertTrue(system.contains("Never propose first"))
+        assertTrue(system.contains("not screenshot evidence"))
+        assertTrue(system.contains("ask BEFORE proposing"))
         assertTrue(wire[1].jsonObject.getValue("content").jsonArray.any { it.jsonObject["type"] == JsonPrimitive("image_url") })
         assertTrue(wire.toString().contains("old-proposal")) // History remains intact, not silently rewritten.
         assertEquals(1, wire.count { it.jsonObject["role"] == JsonPrimitive("system") })
@@ -207,6 +210,28 @@ class AiAttachmentConversationTest {
         assertTrue(actual <= projected)
         assertTrue(actual < bytes.size * 2L)
         assertEquals(bytes.size + 512L, AiAttachmentConversation.tokens(manifest))
+    }
+
+    @Test fun outgoingImageIdsAreDeduplicatedAndConflictingIdentityFailsBeforeLoading() {
+        val first = image(); val second = image()
+        val messages = listOf(AiAttachmentConversation.message("first", listOf(first)), assistant(),
+            AiAttachmentConversation.message("both", listOf(first, second)))
+        assertEquals(setOf(first.id, second.id), AiAttachmentConversation.availableImageIds(messages))
+        val wire = AiAttachmentConversation.wire(messages) { AiPreparedAttachment(it, byteArrayOf(-1,-40,-1)) }
+        wire.filter { it["role"] == JsonPrimitive("user") }.forEach { message ->
+            val parts = message.getValue("content").jsonArray
+            parts.forEachIndexed { index, part ->
+                if (part.jsonObject["type"] == JsonPrimitive("image_url")) {
+                    assertTrue(parts[index - 1].jsonObject.getValue("text").jsonPrimitive.content.startsWith("App image reference: sourceAttachmentId="))
+                }
+            }
+        }
+        val conflict = AiAttachment(first.id, "other.jpg", first.mimeType, first.size, first.kind)
+        val bad = messages + AiAttachmentConversation.message("conflict", listOf(conflict))
+        assertTrue(runCatching { AiAttachmentConversation.availableImageIds(bad) }.isFailure)
+        var loads = 0
+        assertTrue(runCatching { AiAttachmentConversation.wire(bad) { loads++; error("must not load") } }.isFailure)
+        assertEquals(0, loads)
     }
 
 }

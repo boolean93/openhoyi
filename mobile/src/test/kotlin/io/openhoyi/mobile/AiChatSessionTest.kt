@@ -182,7 +182,8 @@ class AiChatSessionTest {
         val store = CustomCurveStore(disk)
         val coordinator = AiCurveWriteCoordinator(store)
         val epoch = AiCurveWriteCoordinator.Epoch("test-session", 1)
-        val proposal = """{"operation":"create","curve":{"schema":3,"kind":"openhoyi.local-curve","name":"日晒","temperatureC":92,"targetHundredthsGram":0,"controlMode":"pressure","totalWaterLimitMl":78,"stages":[{"target":20,"waterTenthsMl":250},{"target":60,"waterTenthsMl":50},{"target":90,"waterTenthsMl":480}],"configuration":{"pressureLogic":true,"variableFlowLogic":false,"firstSegmentFlowMode":false,"preinfusionSeconds":5,"firstDurationSeconds":10,"compensationHundredthsGram":0,"inactiveStages":[{"target":0,"waterTenthsMl":0}]}}}"""
+        val imageId = "00000000-0000-0000-0000-000000000001"
+        val proposal = """{"operation":"transcribe_screenshot","transcription":{"sourceAttachmentId":"00000000-0000-0000-0000-000000000001","name":"日晒","mode":"pressure","logic":"follow","firstStageUnit":"bar","temperatureC":92,"totalWaterMl":78,"targetWeightG":0,"compensationG":0,"preinfusionSeconds":5,"firstDurationSeconds":10,"stages":[{"target":2,"unit":"bar","waterMl":25},{"target":6,"unit":"bar","waterMl":5},{"target":9,"unit":"bar","waterMl":48}]}}"""
         val padded = proposal + " ".repeat(700) // A proposal has its own bound, not the read tool's 512 bytes.
         val args = org.json.JSONObject().put("proposal_json", padded).toString()
         val response = org.json.JSONObject(tool).also {
@@ -191,7 +192,7 @@ class AiChatSessionTest {
         }.toString()
         val calls = CopyOnWriteArrayList<FakeAiConnection>(); val budget = AiRequestBudget()
         val answer = AiChatSession(Data(), transport(listOf(response, aiAnswer("Awaiting your review")), budget, calls), budget,
-            Dispatchers.Unconfined, proposeCurve = { coordinator.propose(it, epoch); AiCurveProposalStatus.AWAITING_EDITOR })
+            Dispatchers.Unconfined, availableImageIds = setOf(imageId), proposeCurve = { coordinator.propose(it, epoch); AiCurveProposalStatus.AWAITING_EDITOR })
             .reply(emptyList(), "Create a curve")
         assertEquals("Awaiting your review", answer); assertEquals(0, disk.writes)
         val pending = requireNotNull(coordinator.pending(epoch))
