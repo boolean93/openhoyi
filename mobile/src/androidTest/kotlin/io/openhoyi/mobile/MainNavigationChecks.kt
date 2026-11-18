@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Instrumentation
+import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.graphics.Rect
@@ -13,6 +14,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ListView
 import android.widget.TextView
+import androidx.lifecycle.Lifecycle
 
 import io.openhoyi.session.ExtractionState
 
@@ -241,7 +243,10 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         val deadline = SystemClock.elapsedRealtime() + 5000
         while (SystemClock.elapsedRealtime() < deadline) {
             var active = false
-            test.runOnMainSync { active = activity.supportFragmentManager.primaryNavigationFragment?.tag == tag }
+            test.runOnMainSync {
+                val fragment = activity.supportFragmentManager.primaryNavigationFragment
+                active = fragment?.tag == tag && fragment.lifecycle.currentState == Lifecycle.State.RESUMED
+            }
             if (active) break
             SystemClock.sleep(50)
         }
@@ -659,10 +664,9 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             if (historyPosition > 0) check(historyList?.firstVisiblePosition == historyPosition) {
                 "Nonzero History list position was lost"
             }
-            // Inject only the Mock service's existing confirmed-manual-ID gate. This checks the
-            // real MainActivity polling/navigation path; PassiveShotDetector is tested separately.
-            val manual = MobileService::class.java.getDeclaredField("manualPresentation")
-                .apply { isAccessible = true }.get(service) as ManualShotPresentationGate
+            // Inject only the Mock process's passive observation signal, never a machine
+            // command. PassiveShotDetector itself is tested separately.
+            val manual = (activity.application as MobileApplication).manualShotPresentation
             try {
                 host.select(TaskDestination.CURVES)
                 test.runOnMainSync { manual.observedIdle(); manual.started("shell-manual-1") }
@@ -681,6 +685,39 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 } finally { test.removeMonitor(manualMonitor) }
                 test.runOnMainSync { manual.ended(); manual.started("shell-manual-2") }
                 awaitPage(activity, "extraction")
+                test.runOnMainSync { manual.ended() }
+                MainPageTestHost(test, activity).select(TaskDestination.HISTORY)
+
+                val comparisonMonitor = test.addMonitor(BrewComparisonActivity::class.java.name, null, false)
+                var comparison: BrewComparisonActivity? = null
+                fun openComparison(): BrewComparisonActivity {
+                    test.runOnMainSync {
+                        activity.startActivity(Intent(activity, BrewComparisonActivity::class.java))
+                    }
+                    val page = test.waitForMonitorWithTimeout(comparisonMonitor, 10000)
+                        as? BrewComparisonActivity ?: error("Could not open comparison")
+                    comparison = page
+                    test.waitForIdleSync()
+                    return page
+                }
+                try {
+                    openComparison()
+                    test.runOnMainSync { manual.started("comparison-manual-1") }
+                    awaitPage(activity, "extraction")
+                    MainPageTestHost(test, activity).select(TaskDestination.HISTORY)
+                    val reopened = openComparison()
+                    SystemClock.sleep(600)
+                    test.runOnMainSync {
+                        check(!reopened.isFinishing) { "Same manual observation redirected comparison twice" }
+                        check(reopened.lifecycle.currentState == Lifecycle.State.RESUMED)
+                        check(activity.supportFragmentManager.primaryNavigationFragment?.tag == "root:HISTORY")
+                    }
+                    test.runOnMainSync { manual.ended(); manual.started("comparison-manual-2") }
+                    awaitPage(activity, "extraction")
+                } finally {
+                    test.removeMonitor(comparisonMonitor)
+                    test.runOnMainSync { comparison?.finish() }
+                }
             } finally { test.runOnMainSync { manual.ended() } }
             MainPageTestHost(test, activity).select(TaskDestination.SETTINGS)
             test.runOnMainSync {

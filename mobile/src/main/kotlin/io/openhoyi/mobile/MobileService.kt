@@ -108,8 +108,7 @@ class MobileService : Service() {
     private var passiveHistoryId: String? = null
     /** A started passive observation only owns history/series/navigation after it is committed. */
     private var passiveCommitted = false
-    private val manualPresentation=ManualShotPresentationGate()
-    val manualShotPresentationId: String? get()=manualPresentation.activeId
+    private lateinit var manualPresentation: ManualShotPresentationGate
     private var recentReadyCoffeeAddress: String? = null
     private var initialKnownCoffeeChecked=false
     private var passiveMayClearRecovery = false
@@ -830,6 +829,7 @@ class MobileService : Service() {
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
+        manualPresentation = app.manualShotPresentation
         app.releaseUpdates.serviceCreated(this)
         app.curveDeletionGuards[ownerId] = { id ->
             CurveDeletionPolicy.inUse(id, dispatchingCurveId, series.curveId,
@@ -2448,6 +2448,7 @@ class MobileService : Service() {
     }
     fun shutdown() {
         if (mock != null) {
+            manualPresentation.ended()
             finishBrewFeedback(false)
             if (ShotGate.active(shotState)) mock.stop()
             running = false
@@ -2484,6 +2485,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_preheat_shutdown_block), "service.stop_deferred")
             return
         }
+        manualPresentation.ended()
         closeDeviceOwner(); running = false
         safetyMessage = null
         cancelSafetyNotification()
@@ -2498,6 +2500,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        manualPresentation.ended()
         settleLeverWriteUnknown()
         (application as MobileApplication).releaseUpdates.serviceDestroyed(this)
 
