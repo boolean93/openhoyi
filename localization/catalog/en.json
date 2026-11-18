@@ -1081,10 +1081,5 @@
   "curve_editor_duration_short": "First-stage time",
   "curve_editor_compensation_short": "Weight offset",
   "home_preset_full_name": "Full curve name",
-  "machine_settings_schedule_every_day": "Every day",
-  "ai_hoyi_screenshot_pick": "HOYI curve screenshot",
-  "ai_hoyi_screenshot_cancel": "Exit HOYI screenshot import",
-  "ai_hoyi_screenshot_cancelled": "Screenshot import mode ended. Exiting does not save or delete curves.",
-  "ai_hoyi_screenshot_selected": "HOYI curve screenshot selected. Missing fields will be requested first. Confirm opens the editor; saving is still manual.",
-  "ai_hoyi_screenshot_active": "HOYI screenshot import mode · Exit from the + menu"
+  "machine_settings_schedule_every_day": "Every day"
 }

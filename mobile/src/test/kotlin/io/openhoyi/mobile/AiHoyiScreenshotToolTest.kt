@@ -8,7 +8,7 @@ import org.junit.Test
 
 /** Fake provider responses test native dispatch, not OCR correctness. */
 class AiHoyiScreenshotToolTest {
-    @Test fun actualSdkDispatchRejectsRawCreateInTrustedImportButNotOrdinaryImageContext() = runBlocking {
+    @Test fun actualSdkDispatchLeavesBeanImageRecommendationCreationAvailable() = runBlocking {
         val id = "00000000-0000-0000-0000-000000000001"
         val data = object : AiReadOnlyData {
             override fun currentStatus() = "{}"
@@ -32,17 +32,17 @@ class AiHoyiScreenshotToolTest {
                 FakeAiConnection(answer = if (index++ == 0) response else aiAnswer("Done")).also(calls::add)
             })
             AiChatSession(data, transport, budget, Dispatchers.Unconfined,
-                proposeCurve = { proposed++; AiCurveProposalStatus.AWAITING_EDITOR }, hoyiScreenshotId = trustedId).reply(emptyList(), "import")
-            assertEquals(if (trustedId == null) 1 else 0, proposed)
+                proposeCurve = { proposed++; AiCurveProposalStatus.AWAITING_EDITOR }, availableImageIds = setOfNotNull(trustedId)).reply(emptyList(), "import")
+            assertEquals(1, proposed)
             val tools = Json.parseToJsonElement(calls.first().sent.toString("UTF-8")).jsonObject.getValue("tools").jsonArray
             val function = tools.single { it.jsonObject.getValue("function").jsonObject["name"] == JsonPrimitive("propose_custom_curve") }
                 .jsonObject.getValue("function").jsonObject
             val description = function.getValue("description").jsonPrimitive.content
-            assertEquals(trustedId != null, description.contains("sourceAttachmentId=$id"))
+            assertFalse(description.contains("import is active"))
             val schema = function.getValue("parameters").jsonObject.getValue("properties").jsonObject
                 .getValue("proposal_json").jsonObject.getValue("description").jsonPrimitive.content
             assertTrue(schema.contains(AiHoyiScreenshotProposal.SCHEMA))
-            assertTrue(calls.last().sent.toString("UTF-8").contains(if (trustedId == null) "awaiting_editor" else "invalid_arguments"))
+            assertTrue(calls.last().sent.toString("UTF-8").contains("awaiting_editor"))
         }
     }
 }

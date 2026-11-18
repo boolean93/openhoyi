@@ -7,25 +7,15 @@ import org.json.JSONObject
 
 /** Display-value transcription only. Attachment trust is supplied by the app, never the model. */
 internal object AiHoyiScreenshotProposal {
-    const val SCHEMA = """When native HOYI screenshot import is active, ALL proposals MUST use exact outer keys {"operation":"transcribe_screenshot","transcription":{...}}, never raw create/replace/copy_from_factory or derived curve/schema/flags. transcription exact keys: sourceAttachmentId (the active ID in this tool description), name (visible string), mode ("pressure" for 变压 or "flow" for 变流), logic ("constant" 恒压, "follow" 跟随, "ls" 慢速/Ls, "hs" 快速/Hs), firstStageUnit ("bar" or "ml_per_second"), temperatureC, totalWaterMl (总流量), targetWeightG (总液重), compensationG (克重补偿, signed), preinfusionSeconds (闷蒸等待), firstDurationSeconds (seconds beside FIRST stage water, time limit), stages=[{target,unit:"bar" or "ml_per_second",waterMl}]. Numeric values are exactly displayed JSON numbers in °C, mL, g, seconds, bar or mL/s: DO NOT multiply units or compute internal flags. All keys required; use null for unreadable/unknown values and ask for those values before proposing. Null/unknown/incompatible mode or unit blocks creation. Keep 2–4 visible active stages in order. App maps labels deterministically to complete schema3 and zero inactive slots. Do not optimize, infer missing values/identities, interpret diagram lines as measured time/linear ramps, or silently round/clamp. Ordinary images do not activate this native mode. """
+    const val SCHEMA = """For HOYI screenshot transcription use exact outer keys {"operation":"transcribe_screenshot","transcription":{...}}, never raw create/replace/copy_from_factory or derived curve/schema/flags. transcription exact keys: sourceAttachmentId (the App-provided ID beside the actual outgoing image), name (visible string), mode ("pressure" for 变压 or "flow" for 变流), logic ("constant" 恒压, "follow" 跟随, "ls" 慢速/Ls, "hs" 快速/Hs), firstStageUnit ("bar" or "ml_per_second"), temperatureC, totalWaterMl (总流量), targetWeightG (总液重), compensationG (克重补偿, signed), preinfusionSeconds (闷蒸等待), firstDurationSeconds (seconds beside FIRST stage water, time limit), stages=[{target,unit:"bar" or "ml_per_second",waterMl}]. Numeric values are exactly displayed JSON numbers in °C, mL, g, seconds, bar or mL/s: DO NOT multiply units or compute internal flags. All keys required; use null for unreadable/unknown values and ask for those values before proposing. Null/unknown/incompatible mode or unit blocks creation. Keep 2–4 visible active stages in order. App maps labels deterministically to complete schema3 and zero inactive slots. Do not optimize, infer missing values/identities, interpret diagram lines as measured time/linear ramps, or silently round/clamp. Bean/package images use ordinary recommendation/create tools, not this transcription. """
 
-    fun turnAttachments(items: List<AiAttachment>, source: AiAttachment?): List<AiAttachment> {
-        if (source == null) return items
-        require(source.kind == AiAttachmentKind.IMAGE)
-        items.firstOrNull { it.id == source.id }?.let {
-            require(it.name == source.name && it.mimeType == source.mimeType && it.size == source.size && it.kind == source.kind)
-        }
-        return (items.filterNot { it.id == source.id } + source).also { AiAttachmentConversation.encode(it) }
-    }
-
-    fun forTool(raw: String, trustedImageId: String?): String {
+    fun forTool(raw: String, availableImageIds: Set<String>): String {
         val root = Json.parseToJsonElement(raw).jsonObject
         val operation = (root["operation"] as? JsonPrimitive)?.takeIf { it.isString }?.content
         if (operation == "transcribe_screenshot") {
-            require(trustedImageId != null && root.keys == setOf("operation", "transcription"))
-            return proposal(root.getValue("transcription").toString(), setOf(trustedImageId))
+            require(root.keys == setOf("operation", "transcription"))
+            return proposal(root.getValue("transcription").toString(), availableImageIds)
         }
-        require(trustedImageId == null)
         return raw
     }
 
