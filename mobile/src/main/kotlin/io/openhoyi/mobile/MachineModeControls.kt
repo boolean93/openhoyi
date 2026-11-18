@@ -34,6 +34,12 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
         row.addView(logic, LayoutParams(-2, -2).apply { marginStart = dp(12) })
         addView(status, LayoutParams(-1, -2))
     }
+    fun preserveHomeBackdrop() {
+        // Each segment already owns a rounded track. Only the transient bare status needs a shield.
+        mode.keepOwnBackdropTreatment()
+        logic.keepOwnBackdropTreatment()
+        status.protectRoundedBackdropContent(style.surface, dp(8), horizontalOutset = dp(4))
+    }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun toggle(key: String, first: Int, second: Int, change: (Boolean) -> Unit): CurveEditorSegments =
         CurveEditorSegments(context, style, context.getString(first), context.getString(second)).apply {

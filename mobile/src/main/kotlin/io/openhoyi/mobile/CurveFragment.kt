@@ -121,7 +121,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         deletionUi = CurveDeletionUi(host, browserPane) { refreshList() }
         detailPanel = collection.detailBody
         browserPane.tag = "product/curve-library/browser"; detailPanel.tag = "product/curve-library/detail"
-        browserPane.protectBackdropContent()
+        val browserTools = Any()
+        val shieldRadius = dp(12)
+        fun View.protectBrowserTools() = protectRoundedBackdropContent(productStyle.surface, shieldRadius, group = browserTools)
         collection.foreground = object : android.graphics.drawable.Drawable() {
             private val paint = android.graphics.Paint().apply { color = productStyle.border; strokeWidth = resources.displayMetrics.density }
             override fun draw(canvas: android.graphics.Canvas) {
@@ -172,7 +174,10 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                     else child.layout(rect.left, rect.top, rect.right, rect.bottom)
                 }
             }
-        }.apply { isBaselineAligned = false }
+        }.apply {
+            isBaselineAligned = false
+            protectRoundedBackdropContent(productStyle.surface, shieldRadius)
+        }
         detailPanel.addView(detailToolbar, LinearLayout.LayoutParams(-1, -2))
         detailBack = HoyiUi.button(host, detailToolbar, getString(R.string.curve_back)) { if (!host.returnToAiCurveChat()) showBrowser() }.apply {
             iconOnly(this, "back", getString(R.string.curve_back))
@@ -204,6 +209,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
+        searchTools.protectBrowserTools()
         browser.addView(searchTools, LinearLayout.LayoutParams(-1, -2))
         search = EditText(host).apply {
             hint = getString(R.string.curve_search_hint)
@@ -232,21 +238,31 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             startActivity(Intent(host, CurveImportActivity::class.java))
         }.apply { isEnabled = customAvailable; productStyle.button(this); layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(8) } }
         if (!customAvailable) HoyiUi.label(host, browser, getString(R.string.profiles_unavailable), 14, muted = true)
-            .apply { productStyle.apply(this, TaskProductVisualStyle.auxiliary, true) }
+            .apply {
+                productStyle.apply(this, TaskProductVisualStyle.auxiliary, true)
+                protectBrowserTools()
+            }
         val sort = CurveLibraryMenu(host, sortMode, customOnly) { chosenSort, chosenCustom ->
             sortMode = chosenSort
             customOnly = chosenCustom
             getSharedPreferences("curves", MODE_PRIVATE).edit()
                 .putString("sort", sortMode.name).putBoolean("customOnly", customOnly).apply()
             refreshList()
-        }.apply { productStyle.button(this) }
+        }.apply {
+            productStyle.button(this)
+            protectBrowserTools()
+        }
         browser.addView(sort, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         if ((application as MobileApplication).curveUsageResult.isFailure)
             HoyiUi.label(host, browser, getString(R.string.curve_usage_unavailable), 14, muted = true)
-                .apply { productStyle.apply(this, TaskProductVisualStyle.auxiliary, true) }
+                .apply {
+                    productStyle.apply(this, TaskProductVisualStyle.auxiliary, true)
+                    protectBrowserTools()
+                }
         val categories = CurveCategoryFilter.entries
         val filter = HorizontalScrollView(host).apply {
             isHorizontalScrollBarEnabled = false; tag = "product/curve-library/filter"
+            protectBrowserTools()
         }
         val filterRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
         filter.addView(filterRow)
@@ -292,6 +308,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         resultCount = HoyiUi.label(host, browser, "", 14, muted = true).apply {
             productStyle.apply(this, TaskProductVisualStyle.auxiliary, true)
             tag = "product/curve-library/count"; setPadding(0, dp(8), 0, 0)
+            protectBrowserTools()
         }
         val list = ListView(host).apply {
             divider = android.graphics.drawable.ColorDrawable(productStyle.border)
@@ -354,7 +371,10 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }
         curveList = list
         list.adapter = adapter
-        val listHolder = FrameLayout(host)
+        val listHolder = FrameLayout(host).apply {
+            tag = "product/curve-library/results"
+            protectRoundedBackdropContent(productStyle.surface, shieldRadius, clipContent = true)
+        }
         browser.addView(listHolder, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         listHolder.addView(list, FrameLayout.LayoutParams(-1, -1))
         val emptyState = TextView(host).apply {
@@ -375,6 +395,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             maxLines = if (portraitDetail) Int.MAX_VALUE else 2
             ellipsize = if (portraitDetail) null else android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
+            if (portraitDetail) protectRoundedBackdropContent(productStyle.surface, shieldRadius, horizontalOutset = dp(4))
         }
         val identityFacts = LinearLayout(host).apply { isBaselineAligned = false }
         detailIdentity = object : LinearLayout(host) {
@@ -407,6 +428,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
+        detailIdentity.protectRoundedBackdropContent(productStyle.surface, shieldRadius)
         detailPane.addView(detailIdentity, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         detailIdentity.addView(identityFacts, LinearLayout.LayoutParams(-2, -2))
         detailCategory = HoyiUi.label(host, identityFacts, getString(R.string.curve_detail_hint), 14, muted = true)
@@ -419,7 +441,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             tag = "product/curve-library/availability"; visibility = View.GONE
         }
         previewMetrics = CurvePreviewMetrics(host, productStyle, waterSummary = true).apply {
-            visibility=View.GONE; tag="curve-preview-metrics" }
+            visibility=View.GONE; tag="curve-preview-metrics"
+            protectRoundedBackdropContent(productStyle.surface, shieldRadius)
+        }
         detailPane.addView(previewMetrics,LinearLayout.LayoutParams(-1,-2))
         stageHeading = HoyiUi.label(host, detailPane, getString(R.string.curve_library_stage_heading),
             TaskVisualTokens.SECTION_SP, true).apply {
@@ -438,6 +462,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                 addView(recipePlan, LinearLayout.LayoutParams(-1, -2))
             }, FrameLayout.LayoutParams(-1, -2))
             background = productStyle.shape(productStyle.surface, true)
+            keepOwnBackdropTreatment()
         }
         detailPane.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         previewFallback = productStyle.text("", TaskProductVisualStyle.auxiliary, "product/curve-library/fallback", true)
@@ -562,6 +587,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             }
         }.apply {
             productStyle.button(this, primary = true); HomeVisualIcon.buttonIcon(this, "back", atEnd = true)
+            keepOwnBackdropTreatment()
             tag = "product/curve-library/use"
             isEnabled = false; visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)

@@ -83,6 +83,8 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         val (root,body) = style.fragmentPage(host, getString(R.string.home_history))
         pageHost.removeAllViews();pageHost.addView(root)
         val header = (body.tag as BeanPageRegions).header
+        header.tag = "product/history/header"
+        header.protectRoundedBackdropContent(style.surface, dp(12))
         header.removeViewAt(0)
         header.minimumHeight = dp(48)
         (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = 0
@@ -107,6 +109,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             if (view is android.view.ViewGroup) (0 until view.childCount).forEach { styleSources(view.getChildAt(it)) }
         }
         styleSources(sources)
+        sources.protectRoundedBackdropContent(style.surface, dp(12))
         val actions = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
         actions.orientation = LinearLayout.VERTICAL
         fun action(title: String, click: () -> Unit) {
@@ -141,6 +144,8 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         }
         header.addView(ioMenu, LinearLayout.LayoutParams(dp(48), dp(48)))
         val list = ListView(host).apply {
+            tag = "product/history/list"
+            protectRoundedBackdropContent(style.surface, dp(12), clipContent = true)
             divider = android.graphics.drawable.ColorDrawable(style.border)
             dividerHeight = dp(1)
         }
@@ -236,6 +241,8 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         body.removeView(sources)
         collection.browserBody.addView(sources, LinearLayout.LayoutParams(-1, -2))
         style.addHistoryComparisonEntry(host, collection.browserBody)
+        collection.browserBody.findViewWithTag<View>("product/history/compare-entry")
+            ?.protectRoundedBackdropContent(style.surface, dp(12))
         val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }).also { portraitDetailBack = it }
         collection.onPresentationChanged = { split, visible ->
             compact = !split
@@ -254,7 +261,10 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             gravity = android.view.Gravity.CENTER
         }
         content.addView(emptyHolder, FrameLayout.LayoutParams(-1, -1))
-        val emptyCard = HoyiUi.card(host, emptyHolder)
+        val emptyCard = HoyiUi.card(host, emptyHolder).apply {
+            tag = "product/history/empty-card"
+            keepOwnBackdropTreatment()
+        }
         if (HoyiUi.wide(host)) (emptyCard.layoutParams as LinearLayout.LayoutParams).apply {
             width = -1
             gravity = android.view.Gravity.CENTER_HORIZONTAL

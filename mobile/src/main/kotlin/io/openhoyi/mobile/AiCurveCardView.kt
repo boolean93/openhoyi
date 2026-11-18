@@ -23,6 +23,7 @@ internal class AiCurveCardView(
         tag = "ai/curve-card/${card.id}"
         setPadding(style.dp(12), style.dp(12), style.dp(12), style.dp(12))
         background = style.shape(style.surface, true, 12)
+        keepOwnBackdropTreatment()
         fun words(en: String, zh: String) = if (english) en else zh
         fun label(text: String, type: TaskProductVisualStyle.Type = TaskProductVisualStyle.body) =
             style.text(text, type).also { addView(it, LayoutParams(-1, -2)) }

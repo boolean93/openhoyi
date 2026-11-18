@@ -15,7 +15,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     internal val shortcutsBackdrop = Any()
     private val picker = Spinner(host).apply {
         tag = "settings/document/index-picker"
-        protectBackdropContent(group = pageHeaderBackdrop)
+        protectRoundedBackdropContent(style.surface, style.dp(12), group = pageHeaderBackdrop)
     }
     private val pickerLabels=mutableListOf<String>()
     private val pickerAdapter=ArrayAdapter(host,android.R.layout.simple_spinner_dropdown_item,pickerLabels)
@@ -23,7 +23,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val indexBody = LinearLayout(host).apply { orientation = VERTICAL }
     private val index = ScrollView(host).apply {
         addView(indexBody); isFillViewport = false
-        protectBackdropContent()
+        protectRoundedBackdropContent(style.surface, style.dp(12))
     }
     private val divider = View(host).apply { setBackgroundColor(style.border) }
     val body = LinearLayout(host).apply { orientation = VERTICAL; setPadding(style.dp(20), 0, style.dp(20), style.dp(24)) }
@@ -45,7 +45,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         setPadding(style.dp(16), style.dp(8), style.dp(16), 0)
         addView(style.text(host.getString(R.string.app_settings_title), TaskProductVisualStyle.section).apply {
             tag = "settings/document/title"
-            protectBackdropContent(group = pageHeaderBackdrop)
+            protectRoundedBackdropContent(style.surface, style.dp(12), group = pageHeaderBackdrop)
             setPadding(style.dp(8), style.dp(8), 0, style.dp(16)); androidx.core.view.ViewCompat.setAccessibilityHeading(this,true)
         }, LayoutParams(-1, -2))
         picker.adapter=pickerAdapter
@@ -95,7 +95,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     fun section(key: String, title: String): LinearLayout {
         val block = LinearLayout(host).apply {
             orientation = VERTICAL; tag = "settings/section/$key"; setPadding(0, 0, 0, style.dp(24))
-            protectBackdropContent(horizontalBounds = body, leaveBottomPaddingVisible = true)
+            protectRoundedBackdropContent(style.surface, style.dp(12), horizontalBounds = body,
+                leaveBottomPaddingVisible = true)
         }
         val heading = style.text(title, TaskProductVisualStyle.section, "settings/heading/$key").apply {
             androidx.core.view.ViewCompat.setAccessibilityHeading(this,true); isFocusable = true; setPadding(0, style.dp(8), 0, style.dp(8))
