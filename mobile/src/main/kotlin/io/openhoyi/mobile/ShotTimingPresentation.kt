@@ -5,8 +5,10 @@ import java.util.Locale
 
 internal val ShotHistory.Entry.timingLabel: Int get() =
     when {
+        observedMachineElapsedSeconds != null && machineTimingInterrupted == true -> R.string.history_pre_interruption_duration
         observedMachineElapsedSeconds != null -> R.string.history_duration
         observedSampleCoverageMs != null -> R.string.history_sample_coverage
+        machineTimingInterrupted == true -> R.string.history_pre_interruption_duration
         timingEvidenceVersion == 0 -> R.string.history_record_elapsed_legacy
         else -> R.string.history_duration
     }
@@ -14,6 +16,7 @@ internal val ShotHistory.Entry.timingValue: String? get() =
     when {
         observedMachineElapsedSeconds != null -> observedMachineElapsedSeconds.toString()
         observedSampleCoverageMs != null -> "%.1f".format(Locale.ROOT, observedSampleCoverageMs / 1000.0)
+        machineTimingInterrupted == true -> null
         timingEvidenceVersion == 0 -> elapsedMs?.let { "%.1f".format(Locale.ROOT, it / 1000.0) }
         else -> null
     }

@@ -20,6 +20,7 @@ internal class BrewJournal(private val storage: Storage) {
         val observedMachineElapsedSeconds: Int? = null,
         val timingEvidenceVersion: Int = 0,
         val observedSampleCoverageMs: Long? = null,
+        val machineTimingInterrupted: Boolean? = null,
     )
     data class Notes(
         val beanId: String? = null,
@@ -48,7 +49,8 @@ internal class BrewJournal(private val storage: Storage) {
         validate(value)
         val previous = records[value.id]
         previous?.let { sameIdentity(it.observation, value) }
-        val entry = Entry(value, previous?.notes ?: Notes())
+        val entry = Entry(previous?.let { mergeInterruption(value, it.observation, value) } ?: value,
+            previous?.notes ?: Notes())
         if (entry == previous) return
         commit(LinkedHashMap(records).apply { put(value.id, entry) })
     }
@@ -95,15 +97,16 @@ internal class BrewJournal(private val storage: Storage) {
                 sameIdentity(previous.observation,value)
                 if(previous.observation.status !in setOf("ENDED","NOT_STARTED") &&
                     value.status in setOf("ENDED","NOT_STARTED"))
-                    next[value.id]=previous.copy(observation=value)
-                else if (previous.observation.status == value.status &&
-                    (previous.observation.timingEvidenceVersion < value.timingEvidenceVersion ||
-                        previous.observation.observedMachineElapsedSeconds == null && value.observedMachineElapsedSeconds != null ||
-                        previous.observation.observedSampleCoverageMs == null && value.observedSampleCoverageMs != null))
-                    next[value.id]=previous.copy(observation=previous.observation.copy(
-                        observedMachineElapsedSeconds=value.observedMachineElapsedSeconds ?: previous.observation.observedMachineElapsedSeconds,
-                        timingEvidenceVersion=maxOf(previous.observation.timingEvidenceVersion,value.timingEvidenceVersion),
-                        observedSampleCoverageMs=value.observedSampleCoverageMs ?: previous.observation.observedSampleCoverageMs))
+                    next[value.id]=previous.copy(observation=mergeInterruption(value, previous.observation, value))
+                else {
+                    val prior = previous.observation
+                    val base = if (prior.status == value.status) prior.copy(
+                        observedMachineElapsedSeconds = prior.observedMachineElapsedSeconds ?: value.observedMachineElapsedSeconds,
+                        timingEvidenceVersion = maxOf(prior.timingEvidenceVersion, value.timingEvidenceVersion),
+                        observedSampleCoverageMs = prior.observedSampleCoverageMs ?: value.observedSampleCoverageMs)
+                    else prior
+                    next[value.id] = previous.copy(observation = mergeInterruption(base, prior, value))
+                }
             }
         }
         if(next!=records) commit(next)
@@ -116,6 +119,18 @@ internal class BrewJournal(private val storage: Storage) {
         storage.write(encode(next))
         records = next
     }
+    private fun mergeInterruption(base: Observation, prior: Observation, incoming: Observation): Observation {
+        val interrupted = when {
+            prior.machineTimingInterrupted == true -> prior
+            incoming.machineTimingInterrupted == true -> incoming
+            else -> null
+        }
+        return if (interrupted != null) base.copy(
+            machineTimingInterrupted = true,
+            observedMachineElapsedSeconds = interrupted.observedMachineElapsedSeconds)
+        else base.copy(machineTimingInterrupted = prior.machineTimingInterrupted ?: incoming.machineTimingInterrupted)
+    }
+
     private fun sameIdentity(a: Observation, b: Observation) {
         require(a.curveId == b.curveId && a.startedAtMs == b.startedAtMs) { "Shot ID has different identity" }
     }
@@ -149,6 +164,7 @@ internal class BrewJournal(private val storage: Storage) {
     }
     private fun encode(values: Map<String, Entry>): String {
         val array = JSONArray()
+        val withInterruption = values.values.any { it.observation.machineTimingInterrupted != null }
         values.values.forEach { entry ->
             val shot = entry.observation
             val notes = entry.notes
@@ -159,12 +175,13 @@ internal class BrewJournal(private val storage: Storage) {
                 .put("weightHundredthsGram", shot.weightHundredthsGram ?: JSONObject.NULL)
                 .put("observedMachineElapsedSeconds", shot.observedMachineElapsedSeconds ?: JSONObject.NULL)
                 .put("timingEvidenceVersion", shot.timingEvidenceVersion)
-                .put("observedSampleCoverageMs", shot.observedSampleCoverageMs ?: JSONObject.NULL))
+                .put("observedSampleCoverageMs", shot.observedSampleCoverageMs ?: JSONObject.NULL)
+                .apply { if (withInterruption) put("machineTimingInterrupted", shot.machineTimingInterrupted ?: JSONObject.NULL) })
                 .put("notes", JSONObject().put("beanId", notes.beanId ?: JSONObject.NULL).put("beanName", notes.beanName ?: JSONObject.NULL)
                     .put("doseMg", notes.doseMg ?: JSONObject.NULL).put("grind", notes.grind)
                     .put("curveExpectation", notes.curveExpectation).put("taste", notes.taste).put("nextAdjustment", notes.nextAdjustment)))
         }
-        return JSONObject().put("schema", 3).put("entries", array).put("checksum", checksum(array)).toString()
+        return JSONObject().put("schema", if (withInterruption) 4 else 3).put("entries", array).put("checksum", checksum(array)).toString()
     }
     private fun decode(value: String): LinkedHashMap<String, Entry> {
         try {
@@ -173,7 +190,7 @@ internal class BrewJournal(private val storage: Storage) {
             require(root is JSONObject && tokenizer.nextClean() == '\u0000') { "Trailing or invalid journal input" }
             keys(root, setOf("schema", "entries", "checksum"))
             val schema = number(root, "schema")
-            require(schema in 1L..3L) { "Unknown journal schema" }
+            require(schema in 1L..4L) { "Unknown journal schema" }
             val array = root.getJSONArray("entries")
             require(root.get("checksum") is String && root.getString("checksum") == checksum(array)) { "Journal checksum mismatch" }
             val result = linkedMapOf<String, Entry>()
@@ -182,14 +199,17 @@ internal class BrewJournal(private val storage: Storage) {
                 keys(item, setOf("shot", "notes"))
                 val shot = item.getJSONObject("shot")
                 val timingKeys = if (schema >= 2L) setOf("observedMachineElapsedSeconds", "timingEvidenceVersion") else emptySet()
-                keys(shot, (if (schema >= 3L) setOf("observedSampleCoverageMs") else emptySet()) + timingKeys + setOf("id", "curveId", "startedAtMs", "endedAtMs", "elapsedMs", "status", "reason", "weightHundredthsGram"))
+                keys(shot, (if (schema >= 4L) setOf("machineTimingInterrupted") else emptySet()) +
+                    (if (schema >= 3L) setOf("observedSampleCoverageMs") else emptySet()) + timingKeys + setOf("id", "curveId", "startedAtMs", "endedAtMs", "elapsedMs", "status", "reason", "weightHundredthsGram"))
                 val weight = nullableNumber(shot, "weightHundredthsGram")
                 require(weight == null || weight in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong())
                 val observed = Observation(string(shot, "id"), string(shot, "curveId"), number(shot, "startedAtMs"),
                     nullableNumber(shot, "endedAtMs"), nullableNumber(shot, "elapsedMs"), string(shot, "status"), nullableString(shot, "reason"), weight?.toInt(),
                     if (timingKeys.isEmpty()) null else nullableNumber(shot, "observedMachineElapsedSeconds")?.also { require(it in 0L..65535L) }?.toInt(),
                     if (timingKeys.isEmpty()) 0 else number(shot, "timingEvidenceVersion").also { require(it in 0..1) }.toInt(),
-                    if (schema >= 3L) nullableNumber(shot, "observedSampleCoverageMs") else null)
+                    if (schema >= 3L) nullableNumber(shot, "observedSampleCoverageMs") else null,
+                    if (schema >= 4L && !shot.isNull("machineTimingInterrupted"))
+                        (shot.get("machineTimingInterrupted") as? Boolean ?: error("Invalid timing interruption")) else null)
                 val note = item.getJSONObject("notes")
                 keys(note, setOf("beanId", "beanName", "doseMg", "grind", "curveExpectation", "taste", "nextAdjustment"))
                 val notes = Notes(nullableString(note, "beanId"), nullableString(note, "beanName"), nullableNumber(note, "doseMg"),

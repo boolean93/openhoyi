@@ -233,8 +233,8 @@ class BrewReviewActivity : ThemedActivity() {
     }
 }
 
-internal fun ShotHistory.Entry.journalObservation() = BrewJournal.Observation(id, curveId, startedAtMs, endedAtMs, elapsedMs, status.name, reason, weightHundredthsGram, observedMachineElapsedSeconds, timingEvidenceVersion, observedSampleCoverageMs)
-internal fun BrewJournal.Observation.historySummary() = ShotHistory.Entry(id, curveId, startedAtMs, endedAtMs, elapsedMs, ShotHistory.Status.valueOf(status), reason, weightHundredthsGram, observedMachineElapsedSeconds = observedMachineElapsedSeconds, timingEvidenceVersion = timingEvidenceVersion, observedSampleCoverageMs = observedSampleCoverageMs)
+internal fun ShotHistory.Entry.journalObservation() = BrewJournal.Observation(id, curveId, startedAtMs, endedAtMs, elapsedMs, status.name, reason, weightHundredthsGram, observedMachineElapsedSeconds, timingEvidenceVersion, observedSampleCoverageMs, machineTimingInterrupted)
+internal fun BrewJournal.Observation.historySummary() = ShotHistory.Entry(id, curveId, startedAtMs, endedAtMs, elapsedMs, ShotHistory.Status.valueOf(status), reason, weightHundredthsGram, observedMachineElapsedSeconds = observedMachineElapsedSeconds, timingEvidenceVersion = timingEvidenceVersion, observedSampleCoverageMs = observedSampleCoverageMs, machineTimingInterrupted = machineTimingInterrupted)
 internal fun ThemedActivity.journal(body: LinearLayout): BrewJournal? = (application as MobileApplication).journalResult.getOrNull().also {
     if (it == null) HoyiUi.label(this, HoyiUi.card(this, body), getString(R.string.journal_unavailable), 17, true)
 }

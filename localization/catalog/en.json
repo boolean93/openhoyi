@@ -602,6 +602,7 @@
   "history_detail_title": "Extraction details",
   "history_missing": "Record does not exist or retention period expired",
   "history_duration": "Machine timer",
+  "history_pre_interruption_duration": "Machine timer before interruption",
   "history_end_scale": "Scale reading at end",
   "history_scale_disclaimer": "Scale readings are not calibrated for cup weight and do not represent actual beverage yield.",
   "history_loading_samples": "Reading local samples…",

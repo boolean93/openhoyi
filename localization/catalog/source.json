@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "c07c5012680c8c8964631ec18d9c95d319b7e0027a78d8522f0dba73bccc2cce",
+  "sha256": "bc29e2bdb3f0f2c5a9a60556467f47abd68963943c8990edf4fdc66e4ee6dd30",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -679,6 +679,7 @@
     "history_detail_title": "萃取详情",
     "history_missing": "记录不存在或已过保留期限",
     "history_duration": "机器计时",
+    "history_pre_interruption_duration": "中断前机器计时",
     "history_end_scale": "结束时秤读数",
     "history_scale_disclaimer": "秤读数未经杯重校准，不等同于实际出品重量。",
     "history_loading_samples": "正在读取本机采样…",

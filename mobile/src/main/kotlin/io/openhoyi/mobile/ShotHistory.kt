@@ -31,6 +31,7 @@ class ShotHistory(
         val observedMachineElapsedSeconds: Int? = null,
         val timingEvidenceVersion: Int = 0,
         val observedSampleCoverageMs: Long? = null,
+        val machineTimingInterrupted: Boolean? = null,
     )
 
     private val records = decode(storage.read()).toMutableList()
@@ -45,7 +46,7 @@ class ShotHistory(
         for (index in records.indices) {
             val entry = records[index]
             if (entry.status in setOf(Status.STARTING, Status.RUNNING, Status.STOP_REQUESTED)) {
-                records[index] = entry.copy(status = Status.UNKNOWN, reason = "进程中断")
+                records[index] = entry.copy(status = Status.UNKNOWN, reason = "进程中断", machineTimingInterrupted = true)
                 interrupted += records[index]
                 changed = true
             }
@@ -79,8 +80,10 @@ class ShotHistory(
         return id
     }
 
-    fun transition(state: ExtractionState, reason: String?, weightHundredthsGram: Int?, atMs: Long = now()) {
+    fun transition(state: ExtractionState, reason: String?, weightHundredthsGram: Int?, atMs: Long = now(),
+        timing: ShotTimingEvidence? = null) {
         val id = activeId ?: return
+        if (timing != null && timing.shotId != id) return
         val index = records.indexOfFirst { it.id == id }
         if (index < 0) { activeId = null; return }
         val entry = records[index]
@@ -93,20 +96,28 @@ class ShotHistory(
             ExtractionState.OUTCOME_UNKNOWN -> Status.UNKNOWN
         }
         val terminal = status == Status.NOT_STARTED || status == Status.ENDED
+        val evidence = timing
+        val partial = status == Status.UNKNOWN || evidence?.interrupted == true
         val updated = entry.copy(
             endedAtMs = if (terminal) atMs else null,
             elapsedMs = if (terminal) (atMs - entry.startedAtMs).coerceAtLeast(0) else null,
             status = status,
             reason = reason ?: entry.reason,
             weightHundredthsGram = if (terminal) weightHundredthsGram else null,
+            observedMachineElapsedSeconds = when {
+                entry.machineTimingInterrupted == true || evidence == null -> entry.observedMachineElapsedSeconds
+                else -> evidence.seconds // An explicit missing timer is not backfilled.
+            },
+            observedSampleCoverageMs = evidence?.sampleCoverageMs ?: entry.observedSampleCoverageMs,
+            machineTimingInterrupted = when {
+                entry.machineTimingInterrupted == true || partial -> true
+                terminal && evidence != null -> false
+                else -> entry.machineTimingInterrupted
+            },
         )
-        if (entry != updated) {
-            records[index] = updated
-            persist()
-            notifyChanged(updated)
-        }
-        if (updated.observedRunning && updated.curveId != "manual") onObservedUse(updated)
+        if (entry != updated) replace(index, updated)
         if (terminal) activeId = null
+        if (updated.observedRunning && updated.curveId != "manual") onObservedUse(updated)
     }
 
     /** Attach only evidence owned by this series, including after terminal clears activeId. */
@@ -115,10 +126,12 @@ class ShotHistory(
         require(sampleCoverageMs == null || sampleCoverageMs > 0)
         val index = records.indexOfFirst { it.id == id }
         if (index < 0) return
-        records[index] = records[index].copy(observedMachineElapsedSeconds = seconds ?: records[index].observedMachineElapsedSeconds, timingEvidenceVersion = 1,
-            observedSampleCoverageMs = sampleCoverageMs ?: records[index].observedSampleCoverageMs)
-        persist()
-        notifyChanged(records[index])
+        val entry = records[index]
+        replace(index, entry.copy(
+            observedMachineElapsedSeconds = if (entry.machineTimingInterrupted == true) entry.observedMachineElapsedSeconds
+                else seconds ?: entry.observedMachineElapsedSeconds,
+            timingEvidenceVersion = 1,
+            observedSampleCoverageMs = sampleCoverageMs ?: entry.observedSampleCoverageMs))
     }
 
     /** Recover only explicitly observed sampling coverage; never invent a machine timer or end. */
@@ -148,10 +161,19 @@ class ShotHistory(
     }
 
     /** A disconnected passive shot has no session to reconcile; retain UNKNOWN and free the next slot. */
-    fun abandon(id: String, reason: String, atMs: Long = now()) {
+    fun abandon(id: String, reason: String, atMs: Long = now(), timing: ShotTimingEvidence? = null) {
         if (activeId != id) return
-        transition(ExtractionState.OUTCOME_UNKNOWN, reason, null, atMs)
+        transition(ExtractionState.OUTCOME_UNKNOWN, reason, null, atMs, timing)
         activeId = null
+    }
+
+    private fun replace(index: Int, entry: Entry) {
+        val next = records.toMutableList().apply { set(index, entry) }
+        trim(next)
+        storage.write(next.joinToString("\n", postfix = if (next.isEmpty()) "" else "\n", transform = ::encode))
+        records.clear()
+        records.addAll(next)
+        notifyChanged(entry)
     }
 
     // Optional reporting must never alter the machine callback/control path.
@@ -162,15 +184,15 @@ class ShotHistory(
         storage.write(records.joinToString("\n", postfix = if (records.isEmpty()) "" else "\n", transform = ::encode))
     }
 
-    private fun trim(): Boolean {
-        val before = records.size
+    private fun trim(entries: MutableList<Entry> = records): Boolean {
+        val before = entries.size
         val cutoff = now() - 30L * 24 * 60 * 60 * 1000
-        records.removeAll { it.startedAtMs < cutoff }
-        if (records.size > 500) {
-            val oldest = records.sortedBy { it.startedAtMs }.take(records.size - 500).map { it.id }.toSet()
-            records.removeAll { it.id in oldest }
+        entries.removeAll { it.startedAtMs < cutoff }
+        if (entries.size > 500) {
+            val oldest = entries.sortedBy { it.startedAtMs }.take(entries.size - 500).map { it.id }.toSet()
+            entries.removeAll { it.id in oldest }
         }
-        return records.size != before
+        return entries.size != before
     }
 
     private fun encode(value: Entry): String = listOf(
@@ -180,11 +202,11 @@ class ShotHistory(
         value.slot?.toString().orEmpty(),
         value.observedRunning.toString(),
         value.observedMachineElapsedSeconds?.toString().orEmpty(), value.timingEvidenceVersion.toString(), value.observedSampleCoverageMs?.toString().orEmpty(),
-    ).joinToString("\t")
+    ).joinToString("\t") + (value.machineTimingInterrupted?.let { "\t$it" } ?: "")
 
     private fun decode(value: String): List<Entry> = value.lineSequence().mapNotNull { line ->
         val fields = line.split('\t')
-        if (fields.size !in 8..13) return@mapNotNull null
+        if (fields.size !in 8..14) return@mapNotNull null
         runCatching {
             Entry(unsafe(fields[0]), unsafe(fields[1]), fields[2].toLong(),
                 fields[3].takeIf(String::isNotEmpty)?.toLong(), fields[4].takeIf(String::isNotEmpty)?.toLong(),
@@ -194,7 +216,8 @@ class ShotHistory(
                 fields.getOrNull(9)?.toBooleanStrict() ?: false,
                 fields.getOrNull(10)?.takeIf(String::isNotEmpty)?.toInt(),
                 fields.getOrNull(11)?.toInt() ?: 0,
-                fields.getOrNull(12)?.takeIf(String::isNotEmpty)?.toLong())
+                fields.getOrNull(12)?.takeIf(String::isNotEmpty)?.toLong(),
+                fields.getOrNull(13)?.toBooleanStrict())
         }.getOrNull()?.takeIf { it.id.isNotBlank() && it.curveId.isNotBlank() && it.startedAtMs >= 0 &&
             (it.observedMachineElapsedSeconds == null || it.observedMachineElapsedSeconds in 0..65535) &&
             (it.observedSampleCoverageMs == null || it.observedSampleCoverageMs > 0) &&

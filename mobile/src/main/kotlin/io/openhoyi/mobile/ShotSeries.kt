@@ -25,6 +25,20 @@ data class ShotPoint(
     val beverageSegmentId: Int? = null,
 )
 
+/** Same-cup timing snapshot; interrupted=true freezes the timer even when seconds is null. */
+data class ShotTimingEvidence(
+    val shotId: String,
+    val seconds: Int?,
+    val sampleCoverageMs: Long?,
+    val interrupted: Boolean,
+) {
+    init {
+        require(shotId.isNotBlank())
+        require(seconds == null || seconds in 0..65535)
+        require(sampleCoverageMs == null || sampleCoverageMs > 0)
+    }
+}
+
 class ShotSeries {
     /** Display identity outlives active recording, so a finished graph keeps its scales. */
     var traceIdentity: String? = null
@@ -99,7 +113,8 @@ class ShotSeries {
             if (firstBrewingElapsedMs == null) firstBrewingElapsedMs = elapsed
             lastBrewingElapsedMs = elapsed
         }
-        if (frame.valveOpen && !frame.brewWait && frame.elapsedSeconds in 0..65535) observedMachineElapsedSeconds = frame.elapsedSeconds
+        if (!elapsedInterrupted && frame.valveOpen && !frame.brewWait && frame.elapsedSeconds in 0..65535)
+            observedMachineElapsedSeconds = frame.elapsedSeconds
         val freshWeight = weightHundredthsGram?.takeIf {
             weightAtElapsedMs != null && weightAtElapsedMs <= atElapsedMs && atElapsedMs - weightAtElapsedMs <= 1500
         }
@@ -123,6 +138,16 @@ class ShotSeries {
 
     internal fun interruptElapsed(endAlreadyObserved: Boolean = false) {
         if (id != null && !endAlreadyObserved) elapsedInterrupted = true
+    }
+
+    internal fun observeAppTimingUncertainty(appOutcomeWasUnknown: Boolean) {
+        if (!elapsedPassive && appOutcomeWasUnknown) interruptElapsed()
+    }
+
+    internal fun timingEvidence(appOutcomeWasUnknown: Boolean): ShotTimingEvidence? {
+        observeAppTimingUncertainty(appOutcomeWasUnknown)
+        val shotId = id ?: return null
+        return ShotTimingEvidence(shotId, observedMachineElapsedSeconds, observedSampleCoverageMs, elapsedInterrupted)
     }
 
     internal fun displayElapsedSeconds(

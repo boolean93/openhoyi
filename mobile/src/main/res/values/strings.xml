@@ -680,6 +680,7 @@
     <string name="history_detail_title">"萃取详情"</string>
     <string name="history_missing">"记录不存在或已过保留期限"</string>
     <string name="history_duration">"机器计时"</string>
+    <string name="history_pre_interruption_duration">中断前机器计时</string>
     <string name="history_end_scale">"结束时秤读数"</string>
     <string name="history_scale_disclaimer">"秤读数未经杯重校准，不等同于实际出品重量。"</string>
     <string name="history_loading_samples">"正在读取本机采样…"</string>
