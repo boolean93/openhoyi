@@ -12,10 +12,17 @@ from shared_mock_artifact import DESTINATIONS, digest, inspect_apk, require, run
 RUNNER = TEST + '/io.openhoyi.mobile.BrewAudioInstrumentation'
 SERIAL = 'emulator-5554'
 MARKER = ('THEME_PALETTE_CHECKS_PASSED previewCancelApply=true twoModes=true fixedMetricColors=true '
-          'switchInkStates=true screenshots=6 sameService=true retainedDrafts=true noModelRequest=true noBle=true')
-SCREENSHOTS = tuple(f'{sample}-{state}.png'
-                    for sample in ('light-sea-salt', 'dark-graphite')
-                    for state in ('on', 'off', 'disabled'))
+          'switchInkStates=true screenshots=24 sameService=true retainedDrafts=true noModelRequest=true noBle=true')
+SAMPLES = tuple(f'{mode}-{palette}'
+                for mode in ('light', 'dark') for palette in ('classic', 'sea-salt', 'coffee', 'graphite'))
+STATES = ('on', 'off', 'disabled')
+SCREENSHOTS = tuple(f'{sample}-{state}.png' for sample in SAMPLES for state in STATES)
+
+
+def validate_distinct_screenshots(hashes):
+    for sample in SAMPLES:
+        require(len({hashes[f'{sample}-{state}.png'] for state in STATES}) == len(STATES),
+                f'Duplicate switch screenshots for {sample}')
 
 
 def main():
@@ -69,6 +76,7 @@ def main():
             destination = output / name
             destination.write_bytes(data)
             receipt['screenshots'][name] = digest(destination)
+        validate_distinct_screenshots(receipt['screenshots'])
         receipt['passed'] = True
     finally:
         (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')

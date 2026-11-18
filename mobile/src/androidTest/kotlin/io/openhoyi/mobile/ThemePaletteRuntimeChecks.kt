@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
@@ -141,31 +142,89 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
         check(abs(disabled.first - on.first) > .025 || abs(disabled.second - on.second) > .025)
     }
 
+    private fun awaitSwitchFrame(decor: View, toggle: HoyiSwitch) {
+        check(Build.VERSION.SDK_INT >= 29)
+        val committed = CountDownLatch(1)
+        val callback = Runnable { committed.countDown() }
+        val tree = main {
+            check(decor.isAttachedToWindow && decor.isHardwareAccelerated)
+            decor.viewTreeObserver.also { it.registerFrameCommitCallback(callback) }
+                .also { toggle.invalidate(); decor.invalidate() }
+        }
+        if (!committed.await(5, TimeUnit.SECONDS)) {
+            main { if (tree.isAlive) tree.unregisterFrameCommitCallback(callback) }
+            error("The palette dialog did not submit a switch frame")
+        }
+    }
+
     private fun captureSwitchStates(dialog: AlertDialog, sample: String) {
+        val decor = dialog.window!!.decorView
         val toggle = waitFor("preview switch laid out") {
-            dialog.window!!.decorView.findViewWithTag<HoyiSwitch>("product/settings/app/palette/preview/switch")
+            decor.findViewWithTag<HoyiSwitch>("product/settings/app/palette/preview/switch")
                 ?.takeIf { it.isLaidOut && it.width > 0 && !it.isLayoutRequested }
         }
+        val palette = AppPalette(toggle.context)
+        val captured = mutableMapOf<String, Pair<Double, Double>>()
         for ((name, checked, enabled) in listOf(
             Triple("on", true, true), Triple("off", false, true), Triple("disabled", true, false)
         )) {
-            val drawn = CountDownLatch(1)
             main {
                 toggle.isChecked = checked
                 toggle.isEnabled = enabled
+                // Finish the demo animation at its endpoint; production tap/drag is untouched.
                 toggle.jumpDrawablesToCurrentState()
                 toggle.requestRectangleOnScreen(Rect(0, 0, toggle.width, toggle.height), true)
-                toggle.postOnAnimation { toggle.postOnAnimation { drawn.countDown() } }
             }
-            check(drawn.await(5, TimeUnit.SECONDS))
-            main {
+            waitFor("$sample/$name switch visible and laid out") {
                 val visible = Rect()
-                check(toggle.getGlobalVisibleRect(visible) && visible.height() == toggle.height && visible.width() == toggle.width)
+                Unit.takeIf { !toggle.isLayoutRequested && !decor.isLayoutRequested &&
+                    toggle.getGlobalVisibleRect(visible) && visible.height() == toggle.height && visible.width() == toggle.width }
             }
-            val image = checkNotNull(test.uiAutomation.takeScreenshot())
-            try {
-                File(evidence, "$sample-$name.png").outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-            } finally { image.recycle() }
+            var lastInk: Pair<Double, Double>? = null
+            // SurfaceFlinger can still present the previous buffer immediately after RenderThread
+            // commits. Retry actual window frames, and sample the track pixels rather than the status bar.
+            for (attempt in 1..5) {
+                awaitSwitchFrame(decor, toggle)
+                val (first, last) = main {
+                    check(toggle.isChecked == checked && toggle.isEnabled == enabled)
+                    val origin = IntArray(2)
+                    toggle.getLocationOnScreen(origin)
+                    val track = toggle.trackDrawable.bounds
+                    check(track.width() > 0 && track.height() > 0)
+                    val y = origin[1] + track.centerY()
+                    val left = origin[0] + track.left + track.width() / 4
+                    val right = origin[0] + track.right - track.width() / 4
+                    val ltr = toggle.layoutDirection != View.LAYOUT_DIRECTION_RTL
+                    (if (ltr) left to y else right to y) to (if (ltr) right to y else left to y)
+                }
+                val image = checkNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    val left = image.getPixel(first.first, first.second)
+                    val right = image.getPixel(last.first, last.second)
+                    val ink = ColorUtils.calculateLuminance(left) to ColorUtils.calculateLuminance(right)
+                    lastInk = ink
+                    fun differsFrom(state: String): Boolean {
+                        val previous = captured.getValue(state)
+                        return abs(ink.first - previous.first) > .025 || abs(ink.second - previous.second) > .025
+                    }
+                    fun trackMatches(actual: Int, expected: Int): Boolean =
+                        abs(Color.red(actual) - Color.red(expected)) <= 8 &&
+                            abs(Color.green(actual) - Color.green(expected)) <= 8 &&
+                            abs(Color.blue(actual) - Color.blue(expected)) <= 8
+                    val correct = when (name) {
+                        "on" -> ink.second - ink.first > .14 && trackMatches(left, palette.switchOn)
+                        "off" -> ink.first - ink.second > .14 && trackMatches(right, palette.switchOff)
+                        else -> ink.second > ink.first && differsFrom("on") && differsFrom("off")
+                    }
+                    if (!correct) continue
+                    File(evidence, "$sample-$name.png").outputStream().use {
+                        check(image.compress(Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                    captured[name] = ink
+                    break
+                } finally { image.recycle() }
+            }
+            check(name in captured) { "$sample/$name never appeared in the dialog: captured track luminance=$lastInk" }
         }
     }
 
@@ -206,8 +265,10 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
         try {
             val initial = AppAppearance()
             val cancelled = open()
-            click(cancelled, AppThemePalette.SEA_SALT)
-            captureSwitchStates(cancelled, "light-sea-salt")
+            for (choice in AppThemePalette.entries) {
+                click(cancelled, choice)
+                captureSwitchStates(cancelled, "light-${choice.key}")
+            }
             main {
                 val apply = cancelled.getButton(AlertDialog.BUTTON_POSITIVE)
                 val visible = Rect()
@@ -254,7 +315,10 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
                 check(screen.themePalette() == AppThemePalette.GRAPHITE && fragment().themeCheckBox.isChecked)
             }
             val darkPreview = open()
-            captureSwitchStates(darkPreview, "dark-graphite")
+            for (choice in AppThemePalette.entries) {
+                click(darkPreview, choice)
+                captureSwitchStates(darkPreview, "dark-${choice.key}")
+            }
             main { darkPreview.getButton(AlertDialog.BUTTON_NEGATIVE).performClick() }
             waitFor("dark preview dismissed") { Unit.takeUnless { darkPreview.isShowing } }
             main { screen.select(TaskDestination.BREW) }
