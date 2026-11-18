@@ -121,6 +121,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         deletionUi = CurveDeletionUi(host, browserPane) { refreshList() }
         detailPanel = collection.detailBody
         browserPane.tag = "product/curve-library/browser"; detailPanel.tag = "product/curve-library/detail"
+        browserPane.protectBackdropContent()
         collection.foreground = object : android.graphics.drawable.Drawable() {
             private val paint = android.graphics.Paint().apply { color = productStyle.border; strokeWidth = resources.displayMetrics.density }
             override fun draw(canvas: android.graphics.Canvas) {

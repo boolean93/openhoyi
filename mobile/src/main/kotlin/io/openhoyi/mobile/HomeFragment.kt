@@ -235,7 +235,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             visibility = View.GONE
         }
-        machineModes = MachineModeControls(host, ::changeMachineMode)
+        machineModes = MachineModeControls(host, ::changeMachineMode).apply { protectBackdropContent() }
         // Landscape modes share the quick-heading row instead of reserving another
         // 48dp row for a machine title already present in the navigation rail.
         val machineRow = if (!phoneHome) machineHeading.apply {
@@ -397,8 +397,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     super.onMeasure(widthMeasureSpec, heightMeasureSpec)
                 }
             }
+            sharedHeading.protectBackdropContent()
             content.addView(sharedHeading, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-1, -2))
-        } else quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
+        } else {
+            previewHeading.protectBackdropContent()
+            quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
+        }
         lastCurveRow = object : LinearLayout(host) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 if (phoneHome && compactType && childCount == 4) {

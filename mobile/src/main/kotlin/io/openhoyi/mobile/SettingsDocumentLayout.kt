@@ -11,12 +11,20 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val style = TaskProductVisualStyle(host)
     private data class Section(val key: String, val title: String, val block: LinearLayout, val button: Button)
     private val sections = mutableListOf<Section>()
-    private val picker = Spinner(host)
+    private val pageHeaderBackdrop = Any()
+    internal val shortcutsBackdrop = Any()
+    private val picker = Spinner(host).apply {
+        tag = "settings/document/index-picker"
+        protectBackdropContent(group = pageHeaderBackdrop)
+    }
     private val pickerLabels=mutableListOf<String>()
     private val pickerAdapter=ArrayAdapter(host,android.R.layout.simple_spinner_dropdown_item,pickerLabels)
     private val badges=mutableMapOf<String,String>()
     private val indexBody = LinearLayout(host).apply { orientation = VERTICAL }
-    private val index = ScrollView(host).apply { addView(indexBody); isFillViewport = false }
+    private val index = ScrollView(host).apply {
+        addView(indexBody); isFillViewport = false
+        protectBackdropContent()
+    }
     private val divider = View(host).apply { setBackgroundColor(style.border) }
     val body = LinearLayout(host).apply { orientation = VERTICAL; setPadding(style.dp(20), 0, style.dp(20), style.dp(24)) }
     val scroll = ScrollView(host).apply { id = R.id.m8_settings_scroll; tag = "settings/document/scroll"; isFillViewport = true; addView(body) }
@@ -36,6 +44,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         host.installPageBackdrop(this, style.page)
         setPadding(style.dp(16), style.dp(8), style.dp(16), 0)
         addView(style.text(host.getString(R.string.app_settings_title), TaskProductVisualStyle.section).apply {
+            tag = "settings/document/title"
+            protectBackdropContent(group = pageHeaderBackdrop)
             setPadding(style.dp(8), style.dp(8), 0, style.dp(16)); androidx.core.view.ViewCompat.setAccessibilityHeading(this,true)
         }, LayoutParams(-1, -2))
         picker.adapter=pickerAdapter
@@ -83,7 +93,10 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
     fun section(key: String, title: String): LinearLayout {
-        val block = LinearLayout(host).apply { orientation = VERTICAL; tag = "settings/section/$key"; setPadding(0, 0, 0, style.dp(24)) }
+        val block = LinearLayout(host).apply {
+            orientation = VERTICAL; tag = "settings/section/$key"; setPadding(0, 0, 0, style.dp(24))
+            protectBackdropContent(horizontalBounds = body, leaveBottomPaddingVisible = true)
+        }
         val heading = style.text(title, TaskProductVisualStyle.section, "settings/heading/$key").apply {
             androidx.core.view.ViewCompat.setAccessibilityHeading(this,true); isFocusable = true; setPadding(0, style.dp(8), 0, style.dp(8))
         }

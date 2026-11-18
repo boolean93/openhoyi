@@ -74,7 +74,20 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
     @Deprecated("Drawable opacity") override fun getOpacity() = PixelFormat.OPAQUE
 }
 
-internal fun View.protectBackdropContent() { setTag(R.id.page_backdrop_content, true) }
+private data class BackdropProtection(
+    val group: Any?,
+    val horizontalBounds: View?,
+    val leaveBottomPaddingVisible: Boolean,
+)
+
+/** Mark an existing semantic panel without wrapping children or changing their own drawable. */
+internal fun View.protectBackdropContent(
+    group: Any? = null,
+    horizontalBounds: View? = null,
+    leaveBottomPaddingVisible: Boolean = false,
+) {
+    setTag(R.id.page_backdrop_content, BackdropProtection(group, horizontalBounds, leaveBottomPaddingVisible))
+}
 
 internal fun ThemedActivity.installPageBackdrop(view: View, base: Int) {
     PageBackdropBinding(view, base, HoyiUi.dark(this), (application as MobileApplication).pageBackgrounds)
@@ -160,17 +173,39 @@ internal class PageBackdropBinding(
         // its background in viewport coordinates after compensating that scroll.
         position.offset(root.scrollX, root.scrollY)
         val exact = mutableListOf<Rect>()
+        val groups = linkedMapOf<Any, Rect>()
         val rows = mutableListOf<Rect>()
         val gap = (4 * root.resources.displayMetrics.density).roundToInt()
         fun relative(view: View) = Rect().takeIf { view.getGlobalVisibleRect(it) }
             ?.apply { offset(-position.x, -position.y) }
+        fun protect(view: View, mark: BackdropProtection) {
+            val bounds = Rect()
+            val offset = Point()
+            if (!view.getGlobalVisibleRect(bounds, offset)) return
+            if (mark.leaveBottomPaddingVisible) {
+                // Protection ends at the content's actual end, not a clipped viewport edge.
+                bounds.bottom = minOf(bounds.bottom, offset.y + view.scrollY + view.height - view.paddingBottom)
+            }
+            bounds.offset(-position.x, -position.y)
+            mark.horizontalBounds?.let(::relative)?.let { span ->
+                bounds.left = span.left
+                bounds.right = span.right
+            }
+            if (bounds.isEmpty) return
+            val group = mark.group
+            if (group == null) exact += bounds else groups.getOrPut(group) { Rect(bounds) }.union(bounds)
+        }
         fun visit(view: View) {
             if (view.visibility != View.VISIBLE) return
             if (view !== root) {
                 // This rectangle already hides everything it covers, including child labels.
                 val color = view.background as? ColorDrawable
                 if (color != null && Color.alpha(color.color) == 255 && view.alpha == 1f) return
-                if (view.getTag(R.id.page_backdrop_content) == true || view is AbsListView ||
+                (view.getTag(R.id.page_backdrop_content) as? BackdropProtection)?.let { mark ->
+                    protect(view, mark)
+                    return
+                }
+                if (view is AbsListView ||
                     view is BoilerTemperatureDial || view is CurveStageView || view is CurveLibrarySparklineView ||
                     view is ShotChartView || view is LegacyShotChartView || view is TwoCupChartView ||
                     view is ExtractionTrendView || view is ScaleTrendView || view is AiCurveRecipeDiagramView) {
@@ -201,6 +236,6 @@ internal class PageBackdropBinding(
                 row.top <= adjacent.bottom + gap) adjacent.bottom = maxOf(adjacent.bottom, row.bottom)
             else continuous += row
         }
-        paper.protectedAreas = exact + continuous
+        paper.protectedAreas = exact + groups.values + continuous
     }
 }

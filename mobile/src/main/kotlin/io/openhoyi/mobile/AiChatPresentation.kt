@@ -165,6 +165,7 @@ internal class AiChatPresentation(
         }
         toolbar.addView(menuButton, LinearLayout.LayoutParams(style.dp(48), style.dp(48)))
         val header = style.column("ai/chat/header-overlay").apply {
+            protectBackdropContent(leaveBottomPaddingVisible = true)
             val fade = style.dp(12)
             // Preserve the former 1dp separator plus 12dp transcript gap in the
             // scrollable leading space, without a hard divider below the overlay.

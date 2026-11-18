@@ -243,6 +243,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     owner.current.config.choice == AppBackground.Solid && !file.exists()
             }
             checkNotNull(context.contentResolver.openInputStream(sample)).use { check(it.read() >= 0) }
+            verifyMistHome(host, "light")
         } finally { main { editor?.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
     }
 
@@ -272,6 +273,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 }
                 await("dark reset returns to solid") { reset.isDestroyed && owner.current.config.choice == AppBackground.Solid }
             } finally { main { reset.takeUnless { it.isDestroyed }?.finish() } }
+            verifyMistHome(host, "dark")
         } finally { main { page.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
     }
 
@@ -296,17 +298,42 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             scroll.scrollTo(0, HoyiUi.dp(host, 120))
         }
         await("settings content actually scrolled") { scroll.scrollY > 0 }
+        main {
+            requireSamePanel(settings, settings.findViewWithTag("settings/document/title"),
+                settings.findViewWithTag("settings/document/index-picker"))
+            val section = settings.findViewWithTag<View>("settings/section/devices")
+            val viewport = localRect(settings, section)
+            val origin = IntArray(2).also { settings.getLocationInWindow(it) }
+            val sectionOrigin = IntArray(2).also { section.getLocationInWindow(it) }
+            val gapY = sectionOrigin[1] - origin[1] + section.height - section.paddingBottom / 2
+            if (viewport != null && gapY in viewport.top until viewport.bottom) {
+                val paper = settings.background as PageBackdrop
+                check(paper.protectedAreas.orEmpty().none { it.contains(viewport.centerX(), gapY) }) {
+                    "Settings section padding must remain available for the background"
+                }
+            }
+        }
         captureApplied(host, settings, "$mode-settings.png") {
             nodes(scroll).filterIsInstance<TextView>().first {
                 it.background == null && it.getGlobalVisibleRect(Rect()) && it.height >= HoyiUi.dp(host, 18)
             }
         }
         val home = go(TaskDestination.BREW)
+        main {
+            requireSamePanel(home, home.findViewWithTag("product/home/brew-boiler"),
+                home.findViewWithTag("product/home/steam-boiler"))
+            requireSamePanel(home, home.findViewWithTag("product/home/quick-title"),
+                home.findViewWithTag("product/home/preview-legend"))
+        }
         captureApplied(host, home, "$mode-home.png") {
             nodes(home).filterIsInstance<BoilerTemperatureDial>().firstOrNull { it.getGlobalVisibleRect(Rect()) }
                 ?: home.findViewWithTag("product/home/brew-boiler")
         }
         val curves = go(TaskDestination.CURVES)
+        main {
+            requireSamePanel(curves, curves.findViewWithTag("product/curve-library/filter"),
+                nodes(curves).filterIsInstance<ListView>().first { it.getGlobalVisibleRect(Rect()) })
+        }
         captureApplied(host, curves, "$mode-curve.png") {
             nodes(curves).filterIsInstance<ListView>().first { it.getGlobalVisibleRect(Rect()) }
         }
@@ -320,9 +347,53 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         await("same settings host after chat") { chat.isDestroyed && host.hasWindowFocus() && !host.isDestroyed }
     }
 
+    private fun localRect(root: View, view: View): Rect? {
+        val raw = Rect()
+        if (!view.getGlobalVisibleRect(raw)) return null
+        val globalRoot = IntArray(2).also { root.rootView.getLocationInWindow(it) }
+        val localRoot = IntArray(2).also { root.getLocationInWindow(it) }
+        raw.offset(globalRoot[0] - localRoot[0], globalRoot[1] - localRoot[1])
+        return raw
+    }
+
+    private fun requireSamePanel(root: View, vararg children: View) {
+        val visible = children.map { checkNotNull(localRect(root, it)) }
+        val paper = root.background as PageBackdrop
+        check(paper.protectedAreas.orEmpty().any { panel -> visible.all(panel::contains) }) {
+            "Semantic content must share one backdrop panel: children=$visible actual=${paper.protectedAreas}"
+        }
+    }
+
+    private fun verifyMistHome(host: MainActivity, mode: String) {
+        fun edit() = launched(BackgroundSettingsActivity::class.java) {
+            host.startActivity(Intent(host, BackgroundSettingsActivity::class.java))
+        }
+        var editor = edit()
+        try {
+            main {
+                choose(editor, "mist")
+                editor.window.decorView.findViewWithTag<Button>("product/background/apply").performClick()
+            }
+            await("built-in Mist applied") { editor.isDestroyed && host.hasWindowFocus() && owner.current.config.choice == AppBackground.Mist }
+            main { host.select(TaskDestination.BREW) }
+            val root = main { checkNotNull(host.supportFragmentManager.findFragmentByTag("root:BREW")?.view) }
+            captureApplied(host, root, "$mode-home-mist.png") { root.findViewWithTag("product/home/brew-boiler") }
+
+            editor = edit()
+            main {
+                editor.window.decorView.findViewWithTag<Button>("product/background/restore").performClick()
+                editor.window.decorView.findViewWithTag<Button>("product/background/apply").performClick()
+            }
+            await("built-in sample reset to solid") { editor.isDestroyed && owner.current.config.choice == AppBackground.Solid }
+        } finally { main { editor.takeUnless { it.isDestroyed }?.finish() } }
+    }
+
     private fun captureApplied(page: ThemedActivity, root: View, name: String, protectedView: () -> View) {
         await("$name has current backdrop and laid-out protected rows") {
-            (root.background as? PageBackdrop)?.let { it.snapshot.image != null && it.protectedAreas?.isNotEmpty() == true } == true
+            (root.background as? PageBackdrop)?.let {
+                (it.snapshot.image != null || it.snapshot.config.choice == AppBackground.Mist) &&
+                    it.protectedAreas?.isNotEmpty() == true
+            } == true
         }
         data class Pixel(val x: Int, val y: Int, val color: Int)
         val (exposed, protectedPixels, solidColors) = main {

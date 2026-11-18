@@ -19,9 +19,9 @@ SAMPLES = tuple(f'{mode}-{palette}'
 STATES = ('on', 'off', 'disabled')
 SCREENSHOTS = tuple(f'{sample}-{state}.png' for sample in SAMPLES for state in STATES)
 BACKGROUND_MARKER = ('PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivityRecreateOnApply=true '
-                     'cancelFailureStale=true privateFiles=true screenshots=10 noModelRequest=true noBle=true')
+                     'cancelFailureStale=true privateFiles=true screenshots=12 noModelRequest=true noBle=true')
 BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
-                    for page in ('photo', 'settings', 'home', 'curve', 'ai'))
+                    for page in ('photo', 'settings', 'home', 'curve', 'ai', 'home-mist'))
 
 
 def validate_distinct_screenshots(hashes):
