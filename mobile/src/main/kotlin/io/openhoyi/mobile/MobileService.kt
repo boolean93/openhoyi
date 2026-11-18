@@ -245,6 +245,9 @@ class MobileService : Service() {
         if (frame is IdleTelemetry)
             extractionScaleReadout.observedIdle(snapshot.scaleObservation, snapshot.scaleState, at)
     }
+    internal fun extractionElapsedSeconds(now: Long): Int? = series.displayElapsedSeconds(
+        snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now, shotState,
+    )
     val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
@@ -520,6 +523,7 @@ class MobileService : Service() {
                     }
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) {
+                    series.interruptElapsed()
                     saveSeriesCheckpoint(force = true)
                     finishBrewFeedback(false)
                 }
@@ -609,6 +613,7 @@ class MobileService : Service() {
             }
             else -> Unit
         }
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY) series.interruptElapsed()
         if (role == DeviceRole.COFFEE && state != DeviceState.READY &&
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             val committed = passiveCommitted
@@ -2224,7 +2229,7 @@ class MobileService : Service() {
     private fun finishSeries(observedEnd: Boolean) {
         finishBrewFeedback(observedEnd)
         extractionScaleReadout.finish(observedEnd)
-        val finished = series.finish() ?: return
+        val finished = series.finish(observedEnd) ?: return
         runCatching { history?.attachTimingEvidence(finished.first, series.observedMachineElapsedSeconds, series.observedSampleCoverageMs) }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
         val app = application as MobileApplication

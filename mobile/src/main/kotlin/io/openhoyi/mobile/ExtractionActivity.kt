@@ -558,7 +558,7 @@ class ExtractionActivity : ThemedActivity() {
         alarmStatus.visibility = if (machineAlarms.showExtractionStatus(active, snapshot.alarmBits, snapshot.alarmAt, now))
             View.VISIBLE else View.GONE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
-        elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
+        elapsedValue.show(owner?.extractionElapsedSeconds(now)?.let { "$it s" } ?: "—")
         pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {
             is ExtractionTelemetry -> String.format(Locale.ROOT, "%.1f", frame.pressureTenthsBar / 10.0)
             is IdleTelemetry -> String.format(Locale.ROOT, "%.1f", frame.brewPressureTenthsBar / 10.0)

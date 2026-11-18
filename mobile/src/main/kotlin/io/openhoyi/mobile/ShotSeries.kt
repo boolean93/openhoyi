@@ -1,6 +1,10 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.protocol.ExtractionTelemetry
+import io.openhoyi.protocol.HoyiMessage
+import io.openhoyi.protocol.IdleTelemetry
+import io.openhoyi.session.DeviceState
+import io.openhoyi.session.ExtractionState
 
 /** In-memory projection of observed notifications; timestamps are monotonic milliseconds. */
 data class ShotPoint(
@@ -29,6 +33,10 @@ class ShotSeries {
         private set
     var observedMachineElapsedSeconds: Int? = null
         private set
+    // Presentation only: a later idle can reconcile machine safety, but it
+    // cannot recover the duration of a cup that was interrupted.
+    private var elapsedInterrupted = false
+    private var elapsedCompleted = false
     private var firstBrewingElapsedMs: Long? = null
     private var lastBrewingElapsedMs: Long? = null
     val observedSampleCoverageMs: Long? get() = sampleCoverage(firstBrewingElapsedMs, lastBrewingElapsedMs)
@@ -52,6 +60,8 @@ class ShotSeries {
         recorded.clear()
         beverageEstimator = BeverageWeightEstimator()
         observedMachineElapsedSeconds = null
+        elapsedInterrupted = false
+        elapsedCompleted = false
         firstBrewingElapsedMs = null
         lastBrewingElapsedMs = null
     }
@@ -109,9 +119,34 @@ class ShotSeries {
         recorded.add(point)
     }
 
-    fun finish(): Pair<String, List<ShotPoint>>? {
+    internal fun interruptElapsed() {
+        if (id != null) elapsedInterrupted = true
+    }
+
+    internal fun displayElapsedSeconds(
+        latest: HoyiMessage?, coffeeState: DeviceState, coffeeAt: Long?, now: Long,
+        state: ExtractionState,
+    ): Int? {
+        if (elapsedInterrupted || state == ExtractionState.OUTCOME_UNKNOWN) return null
+        if (latest is ExtractionTelemetry && latest.brewWait) return null
+        if (id != null) {
+            // Closing and idle telemetry during confirmation do not replace the last valve-open time.
+            val fresh = LiveTelemetry.machine(latest, coffeeState, coffeeAt, now)
+            if (fresh !is ExtractionTelemetry && fresh !is IdleTelemetry) return null
+        } else {
+            // An open frame may be the first frame of a new manual shot. Do not
+            // show the last cup while the detector is waiting for the second frame.
+            if (!elapsedCompleted || state == ExtractionState.STARTING ||
+                state == ExtractionState.RUNNING || state == ExtractionState.STOP_REQUESTED ||
+                latest is ExtractionTelemetry && latest.valveOpen) return null
+        }
+        return observedMachineElapsedSeconds
+    }
+
+    fun finish(observedEnd: Boolean = false): Pair<String, List<ShotPoint>>? {
         val shotId = id ?: return null
         val result = shotId to recorded.toList()
+        elapsedCompleted = observedEnd && !elapsedInterrupted
         id = null
         return result
     }
