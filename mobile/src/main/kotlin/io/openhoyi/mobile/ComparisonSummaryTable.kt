@@ -50,7 +50,7 @@ internal class ComparisonSummaryTable(private val activity: ThemedActivity, priv
                         maxLines = 1; ellipsize = TextUtils.TruncateAt.END
                         minimumHeight = dp(48)
                         background = android.graphics.drawable.RippleDrawable(
-                            android.content.res.ColorStateList.valueOf(activity.getColor(R.color.mobile_accent_soft)),
+                            android.content.res.ColorStateList.valueOf(activity.appColor(R.color.mobile_accent_soft)),
                             android.graphics.drawable.StateListDrawable().apply {
                                 addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(activity,
                                     R.color.mobile_surface, 0, R.color.mobile_accent))

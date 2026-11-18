@@ -6,7 +6,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.CompoundButton
 import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
@@ -18,15 +17,13 @@ class AppSettingsFragment : Fragment() {
     companion object {
         internal const val CURVE_IMPORT_GUIDE_URL = "https://boolean93.github.io/openhoyi/import-official-curves.html"
     }
-    internal lateinit var themeCheckBox: CompoundButton
+    internal var appearanceCard: AppThemePreferencesCard? = null
         private set
-    internal lateinit var themeError: TextView
-        private set
-    internal var appearanceWrite: (Boolean) -> Boolean = { value ->
-        requireContext().getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE)
-            .edit().putBoolean("dark", value).commit()
-    }
-    private var updatingTheme = false
+    internal val themeCheckBox get() = checkNotNull(appearanceCard).themeCheckBox
+    internal val themeError get() = checkNotNull(appearanceCard).themeError
+    internal var appearanceWrite: (Boolean) -> Boolean
+        get() = checkNotNull(appearanceCard).writeDark
+        set(value) { checkNotNull(appearanceCard).writeDark = value }
     private var shortcutToggle: Switch? = null
     private var updatingShortcut = false
     private var stopShortcutPreferenceObserver: (() -> Unit)? = null
@@ -223,39 +220,7 @@ class AppSettingsFragment : Fragment() {
         style.add(chartSection, style.text(getString(R.string.fixed_chart_axes_hint),
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val theme = sections.getValue("appearance")
-        val appearance = activity.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE)
-        themeError = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/theme/error").apply {
-            setTextColor(activity.getColor(R.color.mobile_danger)); visibility = View.GONE
-        }
-        val toggle = HoyiSwitch(activity).apply {
-            text = getString(R.string.app_settings_dark)
-            isChecked = appearance.getBoolean("dark", false)
-            minimumHeight = style.dp(52)
-            tag = "product/settings/app/theme/toggle"
-        }
-        visual.switch(toggle, 52)
-        themeCheckBox = toggle
-        theme.addView(toggle, LinearLayout.LayoutParams(-1, -2))
-        style.add(theme, style.text(getString(R.string.app_settings_subtitle), TaskProductVisualStyle.auxiliary, secondary = true), 8)
-        style.add(theme, themeError, 8)
-        toggle.setOnCheckedChangeListener { button: CompoundButton, dark: Boolean ->
-            if (updatingTheme) return@setOnCheckedChangeListener
-            val previous = appearance.getBoolean("dark", false)
-            if (dark == previous) return@setOnCheckedChangeListener
-            if (runCatching { appearanceWrite(dark) }.getOrDefault(false)) {
-                themeError.text = ""
-                themeError.visibility = View.GONE
-                service?.refreshNotificationDisplay()
-                activity.recreate()
-            } else {
-                runCatching { appearanceWrite(previous) }
-                updatingTheme = true
-                button.isChecked = previous
-                updatingTheme = false
-                themeError.setText(R.string.app_settings_theme_failed)
-                themeError.visibility = View.VISIBLE
-            }
-        }
+        appearanceCard = AppThemePreferencesCard(activity, theme, visual) { activity.recreate() }
         settingsDivider(activity, theme, visual)
         languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()
@@ -328,7 +293,7 @@ class AppSettingsFragment : Fragment() {
         refreshHandler.removeCallbacks(refreshCapabilities)
         deviceControls?.close()
         machineControls?.stop()
-        feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
+        feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close(); appearanceCard?.close()
         updateCard?.pause(); diagnosticStorageCard?.pause()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
         service = null
@@ -340,13 +305,13 @@ class AppSettingsFragment : Fragment() {
     }
     override fun onDestroyView() {
         stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
-        feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close()
+        feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close(); appearanceCard?.close()
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         documentState=Bundle().also { document?.save(it) }
         shortcutToggle = null; shortcutError = null; shortcutRetry = null
         document=null; deviceControls?.close(); deviceControls=null
         machineControls = null
-        feedbackCard = null; languageCard = null; fontSizeCard = null; exportStatus = null
+        feedbackCard = null; languageCard = null; fontSizeCard = null; appearanceCard = null; exportStatus = null
         updateCard?.close(); updateCard = null
         diagnosticStorageCard?.pause(); diagnosticStorageCard = null
         super.onDestroyView()

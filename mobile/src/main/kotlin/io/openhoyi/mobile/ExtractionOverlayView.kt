@@ -732,7 +732,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             cornerRadius = dp(8f)
         }
         // Keep focus/press feedback without giving each legend entry a permanent card.
-        val feedback = context.getColor(R.color.mobile_accent_soft)
+        val feedback = context.appColor(R.color.mobile_accent_soft)
         val content = android.graphics.drawable.StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_focused), fill(feedback))
             addState(intArrayOf(), fill(android.graphics.Color.TRANSPARENT))

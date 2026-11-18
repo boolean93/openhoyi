@@ -28,7 +28,7 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
     val warningBorder = pick("#D7B782", "#A78B52")
     val warningInk = pick("#795119", "#EACB87")
     val liveSeparator = pick("#DFE5E1", "#3B4B4C")
-    val liveStart = pick("#009E48", "#087A38")
+    val liveStart = AppPalette(context).liveStart
     val stop = android.graphics.Color.parseColor("#B5302D")
     fun metric(metric: ChartMetric) = when (metric) {
         ChartMetric.PRESSURE -> palette.pressure

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="palette_classic_product_accent">#087A78</color>
+    <color name="palette_classic_product_primary">#087A78</color>
+    <color name="palette_classic_product_selected">#E2F0ED</color>
+    <color name="palette_classic_home_accent">#009E48</color>
+    <color name="palette_classic_home_primary">#009E48</color>
+    <color name="palette_classic_home_selected">#E7F7EA</color>
+    <color name="palette_classic_home_preset">#087647</color>
+    <color name="palette_classic_home_dial">#00C853</color>
+    <color name="palette_classic_live_start">#009E48</color>
+    <color name="palette_classic_switch_on">#61A98A</color>
+    <color name="palette_sea_salt_accent">#215E79</color>
+    <color name="palette_sea_salt_primary">#215E79</color>
+    <color name="palette_sea_salt_selected">#DFEFF5</color>
+    <color name="palette_sea_salt_switch_on">#34748E</color>
+    <color name="palette_coffee_accent">#754C36</color>
+    <color name="palette_coffee_primary">#754C36</color>
+    <color name="palette_coffee_selected">#F2E8E0</color>
+    <color name="palette_coffee_switch_on">#865942</color>
+    <color name="palette_graphite_accent">#474E5B</color>
+    <color name="palette_graphite_primary">#474E5B</color>
+    <color name="palette_graphite_selected">#EAEDF1</color>
+    <color name="palette_graphite_switch_on">#596474</color>
+
+    <style name="MobilePaletteClassic">
+        <item name="android:colorAccent">@color/mobile_accent</item>
+    </style>
+    <style name="MobilePaletteSeaSalt">
+        <item name="android:colorAccent">@color/palette_sea_salt_accent</item>
+    </style>
+    <style name="MobilePaletteCoffee">
+        <item name="android:colorAccent">@color/palette_coffee_accent</item>
+    </style>
+    <style name="MobilePaletteGraphite">
+        <item name="android:colorAccent">@color/palette_graphite_accent</item>
+    </style>
+</resources>

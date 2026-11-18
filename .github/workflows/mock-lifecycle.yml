@@ -35,6 +35,11 @@ on:
         required: false
         default: false
         type: boolean
+      theme_palette_checks:
+        description: Run only theme palette windows and state checks on a disposable cloud emulator
+        required: false
+        default: false
+        type: boolean
       update_checks:
         description: 'Run fixed isolated update runtime and UI acceptance instead of lifecycle'
         required: false
@@ -56,12 +61,17 @@ jobs:
       DOWNLOAD_PROGRESS_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.download_progress_checks == true && 'true' || 'false' }}
       SLEEP_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.sleep_checks == true && 'true' || 'false' }}
       PREHEAT_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.preheat_checks == true && 'true' || 'false' }}
+      THEME_PALETTE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.theme_palette_checks == true && 'true' || 'false' }}
+      CI_THEME_AVD: openhoyi-theme-${{ github.run_id }}-${{ github.run_attempt }}
       UPDATE_CHECKS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_checks == true && 'true' || 'false' }}
     steps:
-      - name: Reject mixed AI-only and other acceptance requests
-        if: env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true'
+      - name: Reject mixed isolated acceptance requests
+        if: env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true' || env.THEME_PALETTE_CHECKS == 'true'
         run: |
-          test "$AI_CARD_CHECKS" != "$AI_COPY_CHECKS"
+          if [ "$AI_CARD_CHECKS" = true ] || [ "$AI_COPY_CHECKS" = true ]; then
+            test "$AI_CARD_CHECKS" != "$AI_COPY_CHECKS"
+            test "$THEME_PALETTE_CHECKS" = false
+          fi
           test "$CLOUDFLARE_LIVE_CHECKS" = false
           test "$DOWNLOAD_PROGRESS_CHECKS" = false
           test "$SLEEP_CHECKS" = false
@@ -95,7 +105,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          avd-name: ${{ (env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true') && env.CI_CARD_AVD || 'test' }}
+          avd-name: ${{ env.THEME_PALETTE_CHECKS == 'true' && env.CI_THEME_AVD || (env.AI_CARD_CHECKS == 'true' || env.AI_COPY_CHECKS == 'true') && env.CI_CARD_AVD || 'test' }}
           force-avd-creation: true
           emulator-port: 5554
           target: default
@@ -104,7 +114,8 @@ jobs:
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: >-
-            if [ "$AI_CARD_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py;
+            if [ "$THEME_PALETTE_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py;
+            elif [ "$AI_CARD_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py;
             elif [ "$AI_COPY_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py --message-copy;
             else bash scripts/check_mock_or_update_acceptance.sh; fi
       - name: Upload card construction and APK identity evidence
@@ -124,11 +135,19 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Upload lifecycle logs
-        if: always() && env.UPDATE_CHECKS != 'true' && env.PREHEAT_CHECKS != 'true' && env.AI_CARD_CHECKS != 'true' && env.AI_COPY_CHECKS != 'true'
+        if: always() && env.UPDATE_CHECKS != 'true' && env.PREHEAT_CHECKS != 'true' && env.AI_CARD_CHECKS != 'true' && env.AI_COPY_CHECKS != 'true' && env.THEME_PALETTE_CHECKS != 'true'
         uses: actions/upload-artifact@v6
         with:
           name: mock-lifecycle
           path: build/mock-lifecycle/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload palette windows and APK identity evidence
+        if: always() && env.THEME_PALETTE_CHECKS == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: theme-palette-ui-${{ github.sha }}
+          path: build/theme-palette-ui/
           if-no-files-found: warn
           retention-days: 7
       - name: Upload isolated update acceptance evidence

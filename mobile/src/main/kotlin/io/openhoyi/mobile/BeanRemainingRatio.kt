@@ -12,7 +12,7 @@ internal fun ThemedActivity.beanRemainingRatio(parent: LinearLayout, balanceMg: 
     if (ratio != null) line.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
         max = 1000
         fun track(color: Int) = android.graphics.drawable.GradientDrawable().apply {
-            setColor(getColor(color)); cornerRadius = HoyiUi.dp(this@beanRemainingRatio, 4).toFloat()
+            setColor(this@beanRemainingRatio.appColor(color)); cornerRadius = HoyiUi.dp(this@beanRemainingRatio, 4).toFloat()
         }
         progressDrawable = android.graphics.drawable.LayerDrawable(arrayOf(
             track(R.color.mobile_border),

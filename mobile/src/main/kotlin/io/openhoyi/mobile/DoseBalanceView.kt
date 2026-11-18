@@ -30,7 +30,7 @@ internal class DoseBalanceView(private val activity: ThemedActivity, private val
             return HoyiUi.label(activity, cell, "", 40, true).apply {
                 typeface = TaskTypography.face(activity, 700)
                 fontFeatureSettings = "tnum"
-                if (accent) setTextColor(activity.getColor(R.color.mobile_accent))
+                if (accent) setTextColor(activity.appColor(R.color.mobile_accent))
             }
         }
         before = value(R.string.dose_balance_before, false)

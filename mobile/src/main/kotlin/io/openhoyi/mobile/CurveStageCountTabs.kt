@@ -44,14 +44,14 @@ internal class CurveStageCountTabs(private val activity: ThemedActivity, selecte
                         addState(intArrayOf(), visual.shape(if (button.isSelected) visual.primary else android.graphics.Color.TRANSPARENT, false, 8))
                     }, null)
             } else {
-            button.setTextColor(activity.getColor(if (button.isSelected) android.R.color.white else R.color.mobile_accent))
+            button.setTextColor(activity.appColor(if (button.isSelected) android.R.color.white else R.color.mobile_accent))
             val fill = if (button.isSelected) R.color.mobile_primary_button else android.R.color.transparent
             val states = android.graphics.drawable.StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(activity, fill, 8, R.color.mobile_accent))
                 addState(intArrayOf(), HoyiUi.shape(activity, fill, 8))
             }
             button.background = android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(activity.getColor(R.color.mobile_accent_soft)), states, null)
+                android.content.res.ColorStateList.valueOf(activity.appColor(R.color.mobile_accent_soft)), states, null)
             }
         }
     }

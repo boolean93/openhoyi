@@ -23,7 +23,7 @@ internal object ScaleTrendChartChecks {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         try {
             chart.draw(Canvas(bitmap))
-            val color = context.getColor(R.color.mobile_accent)
+            val color = context.getColor(R.color.chart_scale_weight)
             fun count(low: Double, high: Double): Int {
                 var result = 0
                 for (x in (width * low).toInt()..(width * high).toInt())
