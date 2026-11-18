@@ -1355,7 +1355,7 @@ class MobileService : Service() {
         return null
     }
     private fun changeTemperatureInBackground(current:NativeDeviceHub,address:String,change:MachineSettingChange):String? {
-        if(!temperatureWrite.companionAvailable(change,settingsSampleSerial))
+        if(!temperatureWrite.companionAvailable(change,settingsSampleSerial,address))
             return getString(R.string.service_write_settings_stale)
         val replacingObserver=temperatureWrite.requiresExplicitRetry
         val token=temperatureWrite.begin(change,address,settingsSampleSerial)
@@ -2180,7 +2180,7 @@ class MobileService : Service() {
                 val selected=selectedCurve(profileId,slot)
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
-                    settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
+                    blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
                 callerPermits() && shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
                 ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,

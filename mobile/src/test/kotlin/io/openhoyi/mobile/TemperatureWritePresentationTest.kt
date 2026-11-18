@@ -29,4 +29,15 @@ class TemperatureWritePresentationTest {
         assertEquals(State.UNKNOWN,TemperatureWritePresentation.controlState(State.UNKNOWN,State.UNKNOWN))
         assertEquals(State.WAITING_READBACK,TemperatureWritePresentation.machineStatus(State.WAITING_READBACK,State.UNKNOWN))
     }
+    @Test fun dispatchRechecksLiveWritingRatherThanEarlierNonBlockingReadback() {
+        var temperature=State.WAITING_READBACK
+        val dispatchAllowed={ TemperatureWritePresentation.controlState(State.IDLE,temperature) !in
+            setOf(State.WRITING,State.WAITING_READBACK,State.UNKNOWN) }
+        assertTrue(dispatchAllowed())
+        temperature=State.WRITING // An explicit new write starts after the original UI check.
+        assertFalse(dispatchAllowed())
+        temperature=State.UNKNOWN
+        assertTrue(dispatchAllowed()) // Unknown temperature feedback is not a machine fault.
+    }
+
 }

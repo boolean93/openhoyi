@@ -84,6 +84,27 @@ class BackgroundTemperatureWriteTest {
         assertFalse(restored.permitsWrite(1,address))
         assertNotNull(restored.begin(MachineSettingChange.BrewTemperature(94),address,2))
     }
+    @Test fun explicitNewDeviceIntentCannotBeClearedByOldDeviceReadback() {
+        val memory=Memory();val write=BackgroundTemperatureWrite(memory)
+        val first=requireNotNull(write.begin(MachineSettingChange.BrewTemperature(93),address,1))
+        write.written(first,OperationResult.Success(),2)
+        write.disconnected(3)
+        val nextAddress="00:11:22:33:44:55"
+        val second=requireNotNull(write.begin(MachineSettingChange.BrewTemperature(94),nextAddress,4))
+        write.written(second,OperationResult.Success(),5)
+        assertNull(write.observe(address,6,initial.copy(brewTemperatureC=94)))
+        assertEquals(nextAddress,memory.value.address)
+        assertEquals(SettingsWriteTracker.State.WAITING_READBACK,write.state)
+        assertEquals(SettingsWriteTracker.State.CONFIRMED,write.observe(nextAddress,7,initial.copy(brewTemperatureC=94)))
+    }
+    @Test fun definitePairedWriteFailureAllowsExplicitRetryWithoutPhantomReadbackWait() {
+        val write=BackgroundTemperatureWrite(Memory())
+        val token=requireNotNull(write.begin(MachineSettingChange.StandbyTemperature(54,15),address,1))
+        write.written(token,OperationResult.Failed("not dispatched"),1)
+        assertEquals(SettingsWriteTracker.State.FAILED,write.state)
+        assertTrue(write.companionAvailable(MachineSettingChange.StandbyTemperature(54,15),1))
+        assertNotNull(write.begin(MachineSettingChange.StandbyTemperature(54,15),address,1))
+    }
     @Test fun boilerAndOtherSafetySettingsCannotEnterBackgroundPath() {
         val write=BackgroundTemperatureWrite(Memory())
         assertNull(write.begin(MachineSettingChange.BrewHeating(false),address,1))
