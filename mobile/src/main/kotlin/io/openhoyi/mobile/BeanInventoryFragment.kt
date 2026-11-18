@@ -75,8 +75,13 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         val batches = inventory.batches()
         val headerGroup = Any()
         val radius = productStyle.dp(12)
+        val headerTools = resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f
+        val hasSeparateTools = batches.isNotEmpty() && !headerTools
         val header = (body.tag as BeanPageRegions).header.apply {
-            protectRoundedBackdropContent(productStyle.surface, radius, group = headerGroup)
+            // The rule only reaches rounded corners when the header ends the panel.
+            // A separate tools row keeps this rule inside the same, larger round surface.
+            protectRoundedBackdropContent(productStyle.surface, radius,
+                group = headerGroup.takeIf { hasSeparateTools }, clipContent = !hasSeparateTools)
             tag = "product/inventory/header"; gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false
             foreground = inventoryRules(bottom = true)
         }
@@ -93,7 +98,7 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             host.beanActions(body).addView(dock,LinearLayout.LayoutParams(-1,-2))
             HoyiUi.button(host,dock,getString(R.string.beans_add),primary=true) {
                 startActivity(Intent(host,BeanEntryActivity::class.java))
-            }.keepOwnBackdropTreatment()
+            }.apply { tag = "product/inventory/add"; keepOwnBackdropTreatment() }
             collection = null; selectedBatchId = null; detailRequested = false
             val list = host.beanList(body)
             listScroll = list.parent as ScrollView
@@ -112,12 +117,12 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             orientation=LinearLayout.HORIZONTAL; gravity=Gravity.END; isBaselineAligned=false
             protectRoundedBackdropContent(productStyle.surface, radius, group = headerGroup)
         }
-        val headerTools = resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f
         val toolsParent = if (headerTools) (body.tag as BeanPageRegions).header else body
         toolsParent.addView(tools, LinearLayout.LayoutParams(if (headerTools) -2 else -1, -2))
         inventoryLink(tools,getString(R.string.beans_add)) {
             startActivity(Intent(host,BeanEntryActivity::class.java))
         }.apply {
+            tag = "product/inventory/add"
             maxWidth = HoyiUi.dp(host, 200)
             layoutParams = LinearLayout.LayoutParams(-2, -2).apply {
                 marginStart = HoyiUi.dp(host, TaskVisualTokens.RELATED_GAP_DP)

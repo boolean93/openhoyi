@@ -263,6 +263,12 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 val result = host.supportFragmentManager.findFragmentByTag("root:CURVES")?.view
                     ?.findViewWithTag<View>("product/curve-library/results")
                 check(result != null && !result.clipToOutline) { "Solid must restore the native list outline" }
+                host.select(TaskDestination.BEANS)
+            }
+            await("default Beans header retains its original divider without round clipping") {
+                val header = host.supportFragmentManager.findFragmentByTag("root:BEANS")?.view
+                    ?.findViewWithTag<View>("product/inventory/header")
+                header?.let { it.isShown && it.isLaidOut && it.foreground != null && !it.clipToOutline } == true
             }
             verifyMistHome(host, "light")
         } finally { main { editor?.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
@@ -385,6 +391,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             requiredWallpaper = { shieldCorners(beans, beans.findViewWithTag("product/inventory/header")) },
             foregroundSurfaces = { listOf(visibleCollectionSurface(host, beans,
                 "product/inventory/list-scroll", "product/inventory/empty-card")) },
+            inventoryForeground = {
+                val add = beans.findViewWithTag<Button>("product/inventory/add")
+                check(add.isShown && add.isEnabled && add.isClickable && add.text == host.getString(R.string.beans_add))
+                InventoryForeground(beans.findViewWithTag("product/inventory/header"), add)
+            },
         ) { beans.findViewWithTag("product/inventory/header-summary") }
 
         // Selecting this read-only view is not a start/prepare gesture. Assert both remain idle.
@@ -562,12 +573,21 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val style = TaskProductVisualStyle(host)
         val detailPane = root.findViewWithTag<ViewGroup>("product/curve-library/detail")
         val toolbar = main { detailPane.getChildAt(0) }
+        val use = root.findViewWithTag<Button>("product/curve-library/use")
         await("real Curve detail toolbar backed after selecting a list row") {
             val visible = localRect(root, toolbar) ?: return@await false
-            (root.background as PageBackdrop).roundedAreas.any { it.clip.contains(visible) }
+            use.isShown && use.isEnabled && localRect(root, use) != null &&
+                (root.background as PageBackdrop).roundedAreas.any { it.clip.contains(visible) }
         }
         captureApplied(host, root, outputName, backing = style.surface,
-            requiredWallpaper = { shieldCorners(root, toolbar) },
+            foregroundSurfaces = { listOf(SolidSurface(use, style.primary)) },
+            requiredWallpaper = {
+                val bounds = checkNotNull(localRect(root, use))
+                val inset = HoyiUi.dp(host, 1).coerceAtLeast(1)
+                val x = listOf(bounds.left + inset, bounds.right - 1 - inset)
+                val y = listOf(bounds.top + inset, bounds.bottom - 1 - inset)
+                shieldCorners(root, toolbar) + y.flatMap { row -> x.map { Point(it, row) } }
+            },
         ) { toolbar }
     }
 
@@ -761,6 +781,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     }
 
     private data class SolidSurface(val view: View, val fill: Int)
+    private data class InventoryForeground(val header: View, val add: Button)
 
     private fun captureApplied(
         page: ThemedActivity,
@@ -772,6 +793,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         foregroundSurfaces: () -> List<SolidSurface> = { emptyList() },
         decorativeGuttersOf: (() -> View)? = null,
         nativeCoverFill: Int? = null,
+        inventoryForeground: (() -> InventoryForeground)? = null,
         protectedView: () -> View,
     ) {
         await("$name has current backdrop and laid-out protected rows") {
@@ -789,9 +811,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             abs(Color.green(a) - Color.green(b)), abs(Color.blue(a) - Color.blue(b)))
         data class Pixel(val x: Int, val y: Int, val color: Int)
         data class Protection(val points: List<Pixel>, val expectedFills: Set<Int>)
-        data class PixelProof(val decorative: List<Pixel>, val protection: List<Protection>, val wallpaperGaps: List<Pixel>)
+        data class ForegroundInk(val rule: List<Pixel>, val label: List<Pixel>)
+        data class PixelProof(val decorative: List<Pixel>, val protection: List<Protection>,
+                              val wallpaperGaps: List<Pixel>, val inventoryInk: ForegroundInk?)
         val failureName = name.removeSuffix(".png") + ".failed.png"
-        val (exposed, protection, wallpaperGaps) = try {
+        val (exposed, protection, wallpaperGaps, inventoryInk) = try {
             main {
                 val paper = root.background as PageBackdrop
                 val style = TaskProductVisualStyle(page)
@@ -803,6 +827,35 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 fun screenBounds(view: View) = Rect().apply {
                     check(view.getGlobalVisibleRect(this))
                     offset(decorOffset[0], decorOffset[1])
+                }
+                val ink = inventoryForeground?.invoke()?.let { (header, add) ->
+                    val bounds = screenBounds(header)
+                    // Verify the separator survives in the center, with the existing corner probes
+                    // independently proving that neither end crosses the round silhouette.
+                    val rule = listOf(1, 3).map { quarter ->
+                        Pixel(bounds.left + bounds.width() * quarter / 4, bounds.bottom - 1, style.border)
+                    }
+                    val location = IntArray(2).also(add::getLocationOnScreen)
+                    val visible = screenBounds(add)
+                    val labelBitmap = Bitmap.createBitmap(add.width, add.height, Bitmap.Config.ARGB_8888)
+                    val label = try {
+                        add.draw(Canvas(labelBitmap))
+                        val textColor = add.currentTextColor
+                        buildList {
+                            // Restrict verification to word pixels (not the focus ring or background edge).
+                            for (y in add.totalPaddingTop until add.height - add.totalPaddingBottom) {
+                                for (x in add.totalPaddingLeft until add.width - add.totalPaddingRight) {
+                                    val screenX = location[0] + x
+                                    val screenY = location[1] + y
+                                    if (visible.contains(screenX, screenY) && labelBitmap.getPixel(x, y) == textColor) {
+                                        this.add(Pixel(screenX, screenY, textColor))
+                                    }
+                                }
+                            }
+                        }
+                    } finally { labelBitmap.recycle() }
+                    requirePixelEvidence(label.size >= 5) { "$name needs add-button glyph probes: actual=${label.size}" }
+                    ForegroundInk(rule, label)
                 }
                 val cover = screenBounds(protectedView())
                 val surfaces = foregroundSurfaces().map { screenBounds(it.view) to it.fill } +
@@ -866,7 +919,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
                             "(decorative=${photo.size}, protection=${protection.map { it.points.size }}, base=${Integer.toHexString(base)})"
                     }
-                    PixelProof(photo, protection, gaps)
+                    PixelProof(photo, protection, gaps, ink)
                 } finally { bitmap.recycle() }
             }
         } catch (failure: IllegalStateException) {
@@ -900,7 +953,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     else "(${probe.x},${probe.y}) expected=#${probe.color.toUInt().toString(16)} " +
                         "observed=${observed?.toUInt()?.toString(16)}"
                 }
-                if (artVisible >= 5 && solidCounts.all { it >= 5 } && unmatchedGaps.isEmpty()) {
+                val ruleCount = inventoryInk?.rule?.count { point -> sample(point)?.let { matches(it, point.color) } == true }
+                val labelCount = inventoryInk?.label?.count { point -> sample(point)?.let { matches(it, point.color) } == true }
+                val inkVerified = inventoryInk == null || ruleCount == inventoryInk.rule.size && checkNotNull(labelCount) >= 5
+                if (artVisible >= 5 && solidCounts.all { it >= 5 } && unmatchedGaps.isEmpty() && inkVerified) {
                     writeScreenshot(name, image)
                     return
                 }
@@ -911,7 +967,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     }
                     details = "decorative=$artVisible/${exposed.size} solid=$solidCounts/${protection.map { it.points.size }} " +
                         "expectedFills=${protection.map { it.expectedFills.map { fill -> fill.toUInt().toString(16) } }} " +
-                        "solidExamples=$solidExamples gapMismatches=$unmatchedGaps"
+                        "solidExamples=$solidExamples gapMismatches=$unmatchedGaps" +
+                        (inventoryInk?.let { " separator=$ruleCount/${it.rule.size} buttonGlyphs=$labelCount/${it.label.size}" } ?: "")
                 }
             } finally { image.recycle() }
         }

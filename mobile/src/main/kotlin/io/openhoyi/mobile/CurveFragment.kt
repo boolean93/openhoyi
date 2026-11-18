@@ -587,6 +587,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             }
         }.apply {
             productStyle.button(this, primary = true); HomeVisualIcon.buttonIcon(this, "back", atEnd = true)
+            keepOwnBackdropTreatment()
             tag = "product/curve-library/use"
             isEnabled = false; visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
