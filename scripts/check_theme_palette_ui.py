@@ -30,6 +30,35 @@ def validate_distinct_screenshots(hashes):
                 f'Duplicate switch screenshots for {sample}')
 
 
+def run_fixture(adb, output, hashes, arg, directory, marker, names, log, *, retain_partial=False):
+    success = False
+    try:
+        result = adb('shell', 'am', 'instrument', '-w', '-r', '-e', arg, 'true',
+                     '-e', 'disposableCiEmulator', 'true', RUNNER, timeout=240)
+        (output / log).write_text(result + '\n')
+        require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and marker in result,
+                f'{arg} fixture failed')
+        success = True
+    finally:
+        if success or retain_partial:
+            # Only these fixture-owned names are read; never enumerate app files for diagnostics.
+            for name in names:
+                try:
+                    data = adb('exec-out', 'run-as', APP, 'cat', f'files/{directory}/{name}',
+                               binary=True, timeout=60 if success else 5)
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    if success:
+                        raise
+                    continue
+                valid = data.startswith(b'\x89PNG\r\n\x1a\n')
+                if not success and not valid:
+                    continue
+                require(valid, 'Invalid appearance screenshot output')
+                destination = output / name
+                destination.write_bytes(data)
+                hashes[name] = digest(destination)
+
+
 def main(with_backgrounds=False):
     flag, avd_var, avd_kind = ('PAGE_BACKGROUND_CHECKS', 'CI_BACKGROUND_AVD', 'background') if with_backgrounds else (
         'THEME_PALETTE_CHECKS', 'CI_THEME_AVD', 'theme')
@@ -78,17 +107,8 @@ def main(with_backgrounds=False):
             fixtures.append(('pageBackgroundChecks', 'page-background-evidence', BACKGROUND_MARKER, BACKGROUNDS,
                              'background-instrumentation.txt'))
         for arg, directory, marker, names, log in fixtures:
-            result = adb('shell', 'am', 'instrument', '-w', '-r', '-e', arg, 'true',
-                         '-e', 'disposableCiEmulator', 'true', RUNNER, timeout=240)
-            (output / log).write_text(result + '\n')
-            require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and marker in result,
-                    f'{arg} fixture failed')
-            for name in names:
-                data = adb('exec-out', 'run-as', APP, 'cat', f'files/{directory}/{name}', binary=True)
-                require(data.startswith(b'\x89PNG\r\n\x1a\n'), 'Invalid appearance screenshot output')
-                destination = output / name
-                destination.write_bytes(data)
-                receipt['screenshots'][name] = digest(destination)
+            run_fixture(adb, output, receipt['screenshots'], arg, directory, marker, names, log,
+                        retain_partial=arg == 'pageBackgroundChecks')
         validate_distinct_screenshots(receipt['screenshots'])
         receipt['appearanceCombined'] = with_backgrounds
         receipt['passed'] = True

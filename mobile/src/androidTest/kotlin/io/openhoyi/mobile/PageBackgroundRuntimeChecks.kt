@@ -325,7 +325,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             requireSamePanel(home, home.findViewWithTag("product/home/quick-title"),
                 home.findViewWithTag("product/home/preview-legend"))
         }
-        captureApplied(host, home, "$mode-home.png") {
+        captureApplied(host, home, "$mode-home.png", base = TaskProductVisualStyle(host).homePage) {
             nodes(home).filterIsInstance<BoilerTemperatureDial>().firstOrNull { it.getGlobalVisibleRect(Rect()) }
                 ?: home.findViewWithTag("product/home/brew-boiler")
         }
@@ -369,15 +369,22 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             host.startActivity(Intent(host, BackgroundSettingsActivity::class.java))
         }
         var editor = edit()
+        val mist = AppBackgroundConfig(AppBackground.Mist, AppBackgroundConfig.MAX_STRENGTH)
         try {
             main {
                 choose(editor, "mist")
+                // Test the strongest backdrop the user can select, even after resetting a previous photo.
+                editor.editor.strength(mist.strength)
                 editor.window.decorView.findViewWithTag<Button>("product/background/apply").performClick()
             }
-            await("built-in Mist applied") { editor.isDestroyed && host.hasWindowFocus() && owner.current.config.choice == AppBackground.Mist }
+            await("built-in Mist applied at maximum strength") {
+                editor.isDestroyed && host.hasWindowFocus() && owner.current.config == mist
+            }
             main { host.select(TaskDestination.BREW) }
             val root = main { checkNotNull(host.supportFragmentManager.findFragmentByTag("root:BREW")?.view) }
-            captureApplied(host, root, "$mode-home-mist.png") { root.findViewWithTag("product/home/brew-boiler") }
+            captureApplied(host, root, "$mode-home-mist.png", base = TaskProductVisualStyle(host).homePage) {
+                root.findViewWithTag("product/home/brew-boiler")
+            }
 
             editor = edit()
             main {
@@ -388,7 +395,13 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         } finally { main { editor.takeUnless { it.isDestroyed }?.finish() } }
     }
 
-    private fun captureApplied(page: ThemedActivity, root: View, name: String, protectedView: () -> View) {
+    private fun captureApplied(
+        page: ThemedActivity,
+        root: View,
+        name: String,
+        base: Int = TaskProductVisualStyle(page).page,
+        protectedView: () -> View,
+    ) {
         await("$name has current backdrop and laid-out protected rows") {
             (root.background as? PageBackdrop)?.let {
                 (it.snapshot.image != null || it.snapshot.config.choice == AppBackground.Mist) &&
@@ -399,7 +412,6 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val (exposed, protectedPixels, solidColors) = main {
             val paper = root.background as PageBackdrop
             val style = TaskProductVisualStyle(page)
-            val base = if (name.endsWith("-home.png")) style.homePage else style.page
             val cover = Rect()
             check(protectedView().getGlobalVisibleRect(cover))
             // Visible rects use decor coordinates; translate the decor origin to display pixels.
@@ -435,7 +447,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     visibleDifference(bitmap.getPixel(pixel.x - start[0], pixel.y - start[1]), base)
                 }
                 check(photo.size >= 5 && verifiedProtection.size >= 5) {
-                    "$name needs at least five decorative and five contrast-sensitive protection probes"
+                    "$name needs at least five decorative and five contrast-sensitive protection probes " +
+                        "(decorative=${photo.size}, protection=${verifiedProtection.size}, base=${Integer.toHexString(base)})"
                 }
                 Triple(photo, verifiedProtection, setOf(base, style.surface, style.selected))
             } finally { bitmap.recycle() }
