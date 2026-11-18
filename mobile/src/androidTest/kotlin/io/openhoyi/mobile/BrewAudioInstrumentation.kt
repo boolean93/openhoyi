@@ -51,6 +51,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var chartSeriesSelectorChecks = false
     private var liveStatusChromeChecks = false
     private var taskFrameChecks = false
+    private var manualLiveNavigationOnly = false
     private var homeNavigationOnly = false
     private var mainNavigationChecks = false
     private var homeModeVisualArguments: Bundle? = null
@@ -103,7 +104,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
         homeModeVisualArguments = arguments?.takeIf { it.getString("homeModeVisual") == "true" }?.let(::Bundle)
-        mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings", "inline", "home")
+        mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings", "inline", "home", "manual-live")
+        manualLiveNavigationOnly = arguments?.getString("mainNavigationChecks") == "manual-live"
         homeNavigationOnly = arguments?.getString("mainNavigationChecks") == "home"
         settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
         inlineNavigationOnly = arguments?.getString("mainNavigationChecks") == "inline"
@@ -339,6 +341,11 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (mainNavigationChecks) {
                 when {
+                    manualLiveNavigationOnly -> {
+                        check(disposableCiEmulator) { "Manual live fixtures require a disposable CI emulator" }
+                        ManualLiveNavigationChecks(this).run()
+                        report.putString("manualLive", "MANUAL_LIVE_NAVIGATION_PASSED")
+                    }
                     homeNavigationOnly -> MainNavigationChecks(this).runHomeOnly()
                     inlineNavigationOnly -> MainNavigationChecks(this).runInlineOnly()
                     settingsNavigationOnly -> MainNavigationChecks(this).runSettingsOnly()

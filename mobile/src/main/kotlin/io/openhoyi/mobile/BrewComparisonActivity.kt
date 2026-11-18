@@ -2,8 +2,6 @@ package io.openhoyi.mobile
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.View
 import android.widget.AdapterView
 import android.widget.Button
@@ -11,7 +9,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
-import androidx.lifecycle.Lifecycle
 import java.util.concurrent.Executors
 
 class BrewComparisonActivity : ThemedActivity() {
@@ -37,22 +34,6 @@ class BrewComparisonActivity : ThemedActivity() {
     private val readers = Executors.newFixedThreadPool(2)
     private val samples = mutableMapOf<SourceKey, Samples>()
     private lateinit var chart: TwoCupChartView
-    private val handler = Handler(Looper.getMainLooper())
-    private val checkManualShot = object : Runnable {
-        override fun run() {
-            if (isFinishing || !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
-            val presentation = (application as MobileApplication).manualShotPresentation
-            if (presentation.claim(isResumed = true)) {
-                // Reuse the task host; do not bind/start the device service from comparison.
-                startActivity(Intent(this@BrewComparisonActivity, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    .putExtra(MainActivity.EXTRA_OPEN_EXTRACTION, true))
-                finish()
-            } else {
-                handler.postDelayed(this, 250)
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -321,15 +302,7 @@ class BrewComparisonActivity : ThemedActivity() {
         refresh = ::render
         render()
     }
-    override fun onResume() {
-        super.onResume()
-        refresh()
-        handler.post(checkManualShot)
-    }
-    override fun onPause() {
-        handler.removeCallbacks(checkManualShot)
-        super.onPause()
-    }
+    override fun onResume() { super.onResume(); refresh() }
     override fun onDestroy() { destroyed = true; readers.shutdownNow(); refresh = {}; super.onDestroy() }
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)

@@ -62,10 +62,9 @@ class MainActivity : ThemedActivity() {
     private var reconnectCoffeeAfterBind=false
     private var foreground = false
     private val handler = Handler(Looper.getMainLooper())
-    private val manualPresentation = object : Runnable {
+    private val shellRefresh = object : Runnable {
         override fun run() {
             shortcutStart?.allows()
-            presentManualShotIfNew()
             if (::shellStatus.isInitialized) shellStatus.present(service)
             if (foreground) handler.postDelayed(this, 250)
         }
@@ -111,14 +110,15 @@ class MainActivity : ThemedActivity() {
         shortcutStart?.allows()
         subscribers.toList().forEach { it(service) }
         if (::shellStatus.isInitialized) shellStatus.present(service)
-        presentManualShotIfNew()
     }
-    private fun presentManualShotIfNew() {
-        if (service == null) return
-        val presentation = (application as MobileApplication).manualShotPresentation
-        val resumed = foreground && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !isFinishing
-        if (presentation.claim(resumed)) showExtraction()
-    }
+
+    internal override fun showsManualLiveChart(): Boolean =
+        // A native dialog can cover the chart without changing the Fragment lifecycle.
+        service?.running == true && hasWindowFocus() &&
+            (supportFragmentManager.primaryNavigationFragment as? ExtractionFragment)?.let {
+                it.isVisible && it.isResumed
+            } == true
+
     internal val currentService get() = service
     override fun onUserInteraction() {
         super.onUserInteraction()
@@ -314,12 +314,12 @@ class MainActivity : ThemedActivity() {
         (application as MobileApplication).autoConnect.refresh()
         if(service==null) { if(!startRememberedScaleService())bindExisting() }
         foreground = true
-        handler.post(manualPresentation)
+        handler.post(shellRefresh)
     }
     override fun onPause() {
         revokeShortcutStart()
         foreground = false
-        handler.removeCallbacks(manualPresentation)
+        handler.removeCallbacks(shellRefresh)
         dismissTransientDialogs()
         super.onPause()
     }
