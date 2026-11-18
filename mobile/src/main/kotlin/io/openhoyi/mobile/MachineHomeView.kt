@@ -24,7 +24,6 @@ internal class MachineHomeView(
     private fun dp(value: Int) = (value * density).toInt()
     private val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     private val boilers = LinearLayout(context).apply {
-        protectBackdropContent()
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }

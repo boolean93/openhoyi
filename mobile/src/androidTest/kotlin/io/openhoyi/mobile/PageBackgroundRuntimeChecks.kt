@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
@@ -170,6 +171,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val originalColor = originalBackground.color
         await("same Mock owner ready") { host.currentService != null }
         val service = host.currentService
+        val home = solidHome(host)
+        main { host.select(TaskDestination.SETTINGS) }
         var editor: BackgroundSettingsActivity? = null
         fun open(): BackgroundSettingsActivity {
             main { settings.openSection("appearance") }
@@ -230,7 +233,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             val file = File(context.noBackupFilesDir, "page-backgrounds/image-${photo.id}.jpg")
             check(file.isFile && file.length() > 0)
             check(main { owner.current.image?.let { BackgroundImageLimits.fits(it.width, it.height) } } == true)
-            verifyAppliedPages(host, "light")
+            verifyAppliedPages(host, "light", home)
             await("retained host uses its original owner") { host.currentService === service }
             page = open().also { editor = it }
             main {
@@ -243,6 +246,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     owner.current.config.choice == AppBackground.Solid && !file.exists()
             }
             checkNotNull(context.contentResolver.openInputStream(sample)).use { check(it.read() >= 0) }
+            checkSolidHomeRestored(host, home)
             verifyMistHome(host, "light")
         } finally { main { editor?.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
     }
@@ -250,6 +254,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     private fun verifyDarkFlow(sample: Uri) {
         main { app.appearancePreferences.selectDark(true) }
         val host = MainPageTestHost.launch(test, timeoutMs = 10_000).activity
+        val home = solidHome(host)
         val page = launched(BackgroundSettingsActivity::class.java) {
             host.startActivity(Intent(host, BackgroundSettingsActivity::class.java))
         }
@@ -262,7 +267,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             await("dark apply returns to the same host") {
                 page.isDestroyed && host.hasWindowFocus() && owner.current.config.choice is AppBackground.Photo
             }
-            verifyAppliedPages(host, "dark")
+            verifyAppliedPages(host, "dark", home)
             val reset = launched(BackgroundSettingsActivity::class.java) {
                 host.startActivity(Intent(host, BackgroundSettingsActivity::class.java))
             }
@@ -273,17 +278,19 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 }
                 await("dark reset returns to solid") { reset.isDestroyed && owner.current.config.choice == AppBackground.Solid }
             } finally { main { reset.takeUnless { it.isDestroyed }?.finish() } }
+            checkSolidHomeRestored(host, home)
             verifyMistHome(host, "dark")
         } finally { main { page.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
     }
 
-    private fun verifyAppliedPages(host: MainActivity, mode: String) {
+    private fun verifyAppliedPages(host: MainActivity, mode: String, originalHome: SolidHome) {
         fun go(destination: TaskDestination): View {
             main { host.select(destination) }
             var root: View? = null
             await("applied ${destination.name} visible") {
                 root = host.supportFragmentManager.findFragmentByTag("root:${destination.name}")?.view
-                root?.let { it.isShown && it.isLaidOut && (it.background as? PageBackdrop)?.protectedAreas?.isNotEmpty() == true } == true
+                root?.let { view -> view.isShown && view.isLaidOut && !view.isLayoutRequested &&
+                    (view.background as? PageBackdrop)?.protectedAreas?.isNotEmpty() == true } == true
             }
             return checkNotNull(root)
         }
@@ -325,16 +332,15 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             }
         }
         val home = go(TaskDestination.BREW)
-        main {
-            requireSamePanel(home, home.findViewWithTag("product/home/brew-boiler"),
-                home.findViewWithTag("product/home/steam-boiler"))
-            requireSamePanel(home, home.findViewWithTag("product/home/quick-title"),
-                home.findViewWithTag("product/home/preview-legend"))
-        }
-        captureApplied(host, home, "$mode-home.png", base = TaskProductVisualStyle(host).homePage) {
-            nodes(home).filterIsInstance<BoilerTemperatureDial>().firstOrNull { it.getGlobalVisibleRect(Rect()) }
-                ?: home.findViewWithTag("product/home/brew-boiler")
-        }
+        val style = TaskProductVisualStyle(host)
+        captureApplied(host, home, "$mode-home.png", base = style.homePage, backing = style.surface,
+            requiredWallpaper = {
+                check(home === originalHome.root && homeBounds(home) == originalHome.bounds) {
+                    "Applying the backdrop must not move Home labels or hit targets"
+                }
+                homeWallpaperGaps(home)
+            },
+        ) { home.findViewWithTag("product/home/${if (mode == "light") "brew" else "steam"}-boiler/pressure") }
         val curves = go(TaskDestination.CURVES)
         main {
             requireSamePanel(curves, curves.findViewWithTag("product/curve-library/filter"),
@@ -401,6 +407,85 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         }
     }
 
+    private data class SolidHome(val root: View, val original: ColorDrawable, val bounds: List<Rect>)
+    private val homeGeometryTags = listOf(
+        "brew-boiler", "brew-boiler/pressure", "brew-boiler/toggle", "steam-boiler",
+        "steam-boiler/pressure", "steam-boiler/toggle", "quick-title", "preview-legend",
+    )
+
+    private fun homeBounds(root: View) = homeGeometryTags.map { key ->
+        val view = checkNotNull(root.findViewWithTag<View>("product/home/$key"))
+        val relative = IntArray(2).also { root.getLocationInWindow(it) }
+        val position = IntArray(2).also { view.getLocationInWindow(it) }
+        val x = position[0] - relative[0]
+        val y = position[1] - relative[1]
+        Rect(x, y, x + view.width, y + view.height)
+    }
+
+    private fun solidHome(host: MainActivity): SolidHome {
+        var root: View? = null
+        main { host.select(TaskDestination.BREW) }
+        await("default Home has actual measured controls and original solid backing") {
+            root = host.supportFragmentManager.findFragmentByTag("root:BREW")?.view
+            root?.let { it.isShown && it.isLaidOut && !it.isLayoutRequested && it.background is ColorDrawable &&
+                homeBounds(it).all { bounds -> !bounds.isEmpty } } == true
+        }
+        return main {
+            val view = checkNotNull(root)
+            val original = view.background as ColorDrawable
+            check(original.color == TaskProductVisualStyle(host).homePage)
+            SolidHome(view, original, homeBounds(view))
+        }
+    }
+
+    private fun checkSolidHomeRestored(host: MainActivity, before: SolidHome) {
+        val after = solidHome(host)
+        check(before.root === after.root && before.original === after.original && before.bounds == after.bounds) {
+            "Returning to Solid must restore the exact Home surface and control bounds"
+        }
+    }
+
+    private fun homeWallpaperGaps(root: View): List<Point> {
+        val paper = root.background as PageBackdrop
+        fun home(key: String): View = checkNotNull(root.findViewWithTag<View>("product/home/$key"))
+        fun roundPanel(vararg views: View): Rect {
+            val visible = views.map { checkNotNull(localRect(root, it)) }
+            return checkNotNull(paper.roundedAreas.singleOrNull { panel ->
+                visible.all(panel.bounds::contains)
+            }) { "Expected one local rounded shield for $visible, got ${paper.roundedAreas}" }.bounds
+        }
+        val brew = roundPanel(home("brew-boiler/pressure"), home("brew-boiler/toggle"))
+        val steam = roundPanel(home("steam-boiler/pressure"), home("steam-boiler/toggle"))
+        val heading = roundPanel(home("quick-title"), home("preview-legend"))
+        check(brew.right < steam.left && maxOf(brew.bottom, steam.bottom) <= heading.top) {
+            "Boiler footers must not span both columns or the shortcut heading"
+        }
+        fun dial(key: String): Rect {
+            val column = home(key) as ViewGroup
+            val dial = (0 until column.childCount).map(column::getChildAt).filterIsInstance<BoilerTemperatureDial>().single()
+            return checkNotNull(localRect(root, dial))
+        }
+        val left = dial("brew-boiler")
+        val right = dial("steam-boiler")
+        check(left.right < right.left)
+        fun corner(dial: Rect, fromLeft: Boolean) = Point(
+            if (fromLeft) dial.left + dial.width() / 11 else dial.right - dial.width() / 11,
+            dial.top + dial.height() / 11,
+        )
+        return buildList {
+            addAll(listOf(corner(left, true), corner(left, false), corner(right, true), corner(right, false),
+                Point((left.right + right.left) / 2, minOf(left.centerY(), right.centerY())),
+                Point((brew.right + steam.left) / 2, minOf(brew.centerY(), steam.centerY()))))
+            val control = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/control")))
+            val logic = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/logic")))
+            if (control.right < logic.left && control.centerY() in logic.top until logic.bottom) {
+                add(Point((control.right + logic.left) / 2, control.centerY()))
+            } else if (control.bottom < logic.top && control.centerX() in logic.left until logic.right) {
+                add(Point(control.centerX(), (control.bottom + logic.top) / 2))
+            }
+        }
+    }
+
     private fun verifyMistHome(host: MainActivity, mode: String) {
         fun edit() = launched(BackgroundSettingsActivity::class.java) {
             host.startActivity(Intent(host, BackgroundSettingsActivity::class.java))
@@ -419,8 +504,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             }
             main { host.select(TaskDestination.BREW) }
             val root = main { checkNotNull(host.supportFragmentManager.findFragmentByTag("root:BREW")?.view) }
-            captureApplied(host, root, "$mode-home-mist.png", base = TaskProductVisualStyle(host).homePage) {
-                root.findViewWithTag("product/home/brew-boiler")
+            val style = TaskProductVisualStyle(host)
+            captureApplied(host, root, "$mode-home-mist.png", base = style.homePage, backing = style.surface) {
+                root.findViewWithTag("product/home/quick-title")
             }
 
             editor = edit()
@@ -437,6 +523,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         root: View,
         name: String,
         base: Int = TaskProductVisualStyle(page).page,
+        backing: Int = base,
+        requiredWallpaper: () -> List<Point> = { emptyList() },
         foregroundSurfaces: () -> List<View> = { emptyList() },
         decorativeGuttersOf: (() -> View)? = null,
         protectedView: () -> View,
@@ -448,7 +536,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             } == true
         }
         data class Pixel(val x: Int, val y: Int, val color: Int)
-        val (exposed, protectedPixels, solidColors) = main {
+        data class PixelProof(val decorative: List<Pixel>, val protection: List<List<Pixel>>,
+            val solidColors: Set<Int>, val wallpaperGaps: List<Pixel>)
+        val (exposed, protectedPixels, solidColors, wallpaperGaps) = main {
             val paper = root.background as PageBackdrop
             val style = TaskProductVisualStyle(page)
             // Visible rects use decor coordinates; translate the decor origin to display pixels.
@@ -479,7 +569,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         displayY in gutterNeighbor.top until gutterNeighbor.bottom && !gutterNeighbor.contains(displayX, displayY)
                     if (inDecorativeArea && visibleDifference(expected, base) && !cover.contains(displayX, displayY) &&
                         surfaces.none { it.contains(displayX, displayY) }) photo += Pixel(displayX, displayY, expected)
-                    if (expected == base && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
+                    if (expected == backing && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
                 }
                 // A near-white/near-black side could accidentally look like the baseline.
                 // Keep only probes where the unprotected image would be measurably different.
@@ -502,12 +592,18 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         }
                     }
                 }
+                val gaps = requiredWallpaper().map { point ->
+                    Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
+                }
+                check(gaps.isEmpty() || gaps.count { visibleDifference(it.color, base) } >= 2) {
+                    "$name needs contrast-sensitive points between the rounded Home controls"
+                }
                 val protection = listOf(verifiedProtection) + nativeProtection
                 check(photo.size >= 5 && protection.all { it.size >= 5 }) {
                     "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
                         "(decorative=${photo.size}, protection=${protection.map { it.size }}, base=${Integer.toHexString(base)})"
                 }
-                Triple(photo, protection, setOf(base, style.surface, style.selected))
+                PixelProof(photo, protection, setOf(base, style.surface, style.selected), gaps)
             } finally { bitmap.recycle() }
         }
         // Compare real compositor pixels, not the backdrop object or only the offscreen drawing.
@@ -531,7 +627,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         sample(probe)?.let { ink -> solidColors.any { matches(ink, it) } } == true
                     } >= 5
                 }
-                if (artVisible < 5 || !contentSolid) continue
+                val gapsVisible = wallpaperGaps.all { probe -> sample(probe)?.let { matches(it, probe.color) } == true }
+                if (artVisible < 5 || !contentSolid || !gapsVisible) continue
                 File(output, name).outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                 return
             } finally { image.recycle() }
@@ -647,7 +744,18 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 if (valid) {
                     val bitmap = Bitmap.createBitmap(320, 240, Bitmap.Config.ARGB_8888)
                     try {
-                        Canvas(bitmap).apply { drawColor(Color.WHITE); drawRect(0f, 0f, 160f, 240f, Paint().apply { color = Color.BLACK }) }
+                        // Distinct dark/light regions remain for cross-page contrast checks; uneven
+                        // geometric texture across each half exposes any false Home backing slab.
+                        val dark = intArrayOf(0xff111820.toInt(), 0xff41382d.toInt(), 0xff174136.toInt())
+                        val light = intArrayOf(0xfffaf9ef.toInt(), 0xffc9d4db.toInt(), 0xffeedecb.toInt())
+                        val paint = Paint()
+                        Canvas(bitmap).apply {
+                            for (y in 0 until 240 step 12) for (x in 0 until 320 step 16) {
+                                val palette = if (x < 160) dark else light
+                                paint.color = palette[(x / 16 + y / 12 * 2) % palette.size]
+                                drawRect(x.toFloat(), y.toFloat(), (x + 16).toFloat(), (y + 12).toFloat(), paint)
+                            }
+                        }
                         check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
                     } finally { bitmap.recycle() }
                 } else stream.write(byteArrayOf(1, 2, 3, 4))

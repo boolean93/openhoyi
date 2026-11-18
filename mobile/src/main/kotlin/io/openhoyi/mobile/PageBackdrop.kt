@@ -24,6 +24,8 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
         set(value) { field = value; invalidateSelf() }
     var protectedAreas: List<Rect>? = null
         set(value) { if (field != value) { field = value; invalidateSelf() } }
+    var roundedAreas: List<RoundedBackdropArea> = emptyList()
+        set(value) { if (field != value) { field = value; invalidateSelf() } }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val crop = Rect()
     private var gradient: Shader? = null
@@ -67,6 +69,15 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
         paint.shader = null
         paint.color = base
         regions.forEach { canvas.drawRect(it, paint) }
+        roundedAreas.forEach { area ->
+            val save = canvas.save()
+            canvas.clipRect(area.clip)
+            paint.color = area.fill
+            val bounds = area.bounds
+            canvas.drawRoundRect(bounds.left.toFloat(), bounds.top.toFloat(), bounds.right.toFloat(),
+                bounds.bottom.toFloat(), area.radius, area.radius, paint)
+            canvas.restoreToCount(save)
+        }
     }
 
     override fun setAlpha(alpha: Int) = Unit
@@ -74,7 +85,11 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
     @Deprecated("Drawable opacity") override fun getOpacity() = PixelFormat.OPAQUE
 }
 
+internal data class RoundedBackdropArea(val bounds: Rect, val clip: Rect, val radius: Float, val fill: Int)
+
 private object OwnBackdropTreatment
+
+private data class RoundedBackdropMark(val fill: Int, val radius: Float, val group: Any?, val horizontalOutset: Int)
 
 private data class BackdropProtection(
     val group: Any?,
@@ -91,7 +106,14 @@ internal fun View.protectBackdropContent(
     setTag(R.id.page_backdrop_content, BackdropProtection(group, horizontalBounds, leaveBottomPaddingVisible))
 }
 
-/** A deliberately translucent overlay supplies its own contrast treatment, including its labels. */
+/** A rounded piece of a native layout; realized only when the page displays a selected backdrop. */
+internal fun View.protectRoundedBackdropContent(
+    fill: Int, radius: Int, group: Any? = null, horizontalOutset: Int = 0,
+) {
+    setTag(R.id.page_backdrop_content, RoundedBackdropMark(fill, radius.toFloat(), group, horizontalOutset))
+}
+
+/** A native surface or translucent overlay supplies its own contrast treatment, including its labels. */
 internal fun View.keepOwnBackdropTreatment() {
     setTag(R.id.page_backdrop_content, OwnBackdropTreatment)
 }
@@ -133,6 +155,7 @@ internal class PageBackdropBinding(
         stop?.invoke(); stop = null
         unbindRegions()
         paper.protectedAreas = null
+        paper.roundedAreas = emptyList()
         paper.snapshot = solid
     }
 
@@ -143,6 +166,7 @@ internal class PageBackdropBinding(
             unbindRegions()
             paper.snapshot = solid
             paper.protectedAreas = null
+            paper.roundedAreas = emptyList()
             if (root.background === paper) root.background = original
             return
         }
@@ -181,6 +205,8 @@ internal class PageBackdropBinding(
         position.offset(root.scrollX, root.scrollY)
         val exact = mutableListOf<Rect>()
         val groups = linkedMapOf<Any, Rect>()
+        val rounded = mutableListOf<RoundedBackdropArea>()
+        val roundedGroups = linkedMapOf<Any, RoundedBackdropArea>()
         val rows = mutableListOf<Rect>()
         val gap = (4 * root.resources.displayMetrics.density).roundToInt()
         fun relative(view: View) = Rect().takeIf { view.getGlobalVisibleRect(it) }
@@ -202,6 +228,25 @@ internal class PageBackdropBinding(
             val group = mark.group
             if (group == null) exact += bounds else groups.getOrPut(group) { Rect(bounds) }.union(bounds)
         }
+        fun protectRounded(view: View, mark: RoundedBackdropMark) {
+            val clip = Rect()
+            val viewPosition = Point()
+            if (!view.getGlobalVisibleRect(clip, viewPosition)) return
+            // Build corners in layout coordinates, not at the cut edge of the scrolling viewport.
+            val x = viewPosition.x + view.scrollX - position.x
+            val y = viewPosition.y + view.scrollY - position.y
+            val bounds = Rect(x - mark.horizontalOutset, y,
+                x + view.width + mark.horizontalOutset, y + view.height)
+            clip.offset(-position.x, -position.y)
+            clip.left = (clip.left - mark.horizontalOutset).coerceAtLeast(0)
+            clip.right = (clip.right + mark.horizontalOutset).coerceAtMost(root.width)
+            val area = RoundedBackdropArea(bounds, clip, mark.radius, mark.fill)
+            val group = mark.group
+            if (group == null) rounded += area else roundedGroups[group]?.let {
+                it.bounds.union(bounds)
+                it.clip.union(clip)
+            } ?: run { roundedGroups[group] = area }
+        }
         fun visit(view: View) {
             if (view.visibility != View.VISIBLE) return
             if (view !== root) {
@@ -211,6 +256,7 @@ internal class PageBackdropBinding(
                 when (val mark = view.getTag(R.id.page_backdrop_content)) {
                     OwnBackdropTreatment -> return
                     is BackdropProtection -> { protect(view, mark); return }
+                    is RoundedBackdropMark -> { protectRounded(view, mark); return }
                 }
                 if (view is AbsListView ||
                     view is BoilerTemperatureDial || view is CurveStageView || view is CurveLibrarySparklineView ||
@@ -244,5 +290,6 @@ internal class PageBackdropBinding(
             else continuous += row
         }
         paper.protectedAreas = exact + groups.values + continuous
+        paper.roundedAreas = rounded + roundedGroups.values
     }
 }
