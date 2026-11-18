@@ -127,20 +127,19 @@ class MobileApplication : Application() {
             logs.record("shot.samples_error", mapOf("type" to error.javaClass.simpleName))
         }
     }
-    val history: ShotHistory by lazy {
+    internal val shotHistoryStorage by lazy {
         val prefs = getSharedPreferences("shot_history", MODE_PRIVATE)
-        ShotHistory(object : ShotHistory.AtomicTimingStorage {
-            override fun read(): String = prefs.getString("entries_v1", "") ?: ""
-            override fun write(value: String) {
-                check(prefs.edit().putString("entries_v1", value).commit()) { "Cannot save shot history" }
-            }
-            override fun readTiming() = prefs.getString(ShotTimingSidecar.KEY, null)
-            override fun writeWithTiming(value: String, timing: String) {
-                check(prefs.edit().putString("entries_v1", value).putString(ShotTimingSidecar.KEY, timing).commit()) {
-                    "Cannot save shot history and timing evidence"
-                }
-            }
-        }, onTimingEvidenceError = { error ->
+        CommittedShotHistoryStorage(
+            readMain = { prefs.getString("entries_v1", "") ?: "" },
+            readSidecar = { prefs.getString(ShotTimingSidecar.KEY, null) },
+            commitBoth = { value, timing ->
+                prefs.edit().putString("entries_v1", value)
+                    .putString(ShotTimingSidecar.KEY, timing).commit()
+            },
+        )
+    }
+    val history: ShotHistory by lazy {
+        ShotHistory(shotHistoryStorage, onTimingEvidenceError = { error ->
             runCatching { logs.record("shot.timing_evidence_unavailable", mapOf("type" to error.javaClass.simpleName)) }
         }, onObservedUse = { entry ->
             runCatching { curveUsageResult.getOrThrow().record(entry.id, entry.curveId, entry.startedAtMs) }

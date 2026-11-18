@@ -45,6 +45,37 @@ internal object ShotTimingSidecar {
 
 /** Read-only consumers never initialize or recover the mutable application stores. */
 internal fun readPersistedShotTimingEvidence(context: android.content.Context) = runCatching {
-    ShotTimingSidecar.decode(context.getSharedPreferences("shot_history", android.content.Context.MODE_PRIVATE)
-        .getString(ShotTimingSidecar.KEY, null))
+    val application = context.applicationContext
+    val raw = if (application is MobileApplication) application.shotHistoryStorage.readTiming()
+        else context.getSharedPreferences("shot_history", android.content.Context.MODE_PRIVATE)
+            .getString(ShotTimingSidecar.KEY, null)
+    ShotTimingSidecar.decode(raw)
 }.getOrDefault(emptyMap())
+
+/**
+ * SharedPreferences may publish a failed commit into its own process memory. Keep
+ * successful evidence separately and explicitly reassert it on every main write.
+ */
+internal class CommittedShotHistoryStorage(
+    private val readMain: () -> String,
+    readSidecar: () -> String?,
+    private val commitBoth: (String, String?) -> Boolean,
+) : ShotHistory.AtomicTimingStorage {
+    private var committedSidecar = runCatching(readSidecar)
+
+    override fun read(): String = readMain()
+
+    @Synchronized
+    override fun readTiming(): String? = committedSidecar.getOrThrow()
+
+    @Synchronized
+    override fun write(value: String) = commit(value, readTiming())
+
+    @Synchronized
+    override fun writeWithTiming(value: String, timing: String) = commit(value, timing)
+
+    private fun commit(value: String, timing: String?) {
+        check(commitBoth(value, timing)) { "Cannot save shot history and timing evidence" }
+        committedSidecar = Result.success(timing)
+    }
+}

@@ -194,6 +194,26 @@ class InterruptedShotTimingTest {
         assertTrue(ShotHistory(disk, now = { 200L }).entries.isEmpty())
     }
 
+    @Test fun failedPlatformCommitCannotLeakCandidateIntoReadersOrNextMainWrite() {
+        var platformMemory: String? = "committed"
+        var durable: String? = "committed"
+        var fail = true
+        val storage = CommittedShotHistoryStorage(readMain = { "" }, readSidecar = { platformMemory },
+            commitBoth = { _, timing ->
+                platformMemory = timing // Android editor publishes to its own cache first.
+                if (!fail) durable = timing
+                !fail
+            })
+        assertTrue(runCatching { storage.writeWithTiming("new history", "candidate") }.isFailure)
+        assertEquals("candidate", platformMemory)
+        assertEquals("committed", storage.readTiming())
+        assertEquals("committed", durable)
+        fail = false
+        storage.write("next main-only write")
+        assertEquals("committed", platformMemory)
+        assertEquals("committed", durable)
+    }
+
     @Test fun transitionalInlineDocumentsAreNotOverwrittenBeforeEvidenceMigrates() {
         val recent = Disk()
         val permanent = Disk()
