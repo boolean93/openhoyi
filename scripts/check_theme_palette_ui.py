@@ -24,6 +24,7 @@ BACKGROUND_MARKER = ('PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivity
                      'screenshots=16 noModelRequest=true noBle=true')
 BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
                     for page in ('photo', 'settings', 'home', 'curve', 'ai', 'home-mist', 'ai-fade', 'ai-composer'))
+BACKGROUND_FAILURE_FRAMES = ('light-ai-composer.failed.png', 'dark-ai-composer.failed.png')
 
 
 def validate_distinct_screenshots(hashes):
@@ -32,7 +33,7 @@ def validate_distinct_screenshots(hashes):
                 f'Duplicate switch screenshots for {sample}')
 
 
-def run_fixture(adb, output, hashes, arg, directory, marker, names, log, *, retain_partial=False):
+def run_fixture(adb, output, hashes, arg, directory, marker, names, log, *, retain_partial=False, failure_frames=()):
     success = False
     try:
         result = adb('shell', 'am', 'instrument', '-w', '-r', '-e', arg, 'true',
@@ -44,7 +45,7 @@ def run_fixture(adb, output, hashes, arg, directory, marker, names, log, *, reta
     finally:
         if success or retain_partial:
             # Only these fixture-owned names are read; never enumerate app files for diagnostics.
-            for name in names:
+            for name in names + (failure_frames if not success else ()):
                 try:
                     data = adb('exec-out', 'run-as', APP, 'cat', f'files/{directory}/{name}',
                                binary=True, timeout=60 if success else 5)
@@ -129,7 +130,7 @@ def main(with_backgrounds=False):
             background = arg == 'pageBackgroundChecks'
             with with_software_keyboard(adb) if background else nullcontext():
                 run_fixture(adb, output, receipt['screenshots'], arg, directory, marker, names, log,
-                            retain_partial=background)
+                            retain_partial=background, failure_frames=BACKGROUND_FAILURE_FRAMES if background else ())
         validate_distinct_screenshots(receipt['screenshots'])
         receipt['appearanceCombined'] = with_backgrounds
         receipt['passed'] = True

@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from check_theme_palette_ui import APP, BACKGROUND_MARKER, BACKGROUNDS, run_fixture, with_software_keyboard
+from check_theme_palette_ui import APP, BACKGROUND_FAILURE_FRAMES, BACKGROUND_MARKER, BACKGROUNDS, run_fixture, with_software_keyboard
 from shared_mock_artifact import digest
 
 PNG = b'\x89PNG\r\n\x1a\nfixture'
@@ -15,7 +15,7 @@ LOG = 'background-instrumentation.txt'
 class AppearanceEvidenceTest(unittest.TestCase):
     def run_background(self, adb, output, hashes):
         run_fixture(adb, output, hashes, 'pageBackgroundChecks', DIRECTORY, BACKGROUND_MARKER,
-                    BACKGROUNDS, LOG, retain_partial=True)
+                    BACKGROUNDS, LOG, retain_partial=True, failure_frames=BACKGROUND_FAILURE_FRAMES)
 
     def test_failed_fixture_collects_available_allowlisted_evidence_but_still_fails(self):
         reads = []
@@ -25,7 +25,7 @@ class AppearanceEvidenceTest(unittest.TestCase):
                 return 'failed during light Home\nINSTRUMENTATION_CODE: 0'
             self.assertEqual(args[:4], ('exec-out', 'run-as', APP, 'cat'))
             reads.append(args[4])
-            if len(reads) == 1:
+            if len(reads) == 1 or args[4] == f'files/{DIRECTORY}/{BACKGROUND_FAILURE_FRAMES[0]}':
                 return PNG
             if len(reads) == 2:
                 raise subprocess.TimeoutExpired('cat', 5)
@@ -38,10 +38,10 @@ class AppearanceEvidenceTest(unittest.TestCase):
             hashes = {}
             with self.assertRaisesRegex(ValueError, 'pageBackgroundChecks fixture failed'):
                 self.run_background(adb, output, hashes)
-            name = BACKGROUNDS[0]
-            self.assertEqual(reads, [f'files/{DIRECTORY}/{entry}' for entry in BACKGROUNDS])
-            self.assertEqual({p.name for p in output.iterdir()}, {name, LOG})
-            self.assertEqual(hashes, {name: digest(output / name)})
+            frames = {BACKGROUNDS[0], BACKGROUND_FAILURE_FRAMES[0]}
+            self.assertEqual(reads, [f'files/{DIRECTORY}/{entry}' for entry in BACKGROUNDS + BACKGROUND_FAILURE_FRAMES])
+            self.assertEqual({p.name for p in output.iterdir()}, frames | {LOG})
+            self.assertEqual(hashes, {name: digest(output / name) for name in frames})
             self.assertIn('failed during light Home', (output / LOG).read_text())
 
     def test_disposable_keyboard_setting_is_restored_on_failure(self):
@@ -66,6 +66,7 @@ class AppearanceEvidenceTest(unittest.TestCase):
         def adb(*args, **_):
             if args[0] == 'shell':
                 return BACKGROUND_MARKER + '\nINSTRUMENTATION_CODE: -1'
+            self.assertNotIn(Path(args[-1]).name, BACKGROUND_FAILURE_FRAMES)
             return b'bad' if args[-1].endswith(BACKGROUNDS[-1]) else PNG
 
         with tempfile.TemporaryDirectory() as tmp:

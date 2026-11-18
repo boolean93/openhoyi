@@ -34,6 +34,7 @@ internal class PageBackgroundAiChecks(
             ui.render(listOf(user) + List(5) {
                 AiChatLine(false, "低压预浸，再平稳升压。后段逐步减压，记录杯中变化。".repeat(5))
             }, ui.input.text.toString(), false, "")
+            ui.scroll.scrollTo(0, 0)
         }
         await("long transcript can scroll below the fixed AI toolbar") {
             ui.scroll.canScrollVertically(1) && ui.scroll.scrollY == 0
@@ -96,25 +97,36 @@ internal class PageBackgroundAiChecks(
             }
         }
         await("attachment popup and keyboard visible together") { visibleAttachmentMenu() != null }
-        screenshot("$mode-ai-composer.png") { frame ->
+        var composerPixels = "no compositor sample"
+        screenshot("$mode-ai-composer.png", "$mode-ai-composer.failed.png", detail = { composerPixels }) { frame ->
             // Read current geometry on each retry, in case the IME insets are still settling.
             val (outline, buttons, menu) = main {
                 visibleAttachmentMenu()?.let { Triple(screenBounds(inputFrame),
                     listOf(screenBounds(plus), screenBounds(ui.send)), screenBounds(it)) }
-            } ?: return@screenshot false
+            } ?: run {
+                composerPixels = "attachment/IME geometry changed during capture"
+                return@screenshot false
+            }
             // Probe the real shared stroke across each button, including while the popup is visible.
             // The inset button drawables must never paint through these top/bottom segments.
-            fun stroke(x: Int, rows: IntRange) = rows.any { y -> distance(frame.getPixel(x, y), style.accent) <= 8 }
             val edge = style.dp(2).coerceAtLeast(2)
-            val frameIntact = buttons.all { button ->
-                (-1..1).all { offset ->
+            val segments = buttons.flatMap { button ->
+                (-1..1).map { offset ->
                     val x = button.centerX() + offset * style.dp(6)
-                    stroke(x, outline.top until outline.top + edge) &&
-                        stroke(x, outline.bottom - edge until outline.bottom)
+                    val top = (outline.top until outline.top + edge).minOf { y -> distance(frame.getPixel(x, y), style.accent) }
+                    val bottom = (outline.bottom - edge until outline.bottom).minOf { y -> distance(frame.getPixel(x, y), style.accent) }
+                    Triple(x, top, bottom)
                 }
             }
             // The popup has a separate surface: this interior sample must be in the compositor image.
-            frameIntact && distance(frame.getPixel(menu.left + style.dp(7), menu.centerY()), style.surface) <= 8
+            val menuX = menu.left + style.dp(7)
+            val menuY = menu.centerY()
+            val menuColor = frame.getPixel(menuX, menuY)
+            val menuError = distance(menuColor, style.surface)
+            composerPixels = "frame=$outline buttons=$buttons accent=#${style.accent.toUInt().toString(16)} " +
+                "segments(x,topError,bottomError)=$segments menu=$menu " +
+                "sample($menuX,$menuY)=#${menuColor.toUInt().toString(16)} menuError=$menuError"
+            segments.all { (_, top, bottom) -> top <= 8 && bottom <= 8 } && menuError <= 8
         }
         main { ui.dismissOptions() }
     }
@@ -145,8 +157,13 @@ internal class PageBackgroundAiChecks(
         }
     }
 
-    private fun screenshot(name: String? = null, qualifies: (Bitmap) -> Boolean) {
-        repeat(5) {
+    private fun screenshot(
+        name: String? = null,
+        failureName: String? = null,
+        detail: () -> String = { "" },
+        qualifies: (Bitmap) -> Boolean,
+    ) {
+        repeat(5) { attempt ->
             val submitted = CountDownLatch(1)
             main {
                 check(ui.root.isHardwareAccelerated)
@@ -157,12 +174,17 @@ internal class PageBackgroundAiChecks(
             val image = checkNotNull(test.uiAutomation.takeScreenshot())
             try {
                 if (qualifies(image)) {
-                    if (name != null) File(output, name).outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                    if (name != null) writeScreenshot(name, image)
                     return
                 }
+                if (attempt == 4 && failureName != null) writeScreenshot(failureName, image)
             } finally { image.recycle() }
         }
-        error("${name ?: "AI toolbar baseline"} did not show the expected compositor pixels")
+        error("${name ?: "AI toolbar baseline"} did not show the expected compositor pixels: ${detail()}")
+    }
+
+    private fun writeScreenshot(name: String, image: Bitmap) {
+        File(output, name).outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
     }
 
     private fun distance(a: Int, b: Int) = maxOf(abs(Color.red(a) - Color.red(b)),
