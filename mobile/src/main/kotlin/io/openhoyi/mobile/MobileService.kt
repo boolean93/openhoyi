@@ -247,6 +247,7 @@ class MobileService : Service() {
     }
     internal fun extractionElapsedSeconds(now: Long): Int? = series.displayElapsedSeconds(
         snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now, shotState,
+        preparingNextShot = brewPreparation.active,
     )
     val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points

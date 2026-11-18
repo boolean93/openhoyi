@@ -125,9 +125,9 @@ class ShotSeries {
 
     internal fun displayElapsedSeconds(
         latest: HoyiMessage?, coffeeState: DeviceState, coffeeAt: Long?, now: Long,
-        state: ExtractionState,
+        state: ExtractionState, preparingNextShot: Boolean,
     ): Int? {
-        if (elapsedInterrupted || state == ExtractionState.OUTCOME_UNKNOWN) return null
+        if (preparingNextShot || elapsedInterrupted || state == ExtractionState.OUTCOME_UNKNOWN) return null
         if (latest is ExtractionTelemetry && latest.brewWait) return null
         if (id != null) {
             // Closing and idle telemetry during confirmation do not replace the last valve-open time.

@@ -19,7 +19,8 @@ class ExtractionElapsedDisplayTest {
     private fun ShotSeries.display(
         latest: HoyiMessage? = idle, state: ExtractionState = ExtractionState.RUNNING,
         connection: DeviceState = DeviceState.READY, at: Long = 4_000, now: Long = at,
-    ) = displayElapsedSeconds(latest, connection, at, now, state)
+        preparingNextShot: Boolean = false,
+    ) = displayElapsedSeconds(latest, connection, at, now, state, preparingNextShot)
 
     @Test fun closingAndIdleConfirmationKeepLastMachineTimeThenCompletionSurvivesStaleIdleAndReentry() {
         val cup = ShotSeries()
@@ -56,6 +57,7 @@ class ExtractionElapsedDisplayTest {
         cup.begin("previous", 100)
         cup.machine(extraction(14), 1_000, null, null)
         cup.finish(observedEnd = true)
+        assertNull(cup.display(state = ExtractionState.ENDED_OBSERVED, preparingNextShot = true))
         assertNull(cup.display(extraction(0, bits = 96), ExtractionState.ENDED_OBSERVED))
         assertNull(cup.display(extraction(0), ExtractionState.ENDED_OBSERVED))
         cup.begin("next", 4_500)
