@@ -125,6 +125,14 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          # The copy fixture keeps its 411dp phone width while quartering the host framebuffer pixels.
+          pre-emulator-launch-script: >-
+            if [ "$AI_COPY_CHECKS" = "true" ]; then
+            config="$ANDROID_AVD_HOME/${CI_CARD_AVD}.avd/config.ini";
+            test -s "$config" &&
+            sed -i -E '/^(hw[.]lcd[.](width|height|density)|skin[.](name|path))[[:space:]]*=/d' "$config" &&
+            printf '%s\n' 'hw.lcd.width=720' 'hw.lcd.height=1560' 'hw.lcd.density=280' 'skin.name=720x1560' 'skin.path=720x1560' >> "$config";
+            fi
           script: >-
             if [ "$PAGE_BACKGROUND_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py --with-backgrounds;
             elif [ "$THEME_PALETTE_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py;
@@ -139,6 +147,31 @@ jobs:
           path: build/ai-card-construction/
           if-no-files-found: warn
           retention-days: 7
+      - name: Collect AI copy emulator host failure context
+        if: failure() && env.AI_COPY_CHECKS == 'true'
+        run: |
+          mkdir -p build/ai-message-copy
+          {
+            free -m
+            group=$(sed -n 's/^0:://p' /proc/self/cgroup)
+            for control in memory.max memory.events; do
+              for directory in /sys/fs/cgroup "/sys/fs/cgroup${group%/}"; do
+                if [ -r "$directory/$control" ]; then
+                  printf '\n%s\n' "$directory/$control"
+                  cat "$directory/$control"
+                fi
+              done
+            done
+            printf '\nEmulator crash report metadata (if available):\n'
+            for database in /tmp/android-*/emu-crash-*.db; do
+              if [ -d "$database" ]; then
+                find "$database" -maxdepth 2 -type f -printf '%TF %TT %s %p\n' | sort | tail -20
+              fi
+            done
+            printf '\nRecent kernel OOM/emulator warnings (if accessible):\n'
+            sudo -n dmesg --time-format iso --level=emerg,alert,crit,err,warn |
+              grep -Ei 'out of memory|oom[-_ ]|killed process|segfault|qemu|kvm|emulat' | tail -100
+          } > build/ai-message-copy/host-failure.txt 2>&1 || true
       - name: Upload AI message copy evidence
         if: always() && env.AI_COPY_CHECKS == 'true'
         uses: actions/upload-artifact@v6
