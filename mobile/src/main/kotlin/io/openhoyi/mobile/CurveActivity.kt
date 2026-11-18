@@ -78,6 +78,7 @@ class CurveActivity : ThemedActivity() {
             orientation = LinearLayout.VERTICAL
             tag = "product/curve-library/root"
             setBackgroundColor(productStyle.page)
+            this@CurveActivity.installPageBackdrop(this, productStyle.page)
             setOnApplyWindowInsetsListener { view, insets ->
                 val bars = if (Build.VERSION.SDK_INT >= 30) {
                     val a = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())

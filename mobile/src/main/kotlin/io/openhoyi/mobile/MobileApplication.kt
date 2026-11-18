@@ -16,6 +16,7 @@ class MobileApplication : Application() {
     init { AiSdkLogging.install() }
     internal var offlinePreviewProcessReady = false
         private set
+    internal val pageBackgrounds by lazy { AppBackgroundStore(this) }
     internal lateinit var appearancePreferences: AppAppearancePreference
         private set
     internal lateinit var languagePreferences: AppLanguagePreference

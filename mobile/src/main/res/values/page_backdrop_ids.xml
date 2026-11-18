@@ -1,0 +1,4 @@
+<resources>
+    <item name="page_backdrop_content" type="id" />
+    <item name="page_background_editor_scroll" type="id" />
+</resources>

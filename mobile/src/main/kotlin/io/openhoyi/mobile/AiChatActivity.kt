@@ -169,6 +169,7 @@ class AiChatActivity : ThemedActivity() {
                 draftSave = scope.launch { delay(300); persistSession() }
             }
         })
+        installPageBackdrop(presentation.root, visual.palette.page)
         setContentView(presentation.root)
         render()
         if (memory.focused) input.requestFocus()

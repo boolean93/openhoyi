@@ -121,6 +121,7 @@ class ExtractionActivity : ThemedActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(style.page)
+            this@ExtractionActivity.installPageBackdrop(this, style.page)
             setOnApplyWindowInsetsListener { view, insets ->
                 if (Build.VERSION.SDK_INT >= 30) {
                     val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())

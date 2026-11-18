@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="background_title">Page background</string>
+    <string name="background_customize">Customize</string>
+    <string name="background_hint">Backgrounds are separate from palette and light or dark mode. Photos stay on this device; text and charts keep a solid surface.</string>
+    <string name="background_preview">Background preview</string>
+    <string name="background_preview_detail">Text and data keep a solid surface</string>
+    <string name="background_solid">Default solid</string>
+    <string name="background_mist">Soft Mist</string>
+    <string name="background_slate">Slate Haze</string>
+    <string name="background_photo">Imported photo</string>
+    <string name="background_choose_photo">Choose a photo</string>
+    <string name="background_mask">Mask %1$d%%</string>
+    <string name="background_restore">Restore default</string>
+    <string name="background_cancel">Cancel</string>
+    <string name="background_apply">Apply</string>
+    <string name="background_preparing">Preparing preview…</string>
+    <string name="background_saving">Saving background…</string>
+    <string name="background_import_failed">Could not read the image. Choose a still JPEG, PNG or WebP up to 20 MB.</string>
+    <string name="background_photo_unavailable">The photo is unavailable. The app is using its solid background. Choose another photo or restore the default.</string>
+    <string name="background_restore_interrupted">The unsaved background is unavailable. The current background has been restored.</string>
+    <string name="background_save_failed">Could not save the background. Your current background has not changed.</string>
+    <string name="background_changed_elsewhere">The background changed in another window. Review the preview before applying.</string>
+</resources>

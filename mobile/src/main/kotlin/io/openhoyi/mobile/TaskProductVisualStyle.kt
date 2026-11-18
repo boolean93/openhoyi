@@ -177,6 +177,7 @@ internal class TaskProductVisualStyle(val context: Context) {
         }
         val body = column()
         shell.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
+        activity.installPageBackdrop(root, page)
         val actions = BeanActionRows(activity)
         shell.addView(actions, LinearLayout.LayoutParams(-1, -2))
         body.tag = BeanPageRegions(actions, header)

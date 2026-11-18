@@ -123,6 +123,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(style.page)
+            host.installPageBackdrop(this, style.page)
 
         }
         val content = LinearLayout(host).apply {

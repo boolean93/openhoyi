@@ -24,6 +24,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var unifiedSwitchChecks = false
     private var fontSizeChecks = false
     private var themePaletteChecks = false
+    private var pageBackgroundChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
     private var shortcutTheme: Boolean? = null
@@ -80,6 +81,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
         themePaletteChecks = arguments?.getString("themePaletteChecks") == "true"
+        pageBackgroundChecks = arguments?.getString("pageBackgroundChecks") == "true"
         darkThemeWindow = arguments?.getString("darkThemeWindow")?.let { check(it in setOf("light", "dark")); it == "dark" }
         connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
         settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
@@ -158,6 +160,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (downloadRoutingChecks) {
                 ReleaseDownloadRoutingChecks(this).run()
                 report.putString("stream", "DOWNLOAD_ROUTING_PASSED settingsInline=true otherPagePopup=true navigation=true recreation=true transferPreserved=true noInstaller=true noNetwork=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (pageBackgroundChecks) {
+                check(disposableCiEmulator && !themePaletteChecks) { "Background checks require the dedicated disposable run" }
+                PageBackgroundRuntimeChecks(this).run()
+                report.putString("stream", "PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivityRecreateOnApply=true cancelFailureStale=true privateFiles=true aiHeaderFade=true aiComposer=true aiAttachmentMenu=true screenshots=18 noModelRequest=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (themePaletteChecks) {

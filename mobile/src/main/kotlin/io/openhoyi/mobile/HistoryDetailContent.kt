@@ -268,7 +268,7 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
     // This is a sample observation, not an inferred final outcome or stored new field.
     val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water")
-    val chart = ShotChartView(this, visual, standalonePlotMinimumDp = 160f).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
+    val chart = ShotChartView(this, visual, standalonePlotMinimumDp = 160f).apply { protectBackdropContent(); tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
     plot.chart = chart
     plot.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(4) })
     val summary = style.column("product/history/summary")

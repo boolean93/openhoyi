@@ -129,12 +129,18 @@ class AppSettingsFragment : Fragment() {
         val root = SettingsDocumentLayout(activity, state ?: documentState).also { document=it }
         style.action(root.body, getString(R.string.ai_title), "settings/ai-assistant", top = 0) {
             activity.startActivity(Intent(activity, AiChatActivity::class.java))
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        }.apply {
+            asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            protectBackdropContent(group = root.shortcutsBackdrop, horizontalBounds = root.body)
+        }
         if (BuildConfig.MOCK_MODE) {
             style.action(root.body, getString(R.string.ai_preview_title), "settings/ai-chat-preview", top = 8) {
                 // Mock-only fixed destination. No Key, service, or live chat route is opened.
                 activity.startActivity(Intent().setClassName(activity, "io.openhoyi.mobile.AiChatPreviewActivity"))
-            }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+            }.apply {
+                asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                protectBackdropContent(group = root.shortcutsBackdrop, horizontalBounds = root.body)
+            }
         }
         val sections = linkedMapOf(
             "devices" to root.section("devices", getString(R.string.home_device_connection)),
@@ -221,6 +227,7 @@ class AppSettingsFragment : Fragment() {
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val theme = sections.getValue("appearance")
         appearanceCard = AppThemePreferencesCard(activity, theme, visual) { activity.recreate() }
+        addBackgroundSettingsRow(activity, theme, visual)
         settingsDivider(activity, theme, visual)
         languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()

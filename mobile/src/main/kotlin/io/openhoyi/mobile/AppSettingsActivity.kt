@@ -48,6 +48,7 @@ class AppSettingsActivity : ThemedActivity() {
         val body=visual.page(this,R.string.app_settings_title,R.string.app_settings_subtitle,640,"app")
         val theme = settingsGroup(this, body, getString(R.string.settings_appearance_language), visual)
         appearanceCard = AppThemePreferencesCard(this, theme, visual) { invalidateExportResult(); recreate() }
+        addBackgroundSettingsRow(this, theme, visual)
         settingsDivider(this, theme, visual)
         languageCard = AppLanguagePreferencesCard(this, theme, embedded = true, visual = visual) { invalidateExportResult();service?.refreshNotificationDisplay(); recreate() }
         fontSizeCard = AppFontSizePreferencesCard(this, theme, visual) { recreate() }
