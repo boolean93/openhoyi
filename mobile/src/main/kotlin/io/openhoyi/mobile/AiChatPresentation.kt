@@ -20,6 +20,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -469,44 +470,66 @@ internal class AiChatPresentation(
         }
     }
     private class MessageLinkMovement : LinkMovementMethod() {
-        var handledLongPress = false
+        private var suppressRelease = false
+        fun suppressRelease(widget: TextView) {
+            suppressRelease = true
+            (widget.text as? Spannable)?.let(Selection::removeSelection)
+        }
         override fun onTouchEvent(widget: TextView, buffer: Spannable, event: MotionEvent): Boolean {
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> handledLongPress = false
+                MotionEvent.ACTION_DOWN -> suppressRelease = false
                 MotionEvent.ACTION_CANCEL -> {
-                    handledLongPress = false
+                    suppressRelease = false
                     Selection.removeSelection(buffer)
                 }
-                MotionEvent.ACTION_UP -> if (handledLongPress) {
-                    handledLongPress = false
-                    return true // Showing the menu must not also open the link on finger-up.
+                MotionEvent.ACTION_UP -> if (suppressRelease) {
+                    suppressRelease = false
+                    return true // Neither a drag nor a long press is a link tap.
                 }
             }
             return super.onTouchEvent(widget, buffer, event)
         }
     }
     private fun bindMessageCopy(view: View, body: () -> String) {
-        var touchLocation: Pair<Int, Int>? = null
+        val slop = ViewConfiguration.get(view.context).scaledTouchSlop
+        var touchLocation: Pair<Float, Float>? = null
+        var dragged = false
+        fun suppressLinkRelease() {
+            if (view is TextView) (view.movementMethod as? MessageLinkMovement)?.suppressRelease(view)
+        }
         view.setOnTouchListener { _, event ->
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> touchLocation = event.rawX.toInt() to event.rawY.toInt()
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touchLocation = null
+                MotionEvent.ACTION_DOWN -> {
+                    touchLocation = event.rawX to event.rawY
+                    dragged = false
+                }
+                MotionEvent.ACTION_MOVE -> if (!dragged) touchLocation?.let { (x, y) ->
+                    val dx = event.rawX - x
+                    val dy = event.rawY - y
+                    if (dx * dx + dy * dy > slop * slop) {
+                        // A move can stay inside the message without the ScrollView intercepting it.
+                        dragged = true
+                        view.cancelLongPress()
+                        suppressLinkRelease()
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    touchLocation = null
+                    dragged = false
+                }
             }
-            false // View and ScrollView still own press timing, slop and cancellation.
+            false // Leave timing, event dispatch and scrolling to Android.
         }
         view.setOnLongClickListener {
-            if (body().isBlank() || !showMessageCopy(view, touchLocation, body)) return@setOnLongClickListener false
-            if (view is TextView && view.movementMethod is MessageLinkMovement) {
-                (view.movementMethod as MessageLinkMovement).handledLongPress = true
-                (view.text as? Spannable)?.let(Selection::removeSelection)
-            }
+            if (dragged || body().isBlank() || !showMessageCopy(view, touchLocation, body)) return@setOnLongClickListener false
+            suppressLinkRelease()
             true
         }
     }
-    private fun showMessageCopy(anchor: View, touchLocation: Pair<Int, Int>?, body: () -> String): Boolean {
+    private fun showMessageCopy(anchor: View, touchLocation: Pair<Float, Float>?, body: () -> String): Boolean {
         val visible = Rect()
         if (!anchor.isAttachedToWindow || !anchor.getLocalVisibleRect(visible)) return false
-        val (x, y) = touchLocation ?: IntArray(2).let {
+        val (x, y) = touchLocation?.let { it.first.toInt() to it.second.toInt() } ?: IntArray(2).let {
             // Accessibility long click has no pointer; use the visible portion of the message.
             anchor.getLocationOnScreen(it)
             (it[0] + visible.centerX()) to (it[1] + visible.centerY())

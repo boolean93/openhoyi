@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -86,7 +87,10 @@ internal object AiMessageCopyChecks {
             val focusDeadline = SystemClock.uptimeMillis() + 3000
             while (!activity.hasWindowFocus() && SystemClock.uptimeMillis() < focusDeadline) SystemClock.sleep(50)
             check(activity.hasWindowFocus()) { "Clipboard requires a focused foreground Activity" }
-            test.runOnMainSync { clipboard.setPrimaryClip(ClipData.newPlainText("Synthetic fixture", seedClip)) }
+            fun seedClipboard() = test.runOnMainSync {
+                clipboard.setPrimaryClip(ClipData.newPlainText("Synthetic fixture", seedClip))
+            }
+            seedClipboard()
 
             fun assertClip(expected: String?, reason: String) {
                 test.waitForIdleSync()
@@ -200,6 +204,26 @@ internal object AiMessageCopyChecks {
             check(opened == 1) { "Holding non-link text opened the link" }
             clickCopy(rendered)
 
+            seedClipboard()
+            val horizontalDistance = 3 * ViewConfiguration.get(activity).scaledTouchSlop
+            val horizontalStart = (link.first - horizontalDistance) to link.second
+            test.runOnMainSync {
+                val left = IntArray(2).also { message.getLocationOnScreen(it) }[0]
+                check(horizontalStart.first > left && link.first < left + message.width) {
+                    "Horizontal regression must stay inside the body"
+                }
+            }
+            val horizontalDown = SystemClock.uptimeMillis()
+            touch(test, horizontalDown, MotionEvent.ACTION_DOWN, horizontalStart)
+            SystemClock.sleep(32)
+            touch(test, horizontalDown, MotionEvent.ACTION_MOVE, link)
+            SystemClock.sleep(longPress)
+            touch(test, horizontalDown, MotionEvent.ACTION_UP, link)
+            test.waitForIdleSync()
+            assertNoMenu("Horizontal drag inside the message opened a copy menu")
+            assertClip(seedClip, "Horizontal drag inside the message copied")
+            check(opened == 1) { "Dragging onto a link opened it" }
+
             var padding = 0f to 0f
             test.runOnMainSync {
                 val container = bubble("ai/chat/assistant")
@@ -211,14 +235,14 @@ internal object AiMessageCopyChecks {
             menuButton("Copy")
             press(point(chat.send))
             assertNoMenu("Outside tap did not dismiss the message menu")
-            assertClip(rendered, "Outside dismissal changed the clipboard")
+            assertClip(seedClip, "Outside dismissal changed the clipboard")
 
             press(nonLink, longPress)
             menuButton("Copy")
             test.runOnMainSync { chat.render(lines, "", false, "", previewSession = "next") }
             test.waitForIdleSync()
             assertNoMenu("A menu from the previous session remained actionable")
-            assertClip(rendered, "Replacing the session copied its old text")
+            assertClip(seedClip, "Replacing the session copied its old text")
 
             test.runOnMainSync {
                 chat.render(emptyList(), "Pending question", true, "")
@@ -232,7 +256,7 @@ internal object AiMessageCopyChecks {
                     phase = AiStreamPreview.Phase.CONTENT))
             }
             menuButton("Copy")
-            assertClip(rendered, "Streaming long press copied without confirmation")
+            assertClip(seedClip, "Streaming long press copied without confirmation")
             test.runOnMainSync {
                 chat.updateStreamPreview(AiStreamPreview.Snapshot(content = "$streamText updated again",
                     reasoning = "Never copy this reasoning", phase = AiStreamPreview.Phase.CONTENT))
@@ -248,12 +272,13 @@ internal object AiMessageCopyChecks {
             press(point(target("ai/chat/partial-answer")), longPress)
             clickCopy(partialText)
 
+            seedClipboard()
             press(point(target("ai/chat/partial-answer")), longPress)
             menuButton("Copy")
             test.runOnMainSync { chat.resetStreamPreview() }
             test.waitForIdleSync()
             assertNoMenu("A menu from a discarded streaming preview remained actionable")
-            assertClip(partialText, "Discarding the stream changed the clipboard")
+            assertClip(seedClip, "Discarding the stream changed the clipboard")
 
             val cardLines = listOf(AiChatLine(false, "", curveCards = listOf(card)), AiChatLine(true, "", listOf(image)))
             test.runOnMainSync {
@@ -268,10 +293,10 @@ internal object AiMessageCopyChecks {
             test.waitForIdleSync()
             press(point(target("ai/curve-card/${card.id}")), longPress)
             assertNoMenu("Holding a card opened a copy menu")
-            assertClip(partialText, "Holding a card changed the clipboard")
+            assertClip(seedClip, "Holding a card changed the clipboard")
             press(point(target("ai/chat/message-image")), longPress)
             assertNoMenu("Holding an image attachment opened a copy menu")
-            assertClip(partialText, "Holding an image attachment changed the clipboard")
+            assertClip(seedClip, "Holding an image attachment changed the clipboard")
 
             test.runOnMainSync {
                 chat.render(listOf(AiChatLine(false, "A long line in the conversation.\n".repeat(80))), "", false, "")
@@ -290,11 +315,18 @@ internal object AiMessageCopyChecks {
             touch(test, down, MotionEvent.ACTION_UP, x to (y - distance))
             test.waitForIdleSync()
             assertNoMenu("Dragging the transcript opened a copy menu")
-            assertClip(partialText, "Dragging the transcript copied a message")
+            assertClip(seedClip, "Dragging the transcript copied a message")
             test.runOnMainSync { check(chat.scroll.scrollY > 0) { "Gesture did not actually scroll" } }
 
             install(AppLanguage.CHINESE, AppFontSize.SMALL, dark = false)
             press(point(body("ai/chat/user")), longPress)
+            clickCopy(userText, "复制")
+            seedClipboard()
+            test.runOnMainSync {
+                check(body("ai/chat/user").performAccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, null))
+            }
+            test.waitForIdleSync()
+            assertClip(seedClip, "Accessibility long click copied without confirmation")
             clickCopy(userText, "复制")
         } finally {
             test.runOnMainSync { activity.finish() }
