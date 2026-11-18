@@ -368,12 +368,7 @@ internal class AiChatPresentation(
             status.postDelayed(waitingDots, 500L)
         }
     }
-    fun closeImagePreviews() {
-        stopWaitingDots()
-        imagePreviews?.close()
-        imagePreviews = null
-        renderedContent = null
-    }
+    fun closeImagePreviews() { stopWaitingDots(); imagePreviews?.close(); imagePreviews = null }
     private fun showAttachmentMenu(anchor: View) {
         if (!anchor.isEnabled || !anchor.isAttachedToWindow) return
         options?.dismiss()
@@ -479,6 +474,22 @@ internal class AiChatPresentation(
                 android.widget.Toast.LENGTH_SHORT).show()
         }
     }
+    private fun messageCopyButton(user: Boolean = false, body: () -> String) =
+        style.button(Button(context), outline = false).apply {
+            tag = "ai/chat/message-copy"
+            setText(R.string.ai_message_copy)
+            minHeight = style.dp(48); minimumHeight = style.dp(48)
+            if (user) {
+                setTextColor(Color.WHITE)
+                val focus = StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), style.shape(0x33FFFFFF, radius = 12))
+                    addState(intArrayOf(), style.shape(Color.TRANSPARENT, radius = 12))
+                }
+                background = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF),
+                    focus, style.shape(Color.WHITE, radius = 12))
+            }
+            setOnClickListener { copyMessage(body()) }
+        }
     private fun bubble(text: String, user: Boolean, images: List<AiAttachment> = emptyList()) {
         val row = object : LinearLayout(context) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -538,6 +549,10 @@ internal class AiChatPresentation(
                 addView(strip, FrameLayout.LayoutParams(-2, -2))
             }, LinearLayout.LayoutParams(-2, style.dp(180)).apply { if (text.isNotBlank()) topMargin = style.dp(8) })
         }
+        if (message.text.isNotBlank()) {
+            content.addView(messageCopyButton(user) { message.text.toString() },
+                LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.END })
+        }
         row.addView(content, LinearLayout.LayoutParams(-2, -2))
         style.add(transcript, row, 10)
     }
@@ -571,6 +586,7 @@ internal class AiChatPresentation(
             bindMessageCopy(this) { streamSnapshot.content }
         }
     }
+    private val partialCopy by lazy { messageCopyButton { streamSnapshot.content } }
     private val toolProgress by lazy { style.text(context.getString(R.string.ai_stream_tool), TaskProductVisualStyle.auxiliary, secondary = true) }
     fun resetStreamPreview() { streamExpanded = false; updateStreamPreview(AiStreamPreview.Snapshot()) }
     fun updateStreamPreview(snapshot: AiStreamPreview.Snapshot) {
@@ -580,6 +596,7 @@ internal class AiChatPresentation(
             style.add(streamHost, thinkingBody)
             style.add(streamHost, toolProgress)
             style.add(streamHost, partialAnswer)
+            streamHost.addView(partialCopy, LinearLayout.LayoutParams(-2, -2))
         }
         val hasThinking = snapshot.reasoning.isNotBlank()
         thinkingToggle.visibility = if (hasThinking) View.VISIBLE else View.GONE
@@ -593,6 +610,7 @@ internal class AiChatPresentation(
             (if (snapshot.contentTruncated) "\n\n" + context.getString(R.string.ai_stream_preview_truncated) else "") +
             (if (interrupted) "\n\n" + context.getString(R.string.ai_stream_incomplete) else "") else ""
         partialAnswer.visibility = if (showContent) View.VISIBLE else View.GONE
+        partialCopy.visibility = partialAnswer.visibility
         streamHost.visibility = if (hasThinking || showContent || (busy && snapshot.toolStarted)) View.VISIBLE else View.GONE
         val phase = when {
             snapshot.phase == AiStreamPreview.Phase.TOOL -> R.string.ai_stream_tool
@@ -643,23 +661,9 @@ internal class AiChatPresentation(
         }
         draftImageScroll.visibility = if (draftImages.childCount == 0) View.GONE else View.VISIBLE
     }
-    private data class CardActions(val open: Boolean, val review: Boolean, val library: Boolean)
-    private data class ContentRender(
-        val lines: List<AiChatLine>,
-        val busy: Boolean,
-        val pendingDraft: String?,
-        val attachments: List<AiAttachment>,
-        val draftImagesEnabled: Boolean,
-        val ownerEpoch: String?,
-        val previewSession: String?,
-        val cardActions: List<CardActions>,
-    )
-
-    private var renderedContent: ContentRender? = null
-
-    private fun renderContent(state: ContentRender) {
-        val (lines, busy, draft, attachments, draftImagesEnabled, ownerEpoch, previewSession) = state
-        val cardActions = state.cardActions.iterator()
+    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null) {
+        currentModelId = AiModelPolicy.known(modelId).id
+        this.busy = busy
         // Synthetic offline shells pass no owner, so they never open storage or create a loader.
         if (ownerEpoch != null && imagePreviews == null) imagePreviews = AiImagePreviews(context, root)
         imagePreviews?.begin(ownerEpoch, previewSession, lines.flatMap { it.attachments } + attachments)
@@ -671,14 +675,13 @@ internal class AiChatPresentation(
             bubble(AiImagePreviewPolicy.visibleText(line.text, line.attachments), line.user,
                 line.attachments.filter { it.kind == AiAttachmentKind.IMAGE })
             if (!line.user) line.curveCards.forEach { card ->
-                val actions = cardActions.next()
                 val cardView = AiCurveCardView(context, card, style,
                     context.resources.configuration.locales[0].language != "zh",
                     onOpen = onOpenCurve?.let { callback -> { callback(card) } },
-                    onReview = if (actions.review) onReviewCurve?.let { callback -> { callback(card) } } else null,
-                    referenceAvailable = actions.open,
+                    onReview = if (!busy && curveReviewable(card)) onReviewCurve?.let { callback -> { callback(card) } } else null,
+                    referenceAvailable = curveAvailable(card),
                     onViewCurve = onViewCurve?.let { callback -> { callback(card) } },
-                    libraryReferenceAvailable = actions.library)
+                    libraryReferenceAvailable = curveLibraryAvailable(card))
                 val cardHost = object : FrameLayout(context) {
                     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                         val available = View.MeasureSpec.getSize(widthMeasureSpec)
@@ -692,27 +695,9 @@ internal class AiChatPresentation(
                 style.add(transcript, cardHost, 8)
             }
         }
-        if (busy) bubble(AiImagePreviewPolicy.visibleText(requireNotNull(draft), attachments), true,
+        if (busy) bubble(AiImagePreviewPolicy.visibleText(draft, attachments), true,
             attachments.filter { it.kind == AiAttachmentKind.IMAGE })
-        style.add(transcript, streamHost, 8)
-        style.add(transcript, status, 12)
-        renderDraftImages(if (busy) emptyList() else attachments, draftImagesEnabled)
-    }
-
-    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null) {
-        currentModelId = AiModelPolicy.known(modelId).id
-        this.busy = busy
-        val cardActions = lines.filterNot { it.user }.flatMap { line ->
-            line.curveCards.map { CardActions(curveAvailable(it), !busy && curveReviewable(it), curveLibraryAvailable(it)) }
-        }
-        // A status refresh must not detach the view that owns an in-flight long press.
-        // Snapshot the mutable host lists; actual content, ownership or card action changes still rebuild.
-        val content = ContentRender(lines.toList(), busy, draft.takeIf { busy }, attachments.toList(),
-            !busy && !attachmentBusy, ownerEpoch, previewSession, cardActions)
-        if (content != renderedContent) {
-            renderContent(content)
-            renderedContent = content
-        }
+        renderDraftImages(if (busy) emptyList() else attachments, !busy && !attachmentBusy)
         val files = attachments.filter { it.kind != AiAttachmentKind.IMAGE }
         draftFiles.removeAllViews()
         files.forEach { item ->
@@ -730,6 +715,9 @@ internal class AiChatPresentation(
         }
         draftFiles.visibility = if (files.isEmpty()) View.GONE else View.VISIBLE
         attachmentButton?.isEnabled = !busy && !attachmentBusy
+        (streamHost.parent as? android.view.ViewGroup)?.removeView(streamHost)
+        style.add(transcript, streamHost, 8)
+        style.add(transcript, status, 12)
         streamBaseStatus = statusText
         updateStreamPreview(streamSnapshot)
         input.isEnabled = !busy && !attachmentBusy
