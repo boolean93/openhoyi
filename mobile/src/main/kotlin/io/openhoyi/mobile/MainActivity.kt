@@ -60,7 +60,6 @@ class MainActivity : ThemedActivity() {
     private var scanAfterBind = false
     private var reconnectScaleAfterBind: Pair<String, String>? = null
     private var reconnectCoffeeAfterBind=false
-    private var lastPresentedManualShotId: String? = null
     private var foreground = false
     private val handler = Handler(Looper.getMainLooper())
     private val manualPresentation = object : Runnable {
@@ -115,11 +114,10 @@ class MainActivity : ThemedActivity() {
         presentManualShotIfNew()
     }
     private fun presentManualShotIfNew() {
-        if (!foreground) return
-        val id = service?.manualShotPresentationId ?: return
-        if (id == lastPresentedManualShotId) return
-        lastPresentedManualShotId = id
-        showExtraction()
+        if (service == null) return
+        val presentation = (application as MobileApplication).manualShotPresentation
+        val resumed = foreground && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !isFinishing
+        if (presentation.claim(resumed)) showExtraction()
     }
     internal val currentService get() = service
     override fun onUserInteraction() {
@@ -259,7 +257,6 @@ class MainActivity : ThemedActivity() {
             ?: intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7)
         scaleSettingsReturn = savedInstanceState?.getBoolean("settingsScaleReturn") ?: false
         settingsOrigin=savedInstanceState?.getString("settingsOrigin")?.let { runCatching {TaskDestination.valueOf(it)}.getOrNull() }
-        lastPresentedManualShotId = savedInstanceState?.getString(STATE_MANUAL_SHOT_ID)
         val style = TaskProductVisualStyle(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -550,7 +547,6 @@ class MainActivity : ThemedActivity() {
         outState.putInt(STATE_PAGE_ID, pageId)
         outState.putBoolean(STATE_EXTRACTION, extractionVisible)
         outState.putInt(STATE_EXTRACTION_SLOT, extractionSlot)
-        outState.putString(STATE_MANUAL_SHOT_ID, lastPresentedManualShotId)
         super.onSaveInstanceState(outState)
     }
 
@@ -660,6 +656,5 @@ class MainActivity : ThemedActivity() {
         private const val STATE_PAGE_ID = "task.page_id"
         private const val STATE_EXTRACTION = "task.extraction"
         private const val STATE_EXTRACTION_SLOT = "task.extraction_slot"
-        private const val STATE_MANUAL_SHOT_ID = "task.manual_shot_id"
     }
 }
