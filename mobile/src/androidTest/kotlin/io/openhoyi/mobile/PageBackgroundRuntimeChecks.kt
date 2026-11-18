@@ -291,27 +291,33 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             yield(view)
             if (view is ViewGroup) for (i in 0 until view.childCount) yieldAll(nodes(view.getChildAt(i)))
         }
-        val settings = go(TaskDestination.SETTINGS)
-        val scroll = settings.findViewWithTag<ScrollView>("settings/document/scroll")
+        val settings = go(TaskDestination.SETTINGS) as SettingsDocumentLayout
+        val scroll = settings.scroll
+        val section = main { settings.findViewWithTag<View>("settings/section/devices") }
         main {
             check(host.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG).navigation.background !is PageBackdrop)
             scroll.scrollTo(0, HoyiUi.dp(host, 120))
         }
-        await("settings content actually scrolled") { scroll.scrollY > 0 }
-        main {
-            requireSamePanel(settings, settings.findViewWithTag("settings/document/title"),
-                settings.findViewWithTag("settings/document/index-picker"))
-            val section = settings.findViewWithTag<View>("settings/section/devices")
-            val viewport = localRect(settings, section)
+        await("settings backing matches the section's scrolled visible bounds") {
+            if (scroll.scrollY <= 0) return@await false
+            val viewport = localRect(settings, section) ?: return@await false
+            val column = localRect(settings, settings.body) ?: return@await false
             val origin = IntArray(2).also { settings.getLocationInWindow(it) }
             val sectionOrigin = IntArray(2).also { section.getLocationInWindow(it) }
-            val gapY = sectionOrigin[1] - origin[1] + section.height - section.paddingBottom / 2
-            if (viewport != null && gapY in viewport.top until viewport.bottom) {
-                val paper = settings.background as PageBackdrop
-                check(paper.protectedAreas.orEmpty().none { it.contains(viewport.centerX(), gapY) }) {
-                    "Settings section padding must remain available for the background"
-                }
+            val sectionBottom = sectionOrigin[1] - origin[1] + section.height
+            val content = Rect(column.left, viewport.top, column.right,
+                minOf(viewport.bottom, sectionBottom - section.paddingBottom))
+            val areas = (settings.background as PageBackdrop).protectedAreas.orEmpty()
+            // scrollY changes synchronously; the drawable's geometry follows on traversal.
+            if (content.isEmpty || content !in areas) return@await false
+            requireSamePanel(settings, settings.findViewWithTag("settings/document/title"),
+                settings.findViewWithTag("settings/document/index-picker"))
+            val gapY = sectionBottom - section.paddingBottom / 2
+            check(gapY in viewport.top until viewport.bottom) { "Settings section gap must be visible in the fixture" }
+            check(areas.none { it.contains(content.centerX(), gapY) }) {
+                "Settings section padding must remain available for the background"
             }
+            true
         }
         captureApplied(host, settings, "$mode-settings.png") {
             nodes(scroll).filterIsInstance<TextView>().first {
