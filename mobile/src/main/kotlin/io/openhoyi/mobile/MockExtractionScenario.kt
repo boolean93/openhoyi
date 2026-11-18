@@ -59,6 +59,7 @@ internal class MockExtractionScenario(
         }
     }
     private var controller: ExtractionController? = null
+    val displayOutcomeWasUnknown get() = controller?.displayOutcomeWasUnknown == true
     val state get() = requireNotNull(controller) { "Mock extraction scenario is not installed" }.state
     val stopReason get() = controller?.stopReason?.name
     val preparingScale get() = controller?.preparingScale == true
