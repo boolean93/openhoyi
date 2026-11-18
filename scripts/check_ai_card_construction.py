@@ -33,7 +33,8 @@ def capture_copy_logcat(serial, output):
     with (output / 'gesture-logcat.txt').open('wb') as log:
         command = ['adb', '-s', serial, 'logcat', '-b', 'main,system,crash', '-v', 'threadtime',
                    'OpenHoyiAiCopy:I', 'AndroidRuntime:E', 'ActivityManager:W',
-                   'ActivityTaskManager:W', 'lmkd:I', 'libc:F', 'DEBUG:F', '*:S']
+                   'ActivityTaskManager:W', 'InputDispatcher:W', 'WindowManager:W',
+                   'lmkd:I', 'libc:F', 'DEBUG:F', '*:S']
         process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
         try:
             yield

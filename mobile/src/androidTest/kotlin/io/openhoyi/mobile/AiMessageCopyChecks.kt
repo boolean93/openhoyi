@@ -116,7 +116,7 @@ internal object AiMessageCopyChecks {
                 }
                 return result
             }
-            fun press(at: Pair<Float, Float>, duration: Long = 60, afterDown: (() -> Unit)? = null) {
+            fun press(at: Pair<Float, Float>, duration: Long = 60, trace: String? = null, afterDown: (() -> Unit)? = null) {
                 var time = 0L
                 test.runOnMainSync {
                     check(windowContent.pending == null)
@@ -126,15 +126,20 @@ internal object AiMessageCopyChecks {
                         windowContent.pending = time to afterDown
                     }
                 }
+                trace?.let { stage("$it-touch-down") }
                 touch(test, time, MotionEvent.ACTION_DOWN, at)
+                trace?.let { stage("$it-touch-down-delivered") }
                 if (afterDown != null) test.runOnMainSync {
                     check(windowContent.pending == null && windowContent.refreshedDownTime == time) {
                         "Refresh did not run during the injected DOWN dispatch"
                     }
                 }
                 SystemClock.sleep(duration)
+                trace?.let { stage("$it-touch-up") }
                 touch(test, time, MotionEvent.ACTION_UP, at)
+                trace?.let { stage("$it-touch-up-delivered") }
                 test.waitForIdleSync()
+                trace?.let { stage("$it-idle") }
             }
             fun assertNoMenu(reason: String) = test.runOnMainSync {
                 check(chat.options == null && chat.root.findViewWithTag<View>("ai/chat/message-copy") == null) { reason }
@@ -193,15 +198,10 @@ internal object AiMessageCopyChecks {
             stage("link-copy-action")
             clickCopy(rendered)
 
-            stage("user-copy-and-back")
-            press(point(body("ai/chat/user")), longPress)
-            menuButton("Copy")
+            stage("user-menu-copy")
+            press(point(body("ai/chat/user")), longPress, trace = "user-menu")
+            stage("user-menu-clipboard-before-action")
             assertClip(rendered, "Opening the user message menu changed the clipboard")
-            test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-            test.waitForIdleSync()
-            assertNoMenu("Back did not dismiss the copy menu")
-            assertClip(rendered, "Cancelling the user message menu changed the clipboard")
-            press(point(body("ai/chat/user")), longPress)
             clickCopy(userText)
 
             stage("status-refresh-during-hold")
@@ -346,6 +346,31 @@ internal object AiMessageCopyChecks {
             test.waitForIdleSync()
             assertClip(seedClip, "Accessibility long click copied without confirmation")
             clickCopy(userText, "复制")
+            // Keep Back independent from the other gestures so a failure before or
+            // inside input injection cannot obscure their evidence.
+            stage("back-case-setup")
+            install(AppLanguage.ENGLISH, AppFontSize.LARGE, dark = true)
+            seedClipboard()
+            press(point(body("ai/chat/user")), longPress, trace = "back-menu")
+            val cancelButton = menuButton("Copy")
+            stage("back-menu-visible")
+            assertClip(seedClip, "Opening the menu for Back changed the clipboard")
+            val popupFocusDeadline = SystemClock.uptimeMillis() + 3000
+            var popupFocused = false
+            do {
+                test.runOnMainSync { popupFocused = cancelButton.hasWindowFocus() }
+                if (!popupFocused) SystemClock.sleep(25)
+            } while (!popupFocused && SystemClock.uptimeMillis() < popupFocusDeadline)
+            check(popupFocused) { "Back would not target the copy popup" }
+            stage("back-key-down")
+            test.sendKeySync(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+            stage("back-key-up")
+            test.sendKeySync(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+            stage("back-key-delivered")
+            test.waitForIdleSync()
+            assertNoMenu("Back did not dismiss the copy menu")
+            assertClip(seedClip, "Cancelling the user message menu changed the clipboard")
+            test.runOnMainSync { check(!activity.isFinishing && chat.root.isAttachedToWindow) { "Back left the chat" } }
             stage("complete")
         } finally {
             test.runOnMainSync { activity.finish() }

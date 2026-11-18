@@ -154,6 +154,12 @@ jobs:
                 fi
               done
             done
+            printf '\nEmulator crash report metadata (if available):\n'
+            for database in /tmp/android-*/emu-crash-*.db; do
+              if [ -d "$database" ]; then
+                find "$database" -maxdepth 2 -type f -printf '%TF %TT %s %p\n' | sort | tail -20
+              fi
+            done
             printf '\nRecent kernel OOM/emulator warnings (if accessible):\n'
             sudo -n dmesg --time-format iso --level=emerg,alert,crit,err,warn |
               grep -Ei 'out of memory|oom[-_ ]|killed process|segfault|qemu|kvm|emulat' | tail -100
