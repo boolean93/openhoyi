@@ -218,7 +218,8 @@ class MobileService : Service() {
     private val settingWriteUnresolved: Boolean get() = settingsWrite.state == SettingsWriteTracker.State.UNKNOWN
     private val settingWriteUnresolvedMessage: String get() = getString(R.string.service_setting_unresolved)
     val settingWriteState: SettingsWriteTracker.State get() = if (mock?.lastSetting != null)
-        SettingsWriteTracker.State.CONFIRMED else if(lastSettingWasTemperature || temperatureWrite.pendingAfterRestart) temperatureWrite.state else settingsWrite.state
+        SettingsWriteTracker.State.CONFIRMED else TemperatureWritePresentation.feedbackState(settingsWrite.state,temperatureWrite.state,
+            lastSettingWasTemperature,temperatureWrite.pendingAfterRestart,settingsWrite.change!=null)
     val pendingSetting: MachineSettingChange? get() = mock?.lastSetting ?:
         if(lastSettingWasTemperature) temperatureWrite.change else settingsWrite.change
     val scheduleWriteState: SleepScheduleWriteTracker.State get() = if (mock?.scheduleChanged == true)

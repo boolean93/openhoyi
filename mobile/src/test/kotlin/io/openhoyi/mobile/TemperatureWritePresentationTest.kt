@@ -40,4 +40,14 @@ class TemperatureWritePresentationTest {
         assertTrue(dispatchAllowed()) // Unknown temperature feedback is not a machine fault.
     }
 
+    @Test fun explicitOrdinarySettingAfterRestartTakesFeedbackPriorityThroughConfirmation() {
+        assertEquals(State.UNKNOWN,TemperatureWritePresentation.feedbackState(State.IDLE,State.UNKNOWN,
+            false,true,false))
+        for(machine in listOf(State.WRITING,State.WAITING_READBACK,State.CONFIRMED,State.FAILED,State.RECONCILED)) {
+            assertEquals(machine,TemperatureWritePresentation.feedbackState(machine,State.UNKNOWN,false,true,true))
+        }
+        assertEquals(State.WAITING_READBACK,TemperatureWritePresentation.feedbackState(State.CONFIRMED,
+            State.WAITING_READBACK,true,false,true))
+    }
+
 }
