@@ -35,6 +35,7 @@ class ShotSeries {
         private set
     // Presentation only: a later idle can reconcile machine safety, but it
     // cannot recover the duration of a cup that was interrupted.
+    private var elapsedPassive = false
     private var elapsedInterrupted = false
     private var elapsedCompleted = false
     private var firstBrewingElapsedMs: Long? = null
@@ -48,7 +49,7 @@ class ShotSeries {
     private val recorded = mutableListOf<ShotPoint>()
     val points: List<ShotPoint> get() = recorded.toList()
 
-    fun begin(shotId: String, atElapsedMs: Long, curveId: String? = null) {
+    fun begin(shotId: String, atElapsedMs: Long, curveId: String? = null, passive: Boolean = false) {
         require(shotId.isNotBlank())
         require(curveId == null || curveId.isNotBlank())
         id = shotId
@@ -60,6 +61,7 @@ class ShotSeries {
         recorded.clear()
         beverageEstimator = BeverageWeightEstimator()
         observedMachineElapsedSeconds = null
+        elapsedPassive = passive
         elapsedInterrupted = false
         elapsedCompleted = false
         firstBrewingElapsedMs = null
@@ -125,9 +127,10 @@ class ShotSeries {
 
     internal fun displayElapsedSeconds(
         latest: HoyiMessage?, coffeeState: DeviceState, coffeeAt: Long?, now: Long,
-        state: ExtractionState, preparingNextShot: Boolean,
+        state: ExtractionState, preparingNextShot: Boolean, appOutcomeWasUnknown: Boolean = false,
     ): Int? {
-        if (preparingNextShot || elapsedInterrupted || state == ExtractionState.OUTCOME_UNKNOWN) return null
+        if (preparingNextShot || elapsedInterrupted || state == ExtractionState.OUTCOME_UNKNOWN ||
+            (id != null && !elapsedPassive && appOutcomeWasUnknown)) return null
         if (latest is ExtractionTelemetry && latest.brewWait) return null
         if (id != null) {
             // Closing and idle telemetry during confirmation do not replace the last valve-open time.
@@ -143,10 +146,10 @@ class ShotSeries {
         return observedMachineElapsedSeconds
     }
 
-    fun finish(observedEnd: Boolean = false): Pair<String, List<ShotPoint>>? {
+    fun finish(observedEnd: Boolean = false, appOutcomeWasUnknown: Boolean = false): Pair<String, List<ShotPoint>>? {
         val shotId = id ?: return null
         val result = shotId to recorded.toList()
-        elapsedCompleted = observedEnd && !elapsedInterrupted
+        elapsedCompleted = observedEnd && !elapsedInterrupted && (elapsedPassive || !appOutcomeWasUnknown)
         id = null
         return result
     }

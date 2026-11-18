@@ -19,8 +19,8 @@ class ExtractionElapsedDisplayTest {
     private fun ShotSeries.display(
         latest: HoyiMessage? = idle, state: ExtractionState = ExtractionState.RUNNING,
         connection: DeviceState = DeviceState.READY, at: Long = 4_000, now: Long = at,
-        preparingNextShot: Boolean = false,
-    ) = displayElapsedSeconds(latest, connection, at, now, state, preparingNextShot)
+        preparingNextShot: Boolean = false, appOutcomeWasUnknown: Boolean = false,
+    ) = displayElapsedSeconds(latest, connection, at, now, state, preparingNextShot, appOutcomeWasUnknown)
 
     @Test fun closingAndIdleConfirmationKeepLastMachineTimeThenCompletionSurvivesStaleIdleAndReentry() {
         val cup = ShotSeries()
@@ -52,6 +52,25 @@ class ExtractionElapsedDisplayTest {
         cup.finish(observedEnd = true)
         assertNull(cup.display(state = ExtractionState.ENDED_OBSERVED))
         assertEquals(14, cup.observedMachineElapsedSeconds) // Historical evidence is unchanged.
+    }
+
+    @Test fun stickyAppUncertaintyPreemptsWatcherButDoesNotLeakIntoNextManualCup() {
+        val cup = ShotSeries()
+        cup.begin("app", 100)
+        cup.machine(extraction(14), 1_000, null, null)
+        // The UI first reads the controller after it already settled on a fresh idle.
+        assertNull(cup.display(state = ExtractionState.ENDED_OBSERVED, appOutcomeWasUnknown = true))
+        cup.finish(observedEnd = true, appOutcomeWasUnknown = true)
+        assertNull(cup.display(state = ExtractionState.ENDED_OBSERVED))
+        assertEquals(14, cup.observedMachineElapsedSeconds)
+        cup.begin("manual", 8_000, "manual", passive = true)
+        cup.machine(extraction(17), 9_000, null, null)
+        // The App controller can keep the older shot's evidence while the passive detector runs.
+        assertEquals(17, cup.display(state = ExtractionState.ENDED_OBSERVED,
+            at = 9_000, appOutcomeWasUnknown = true))
+        cup.finish(observedEnd = true, appOutcomeWasUnknown = true)
+        assertEquals(17, cup.display(state = ExtractionState.ENDED_OBSERVED,
+            at = 9_000, appOutcomeWasUnknown = true))
     }
 
     @Test fun waitCandidateAndNewCupNeverUseOldCupTime() {

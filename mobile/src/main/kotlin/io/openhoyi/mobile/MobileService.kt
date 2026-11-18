@@ -245,9 +245,12 @@ class MobileService : Service() {
         if (frame is IdleTelemetry)
             extractionScaleReadout.observedIdle(snapshot.scaleObservation, snapshot.scaleState, at)
     }
+    private val appElapsedOutcomeWasUnknown: Boolean get() =
+        if (mockExtractionOwner != null) mockExtractionScenario.displayOutcomeWasUnknown
+        else hub?.extraction?.displayOutcomeWasUnknown == true
     internal fun extractionElapsedSeconds(now: Long): Int? = series.displayElapsedSeconds(
         snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now, shotState,
-        preparingNextShot = brewPreparation.active,
+        preparingNextShot = brewPreparation.active, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown,
     )
     val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points
@@ -741,7 +744,7 @@ class MobileService : Service() {
                     passiveStartedWallMs = System.currentTimeMillis() -
                         (observedAt - passiveEvent.first.atMs)
                     val provisionalId = java.util.UUID.randomUUID().toString()
-                    series.begin(provisionalId, passiveEvent.first.atMs, "manual")
+                    series.begin(provisionalId, passiveEvent.first.atMs, "manual", passive = true)
                     extractionScaleReadout.begin(provisionalId, null)
                     extractionScaleReadout.brewing()
                     manualPresentation.started(provisionalId)
@@ -2233,7 +2236,7 @@ class MobileService : Service() {
     private fun finishSeries(observedEnd: Boolean) {
         finishBrewFeedback(observedEnd)
         extractionScaleReadout.finish(observedEnd)
-        val finished = series.finish(observedEnd) ?: return
+        val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
         runCatching { history?.attachTimingEvidence(finished.first, series.observedMachineElapsedSeconds, series.observedSampleCoverageMs) }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
         val app = application as MobileApplication
