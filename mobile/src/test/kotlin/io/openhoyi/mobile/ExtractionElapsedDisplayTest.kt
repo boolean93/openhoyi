@@ -89,17 +89,36 @@ class ExtractionElapsedDisplayTest {
         assertNull(cup.display(state = ExtractionState.ENDED_OBSERVED))
     }
 
-    @Test fun passiveHistoryRebindKeepsSameCupWhileShortFlushNeverKeepsATerminalTime() {
+    @Test fun passiveHistoryRebindKeepsSameCup() {
         val cup = ShotSeries()
-        cup.begin("provisional", 100, "manual")
+        cup.begin("provisional", 100, "manual", passive = true)
         cup.machine(extraction(14), 1_000, null, null)
         cup.rebind("history")
         assertEquals(14, cup.display(state = ExtractionState.IDLE))
         assertEquals("history", cup.finish(observedEnd = true)?.first)
         assertEquals(14, cup.display(state = ExtractionState.IDLE))
-        cup.begin("flush", 5_000, "manual")
+    }
+
+    @Test fun observedShortReleaseKeepsItsMachineTimeWithoutHistoryRebind() {
+        val cup = ShotSeries()
+        cup.begin("flush", 5_000, "manual", passive = true)
+        cup.machine(extraction(7), 12_000, null, null)
+        cup.machine(extraction(0, bits = 0), 12_200, null, null)
+        assertEquals(7, cup.display(state = ExtractionState.IDLE, at = 12_200))
+        assertEquals("flush", cup.finish(observedEnd = true, appOutcomeWasUnknown = true)?.first)
+        assertEquals(7, cup.display(state = ExtractionState.IDLE, now = 60_000,
+            appOutcomeWasUnknown = true))
+        assertNull(cup.display(extraction(0), state = ExtractionState.IDLE))
+        cup.begin("next", 60_100)
+        assertNull(cup.display(state = ExtractionState.STARTING, at = 60_100))
+        cup.machine(extraction(1), 61_100, null, null)
+        assertEquals(1, cup.display(extraction(1), at = 61_100))
+    }
+
+    @Test fun interruptedShortReleaseDoesNotShowATerminalTimeWhenIdleReturns() {
+        val cup = ShotSeries()
+        cup.begin("flush", 5_000, "manual", passive = true)
         cup.machine(extraction(2), 7_000, null, null)
-        assertEquals(2, cup.display(state = ExtractionState.IDLE, at = 7_000))
         cup.finish(observedEnd = false)
         assertNull(cup.display(state = ExtractionState.IDLE, at = 9_000))
     }
