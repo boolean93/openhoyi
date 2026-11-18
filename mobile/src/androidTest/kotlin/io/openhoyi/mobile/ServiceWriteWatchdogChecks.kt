@@ -28,12 +28,12 @@ internal class ServiceWriteWatchdogChecks(private val test: Instrumentation) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
-        val names = listOf("shot_safety", "machine_write_safety", "curves")
+        val names = listOf("shot_safety", "machine_write_safety", "temperature_confirmation", "curves")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         val first = decode("8340FE0A00071E0A00071E0A00071E0A00071E3D") as SleepPart
         val second = decode("83800A00071E0A00071E0A00071E10") as SleepPart
         val settings = decode("830113FD5C007D0F350019006E") as Settings
-        val change = MachineSettingChange.BrewTemperature(93)
+        val change = MachineSettingChange.Light(false)
         val expected = requireNotNull(WeeklySleepSchedule.fromReadback(first, second))
         val target = WeeklySleepSchedule(expected.days.mapIndexed { index, day ->
             if (index == 0) day.copy(enabled = !day.enabled) else day

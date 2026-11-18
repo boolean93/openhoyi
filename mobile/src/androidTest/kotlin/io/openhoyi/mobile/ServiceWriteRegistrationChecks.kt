@@ -34,7 +34,7 @@ internal class ServiceWriteRegistrationChecks(private val test: Instrumentation)
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
-        val names = listOf("shot_safety", "machine_write_safety", "curves")
+        val names = listOf("shot_safety", "machine_write_safety", "temperature_confirmation", "curves")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         val first = decode("8340FE0A00071E0A00071E0A00071E0A00071E3D") as SleepPart
         val second = decode("83800A00071E0A00071E0A00071E10") as SleepPart
@@ -145,7 +145,7 @@ internal class ServiceWriteRegistrationChecks(private val test: Instrumentation)
                             val snapshotBefore = instance.snapshot
                             check(!recovery.pending && instance.machineControlSafetyMessage == null)
                             val result = when (kind) {
-                                MachineWriteRecoveryState.Kind.SETTING -> instance.changeMachineSetting(MachineSettingChange.BrewTemperature(93))
+                                MachineWriteRecoveryState.Kind.SETTING -> instance.changeMachineSetting(MachineSettingChange.Light(false))
                                 MachineWriteRecoveryState.Kind.CUP_RESET -> instance.resetCupCount(settings.cupCount)
                                 MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> instance.changeSleepSchedule(expected, target)
                                 MachineWriteRecoveryState.Kind.SLEEP_NOW -> instance.enterSleepNow()
