@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import android.app.Instrumentation
 import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
 import android.os.SystemClock
@@ -12,10 +13,32 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.TextView
 
 /** Uses real window input on an isolated Mock, not performClick/performLongClick. */
 internal object AiMessageCopyChecks {
+    private class DownObserver(context: Context) : FrameLayout(context) {
+        var pending: Pair<Long, () -> Unit>? = null
+        var refreshedDownTime: Long? = null
+
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            val handled = super.dispatchTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                val refresh = pending
+                if (refresh != null && event.downTime == refresh.first) {
+                    check(handled) { "Injected DOWN did not reach a touch target" }
+                    pending = null
+                    // The child already handled DOWN, but its delayed long-press callback
+                    // cannot run until this main-thread dispatch returns to the looper.
+                    refresh.second()
+                    refreshedDownTime = event.downTime
+                }
+            }
+            return handled
+        }
+    }
+
     fun run(test: Instrumentation) {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         val activity = test.startActivitySync(Intent(test.targetContext, AiChatPreviewActivity::class.java)
@@ -31,8 +54,8 @@ internal object AiMessageCopyChecks {
         var opened = 0
         var cardReferenceAvailable = false
         lateinit var chat: AiChatPresentation
-        val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
-        val longPress = longPressTimeout + 200
+        lateinit var windowContent: DownObserver
+        val longPress = ViewConfiguration.getLongPressTimeout().toLong() + 200
         try {
             test.runOnMainSync {
                 val context = AppLanguageContext.wrap(activity, AppLanguage.ENGLISH)
@@ -41,7 +64,10 @@ internal object AiMessageCopyChecks {
                     onOpenLink = { check(it == "https://example.test/local"); opened++ },
                     onOpenCurve = { error("No curve action is allowed") },
                     curveAvailable = { cardReferenceAvailable })
-                activity.setContentView(chat.root)
+                windowContent = DownObserver(activity).apply {
+                    addView(chat.root, FrameLayout.LayoutParams(-1, -1))
+                }
+                activity.setContentView(windowContent)
                 chat.render(lines, "", false, "")
             }
             test.waitForIdleSync()
@@ -71,11 +97,20 @@ internal object AiMessageCopyChecks {
                 return result
             }
             fun press(at: Pair<Float, Float>, duration: Long = 60, afterDown: (() -> Unit)? = null) {
-                val time = SystemClock.uptimeMillis()
+                var time = 0L
+                test.runOnMainSync {
+                    check(windowContent.pending == null)
+                    time = SystemClock.uptimeMillis()
+                    if (afterDown != null) {
+                        windowContent.refreshedDownTime = null
+                        windowContent.pending = time to afterDown
+                    }
+                }
                 touch(test, time, MotionEvent.ACTION_DOWN, at)
-                if (afterDown != null) {
-                    afterDown()
-                    check(SystemClock.uptimeMillis() - time < longPressTimeout) { "Refresh missed the long-press window" }
+                if (afterDown != null) test.runOnMainSync {
+                    check(windowContent.pending == null && windowContent.refreshedDownTime == time) {
+                        "Refresh did not run during the injected DOWN dispatch"
+                    }
                 }
                 SystemClock.sleep(duration)
                 touch(test, time, MotionEvent.ACTION_UP, at)
@@ -110,7 +145,7 @@ internal object AiMessageCopyChecks {
 
             press(nonLink, longPress) {
                 // Before the system long-press timeout: a status-only render used to detach the pressed TextView.
-                test.runOnMainSync { chat.render(lines, "", false, "Status refreshed") }
+                chat.render(lines, "", false, "Status refreshed")
             }
             assertClip(rendered, "Status-only render cancelled the assistant text long press")
             check(opened == 1) { "Holding non-link text opened the link" }
@@ -134,11 +169,9 @@ internal object AiMessageCopyChecks {
             }
             test.waitForIdleSync()
             press(point(target("ai/chat/partial-answer")), longPress) {
-                test.runOnMainSync {
-                    chat.render(emptyList(), "Pending question", true, "Retry status refreshed")
-                    chat.updateStreamPreview(AiStreamPreview.Snapshot(content = "$streamText updated",
-                        phase = AiStreamPreview.Phase.CONTENT))
-                }
+                chat.render(emptyList(), "Pending question", true, "Retry status refreshed")
+                chat.updateStreamPreview(AiStreamPreview.Snapshot(content = "$streamText updated",
+                    phase = AiStreamPreview.Phase.CONTENT))
             }
             assertClip("$streamText updated", "Streaming long press lost current content during refresh")
 
