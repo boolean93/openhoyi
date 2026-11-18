@@ -119,7 +119,7 @@ internal class ManualLiveCoordinator(private val host: ThemedActivity) {
             }
         }
         if (dialog != null && dialog.observationId != id) {
-            dialog.finishObservation(gate.outcome(dialog.observationId))
+            dialog.finishObservation(gate.terminalFor(dialog.observationId))
         }
         if (needsSamples) handler.postDelayed(tick, 250)
     }

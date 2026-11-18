@@ -260,6 +260,9 @@ class MobileService : Service() {
                 addAll(listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WEIGHT))
         })
     }
+    private fun terminalManualPoints(): List<ShotPoint> =
+        if (manualPresentation.activeId != null && series.curveId == "manual") series.points else emptyList()
+
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private val preheatTimeoutScheduler:(Long,()->Unit)->Unit={ delay,action->
@@ -610,7 +613,7 @@ class MobileService : Service() {
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             val committed = passiveCommitted
             passiveCommitted = false
-            manualPresentation.disconnected(requireIdle = committed)
+            manualPresentation.disconnected(requireIdle = committed, points = terminalManualPoints())
             if (committed) {
                 passiveHistoryId?.let { id ->
                     runCatching { history?.abandon(id, "连接中断") }
@@ -762,7 +765,7 @@ class MobileService : Service() {
                     val committed = passiveCommitted
                     if (committed) {
                         passiveCommitted = false
-                        manualPresentation.ended()
+                        manualPresentation.ended(terminalManualPoints())
                         clearPassiveRecovery(requireDeviceMatch = true)
                         val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, observedAt)
                         passiveHistoryId?.let {
@@ -808,7 +811,7 @@ class MobileService : Service() {
      */
     private fun discardPassiveSeries(requireDeviceMatch: Boolean) {
         passiveCommitted = false
-        manualPresentation.ended()
+        manualPresentation.ended(terminalManualPoints())
         finishBrewFeedback(false)
         finishSeries(false)
         passiveHistoryId = null
@@ -2459,7 +2462,7 @@ class MobileService : Service() {
     }
     fun shutdown() {
         if (mock != null) {
-            manualPresentation.disconnected(requireIdle = false)
+            manualPresentation.disconnected(requireIdle = false, points = terminalManualPoints())
             finishBrewFeedback(false)
             if (ShotGate.active(shotState)) mock.stop()
             running = false
@@ -2496,7 +2499,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_preheat_shutdown_block), "service.stop_deferred")
             return
         }
-        manualPresentation.disconnected(requireIdle = false)
+        manualPresentation.disconnected(requireIdle = false, points = terminalManualPoints())
         closeDeviceOwner(); running = false
         safetyMessage = null
         cancelSafetyNotification()
@@ -2511,7 +2514,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
-        manualPresentation.disconnected(requireIdle = passiveCommitted)
+        manualPresentation.disconnected(requireIdle = passiveCommitted, points = terminalManualPoints())
         settleLeverWriteUnknown()
         (application as MobileApplication).releaseUpdates.serviceDestroyed(this)
 

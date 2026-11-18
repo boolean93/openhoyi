@@ -112,10 +112,16 @@ class ManualLiveDialog : DialogFragment() {
         selector?.refreshReadings()
     }
 
-    internal fun finishObservation(outcome: ManualShotPresentationGate.Outcome?) {
-        setStatus(if (outcome == ManualShotPresentationGate.Outcome.ENDED)
+    internal fun finishObservation(terminal: ManualShotPresentationGate.Terminal?) {
+        setStatus(if (terminal?.outcome == ManualShotPresentationGate.Outcome.ENDED)
             R.string.extraction_state_ended else R.string.extraction_state_unknown)
-        chart?.unavailableLiveMetrics = ChartMetric.entries.toSet()
+        chart?.apply {
+            unavailableLiveMetrics = ChartMetric.entries.toSet()
+            terminal?.points?.takeIf { it.isNotEmpty() }?.let {
+                val aligned = ExtractionReference.align(it).points
+                if (points != aligned) points = aligned
+            }
+        }
         selector?.refreshReadings()
     }
 

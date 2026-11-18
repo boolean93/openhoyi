@@ -3,12 +3,13 @@ package io.openhoyi.mobile
 /** Main-thread, process-local handoff of observations, not an owner of machine state. */
 internal class ManualShotPresentationGate {
     enum class Outcome { ENDED, UNKNOWN }
+    data class Terminal(val id: String, val outcome: Outcome, val points: List<ShotPoint>)
 
     var activeId: String? = null
         private set
     private var awaitIdle = false
     private var presentedId: String? = null
-    private var terminal: Pair<String, Outcome>? = null
+    private var terminal: Terminal? = null
     private val observers = mutableSetOf<() -> Unit>()
 
     fun observe(observer: () -> Unit) { observers += observer }
@@ -24,7 +25,7 @@ internal class ManualShotPresentationGate {
         return true
     }
 
-    fun outcome(id: String): Outcome? = terminal?.takeIf { it.first == id }?.second
+    fun terminalFor(id: String): Terminal? = terminal?.takeIf { it.id == id }
 
     fun started(id: String) {
         require(id.isNotBlank())
@@ -33,16 +34,16 @@ internal class ManualShotPresentationGate {
             changed()
         }
     }
-    private fun finish(outcome: Outcome) {
+    private fun finish(outcome: Outcome, points: List<ShotPoint>) {
         val id = activeId ?: return
-        terminal = id to outcome
+        terminal = Terminal(id, outcome, points)
         activeId = null
         changed()
     }
-    fun ended() = finish(Outcome.ENDED)
-    fun disconnected(requireIdle: Boolean = true) {
+    fun ended(points: List<ShotPoint> = emptyList()) = finish(Outcome.ENDED, points)
+    fun disconnected(requireIdle: Boolean = true, points: List<ShotPoint> = emptyList()) {
         if (requireIdle) awaitIdle = true
-        finish(Outcome.UNKNOWN)
+        finish(Outcome.UNKNOWN, points)
     }
     fun observedIdle() { awaitIdle = false }
 }

@@ -113,9 +113,11 @@ class MainActivity : ThemedActivity() {
     }
 
     internal override fun showsManualLiveChart(): Boolean =
-        (supportFragmentManager.primaryNavigationFragment as? ExtractionFragment)?.let {
-            it.isVisible && it.isResumed
-        } == true
+        // A native dialog can cover the chart without changing the Fragment lifecycle.
+        service?.running == true && hasWindowFocus() &&
+            (supportFragmentManager.primaryNavigationFragment as? ExtractionFragment)?.let {
+                it.isVisible && it.isResumed
+            } == true
 
     internal val currentService get() = service
     override fun onUserInteraction() {

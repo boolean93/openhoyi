@@ -78,12 +78,12 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
         val main = host.activity
         val gate = (main.application as MobileApplication).manualShotPresentation
         val series = MobileService::class.java.getDeclaredField("series").apply { isAccessible = true }.get(service) as ShotSeries
+        fun frame(seconds: Int) = ExtractionTelemetry(6, seconds, 89, seconds * 10, 9300,
+            25, 64, 0, ByteFrame(byteArrayOf()))
         fun start(id: String) = test.runOnMainSync {
             gate.ended()
             val now = MobileMonotonicClock.elapsedRealtime()
             series.begin(id, now - 400, "manual")
-            fun frame(seconds: Int) = ExtractionTelemetry(6, seconds, 89, seconds * 10, 9300,
-                25, 64, 0, ByteFrame(byteArrayOf()))
             series.machine(frame(1), now - 400, null, null)
             series.machine(frame(2), now, null, null)
             gate.started(id)
@@ -105,7 +105,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             test.runOnMainSync { check(dialog(main) == null) }
             end()
 
-            val underlying = host.select(TaskDestination.HISTORY)
+            val extraction = host.active("extraction")
             lateinit var form: EditText
             lateinit var formDialog: AlertDialog
             test.runOnMainSync {
@@ -114,15 +114,17 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 main.trackDialog(formDialog)
                 formDialog.show()
             }
+            await("a modal covers the existing extraction page") { formDialog.window?.decorView?.hasWindowFocus() == true }
             start("manual-live-main-form")
             close(main, awaitLive(main, "manual-live-main-form"))
             test.runOnMainSync {
                 check(formDialog.isShowing && form.text.toString() == "unsaved filter")
-                check(main.supportFragmentManager.primaryNavigationFragment === underlying)
+                check(main.supportFragmentManager.primaryNavigationFragment === extraction)
                 formDialog.dismiss()
             }
             end()
 
+            val underlying = host.select(TaskDestination.HISTORY)
             val comparison = open(main, BrewComparisonActivity::class.java).also { page = it }
             start("manual-live-comparison")
             awaitLive(comparison, "manual-live-comparison")
@@ -133,7 +135,19 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 check(dialog(comparison) == null && !comparison.isFinishing)
                 check(main.supportFragmentManager.primaryNavigationFragment === underlying)
             }
-            end()
+            start("manual-live-comparison-next")
+            val next = awaitLive(comparison, "manual-live-comparison-next")
+            test.runOnMainSync {
+                val now = MobileMonotonicClock.elapsedRealtime()
+                series.machine(frame(3), now, null, null)
+                // End in the same main-thread turn so a polling-only terminal chart misses it.
+                gate.ended(series.points)
+            }
+            await("terminal chart includes the last sample without claiming a finished cup") {
+                val chart = requireNotNull(next.view).let { descendants(it).filterIsInstance<ExtractionOverlayView>().single() }
+                chart.points.size == 3 && chart.unavailableLiveMetrics == ChartMetric.entries.toSet()
+            }
+            close(comparison, next)
             finish(comparison)
             page = null
 
