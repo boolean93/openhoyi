@@ -690,7 +690,7 @@ class HomeActivity : ThemedActivity() {
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
         emergencyStop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
-        val settingBusy = owner?.settingWriteState in setOf(
+        val settingBusy = owner?.blockingSettingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
