@@ -31,6 +31,8 @@ class ExtractionElapsedDisplayTest {
         assertEquals(14, cup.display(extraction(0, bits = 0), ExtractionState.STOP_REQUESTED))
         assertEquals(14, cup.display(state = ExtractionState.STOP_REQUESTED))
         assertNull(cup.display(state = ExtractionState.STOP_REQUESTED, now = 5_501))
+        // Link loss after confirmed idle but before the service watcher processes completion.
+        cup.interruptElapsed(endAlreadyObserved = true)
         cup.finish(observedEnd = true)
         assertEquals(14, cup.display(state = ExtractionState.ENDED_OBSERVED))
         // A new view asks the same service-owned series; it needs no saved view state.

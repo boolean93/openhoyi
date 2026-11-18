@@ -614,7 +614,10 @@ class MobileService : Service() {
             }
             else -> Unit
         }
-        if (role == DeviceRole.COFFEE && state != DeviceState.READY) series.interruptElapsed()
+        // The controller consumes idle synchronously; a link loss between that proof and
+        // watchShot finalization cannot undo it. A passive cup has its own end boundary.
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY)
+            series.interruptElapsed(endAlreadyObserved = shotState == ExtractionState.ENDED_OBSERVED && !manualShotActive)
         if (role == DeviceRole.COFFEE && state != DeviceState.READY &&
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             val committed = passiveCommitted

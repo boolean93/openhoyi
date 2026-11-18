@@ -119,8 +119,8 @@ class ShotSeries {
         recorded.add(point)
     }
 
-    internal fun interruptElapsed() {
-        if (id != null) elapsedInterrupted = true
+    internal fun interruptElapsed(endAlreadyObserved: Boolean = false) {
+        if (id != null && !endAlreadyObserved) elapsedInterrupted = true
     }
 
     internal fun displayElapsedSeconds(
