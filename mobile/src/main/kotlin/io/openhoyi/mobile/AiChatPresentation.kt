@@ -631,6 +631,7 @@ internal class AiChatPresentation(
         }.apply {
             orientation = LinearLayout.VERTICAL
             background = style.shape(fill, radius = 18)
+            keepOwnBackdropTreatment()
             setPadding(assistantTextInset, style.dp(9), assistantTextInset, style.dp(9))
         }
         // Padding belongs to this message, not the surrounding transcript or cards.
@@ -782,6 +783,8 @@ internal class AiChatPresentation(
         imagePreviews?.begin(ownerEpoch, previewSession, lines.flatMap { it.attachments } + attachments)
         transcript.removeAllViews()
         if (lines.isEmpty() && !busy) style.add(transcript, style.text(context.getString(R.string.ai_empty), TaskProductVisualStyle.body, secondary = true).apply {
+            tag = "ai/chat/welcome"
+            protectRoundedBackdropContent(style.surface, style.dp(16))
             gravity = Gravity.CENTER; setPadding(style.dp(12), style.dp(32), style.dp(12), style.dp(16))
         })
         lines.forEach { line ->

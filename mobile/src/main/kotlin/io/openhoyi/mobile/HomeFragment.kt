@@ -235,7 +235,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             visibility = View.GONE
         }
-        machineModes = MachineModeControls(host, ::changeMachineMode).apply { protectBackdropContent() }
+        machineModes = MachineModeControls(host, ::changeMachineMode).apply { preserveHomeBackdrop() }
         // Landscape modes share the quick-heading row instead of reserving another
         // 48dp row for a machine title already present in the navigation rail.
         val machineRow = if (!phoneHome) machineHeading.apply {
@@ -259,6 +259,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4),
                     dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4))
                 background = productStyle.shape(productStyle.surface, true)
+                if (shortHome) keepOwnBackdropTreatment()
             }
             boilerRow.addBoiler(card)
             val heading = productStyle.text(getString(label), TaskProductVisualStyle.Type(14, 500, 20))
@@ -290,7 +291,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 card.addView(readings, LinearLayout.LayoutParams(-1, -2))
                 productStyle.add(card, target)
             } else {
-                val dial = BoilerTemperatureDial(host, heading, value, target)
+                val dial = BoilerTemperatureDial(host, heading, value, target).apply { keepOwnBackdropTreatment() }
+                val footer = Any()
+                pressure.protectRoundedBackdropContent(productStyle.surface, dp(12), group = footer)
+                toggle.protectRoundedBackdropContent(productStyle.surface, dp(12), group = footer)
                 boilerDials += dial
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
@@ -361,6 +365,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
+        previewHeading.protectRoundedBackdropContent(productStyle.surface, dp(10), horizontalOutset = dp(5))
         if (!phoneHome) {
             // Modes remain visible (and safety-gated) while quick actions hide for an
             // active cup. Reusing this row avoids adding a 48dp header to a 284dp viewport.
@@ -368,8 +373,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             compactQuickHeading = previewHeading
             val modeGroup = productStyle.row("product/home/compact-mode-group").apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
-                addView(productStyle.text(getString(R.string.machine_mode_title), TaskProductVisualStyle.auxiliary),
-                    LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
+                addView(productStyle.text(getString(R.string.machine_mode_title), TaskProductVisualStyle.auxiliary).apply {
+                    protectRoundedBackdropContent(productStyle.surface, dp(8), horizontalOutset = dp(4))
+                }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
                 addView(machineModes, LinearLayout.LayoutParams(-2, -2))
             }
             val sharedHeading = object : LinearLayout(host) {
@@ -397,10 +403,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     super.onMeasure(widthMeasureSpec, heightMeasureSpec)
                 }
             }
-            sharedHeading.protectBackdropContent()
             content.addView(sharedHeading, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-1, -2))
         } else {
-            previewHeading.protectBackdropContent()
             quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
         }
         lastCurveRow = object : LinearLayout(host) {

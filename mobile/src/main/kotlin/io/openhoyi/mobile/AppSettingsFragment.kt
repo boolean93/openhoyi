@@ -131,7 +131,8 @@ class AppSettingsFragment : Fragment() {
             activity.startActivity(Intent(activity, AiChatActivity::class.java))
         }.apply {
             asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            protectBackdropContent(group = root.shortcutsBackdrop, horizontalBounds = root.body)
+            protectRoundedBackdropContent(style.surface, style.dp(12), group = root.shortcutsBackdrop,
+                horizontalBounds = root.body)
         }
         if (BuildConfig.MOCK_MODE) {
             style.action(root.body, getString(R.string.ai_preview_title), "settings/ai-chat-preview", top = 8) {
@@ -139,7 +140,8 @@ class AppSettingsFragment : Fragment() {
                 activity.startActivity(Intent().setClassName(activity, "io.openhoyi.mobile.AiChatPreviewActivity"))
             }.apply {
                 asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                protectBackdropContent(group = root.shortcutsBackdrop, horizontalBounds = root.body)
+                protectRoundedBackdropContent(style.surface, style.dp(12), group = root.shortcutsBackdrop,
+                    horizontalBounds = root.body)
             }
         }
         val sections = linkedMapOf(

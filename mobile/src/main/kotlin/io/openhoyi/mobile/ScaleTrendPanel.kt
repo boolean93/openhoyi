@@ -34,6 +34,8 @@ internal class ScaleTrendPanel(private val activity: ThemedActivity, primary: Li
             style.apply(title,TaskProductVisualStyle.section);title.setPadding(0,0,0,0)
             style.apply(status,TaskProductVisualStyle.auxiliary,true)
             block.removeView(title);block.removeView(status)
+            block.protectRoundedBackdropContent(style.surface, style.dp(12))
+            fallback.protectRoundedBackdropContent(style.surface, style.dp(12))
             val heading=HistoryToolbarRow(activity,dp(16),dp(8)) {
                 kotlin.math.ceil(title.paint.measureText(title.text.toString())).toInt()+title.compoundPaddingLeft+title.compoundPaddingRight
             }

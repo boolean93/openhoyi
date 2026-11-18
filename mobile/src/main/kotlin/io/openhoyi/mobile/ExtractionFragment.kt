@@ -201,16 +201,21 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 0 })
         val plotColumn = workspace.primaryBody
         val sidePanel = workspace.secondaryBody.apply {
+            tag = "product/extraction/support"
             setPadding(dp(10), dp(4), dp(10), dp(4))
         }
-        style.add(sidePanel, style.text(getString(R.string.task_extraction_supporting), TaskProductVisualStyle.auxiliary, secondary = true))
+        val summaryShield = Any()
+        fun View.protectSummary() = protectRoundedBackdropContent(style.surface, dp(12), group = summaryShield)
+        style.add(sidePanel, style.text(getString(R.string.task_extraction_supporting), TaskProductVisualStyle.auxiliary, secondary = true)
+            .apply { protectSummary() })
         curveSummary = text(sidePanel, getString(R.string.extraction_curve_initial), 16, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
             style.apply(this, TaskProductVisualStyle.title); setPadding(0, dp(16), 0, dp(16))
         }
-        recipeSummary = TaskRecipeSummary(host, visual)
+        curveSummary.protectSummary()
+        recipeSummary = TaskRecipeSummary(host, visual).apply { protectSummary() }
         sidePanel.addView(recipeSummary, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(8) })
-        deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14)
+        deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14).apply { protectSummary() }
         val metrics = TaskLiveReadouts(host, visual)
         // Replaced by the chart's single four-metric strip; detached legacy readouts remain details inputs.
         fun reading(label: String, quantity: Boolean = false): TextView {
@@ -243,7 +248,11 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         waterValue = supportReading(R.string.task_chart_water, "product/extraction/water")
         temperatureValue = supportReading(R.string.task_chart_temperature, "product/extraction/temperature")
         flowValue = text(details, "", 14)
-        chartHost = FrameLayout(host).apply { tag = "product/extraction/chart-host" }
+        chartHost = FrameLayout(host).apply {
+            tag = "product/extraction/chart-host"
+            // The filling chart owns a solid plot surface, including its overlay header.
+            keepOwnBackdropTreatment()
+        }
         chart = ExtractionOverlayView(host, visual).apply {
             tag = "product/extraction/chart"; setBackgroundColor(style.surface)
             liveCompactChrome = true
@@ -289,7 +298,10 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                     .coerceAtMost(height.coerceAtLeast(chart.minimumLiveHeight()))
             else maxOf((dp(260) * resources.configuration.fontScale).toInt(), (height * .70f).toInt())
         }
-        val toolbar = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+        val toolbar = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            protectRoundedBackdropContent(style.surface, dp(12))
+        }
         sidePanel.addView(toolbar)
         fun compact(parent: LinearLayout, title: String, action: () -> Unit): Button =
             HoyiUi.button(host, parent, title, action = action).apply {
@@ -304,9 +316,16 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             host.select(TaskDestination.BREW)
         }
         chooseBeans = compact(toolbar, getString(R.string.dose_title)) { startActivity(Intent(host, BeanPreparationActivity::class.java)) }
-        val referenceTools = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+        val toolsShield = Any()
+        val referenceTools = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            protectRoundedBackdropContent(style.surface, dp(12), group = toolsShield)
+        }
         sidePanel.addView(referenceTools, LinearLayout.LayoutParams(-1, -2))
-        preparationTools = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
+        preparationTools = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            protectRoundedBackdropContent(style.surface, dp(12), group = toolsShield)
+        }
         sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
         referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
         detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
