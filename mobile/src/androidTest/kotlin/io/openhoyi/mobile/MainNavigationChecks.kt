@@ -237,17 +237,6 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         }
     }
 
-    private fun awaitPage(activity: MainActivity, tag: String) {
-        val deadline = SystemClock.elapsedRealtime() + 5000
-        while (SystemClock.elapsedRealtime() < deadline) {
-            var active = false
-            test.runOnMainSync { active = activity.supportFragmentManager.primaryNavigationFragment?.tag == tag }
-            if (active) break
-            SystemClock.sleep(50)
-        }
-        MainPageTestHost(test, activity).active(tag)
-    }
-
     private fun startupAndRestore(destination: TaskDestination) {
         val tag = "root:${destination.name}"
         var activity = MainPageTestHost.launch(test, destination).activity
@@ -659,29 +648,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             if (historyPosition > 0) check(historyList?.firstVisiblePosition == historyPosition) {
                 "Nonzero History list position was lost"
             }
-            // Inject only the Mock service's existing confirmed-manual-ID gate. This checks the
-            // real MainActivity polling/navigation path; PassiveShotDetector is tested separately.
-            val manual = MobileService::class.java.getDeclaredField("manualPresentation")
-                .apply { isAccessible = true }.get(service) as ManualShotPresentationGate
-            try {
-                host.select(TaskDestination.CURVES)
-                test.runOnMainSync { manual.observedIdle(); manual.started("shell-manual-1") }
-                awaitPage(activity, "extraction")
-                host.select(TaskDestination.CURVES)
-                SystemClock.sleep(600)
-                host.active("root:CURVES") // Same ID must not steal the tab again.
-                val manualMonitor = test.addMonitor(MainActivity::class.java.name, null, false)
-                try {
-                    test.runOnMainSync { activity.recreate() }
-                    activity = test.waitForMonitorWithTimeout(manualMonitor, 10000) as? MainActivity
-                        ?: error("Manual-shot host recreation was not observed")
-                    test.waitForIdleSync()
-                    SystemClock.sleep(600)
-                    MainPageTestHost(test, activity).active("root:CURVES")
-                } finally { test.removeMonitor(manualMonitor) }
-                test.runOnMainSync { manual.ended(); manual.started("shell-manual-2") }
-                awaitPage(activity, "extraction")
-            } finally { test.runOnMainSync { manual.ended() } }
+            ManualLiveNavigationChecks(test).run(MainPageTestHost(test, activity), service, includeDraftEditors = false)
             MainPageTestHost(test, activity).select(TaskDestination.SETTINGS)
             test.runOnMainSync {
                 val settings = activity.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment

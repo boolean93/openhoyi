@@ -23,7 +23,8 @@ import kotlin.math.ceil
 
 /** A display-only, shared-time plot. Each metric retains its own physical range. */
 internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null,
-    private val embeddedHistory: Boolean = false, private val standalonePlotMinimumDp: Float? = null) : LinearLayout(context) {
+    private val embeddedHistory: Boolean = false, private val standalonePlotMinimumDp: Float? = null,
+    private val allowSampleInspection: Boolean = true) : LinearLayout(context) {
     private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory, standaloneAxes = standalonePlotMinimumDp != null) }
     internal val standalonePlotMinimumHeightPx get() = standaloneMinimumPlotHeight(measuredWidth.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels)
     internal fun standaloneMinimumPlotHeight(width: Int) = standalonePlotMinimumDp?.let {
@@ -809,7 +810,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         explanation.visibility = if (standalonePlotMinimumDp != null) {
             if (inline.isEmpty()) GONE else VISIBLE
         } else if (liveCompactChrome || !liveChart && compact && warnings.isEmpty()) GONE else VISIBLE
-        plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
+        plot.contentDescription = (notes + (if (allowSampleInspection) context.getString(R.string.task_chart_inspect_hint) else "") + context.getString(R.string.task_chart_hint) +
             context.getString(R.string.task_chart_independent, metricName(focusMetric), displayUnit(focusMetric)) +
             referenceNotes + displayedData(data).series.map { series ->
             val latest = series.current.lastOrNull()?.lastOrNull()
@@ -1122,10 +1123,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         private val plotBounds = RectF()
         init {
             isFocusable = true
-            setOnClickListener { inspectSample() }
+            if (allowSampleInspection) setOnClickListener { inspectSample() }
         }
         override fun onTouchEvent(event: MotionEvent): Boolean {
-            if (event.actionMasked == MotionEvent.ACTION_UP && plotBounds.contains(event.x, event.y) && points.isNotEmpty()) {
+            if (allowSampleInspection && event.actionMasked == MotionEvent.ACTION_UP && plotBounds.contains(event.x, event.y) && points.isNotEmpty()) {
                 val fraction = ((event.x - plotBounds.left) / plotBounds.width()).coerceIn(0f, 1f)
                 val start = if (liveChart) renderTimeStart else data.timeStartMs
                 val end = if (liveChart) renderTimeEnd else data.timeEndMs

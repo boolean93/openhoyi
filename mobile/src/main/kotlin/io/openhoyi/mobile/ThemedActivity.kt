@@ -7,6 +7,25 @@ import android.content.res.Configuration
 /** App-owned appearance. System density/window geometry stay intact; font size is independent. */
 abstract class ThemedActivity : FragmentActivity() {
     internal var redirectedRoot = false
+    private val manualLive by lazy { ManualLiveCoordinator(this) }
+    internal open fun showsManualLiveChart() = false
+    internal fun manualLiveDialogClosed() = manualLive.dialogClosed()
+
+    override fun onPostResume() {
+        super.onPostResume()
+        manualLive.resume()
+    }
+
+    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        manualLive.topChanged(isTopResumedActivity)
+    }
+
+    override fun onPause() {
+        manualLive.pause()
+        super.onPause()
+    }
+
     override fun attachBaseContext(newBase: Context) {
         val dark = newBase.getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
         val language = (newBase.applicationContext as MobileApplication).languagePreferences.current

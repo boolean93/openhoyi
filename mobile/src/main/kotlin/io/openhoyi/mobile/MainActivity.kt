@@ -60,13 +60,11 @@ class MainActivity : ThemedActivity() {
     private var scanAfterBind = false
     private var reconnectScaleAfterBind: Pair<String, String>? = null
     private var reconnectCoffeeAfterBind=false
-    private var lastPresentedManualShotId: String? = null
     private var foreground = false
     private val handler = Handler(Looper.getMainLooper())
-    private val manualPresentation = object : Runnable {
+    private val shellRefresh = object : Runnable {
         override fun run() {
             shortcutStart?.allows()
-            presentManualShotIfNew()
             if (::shellStatus.isInitialized) shellStatus.present(service)
             if (foreground) handler.postDelayed(this, 250)
         }
@@ -112,15 +110,13 @@ class MainActivity : ThemedActivity() {
         shortcutStart?.allows()
         subscribers.toList().forEach { it(service) }
         if (::shellStatus.isInitialized) shellStatus.present(service)
-        presentManualShotIfNew()
     }
-    private fun presentManualShotIfNew() {
-        if (!foreground) return
-        val id = service?.manualShotPresentationId ?: return
-        if (id == lastPresentedManualShotId) return
-        lastPresentedManualShotId = id
-        showExtraction()
-    }
+
+    internal override fun showsManualLiveChart(): Boolean =
+        (supportFragmentManager.primaryNavigationFragment as? ExtractionFragment)?.let {
+            it.isVisible && it.isResumed
+        } == true
+
     internal val currentService get() = service
     override fun onUserInteraction() {
         super.onUserInteraction()
@@ -259,7 +255,6 @@ class MainActivity : ThemedActivity() {
             ?: intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7)
         scaleSettingsReturn = savedInstanceState?.getBoolean("settingsScaleReturn") ?: false
         settingsOrigin=savedInstanceState?.getString("settingsOrigin")?.let { runCatching {TaskDestination.valueOf(it)}.getOrNull() }
-        lastPresentedManualShotId = savedInstanceState?.getString(STATE_MANUAL_SHOT_ID)
         val style = TaskProductVisualStyle(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -317,12 +312,12 @@ class MainActivity : ThemedActivity() {
         (application as MobileApplication).autoConnect.refresh()
         if(service==null) { if(!startRememberedScaleService())bindExisting() }
         foreground = true
-        handler.post(manualPresentation)
+        handler.post(shellRefresh)
     }
     override fun onPause() {
         revokeShortcutStart()
         foreground = false
-        handler.removeCallbacks(manualPresentation)
+        handler.removeCallbacks(shellRefresh)
         dismissTransientDialogs()
         super.onPause()
     }
@@ -550,7 +545,6 @@ class MainActivity : ThemedActivity() {
         outState.putInt(STATE_PAGE_ID, pageId)
         outState.putBoolean(STATE_EXTRACTION, extractionVisible)
         outState.putInt(STATE_EXTRACTION_SLOT, extractionSlot)
-        outState.putString(STATE_MANUAL_SHOT_ID, lastPresentedManualShotId)
         super.onSaveInstanceState(outState)
     }
 
@@ -660,6 +654,5 @@ class MainActivity : ThemedActivity() {
         private const val STATE_PAGE_ID = "task.page_id"
         private const val STATE_EXTRACTION = "task.extraction"
         private const val STATE_EXTRACTION_SLOT = "task.extraction_slot"
-        private const val STATE_MANUAL_SHOT_ID = "task.manual_shot_id"
     }
 }

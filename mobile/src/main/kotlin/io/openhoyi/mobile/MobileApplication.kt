@@ -26,6 +26,7 @@ class MobileApplication : Application() {
     internal val diagnosticStorage by lazy { DiagnosticStorageOwner(this) }
     internal val visibility = AppVisibility()
     internal val serviceAvailability = ServiceAvailability()
+    internal val manualShotPresentation = ManualShotPresentationGate()
     internal lateinit var autoConnect:DeviceAutoConnectOwner
         private set
     internal val feedbackPreferences by lazy {
