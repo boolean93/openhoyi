@@ -6,7 +6,9 @@ import org.json.JSONTokener
 import java.security.MessageDigest
 
 /** Permanent metadata/notes, deliberately independent of the bounded history and sample cache. */
-internal class BrewJournal(private val storage: Storage) {
+internal class BrewJournal(private val storage: Storage,
+    private val timingEvidence: () -> Map<ShotTimingSidecar.Identity, ShotTimingSidecar.Evidence> = { emptyMap() },
+) {
     interface Storage { fun read(): String?; fun write(value: String) }
     data class Observation(
         val id: String,
@@ -32,7 +34,16 @@ internal class BrewJournal(private val storage: Storage) {
         val nextAdjustment: String = "",
     )
     data class Entry(val observation: Observation, val notes: Notes)
-    private var records: LinkedHashMap<String, Entry> = storage.read()?.let(::decode) ?: linkedMapOf()
+    // A never-released transitional build may have written inline evidence. Convert
+    // only once the History migration has committed matching external evidence.
+    private var inlineEvidence = emptyList<Observation>()
+    private var records: LinkedHashMap<String, Entry> = storage.read()?.let { value ->
+        decode(value).also { rows ->
+            inlineEvidence = rows.values.map { it.observation }.filter { it.machineTimingInterrupted != null }
+            val evidence = timingEvidence()
+            rows.replaceAll { _, entry -> entry.copy(observation = overlayTiming(entry.observation, evidence)) }
+        }
+    } ?: linkedMapOf()
 
     init {
         // A prior process's unresolved observation does not prove a current running or ended machine.
@@ -41,7 +52,10 @@ internal class BrewJournal(private val storage: Storage) {
             if (entry.observation.status in setOf("STARTING", "RUNNING", "STOP_REQUESTED"))
                 recovered[id] = entry.copy(observation = entry.observation.copy(status = "UNKNOWN"))
         }
-        if (recovered != records) commit(recovered)
+        if (recovered != records) {
+            if (inlineEvidenceCanMigrate()) commit(recovered)
+            else records = recovered // Read-only fallback; retain the original document.
+        }
     }
 
     @Synchronized
@@ -113,11 +127,24 @@ internal class BrewJournal(private val storage: Storage) {
     }
 
     @Synchronized
-    fun exportJson(): String = encode(records)
+    fun exportJson(): String = encode(records, includeInterruption = true)
+
+    private fun inlineEvidenceCanMigrate(): Boolean {
+        if (inlineEvidence.isEmpty()) return true
+        val external = timingEvidence()
+        return inlineEvidence.all { observation ->
+            val stored = external[with(ShotTimingSidecar) { observation.identity() }]
+            stored != null && ((stored.interrupted && (observation.machineTimingInterrupted != true ||
+                stored.seconds == observation.observedMachineElapsedSeconds)) ||
+                (!stored.interrupted && observation.machineTimingInterrupted == false))
+        }
+    }
 
     private fun commit(next: LinkedHashMap<String, Entry>) {
+        check(inlineEvidenceCanMigrate()) { "Cannot replace journal before preserving inline timing evidence" }
         storage.write(encode(next))
         records = next
+        inlineEvidence = emptyList()
     }
     private fun mergeInterruption(base: Observation, prior: Observation, incoming: Observation): Observation {
         val interrupted = when {
@@ -139,9 +166,25 @@ internal class BrewJournal(private val storage: Storage) {
 
     companion object {
         /** Validates the persisted document without constructing a recovering/writing journal. */
-        internal fun readOnlyObservations(value: String): List<Observation> = decode(value).values
-            .map { it.observation }
+        internal fun readOnlyObservations(value: String): List<Observation> =
+            readOnlyObservations(value, emptyMap())
+
+        internal fun readOnlyObservations(value: String,
+            evidence: Map<ShotTimingSidecar.Identity, ShotTimingSidecar.Evidence>,
+        ): List<Observation> = decode(value).values
+            .map { overlayTiming(it.observation, evidence) }
             .sortedWith(compareByDescending<Observation> { it.startedAtMs }.thenBy { it.id })
+
+    private fun overlayTiming(value: Observation,
+        evidence: Map<ShotTimingSidecar.Identity, ShotTimingSidecar.Evidence>,
+    ): Observation {
+        val known = evidence[with(ShotTimingSidecar) { value.identity() }] ?: return value
+        return when {
+            known.interrupted -> value.copy(machineTimingInterrupted = true, observedMachineElapsedSeconds = known.seconds)
+            value.machineTimingInterrupted == true -> value
+            else -> value.copy(machineTimingInterrupted = false)
+        }
+    }
 
     private fun validate(value: Observation) {
         require(value.id.isNotBlank() && value.id.length <= 256)
@@ -162,9 +205,9 @@ internal class BrewJournal(private val storage: Storage) {
         require(notes.doseMg == null || notes.doseMg > 0)
         require(listOf(notes.grind, notes.curveExpectation, notes.taste, notes.nextAdjustment).all { it.length <= 16000 })
     }
-    private fun encode(values: Map<String, Entry>): String {
+    private fun encode(values: Map<String, Entry>, includeInterruption: Boolean = false): String {
         val array = JSONArray()
-        val withInterruption = values.values.any { it.observation.machineTimingInterrupted != null }
+        val withInterruption = includeInterruption && values.values.any { it.observation.machineTimingInterrupted != null }
         values.values.forEach { entry ->
             val shot = entry.observation
             val notes = entry.notes
@@ -173,7 +216,8 @@ internal class BrewJournal(private val storage: Storage) {
                 .put("endedAtMs", shot.endedAtMs ?: JSONObject.NULL).put("elapsedMs", shot.elapsedMs ?: JSONObject.NULL)
                 .put("status", shot.status).put("reason", shot.reason ?: JSONObject.NULL)
                 .put("weightHundredthsGram", shot.weightHundredthsGram ?: JSONObject.NULL)
-                .put("observedMachineElapsedSeconds", shot.observedMachineElapsedSeconds ?: JSONObject.NULL)
+                .put("observedMachineElapsedSeconds", shot.observedMachineElapsedSeconds
+                    ?.takeIf { withInterruption || shot.machineTimingInterrupted != true } ?: JSONObject.NULL)
                 .put("timingEvidenceVersion", shot.timingEvidenceVersion)
                 .put("observedSampleCoverageMs", shot.observedSampleCoverageMs ?: JSONObject.NULL)
                 .apply { if (withInterruption) put("machineTimingInterrupted", shot.machineTimingInterrupted ?: JSONObject.NULL) })

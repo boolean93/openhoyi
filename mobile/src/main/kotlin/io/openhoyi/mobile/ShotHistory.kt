@@ -11,10 +11,16 @@ class ShotHistory(
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val onObservedUse: (Entry) -> Unit = {},
     private val onEntryChanged: (Entry) -> Unit = {},
+    private val onTimingEvidenceError: (Throwable) -> Unit = {},
 ) {
     interface Storage {
         fun read(): String
         fun write(value: String)
+    }
+    interface AtomicTimingStorage : Storage {
+        fun readTiming(): String?
+        /** Save both values through one durable transaction. */
+        fun writeWithTiming(value: String, timing: String)
     }
     enum class Status { STARTING, RUNNING, STOP_REQUESTED, ENDED, UNKNOWN, NOT_STARTED }
     data class Entry(
@@ -34,16 +40,35 @@ class ShotHistory(
         val machineTimingInterrupted: Boolean? = null,
     )
 
+    private val timingStorage = storage as? AtomicTimingStorage
+    private var timingRows = emptyMap<ShotTimingSidecar.Identity, ShotTimingSidecar.Evidence>()
+    private var timingReadable = true
     private val records = decode(storage.read()).toMutableList()
     private var activeId: String? = null
     val entries: List<Entry> get() = records.sortedByDescending { it.startedAtMs }.toList()
 
     init {
+        val readTiming = runCatching { ShotTimingSidecar.decode(timingStorage?.readTiming()) }
+        timingReadable = readTiming.isSuccess
+        timingRows = readTiming.getOrElse { error ->
+            runCatching { onTimingEvidenceError(error) }
+            emptyMap()
+        }
+        val needsInlineMigration = records.any { it.machineTimingInterrupted != null }
+        for (index in records.indices) {
+            val entry = records[index]
+            val evidence = timingRows[with(ShotTimingSidecar) { entry.identity() }] ?: continue
+            records[index] = when {
+                evidence.interrupted -> entry.copy(machineTimingInterrupted = true, observedMachineElapsedSeconds = evidence.seconds)
+                entry.machineTimingInterrupted == true -> entry
+                else -> entry.copy(machineTimingInterrupted = false)
+            }
+        }
         // Migrate only entries that positively establish observed use, before restart marks them unknown.
         records.filter { it.curveId != "manual" && it.observedRunning }.forEach(onObservedUse)
         var changed = false
         val interrupted = mutableListOf<Entry>()
-        for (index in records.indices) {
+        if (timingReadable) for (index in records.indices) {
             val entry = records[index]
             if (entry.status in setOf(Status.STARTING, Status.RUNNING, Status.STOP_REQUESTED)) {
                 records[index] = entry.copy(status = Status.UNKNOWN, reason = "进程中断", machineTimingInterrupted = true)
@@ -51,9 +76,13 @@ class ShotHistory(
                 changed = true
             }
         }
-        if (trim()) changed = true
-        if (changed) persist()
-        interrupted.forEach(::notifyChanged)
+        // Keep an unrecoverable sidecar byte-for-byte; do not write recovered history
+        // without its matching evidence or trim records on that unsuccessful transaction.
+        if (timingReadable) {
+            val evidence = records.toList()
+            if (trim() || changed || needsInlineMigration) write(records, evidence)
+        }
+        if (timingReadable) interrupted.forEach(::notifyChanged)
     }
 
     fun begin(curveId: String, atMs: Long = now(), slot: Int = 7): String {
@@ -72,7 +101,7 @@ class ShotHistory(
                 removeAll { it.id in oldest }
             }
         }
-        storage.write(next.joinToString("\n", postfix = if (next.isEmpty()) "" else "\n", transform = ::encode))
+        write(next)
         records.clear()
         records.addAll(next)
         activeId = id
@@ -141,7 +170,7 @@ class ShotHistory(
         val coverage = observedSampleCoverage(points) ?: return
         val updated = records[index].copy(observedSampleCoverageMs = coverage)
         val next = records.toMutableList().apply { set(index, updated) }
-        storage.write(next.joinToString("\n", postfix = "\n", transform = ::encode))
+        write(next)
         records[index] = updated
         notifyChanged(updated)
     }
@@ -170,7 +199,7 @@ class ShotHistory(
     private fun replace(index: Int, entry: Entry) {
         val next = records.toMutableList().apply { set(index, entry) }
         trim(next)
-        storage.write(next.joinToString("\n", postfix = if (next.isEmpty()) "" else "\n", transform = ::encode))
+        write(next, next + entry)
         records.clear()
         records.addAll(next)
         notifyChanged(entry)
@@ -181,7 +210,30 @@ class ShotHistory(
 
     private fun persist() {
         trim()
-        storage.write(records.joinToString("\n", postfix = if (records.isEmpty()) "" else "\n", transform = ::encode))
+        write(records)
+    }
+
+    private fun write(entries: List<Entry>, evidenceEntries: List<Entry> = entries) {
+        check(timingReadable) { "Cannot overwrite unreadable shot timing evidence" }
+        val legacy = entries.joinToString("\n", postfix = if (entries.isEmpty()) "" else "\n", transform = ::encode)
+        val target = timingStorage
+        if (target == null) {
+            // Isolated legacy in-memory fixtures do not supply an app-private sidecar.
+            storage.write(legacy)
+            return
+        }
+        val next = timingRows.toMutableMap()
+        // Sidecar outlives recent-history trimming; a permanent Journal row may still need it.
+        evidenceEntries.forEach { entry ->
+            val interrupted = entry.machineTimingInterrupted ?: return@forEach
+            val identity = with(ShotTimingSidecar) { entry.identity() }
+            if (next[identity]?.interrupted == true) return@forEach
+            next[identity] = ShotTimingSidecar.Evidence(interrupted,
+                entry.observedMachineElapsedSeconds.takeIf { interrupted })
+        }
+        if (next == timingRows) target.write(legacy)
+        else target.writeWithTiming(legacy, ShotTimingSidecar.encode(next))
+        timingRows = next
     }
 
     private fun trim(entries: MutableList<Entry> = records): Boolean {
@@ -201,8 +253,8 @@ class ShotHistory(
         value.status.name, safe(value.reason.orEmpty()), value.weightHundredthsGram?.toString().orEmpty(),
         value.slot?.toString().orEmpty(),
         value.observedRunning.toString(),
-        value.observedMachineElapsedSeconds?.toString().orEmpty(), value.timingEvidenceVersion.toString(), value.observedSampleCoverageMs?.toString().orEmpty(),
-    ).joinToString("\t") + (value.machineTimingInterrupted?.let { "\t$it" } ?: "")
+        value.observedMachineElapsedSeconds?.takeUnless { value.machineTimingInterrupted == true }?.toString().orEmpty(), value.timingEvidenceVersion.toString(), value.observedSampleCoverageMs?.toString().orEmpty(),
+    ).joinToString("\t")
 
     private fun decode(value: String): List<Entry> = value.lineSequence().mapNotNull { line ->
         val fields = line.split('\t')

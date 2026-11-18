@@ -11,23 +11,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class InterruptedShotTimingTest {
-    private class Disk : ShotHistory.Storage {
+    private class Disk : ShotHistory.AtomicTimingStorage {
         var text = ""
         var fail = false
+        var sidecar: String? = null
         override fun read() = text
         override fun write(value: String) { check(!fail); text = value }
+        override fun readTiming() = sidecar
+        override fun writeWithTiming(value: String, timing: String) {
+            check(!fail)
+            text = value
+            sidecar = timing
+        }
     }
-    private fun Disk.openJournal() = BrewJournal(object : BrewJournal.Storage {
+    private fun Disk.openJournal(evidence: Disk = this) = BrewJournal(object : BrewJournal.Storage {
         override fun read() = this@openJournal.text.takeIf { it.isNotEmpty() }
         override fun write(value: String) = this@openJournal.write(value)
-    })
+    }, timingEvidence = { runCatching { ShotTimingSidecar.decode(evidence.sidecar) }.getOrDefault(emptyMap()) })
     private fun frame(seconds: Int) =
         ExtractionTelemetry(1, seconds, 90, 300, 9200, 20, 64, 0, ByteFrame(byteArrayOf()))
 
     @Test fun fastUnknownThenObservedEndKeepsPreInterruptionTimerAndContinuousCoverage() {
         val recent = Disk()
         val permanent = Disk()
-        val journal = permanent.openJournal()
+        val journal = permanent.openJournal(recent)
         val ids = listOf("interrupted", "normal").iterator()
         val history = ShotHistory(recent, now = { 100_000L }, newId = ids::next,
             onEntryChanged = { journal.observe(it.journalObservation()) })
@@ -49,9 +56,12 @@ class InterruptedShotTimingTest {
         assertEquals(21_000L, restored.elapsedMs)
         assertEquals(R.string.history_pre_interruption_duration, restored.timingLabel)
         assertEquals("14", restored.timingValue)
-        assertEquals(4, JSONObject(permanent.text).getInt("schema"))
+        assertEquals(3, JSONObject(permanent.text).getInt("schema"))
+        assertEquals(4, JSONObject(journal.exportJson()).getInt("schema"))
+        assertEquals(13, recent.text.trimEnd('\n').split('\t').size)
+        assertNull(BrewJournal.readOnlyObservations(permanent.text).single().observedMachineElapsedSeconds)
         assertEquals(restored.journalObservation(),
-            permanent.openJournal().find(id)?.observation)
+            permanent.openJournal(recent).find(id)?.observation)
 
         val next = history.begin("capture-1")
         cup.begin(next, 30_000)
@@ -78,12 +88,12 @@ class InterruptedShotTimingTest {
         assertEquals(true, observed.machineTimingInterrupted)
         assertNull(observed.observedMachineElapsedSeconds)
         val diskJournal = Disk()
-        val journal = diskJournal.openJournal()
+        val journal = diskJournal.openJournal(disk)
         journal.observe(observed)
         journal.edit("cup", BrewJournal.Notes(taste = "kept"))
         journal.reconcileRecent(listOf(observed.copy(machineTimingInterrupted = null, observedMachineElapsedSeconds = 29)))
         journal.observe(observed.copy(machineTimingInterrupted = false, observedMachineElapsedSeconds = 31))
-        val restored = diskJournal.openJournal().find("cup")!!
+        val restored = diskJournal.openJournal(disk).find("cup")!!
         assertEquals(true, restored.observation.machineTimingInterrupted)
         assertNull(restored.observation.observedMachineElapsedSeconds)
         assertEquals("kept", restored.notes.taste)
@@ -150,12 +160,38 @@ class InterruptedShotTimingTest {
         val oldUnknown = Disk()
         val h = ShotHistory(oldUnknown, now = { 300L }, newId = { "old-unknown" })
         h.begin("capture-1")
-        h.abandon("old-unknown", "lost", timing = ShotTimingEvidence("old-unknown", 14, null, true))
-        oldUnknown.text = oldUnknown.text.removeSuffix("\ttrue\n") + "\n" // 13-field historical row
+        h.transition(ExtractionState.ENDED_OBSERVED, "lost", null)
+        h.attachTimingEvidence("old-unknown", 14)
+        oldUnknown.text = oldUnknown.text.replace("\tENDED\t", "\tUNKNOWN\t") // Historical row without sidecar evidence.
         val old = ShotHistory(oldUnknown, now = { 300L }).entries.single()
         assertEquals(ShotHistory.Status.UNKNOWN, old.status)
         assertNull(old.machineTimingInterrupted)
         assertEquals(R.string.history_duration, old.timingLabel)
+    }
+
+    @Test fun missingOrCorruptSidecarNeverReconstructsOrOverwritesMainHistory() {
+        val disk = Disk()
+        val h = ShotHistory(disk, now = { 100L }, newId = { "cup" })
+        h.begin("capture-1")
+        h.transition(ExtractionState.ENDED_OBSERVED, null, null, 200,
+            timing = ShotTimingEvidence("cup", 14, null, true))
+        val originalMain = disk.text
+        val valid = disk.sidecar
+        disk.sidecar = null
+        assertNull(ShotHistory(disk, now = { 200L }).entries.single().observedMachineElapsedSeconds)
+        disk.sidecar = valid + "corrupted"
+        var errors = 0
+        val corrupted = ShotHistory(disk, now = { 200L }, newId = { "next" },
+            onTimingEvidenceError = { errors++ })
+        assertEquals(1, errors)
+        assertEquals("cup", corrupted.entries.single().id)
+        assertNull(corrupted.entries.single().observedMachineElapsedSeconds)
+        assertTrue(runCatching { corrupted.begin("capture-1") }.isFailure)
+        assertEquals(originalMain, disk.text)
+        assertEquals(valid + "corrupted", disk.sidecar)
+        disk.sidecar = valid
+        disk.text = ""
+        assertTrue(ShotHistory(disk, now = { 200L }).entries.isEmpty())
     }
 
     @Test fun historyExportAndAiKeepIncompleteSecondsSeparateFromDuration() {

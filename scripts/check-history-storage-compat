@@ -1,0 +1,102 @@
+#!/bin/sh
+# Run the actual pre-change stores next to the new stores, on isolated JVM files only.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+base=98c392a124d07cdbab5a382ec4040bff3f66b112
+source=mobile/src/main/kotlin/io/openhoyi/mobile
+testdir=mobile/src/test/kotlin/io/openhoyi/mobile
+test=${testdir}/HistoryStorageOldBaselineCheck.kt
+oldhistory=${testdir}/HistoryCompatOldStore.kt
+oldjournal=${testdir}/HistoryCompatOldJournal.kt
+for file in "$test" "$oldhistory" "$oldjournal"; do
+    test ! -e "$file" || { echo "Refusing to overwrite $file" >&2; exit 1; }
+done
+git cat-file -e "$base^{commit}"
+git diff --quiet "$base" HEAD -- "$source/ShotSamplesStore.kt"
+trap 'rm -f "$test" "$oldhistory" "$oldjournal"' EXIT
+git show "$base:$source/ShotHistory.kt" | sed 's/ShotHistory/HistoryCompatOldStore/g' > "$oldhistory"
+git show "$base:$source/BrewJournal.kt" | sed 's/BrewJournal/HistoryCompatOldJournal/g' > "$oldjournal"
+cat > "$test" <<'KOTLIN'
+package io.openhoyi.mobile
+
+import io.openhoyi.session.ExtractionState
+import java.nio.file.Files
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Test
+
+class HistoryStorageOldBaselineCheck {
+    @Test fun existingIdsSamplesAndEditedNotesSurviveAnOldVersionRoundTrip() {
+        val folder = Files.createTempDirectory("openhoyi-compat").toFile()
+        try {
+            val historyFile = folder.resolve("entries_v1")
+            historyFile.writeText("")
+            val sidecarFile = folder.resolve("timing")
+            val journalFile = folder.resolve("brew_journal_v1.json")
+            val atomicJournal = AtomicDocumentStorage(journalFile.toPath())
+            val storage = object : ShotHistory.AtomicTimingStorage {
+                override fun read() = historyFile.readText()
+                override fun readTiming() = sidecarFile.takeIf { it.exists() }?.readText()
+                override fun write(value: String) = historyFile.writeText(value)
+                override fun writeWithTiming(value: String, timing: String) {
+                    historyFile.writeText(value)
+                    sidecarFile.writeText(timing)
+                }
+            }
+            fun journal() = BrewJournal(object : BrewJournal.Storage {
+                override fun read() = atomicJournal.read()?.toString(Charsets.UTF_8)
+                override fun write(value: String) = atomicJournal.write(value.toByteArray(Charsets.UTF_8))
+            }, timingEvidence = { ShotTimingSidecar.decode(storage.readTiming()) })
+            val firstJournal = journal()
+            val now = 10_000_000_000L
+            val first = ShotHistory(storage, now = { now }, newId = { "interrupted" },
+                onEntryChanged = { firstJournal.observe(it.journalObservation()) })
+            val id = first.begin("capture-1")
+            first.transition(ExtractionState.ENDED_OBSERVED, null, null, now + 20_000L,
+                timing = ShotTimingEvidence(id, 14, 12_000L, true))
+            firstJournal.edit(id, BrewJournal.Notes(taste = "new note"))
+            val evidenceBefore = sidecarFile.readText()
+            assertEquals(3, JSONObject(journalFile.readText()).getInt("schema"))
+
+            val samples = ShotSamplesStore(folder.resolve("samples"), { now })
+            val point = ShotPoint(1, 0, 0, 0, 0, null)
+            samples.save(id, listOf(point))
+            samples.save("orphan", listOf(point))
+            folder.resolve("samples/samples-$id.tsv").setLastModified(1000)
+            folder.resolve("samples/samples-orphan.tsv").setLastModified(1000)
+            val old = HistoryCompatOldStore(object : HistoryCompatOldStore.Storage {
+                override fun read() = historyFile.readText()
+                override fun write(value: String) = historyFile.writeText(value)
+            }, now = { now + 30_000L }, newId = { "old-cup" })
+            assertEquals(listOf(id), old.entries.map { it.id })
+            assertNull(old.entries.single().observedMachineElapsedSeconds)
+            samples.prune(old.entries.map { it.id }.toSet())
+            assertEquals(listOf(point), samples.load(id))
+            assertTrue(samples.load("orphan").isEmpty())
+            assertEquals("old-cup", old.begin("capture-1"))
+            old.transition(ExtractionState.ENDED_OBSERVED, null, null, now + 40_000L)
+
+            val oldJournal = HistoryCompatOldJournal(object : HistoryCompatOldJournal.Storage {
+                override fun read() = atomicJournal.read()?.toString(Charsets.UTF_8)
+                override fun write(value: String) = atomicJournal.write(value.toByteArray(Charsets.UTF_8))
+            })
+            assertNull(oldJournal.find(id)!!.observation.observedMachineElapsedSeconds)
+            oldJournal.edit(id, oldJournal.find(id)!!.notes.copy(taste = "edited by old version"))
+            assertEquals(evidenceBefore, sidecarFile.readText())
+
+            val reopenedHistory = ShotHistory(storage, now = { now + 40_000L })
+            assertEquals(setOf(id, "old-cup"), reopenedHistory.entries.map { it.id }.toSet())
+            assertEquals(14, reopenedHistory.entries.first { it.id == id }.observedMachineElapsedSeconds)
+            assertEquals(true, reopenedHistory.entries.first { it.id == id }.machineTimingInterrupted)
+            val reopenedJournal = journal()
+            reopenedJournal.reconcileRecent(reopenedHistory.entries.map { it.journalObservation() })
+            assertEquals(14, reopenedJournal.find(id)!!.observation.observedMachineElapsedSeconds)
+            assertEquals("edited by old version", reopenedJournal.find(id)!!.notes.taste)
+            assertEquals(listOf(point), samples.load(id))
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+}
+KOTLIN
+./gradlew --no-daemon --console=plain :mobile:testDebugUnitTest --tests '*HistoryStorageOldBaselineCheck' --tests '*InterruptedShotTimingTest'

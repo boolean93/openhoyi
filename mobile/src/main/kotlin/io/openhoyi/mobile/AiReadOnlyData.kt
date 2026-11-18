@@ -69,7 +69,9 @@ internal class LocalAiReadOnlyData(context: Context, private val snapshot: () ->
         if (!AiReadOnlyQuery.validCurveId(curveId)) return AiReadOnlyQuery.invalidArguments()
         return safe {
             val document = readBounded(File(context.filesDir, "brew_journal_v1.json"))
-            val observations = document?.let(BrewJournal::readOnlyObservations).orEmpty()
+            val observations = document?.let {
+                BrewJournal.readOnlyObservations(it, readPersistedShotTimingEvidence(context))
+            }.orEmpty()
             AiReadOnlyQuery.history(observations, curveId, offset, limit)
         }
     }

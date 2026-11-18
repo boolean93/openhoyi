@@ -129,11 +129,19 @@ class MobileApplication : Application() {
     }
     val history: ShotHistory by lazy {
         val prefs = getSharedPreferences("shot_history", MODE_PRIVATE)
-        ShotHistory(object : ShotHistory.Storage {
+        ShotHistory(object : ShotHistory.AtomicTimingStorage {
             override fun read(): String = prefs.getString("entries_v1", "") ?: ""
             override fun write(value: String) {
                 check(prefs.edit().putString("entries_v1", value).commit()) { "Cannot save shot history" }
             }
+            override fun readTiming() = prefs.getString(ShotTimingSidecar.KEY, null)
+            override fun writeWithTiming(value: String, timing: String) {
+                check(prefs.edit().putString("entries_v1", value).putString(ShotTimingSidecar.KEY, timing).commit()) {
+                    "Cannot save shot history and timing evidence"
+                }
+            }
+        }, onTimingEvidenceError = { error ->
+            runCatching { logs.record("shot.timing_evidence_unavailable", mapOf("type" to error.javaClass.simpleName)) }
         }, onObservedUse = { entry ->
             runCatching { curveUsageResult.getOrThrow().record(entry.id, entry.curveId, entry.startedAtMs) }
                 .onFailure { logs.record("curve.usage_unavailable", mapOf("type" to it.javaClass.simpleName)) }
@@ -239,7 +247,7 @@ class MobileApplication : Application() {
             BrewJournal(object : BrewJournal.Storage {
                 override fun read(): String? = atomic.read()?.toString(Charsets.UTF_8)
                 override fun write(value: String) = atomic.write(value.toByteArray(Charsets.UTF_8))
-            })
+            }, timingEvidence = { readPersistedShotTimingEvidence(this) })
         }
     }
     internal val journalResult: Result<BrewJournal>
