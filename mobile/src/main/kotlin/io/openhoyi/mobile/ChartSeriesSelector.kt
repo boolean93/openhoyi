@@ -6,10 +6,11 @@ import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.widget.*
 
 /** Low-frequency display controls; opening/dismissing never changes the active extraction. */
-internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
+internal class ChartSeriesSelector(private val chart: ExtractionOverlayView, private val secure: Boolean = false) {
     private val context = chart.context
     private val style = TaskProductVisualStyle(context)
     private val visual = ExtractionHistoryVisualStyle(context)
@@ -60,12 +61,12 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
             text = context.getString(R.string.chart_series_title)
             setTextColor(style.ink); textSize = 16f; typeface = TaskTypography.face(context, 500)
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        if (!landscape) heading.addView(Button(context).apply {
+        if (!landscape || secure) heading.addView(Button(context).apply {
             text = "×"; contentDescription = context.getString(R.string.chart_series_close)
             style.button(this); minimumWidth = dp(48); minimumHeight = dp(48)
             setOnClickListener { close() }
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
-        panel.addView(heading, LinearLayout.LayoutParams(-1, if (landscape) dp(36) else -2))
+        panel.addView(heading, LinearLayout.LayoutParams(-1, if (landscape && !secure) dp(36) else -2))
         selectableLiveMetrics.forEach { metric ->
             val check = CheckBox(context).apply {
                 tag = "product/extraction/series-${metric.name.lowercase()}"
@@ -122,15 +123,17 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView) {
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
             return scroll.measuredHeight.coerceAtMost(budget.coerceAtLeast(dp(48)))
         }
-        if (context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+        if (!landscape || secure) {
             val dialog = Dialog(context).apply { setContentView(scroll); setCanceledOnTouchOutside(true) }
             dialog.window?.apply {
                 setBackgroundDrawableResource(android.R.color.transparent)
                 setGravity(Gravity.BOTTOM)
+                if (secure) addFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
             }
             dialog.setOnDismissListener { readings.clear(); checks.clear(); dismiss = null }
             dialog.show()
-            dialog.window?.setLayout(-1, panelHeight(availableWidth, (availableHeight * .6f).toInt()))
+            val width = if (landscape) minOf(availableWidth, dp(480)) else availableWidth
+            dialog.window?.setLayout(if (landscape) width else -1, panelHeight(width, (availableHeight * .6f).toInt()))
             dismiss = { dialog.dismiss() }
         } else {
             val width = dp(288).coerceAtMost(availableWidth - dp(16)).coerceAtLeast(dp(48))

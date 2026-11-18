@@ -108,7 +108,7 @@ class MobileService : Service() {
     private var passiveHistoryId: String? = null
     /** A started passive observation only owns history/series/navigation after it is committed. */
     private var passiveCommitted = false
-    private lateinit var manualPresentation: ManualShotPresentationGate
+    private val manualPresentation get() = (application as MobileApplication).manualShotPresentation
     private var recentReadyCoffeeAddress: String? = null
     private var initialKnownCoffeeChecked=false
     private var passiveMayClearRecovery = false
@@ -248,6 +248,21 @@ class MobileService : Service() {
     val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
+
+    internal fun manualLiveSamples(observationId: String): ManualLiveSamples? {
+        if (!running || manualPresentation.activeId != observationId || series.curveId != "manual") return null
+        val now = MobileMonotonicClock.elapsedRealtime()
+        val current = snapshot
+        return ManualLiveSamples(series.points, buildSet {
+            if (LiveTelemetry.machine(current.coffee, current.coffeeState, current.coffeeAt, now) == null)
+                addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
+            if (LiveTelemetry.scale(current.scaleObservation, current.scaleState, now) == null)
+                addAll(listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WEIGHT))
+        })
+    }
+    private fun terminalManualPoints(): List<ShotPoint> =
+        if (manualPresentation.activeId != null && series.curveId == "manual") series.points else emptyList()
+
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private val preheatTimeoutScheduler:(Long,()->Unit)->Unit={ delay,action->
@@ -598,8 +613,8 @@ class MobileService : Service() {
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             val committed = passiveCommitted
             passiveCommitted = false
+            manualPresentation.disconnected(requireIdle = committed, points = terminalManualPoints())
             if (committed) {
-                manualPresentation.disconnected()
                 passiveHistoryId?.let { id ->
                     runCatching { history?.abandon(id, "连接中断") }
                         .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
@@ -750,7 +765,7 @@ class MobileService : Service() {
                     val committed = passiveCommitted
                     if (committed) {
                         passiveCommitted = false
-                        manualPresentation.ended()
+                        manualPresentation.ended(terminalManualPoints())
                         clearPassiveRecovery(requireDeviceMatch = true)
                         val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, observedAt)
                         passiveHistoryId?.let {
@@ -796,7 +811,7 @@ class MobileService : Service() {
      */
     private fun discardPassiveSeries(requireDeviceMatch: Boolean) {
         passiveCommitted = false
-        manualPresentation.ended()
+        manualPresentation.ended(terminalManualPoints())
         finishBrewFeedback(false)
         finishSeries(false)
         passiveHistoryId = null
@@ -829,7 +844,6 @@ class MobileService : Service() {
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
-        manualPresentation = app.manualShotPresentation
         app.releaseUpdates.serviceCreated(this)
         app.curveDeletionGuards[ownerId] = { id ->
             CurveDeletionPolicy.inUse(id, dispatchingCurveId, series.curveId,
@@ -2448,7 +2462,7 @@ class MobileService : Service() {
     }
     fun shutdown() {
         if (mock != null) {
-            manualPresentation.ended()
+            manualPresentation.disconnected(requireIdle = false, points = terminalManualPoints())
             finishBrewFeedback(false)
             if (ShotGate.active(shotState)) mock.stop()
             running = false
@@ -2485,7 +2499,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_preheat_shutdown_block), "service.stop_deferred")
             return
         }
-        manualPresentation.ended()
+        manualPresentation.disconnected(requireIdle = false, points = terminalManualPoints())
         closeDeviceOwner(); running = false
         safetyMessage = null
         cancelSafetyNotification()
@@ -2500,7 +2514,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
-        manualPresentation.ended()
+        manualPresentation.disconnected(requireIdle = passiveCommitted, points = terminalManualPoints())
         settleLeverWriteUnknown()
         (application as MobileApplication).releaseUpdates.serviceDestroyed(this)
 
@@ -2514,7 +2528,6 @@ class MobileService : Service() {
             val committed = passiveCommitted
             passiveCommitted = false
             if (committed) {
-                manualPresentation.disconnected()
                 passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
                 saveSeriesCheckpoint(force = true)
                 finishSeries(false)

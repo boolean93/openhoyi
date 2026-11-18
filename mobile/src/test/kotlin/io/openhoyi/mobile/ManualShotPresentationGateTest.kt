@@ -4,38 +4,33 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ManualShotPresentationGateTest {
-    @Test fun oneClaimSharedByComparisonAndMainUntilNextCup() {
+    @Test fun foregroundClaimIsSharedAcrossHosts() {
         val gate = ManualShotPresentationGate()
         gate.started("cup-1")
-        assertTrue(gate.claim(isResumed = true)) // Comparison routes to Main.
-        assertFalse(gate.claim(isResumed = true)) // Main must not present it again.
-        assertFalse(gate.claim(isResumed = true)) // Returning/recreating must not re-route.
+        assertFalse(gate.claim("cup-1", false))
+        // Eligibility can be checked while waiting for an existing service; it does not consume.
+        assertTrue(gate.eligible("cup-1", true))
+        assertTrue(gate.claim("cup-1", true))
+        assertFalse(gate.claim("cup-1", true))
         gate.ended()
+        assertEquals(ManualShotPresentationGate.Outcome.ENDED, gate.terminalFor("cup-1")?.outcome)
+        assertFalse(gate.claim("cup-1", true))
         gate.started("cup-2")
-        assertTrue(gate.claim(isResumed = true))
+        assertTrue(gate.claim("cup-2", true))
     }
 
-    @Test fun onlyResumedHostClaimsAndEndedCupIsNotQueued() {
-        val gate = ManualShotPresentationGate()
-        gate.started("hidden-cup")
-        assertFalse(gate.claim(isResumed = false))
-        gate.ended()
-        assertFalse(gate.claim(isResumed = true))
-        gate.started("still-running")
-        assertFalse(gate.claim(isResumed = false))
-        assertTrue(gate.claim(isResumed = true))
-    }
-
-    @Test fun interruptedManualCupCannotClaimNavigationUntilRealIdleAndNextStart() {
+    @Test fun disconnectedCupRemainsUnknownAndCannotClaimUntilIdleAndNextStart() {
         val gate = ManualShotPresentationGate()
         gate.started("cup-1")
         gate.disconnected()
-        assertFalse(gate.claim(isResumed = true))
-        gate.started("unconfirmed-fragment")
-        assertFalse(gate.claim(isResumed = true))
-        gate.ended()
+        assertNull(gate.activeId)
+        assertEquals(ManualShotPresentationGate.Outcome.UNKNOWN, gate.terminalFor("cup-1")?.outcome)
+        gate.ended() // Provisional discard or shutdown must not turn unknown into "ended".
+        assertEquals(ManualShotPresentationGate.Outcome.UNKNOWN, gate.terminalFor("cup-1")?.outcome)
+        gate.started("unconfirmed-tail")
+        assertFalse(gate.claim("unconfirmed-tail", true))
         gate.observedIdle()
         gate.started("cup-2")
-        assertTrue(gate.claim(isResumed = true))
+        assertTrue(gate.claim("cup-2", true))
     }
 }
