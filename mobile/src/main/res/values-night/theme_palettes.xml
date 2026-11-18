@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="palette_classic_product_accent">#83D6D0</color>
+    <color name="palette_classic_product_selected">#203D3B</color>
+    <color name="palette_classic_home_accent">#39D4A0</color>
+    <color name="palette_classic_home_primary">#006B34</color>
+    <color name="palette_classic_home_selected">#203D3B</color>
+    <color name="palette_classic_home_preset">#39D4A0</color>
+    <color name="palette_classic_home_dial">#39D4A0</color>
+    <color name="palette_classic_live_start">#087A38</color>
+    <color name="palette_classic_switch_on">#438C70</color>
+    <color name="palette_sea_salt_accent">#8AD0E7</color>
+    <color name="palette_sea_salt_primary">#2D637B</color>
+    <color name="palette_sea_salt_selected">#1C3D4A</color>
+    <color name="palette_sea_salt_switch_on">#397C96</color>
+    <color name="palette_coffee_accent">#E0B599</color>
+    <color name="palette_coffee_primary">#79513C</color>
+    <color name="palette_coffee_selected">#483127</color>
+    <color name="palette_coffee_switch_on">#90614A</color>
+    <color name="palette_graphite_accent">#C0CBDB</color>
+    <color name="palette_graphite_primary">#4F5969</color>
+    <color name="palette_graphite_selected">#333B47</color>
+    <color name="palette_graphite_switch_on">#646E7B</color>
+</resources>

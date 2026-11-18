@@ -197,7 +197,20 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
             await("Font preview host not destroyed") { home.isDestroyed }
         }
     }
-    private fun preheatRecreation() {
+    /** Reuse the service/cup/editor regressions once for palette-driven configuration. */
+    fun runPaletteRecreation() {
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        fun choose(palette: AppThemePalette) {
+            check(app.appearancePreferences.selectPalette(palette) != AppAppearancePreference.Selection.SAVE_FAILED)
+        }
+        preheatRecreation { choose(AppThemePalette.COFFEE) }
+        activeCupRecreation(listOf({ choose(AppThemePalette.SEA_SALT) }))
+        editorDraft { choose(AppThemePalette.GRAPHITE) }
+    }
+
+    private fun preheatRecreation(change: () -> Unit = {
+        select(if (app.fontSizePreferences.current == AppFontSize.LARGE) AppFontSize.SMALL else AppFontSize.LARGE)
+    }) {
         var screen = MainPageTestHost.launch(test, timeoutMs = 10000).activity
         await("Mock owner not ready for preheat") { screen.currentService?.machineSettingsFresh == true }
         val owner = checkNotNull(screen.currentService)
@@ -238,11 +251,12 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 check(runtime.preheatActive)
                 // Freeze only the Mock temperature fixture, not the application clock or real protocol.
                 field(runtime, "preheatStartedAtMs").setLong(runtime, SystemClock.elapsedRealtime() + 30000)
-                select(if (app.fontSizePreferences.current == AppFontSize.LARGE) AppFontSize.SMALL else AppFontSize.LARGE)
+                change()
             }
             screen = recreate(screen, MainActivity::class.java)
             await("Preheat recreation lost its service") { screen.currentService === owner }
             main {
+                check(screen.themePalette() == app.appearancePreferences.current.palette)
                 check(field(owner, "autoPreheatIntent").get(owner) === intent)
                 check(preparation.requestId == request && runtime.preheatActive) {
                     "Preheat changed during recreation: requestBefore=$request requestNow=${preparation.requestId} " +
@@ -268,7 +282,7 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         await("Preheat test host not destroyed") { screen.isDestroyed }
         await("Mock restored settings not observed") { owner.snapshot.settings?.flags == oldSettings.flags }
     }
-    private fun activeCupRecreation() {
+    private fun activeCupRecreation(changes: List<() -> Unit> = AppFontSize.entries.map { size -> { select(size) } }) {
         var screen = MainPageTestHost.launch(test, extraction = true, timeoutMs = 10000).activity
         await("Mock settings not fresh") { screen.currentService?.machineSettingsFresh == true }
         val owner = checkNotNull(screen.currentService)
@@ -284,8 +298,8 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
             val identity = owner.chartTraceIdentity
             val recipe = owner.activeShotRecipe
             val first = owner.chartPoints.first()
-            for (size in AppFontSize.entries) {
-                main { select(size) }
+            for (change in changes) {
+                main(change)
                 screen = recreate(screen, MainActivity::class.java)
                 await("Recreated host lost service/layout") {
                     val frame = screen.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG)
@@ -293,6 +307,8 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                         frame.navigation.isLaidOut && !frame.navigation.isLayoutRequested
                 }
                 main {
+                    val size = app.fontSizePreferences.current
+                    check(screen.themePalette() == app.appearancePreferences.current.palette)
                     check(screen.resources.configuration.fontScale == size.scale)
                     check(app.resources.configuration.fontScale == size.scale)
                     check(owner.resources.configuration.fontScale == size.scale)
@@ -323,7 +339,9 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
         }
     }
     @Suppress("UNCHECKED_CAST")
-    private fun editorDraft() {
+    private fun editorDraft(change: () -> Unit = {
+        select(if (app.fontSizePreferences.current == AppFontSize.SMALL) AppFontSize.LARGE else AppFontSize.SMALL)
+    }) {
         // Keep a real foreground host: MIUI rejects an app-UID start after the previous
         // scenario's Activity was destroyed. The non-exported editor must not be shell-launched.
         val host = MainPageTestHost.launch(test, timeoutMs = 10000).activity
@@ -366,7 +384,7 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 val saved = android.os.Bundle().also { form.save(it, fields()) }
                 check(saved.getString("form-focus") == key && saved.getInt("form-start") == 1 && saved.getInt("form-end") == 2)
                 android.util.Log.i("FontSizeChecks", "editor ready: focus=$key selection=1..2 window=${screen.hasWindowFocus()} ime=${saved.getBoolean("editor-ime-visible")}")
-                select(if (app.fontSizePreferences.current == AppFontSize.SMALL) AppFontSize.LARGE else AppFontSize.SMALL)
+                change()
             }
             screen = recreate(screen, CurveEditorActivity::class.java)
             try {
@@ -389,6 +407,7 @@ internal class FontSizeRuntimeChecks(private val test: Instrumentation) {
                 val input = fields().getValue(key)
                 check(input.text.toString() == "12.")
                 check(screen.resources.configuration.fontScale == app.fontSizePreferences.current.scale)
+                check(screen.themePalette() == app.appearancePreferences.current.palette)
             }
         } finally {
             main { screen.finish(); host.finish() }

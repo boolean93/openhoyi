@@ -667,7 +667,7 @@ class HomeActivity : ThemedActivity() {
         prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
         prominentAlarm.show(alarmBanner?.message.orEmpty())
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
-            R.color.mobile_danger else R.color.mobile_accent))
+            R.color.mobile_danger else R.color.mobile_alarm_advisory))
         status.show(if (owner?.manualShotActive == true)
             getString(R.string.home_manual_shot_status) else if (running) s.messageForDisplay { id, args -> getString(id, *args) } else getString(R.string.home_scan_service_hint))
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
@@ -760,7 +760,7 @@ class HomeActivity : ThemedActivity() {
         machineCardState.show(DeviceStatusText.coffeeLabel(this,s.coffeeState,s.coffeeFailure) + if (coffeeFresh) getString(R.string.home_live_suffix) else "")
         scaleCardState.show(label(s.scaleState) + if (liveScale != null) getString(R.string.home_live_suffix) else "")
         fun cardColor(state: DeviceState, live: Boolean) = if (state in setOf(DeviceState.FAILED, DeviceState.UNSUPPORTED))
-            getColor(R.color.mobile_danger) else if (live) productStyle.accent else productStyle.muted
+            getColor(R.color.mobile_danger) else if (live) getColor(R.color.home_legacy_device_ready) else productStyle.muted
         machineCardState.setTextColor(cardColor(s.coffeeState, coffeeFresh))
         scaleCardState.setTextColor(cardColor(s.scaleState, liveScale != null))
         machineStatusCard.contentDescription = getString(R.string.home_visual_open_device_status, getString(R.string.home_coffee)) + ": " + machineCardState.text
@@ -874,10 +874,10 @@ class HomeActivity : ThemedActivity() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun dotShape(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
-        setColor(when (color) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
+        setColor(when (color) { R.color.mobile_success -> getColor(R.color.home_legacy_device_ready); R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
     }
     private fun View.showDot(colorResource: Int) {
-        val color = when (colorResource) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
+        val color = when (colorResource) { R.color.mobile_success -> getColor(R.color.home_legacy_device_ready); R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
         val dot = background as? GradientDrawable
         // Replacing an unchanged background emits native accessibility subtree events.
         if (dot == null) background = dotShape(colorResource)

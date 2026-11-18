@@ -141,7 +141,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
             addView(TextView(activity).apply {
                 tag = "task-tools-menu"; text = activity.getString(R.string.task_tools); textSize = 14f
                 gravity = Gravity.CENTER; minWidth = HoyiUi.dp(activity, 48); minHeight = HoyiUi.dp(activity, 48)
-                setTextColor(activity.getColor(R.color.mobile_accent)); isClickable = true; isFocusable = true
+                setTextColor(activity.appColor(R.color.mobile_accent)); isClickable = true; isFocusable = true
                 contentDescription = text
                 setOnClickListener {
                     val options = TaskNavigationModel.tools

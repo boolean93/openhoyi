@@ -35,7 +35,7 @@ internal class CurveRecipePlanView(context: Context, private val style: TaskProd
             pair.forEachIndexed { columnIndex, stage ->
                 val index = rowIndex * 2 + columnIndex
                 val flow = stage.unit == CurveStageParameters.Unit.FLOW_ML_PER_SECOND
-                val color = if (flow) style.accent else if (stage.unit == CurveStageParameters.Unit.PRESSURE_BAR)
+                val color = if (flow) style.flowMetric else if (stage.unit == CurveStageParameters.Unit.PRESSURE_BAR)
                     style.pressure else style.muted
                 val card = LinearLayout(context).apply {
                     orientation = VERTICAL; tag = "product/curve-library/stage/${index + 1}"
@@ -88,7 +88,7 @@ internal class CurveRecipePlanView(context: Context, private val style: TaskProd
                     val index = rowIndex * 2 + columnIndex
                     val color = when (stages[index].unit) {
                         CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
-                        CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.accent
+                        CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.flowMetric
                         CurveStageParameters.Unit.RAW_UNKNOWN -> style.muted
                     }
                     labels.addView(label(context.getString(R.string.curve_plan_stage_water_label,
@@ -102,7 +102,7 @@ internal class CurveRecipePlanView(context: Context, private val style: TaskProd
                 if (water > 0) bar.addView(View(context).apply {
                     background = style.shape(when (stages[index].unit) {
                         CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
-                        CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.accent
+                        CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.flowMetric
                         CurveStageParameters.Unit.RAW_UNKNOWN -> style.muted
                     }, true, 0)
                 }, LayoutParams(0, -1, water.toFloat()))

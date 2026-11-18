@@ -17,13 +17,14 @@ import android.widget.Switch
 /** Native checked/listener, keyboard, accessibility and drag semantics; only the ink is custom.
  * Transparent native drawables retain Switch's own measurement and gesture geometry. No reflection.
  */
-internal class HoyiSwitch(context: Context) : Switch(context) {
+internal class HoyiSwitch(context: Context, private val interactive: Boolean = true) : Switch(context) {
     private var ready = false
     private var position = 0f
     private var motion: ValueAnimator? = null
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val capsule = RectF()
     private var touching = false
+    private val palette = AppPalette(context)
     private val density = resources.displayMetrics.density
     private fun dp(value: Float) = value * density
     init {
@@ -74,6 +75,7 @@ internal class HoyiSwitch(context: Context) : Switch(context) {
         super.onDetachedFromWindow()
     }
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!interactive) return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             // Finish an interrupted transition before native hit-testing so invisible and
             // visible thumb positions agree when a second gesture starts.
@@ -104,9 +106,7 @@ internal class HoyiSwitch(context: Context) : Switch(context) {
             position = if (rtl) 1f - nativePosition else nativePosition
         }
         val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        val off = Color.parseColor(if (dark) "#485354" else "#CDD3D1")
-        val on = Color.parseColor(if (dark) "#438C70" else "#61A98A")
-        val fill = blend(off, on, position)
+        val fill = blend(palette.switchOff, palette.switchOn, position)
         paint.alpha = if (isEnabled) 255 else 100
         // A fine dark upper lip and lighter lower face suggest a shallow inset, not elevation.
         paint.shader = LinearGradient(0f, top, 0f, capsule.bottom,

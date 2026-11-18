@@ -44,9 +44,9 @@ internal object HoyiUi {
 
     fun shape(activity: Activity, color: Int, radius: Int = TaskVisualTokens.CARD_RADIUS_DP, stroke: Int? = null): GradientDrawable =
         GradientDrawable().apply {
-            setColor(activity.getColor(color))
+            setColor(activity.appColor(color))
             cornerRadius = dp(activity, radius).toFloat()
-            stroke?.let { setStroke(dp(activity, 1), activity.getColor(it)) }
+            stroke?.let { setStroke(dp(activity, 1), activity.appColor(it)) }
         }
 
     fun label(activity: Activity, parent: LinearLayout, value: String, size: Int,
@@ -95,7 +95,7 @@ internal object HoyiUi {
         backgroundTintList = null
         val feedback = ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
             intArrayOf(android.graphics.Color.TRANSPARENT,
-                if (primary) 0x33FFFFFF else activity.getColor(R.color.mobile_accent_soft)))
+                if (primary) 0x33FFFFFF else activity.appColor(R.color.mobile_accent_soft)))
         fun enabledBackground(focused: Boolean) = android.graphics.drawable.RippleDrawable(feedback,
             shape(activity, if (primary) R.color.mobile_primary_button else R.color.mobile_surface,
                 TaskVisualTokens.CONTROL_RADIUS_DP,
@@ -134,7 +134,7 @@ internal object HoyiUi {
                 isFocusable = true
                 isSelected = active
                 contentDescription = activity.getString(R.string.ui_tab_description, label, if (active) activity.getString(R.string.ui_current_page_suffix) else "")
-                setTextColor(activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted))
+                setTextColor(activity.appColor(if (active) R.color.mobile_accent else R.color.mobile_muted))
                 background = shape(activity,
                     if (active) R.color.mobile_accent_soft else R.color.mobile_surface, TaskVisualTokens.CONTROL_RADIUS_DP, R.color.mobile_border)
                 if (!active) setOnClickListener { onSelect(index) }

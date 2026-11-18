@@ -61,7 +61,7 @@ internal class ScaleTrendView(context: Context, visual: ScaleVisualStyle? = null
         fun y(point: ScaleTrendWindow.Point) = bottom - (bottom - top) * ((point.hundredthsGram / 100.0 - low) / (high - low)).toFloat()
         val save = canvas.save()
         canvas.clipRect(left, top - dp(3f), right + dp(3f), bottom + dp(3f))
-        paint.color = context.getColor(R.color.mobile_accent)
+        paint.color = context.getColor(R.color.chart_scale_weight)
         paint.strokeWidth = dp(2f)
         points.forEachIndexed { index, point ->
             val previous = points.getOrNull(index - 1)
@@ -81,8 +81,8 @@ private class ScaleTrendProductRenderer(private val context:Context,private val 
         typeface=TaskTypography.face(context,400);textSize=this@ScaleTrendProductRenderer.style.sp(14);isFakeBoldText=false;textScaleX=1f;textSkewX=0f
     }
     private val grid=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=this@ScaleTrendProductRenderer.style.border;strokeWidth=dp(1f);strokeCap=Paint.Cap.BUTT}
-    private val data=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=this@ScaleTrendProductRenderer.style.accent;strokeWidth=dp(2f);strokeCap=Paint.Cap.BUTT}
-    private val fill=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=this@ScaleTrendProductRenderer.style.accent;alpha=kotlin.math.round(255*.12f).toInt()}
+    private val data=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=this@ScaleTrendProductRenderer.style.scaleMetric;strokeWidth=dp(2f);strokeCap=Paint.Cap.BUTT}
+    private val fill=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=this@ScaleTrendProductRenderer.style.scaleMetric;alpha=kotlin.math.round(255*.12f).toInt()}
     var evidence=org.json.JSONArray();private set
     private fun dp(value:Float)=value*context.resources.displayMetrics.density
     private fun rect(value:android.graphics.RectF)=org.json.JSONArray(listOf(value.left,value.top,value.right,value.bottom))

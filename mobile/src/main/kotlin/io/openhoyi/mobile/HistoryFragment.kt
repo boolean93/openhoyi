@@ -14,6 +14,7 @@ import java.util.Locale
 class HistoryFragment : androidx.fragment.app.Fragment() {
     private var toolsDialog: android.app.AlertDialog? = null
     private val host get() = requireActivity() as MainActivity
+    private fun appColor(id:Int)=requireContext().appColor(id)
     private fun getColor(id:Int)=requireContext().getColor(id)
     private val RESULT_OK=android.app.Activity.RESULT_OK
     private val application get() = host.application
@@ -151,7 +152,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
                     setPadding(dp(16), dp(8), dp(16), dp(8))
                     background = style.shape(style.surface, radius = 0)
                     val day = HoyiUi.label(host, this, "", 14, true).apply {
-                        setTextColor(getColor(R.color.mobile_accent))
+                        setTextColor(appColor(R.color.mobile_accent))
                         setPadding(0, 0, 0, dp(8))
                     }
                     val header = LinearLayout(host).apply {

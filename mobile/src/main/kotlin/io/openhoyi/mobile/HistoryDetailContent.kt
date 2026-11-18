@@ -41,7 +41,7 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) }
     }
     HoyiUi.label(this, summary, status(entry.status), 14, true).apply {
-        setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN) R.color.mobile_danger else R.color.mobile_accent))
+        setTextColor(appColor(if (entry.status == ShotHistory.Status.UNKNOWN) R.color.mobile_danger else R.color.mobile_accent))
         layoutParams = if (standalone) LinearLayout.LayoutParams(-2, -2)
             else LinearLayout.LayoutParams(0, -2, 1f)
     }
@@ -168,13 +168,13 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
             layoutParams = if (standalone) LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
                 else LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(8); marginEnd = dp(8) }
             if (standalone && !primary) {
-                setTextColor(getColor(R.color.mobile_accent))
+                setTextColor(appColor(R.color.mobile_accent))
                 val states = android.graphics.drawable.StateListDrawable().apply {
                     addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@renderHistoryDetail, android.R.color.transparent, 8, R.color.mobile_accent))
                     addState(intArrayOf(), HoyiUi.shape(this@renderHistoryDetail, android.R.color.transparent, 8))
                 }
                 background = android.graphics.drawable.RippleDrawable(
-                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
+                    android.content.res.ColorStateList.valueOf(appColor(R.color.mobile_accent_soft)),
                     states, HoyiUi.shape(this@renderHistoryDetail, android.R.color.white, 8))
             }
             if (standalone && leading) {

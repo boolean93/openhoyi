@@ -8,8 +8,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowInsets
-import android.widget.CompoundButton
-import android.widget.Switch
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -23,9 +21,7 @@ class AppSettingsActivity : ThemedActivity() {
     private var fontSizeCard: AppFontSizePreferencesCard? = null
     private var diagnosticStorageCard: DiagnosticStorageCard? = null
     private lateinit var languageCard: AppLanguagePreferencesCard
-    internal lateinit var themeCheckBox: CompoundButton
-        private set
-    internal lateinit var themeError: TextView
+    internal var appearanceCard: AppThemePreferencesCard? = null
         private set
     internal lateinit var exportStatus: TextView
         private set
@@ -35,10 +31,6 @@ class AppSettingsActivity : ThemedActivity() {
     private var pendingExportResult: Pair<String, Boolean>? = null
     private var service: MobileService? = null
     private var bound = false
-    private var updatingTheme = false
-    internal var appearanceWrite: (Boolean) -> Boolean = { value ->
-        getSharedPreferences("appearance", MODE_PRIVATE).edit().putBoolean("dark", value).commit()
-    }
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -55,38 +47,7 @@ class AppSettingsActivity : ThemedActivity() {
         val style=visual.palette
         val body=visual.page(this,R.string.app_settings_title,R.string.app_settings_subtitle,640,"app")
         val theme = settingsGroup(this, body, getString(R.string.settings_appearance_language), visual)
-        val appearance = getSharedPreferences("appearance", MODE_PRIVATE)
-        themeCheckBox = HoyiSwitch(this).apply {
-            text = getString(R.string.app_settings_dark)
-            textSize = TaskVisualTokens.BODY_SP.toFloat()
-            typeface = TaskTypography.face(this@AppSettingsActivity, 400)
-            setTextColor(getColor(R.color.mobile_text))
-            minimumHeight = HoyiUi.dp(this@AppSettingsActivity, 52)
-            isChecked = appearance.getBoolean("dark", false)
-            theme.addView(this, LinearLayout.LayoutParams(-1, -2))
-        }
-        visual.switch(themeCheckBox as Switch,52);themeCheckBox.tag="product/settings/app/theme/toggle"
-        val themeHint=style.text(getString(R.string.app_settings_subtitle),TaskProductVisualStyle.auxiliary,secondary=true)
-        style.add(theme,themeHint,8)
-        themeError = beanError(theme).also {error->
-            style.apply(error,TaskProductVisualStyle.auxiliary)
-            error.setTextColor(getColor(R.color.mobile_danger));error.setPadding(0,style.dp(8),0,0);error.tag="product/settings/app/theme/error"
-        }
-        themeCheckBox.setOnCheckedChangeListener { _, dark ->
-            if (!updatingTheme) {
-                val previous = appearance.getBoolean("dark", false)
-                val saved = runCatching { appearanceWrite(dark) }.getOrDefault(false)
-                if (saved) { themeError.text = "";invalidateExportResult();service?.refreshNotificationDisplay(); recreate() }
-                else {
-                    // SharedPreferences may update its memory even when disk commit reports failure.
-                    runCatching { appearanceWrite(previous) }
-                    updatingTheme = true
-                    themeCheckBox.isChecked = previous
-                    updatingTheme = false
-                    themeError.setText(R.string.app_settings_theme_failed)
-                }
-            }
-        }
+        appearanceCard = AppThemePreferencesCard(this, theme, visual) { invalidateExportResult(); recreate() }
         settingsDivider(this, theme, visual)
         languageCard = AppLanguagePreferencesCard(this, theme, embedded = true, visual = visual) { invalidateExportResult();service?.refreshNotificationDisplay(); recreate() }
         fontSizeCard = AppFontSizePreferencesCard(this, theme, visual) { recreate() }
@@ -142,7 +103,7 @@ class AppSettingsActivity : ThemedActivity() {
     override fun onPause() {
         if (redirectedRoot) { super.onPause(); return }
         // Stop when leaving the interactive page, not after the next page finishes drawing.
-        feedbackCard.pausePreview()
+        feedbackCard.pausePreview(); appearanceCard?.close()
         super.onPause()
     }
     override fun onStop() {
@@ -156,7 +117,7 @@ class AppSettingsActivity : ThemedActivity() {
         exportStarted=false;invalidateExportResult()
         diagnosticStorageCard?.pause(); diagnosticStorageCard = null
         if (::feedbackCard.isInitialized) feedbackCard.stop()
-        if (::languageCard.isInitialized) languageCard.close(); fontSizeCard?.close()
+        if (::languageCard.isInitialized) languageCard.close(); fontSizeCard?.close(); appearanceCard?.close(); appearanceCard = null
         release()
         super.onDestroy()
     }

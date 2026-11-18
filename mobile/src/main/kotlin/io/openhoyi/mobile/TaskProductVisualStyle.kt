@@ -45,23 +45,28 @@ internal class TaskProductVisualStyle(val context: Context) {
     val ink = pick("#101820", "#EDF3F2")
     val muted = pick("#657183", "#A9B9B8")
     val border = pick("#DDE3E7", "#3B4B4C")
-    val primary = Color.parseColor("#087A78")
-    val accent = pick("#087A78", "#83D6D0")
-    val selected = pick("#E2F0ED", "#203D3B")
+    private val brand = AppPalette(context)
+    val primary = brand.productPrimary
+    val onPrimary = brand.onPrimary
+    val accent = brand.productAccent
+    val selected = brand.productSelected
     val disabled = pick("#ECEFF1", "#263234")
     val onDisabled = pick("#8A95A3", "#7D908F")
-    // Home keeps its approved light palette while sharing the app's night surfaces.
+    // Background/neutral surface and ink stay independent of the brand palette.
     val homePage = pick("#FAFCFA", "#11191A")
-    val homeAccent = pick("#009E48", "#39D4A0")
-    val homePrimary = pick("#009E48", "#006B34")
-    val homeSelected = pick("#E7F7EA", "#203D3B")
-    val homePresetText = pick("#087647", "#39D4A0")
+    val homeAccent = brand.homeAccent
+    val homePrimary = brand.homePrimary
+    val homeSelected = brand.homeSelected
+    val homePresetText = brand.homePresetText
     val homeDialInk = pick("#151A17", "#EDF3F2")
     val homeDialBorder = pick("#EDF0EE", "#3B4B4C")
     val homeDialTrack = pick("#E2E6E3", "#3B4B4C")
-    val homeDialProgress = pick("#00C853", "#39D4A0")
+    val homeDialProgress = brand.homeDialProgress
     val pressure = pick("#176BD1", "#8CB8FF")
-    val stageColors = listOf(accent, pressure, pick("#A46500", "#F2C16D"), pick("#7941A5", "#C7A3EB"))
+    // Data inks retain their original reading across brand palettes.
+    val flowMetric = pick("#087A78", "#83D6D0")
+    val scaleMetric = pick("#087A78", "#83D6D0")
+    val stageColors = listOf(flowMetric, pressure, pick("#A46500", "#F2C16D"), pick("#7941A5", "#C7A3EB"))
     fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
     fun sp(value: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value.toFloat(), context.resources.displayMetrics)
     fun shape(fill: Int, outline: Boolean = false, radius: Int = 12) = GradientDrawable().apply {
@@ -101,7 +106,7 @@ internal class TaskProductVisualStyle(val context: Context) {
         setPadding(dp(8), dp(8), dp(8), dp(8))
         elevation = 0f; stateListAnimator = null; backgroundTintList = null
         setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
-            intArrayOf(onDisabled, if (primary) Color.WHITE else accent)))
+            intArrayOf(onDisabled, if (primary) onPrimary else accent)))
         fun enabledBackground(fill: Int, border: Boolean) = RippleDrawable(
             ColorStateList.valueOf(if (primary) 0x33FFFFFF else selected),
             shape(fill, border), shape(Color.WHITE))

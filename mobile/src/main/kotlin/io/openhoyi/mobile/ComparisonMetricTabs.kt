@@ -55,7 +55,7 @@ internal class ComparisonMetricTabs(private val activity: ThemedActivity, select
                 addState(intArrayOf(), HoyiUi.shape(activity, fill, 8))
             }
             button.background = android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(activity.getColor(R.color.mobile_accent_soft)), states, null)
+                android.content.res.ColorStateList.valueOf(activity.appColor(R.color.mobile_accent_soft)), states, null)
         }
     }
 }
