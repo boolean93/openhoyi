@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Execute AI preview fixtures only on a fresh disposable CI emulator."""
 import argparse
+from contextlib import contextmanager, ExitStack
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+from threading import Event, Thread
+import time
 
 from shared_mock_artifact import inspect_apk
 
@@ -24,6 +28,90 @@ def require_fresh_emulator(adb):
     # Unlike pm path, list packages succeeds for an absent package.
     installed = set(adb('shell', 'pm', 'list', 'packages').splitlines())
     require('package:' + APP not in installed and 'package:' + TEST not in installed, 'Fresh emulator required')
+
+
+@contextmanager
+def capture_copy_logcat(serial, output):
+    # Keep a host-side trace even if the emulator exits and a final logcat dump is impossible.
+    with (output / 'gesture-logcat.txt').open('wb') as log:
+        command = ['adb', '-s', serial, 'logcat', '-b', 'main,system,crash', '-v', 'threadtime',
+                   'OpenHoyiAiCopy:I', 'AndroidRuntime:E', 'ActivityManager:W',
+                   'ActivityTaskManager:W', 'InputDispatcher:W', 'WindowManager:W',
+                   'lmkd:I', 'libc:F', 'DEBUG:F', '*:S']
+        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
+        try:
+            yield
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+
+
+def probe(command, timeout):
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        return ('ok' if result.returncode == 0 else f'exit-{result.returncode}'), result.stdout
+    except subprocess.TimeoutExpired:
+        return 'timeout', ''
+    except OSError:
+        return 'unavailable', ''
+
+
+def emulator_health(serial):
+    sample = dict(utc=datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
+                  monotonicNs=time.monotonic_ns())
+    status, processes = probe(['ps', '-eo', 'pid=,stat=,rss=,comm='], 0.4)
+    sample['qemu'] = status
+    if status == 'ok':
+        sample['qemu'] = [dict(pid=int(pid), state=state, rssKiB=int(rss))
+                          for pid, state, rss, name in (line.split(maxsplit=3) for line in processes.splitlines() if line.strip())
+                          if name.startswith('qemu-system-')]
+    status, listener = probe(['ss', '-H', '-ltn', 'sport', '=', ':5554'], 0.4)
+    sample['console5554'] = bool(listener.strip()) if status == 'ok' else status
+    status, reply = probe(['adb', '-s', serial, 'shell', 'echo', 'alive'], 1.2)
+    sample['adbGuest'] = ('alive' if reply.strip() == 'alive' else 'no-reply') if status == 'ok' else status
+    return sample
+
+
+@contextmanager
+def capture_emulator_health(serial, output):
+    stop = Event()
+
+    def collect():
+        try:
+            with (output / 'emulator-health.jsonl').open('w', buffering=1) as log:
+                while not stop.is_set():
+                    started = time.monotonic()
+                    log.write(json.dumps(emulator_health(serial)) + '\n')
+                    stop.wait(max(0, 2.0 - (time.monotonic() - started)))
+                log.write(json.dumps(dict(emulator_health(serial), final=True)) + '\n')
+        except (OSError, ValueError) as exc:
+            print(f'Emulator health recording unavailable: {exc}', flush=True)
+
+    worker = Thread(target=collect, daemon=True)
+    worker.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        worker.join(timeout=5)
+
+
+def require_copy_display(display):
+    require(display == dict(size='Physical size: 720x1560', density='Physical density: 280'),
+            'Copy emulator must boot at 720x1560 @ 280 dpi with no guest overrides')
+
+
+def run_instrumentation(serial, command, output):
+    # External files preserve partial stdout/stderr on timeout or ADB error, too.
+    stdout = output / 'instrumentation.txt'
+    with stdout.open('wb') as stream, (output / 'instrumentation-stderr.txt').open('wb') as errors:
+        subprocess.run(['adb', '-s', serial, *command], check=True, stdout=stream, stderr=errors, timeout=180)
+    return stdout.read_text(encoding='utf-8', errors='replace').strip()
 
 
 def main(message_copy=False):
@@ -56,17 +144,23 @@ def main(message_copy=False):
                    apks=pair, passed=False, detachedViewsOnly=not message_copy, windowGestures=message_copy, visualAcceptance=False,
                    noModelRequest=True, noPhysicalDevice=True)
     try:
-        for path, identity in zip(paths, pair):
-            require(hashlib.sha256(path.read_bytes()).hexdigest() == identity['sha256'], 'APK changed')
-            require('Success' in adb('install', str(path), timeout=120), 'Fixture install failed')
-        command = ['shell', 'am', 'instrument', '-w', '-r', '-e', 'aiPreviewOnly', 'true',
-                   '-e', 'aiMessageCopyOnly' if message_copy else 'aiCardConstructionOnly', 'true', RUNNER]
-        result = adb(*command, timeout=180)
-        (output / 'instrumentation.txt').write_text(result + '\n')
-        (output / 'android-runtime.txt').write_text(adb('logcat', '-d', '-s', 'AndroidRuntime:E') + '\n')
-        require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and
-                'AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true' in result,
-                'AI preview fixture failed')
+        with ExitStack() as evidence:
+            if message_copy:
+                evidence.enter_context(capture_emulator_health(serial, output))
+                evidence.enter_context(capture_copy_logcat(serial, output))
+                display = dict(size=adb('shell', 'wm', 'size'), density=adb('shell', 'wm', 'density'))
+                receipt['display'] = display
+                require_copy_display(display)
+            for path, identity in zip(paths, pair):
+                require(hashlib.sha256(path.read_bytes()).hexdigest() == identity['sha256'], 'APK changed')
+                require('Success' in adb('install', str(path), timeout=120), 'Fixture install failed')
+            command = ['shell', 'am', 'instrument', '-w', '-r', '-e', 'aiPreviewOnly', 'true',
+                       '-e', 'aiMessageCopyOnly' if message_copy else 'aiCardConstructionOnly', 'true', RUNNER]
+            result = run_instrumentation(serial, command, output)
+            (output / 'android-runtime.txt').write_text(adb('logcat', '-d', '-s', 'AndroidRuntime:E') + '\n')
+            require(re.search(r'^INSTRUMENTATION_CODE: -1$', result, re.M) and
+                    'AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true' in result,
+                    'AI preview fixture failed')
         receipt['passed'] = True
     finally:
         (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
