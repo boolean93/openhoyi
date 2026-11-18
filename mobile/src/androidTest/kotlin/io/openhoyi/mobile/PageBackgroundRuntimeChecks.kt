@@ -377,14 +377,14 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val history = go(TaskDestination.HISTORY)
         captureApplied(host, history, "$mode-history.png", backing = style.surface,
             requiredWallpaper = { shieldCorners(history, history.findViewWithTag("product/history/header")) },
-            foregroundSurfaces = { listOf(NativeBacking(history.findViewWithTag("product/history/empty-card"),
-                host.appColor(R.color.mobile_surface))) },
+            foregroundSurfaces = { listOf(visibleCollectionSurface(host, history,
+                "product/history/list", "product/history/empty-card")) },
         ) { history.findViewWithTag("product/history/count") }
         val beans = go(TaskDestination.BEANS)
         captureApplied(host, beans, "$mode-beans.png", backing = style.surface,
             requiredWallpaper = { shieldCorners(beans, beans.findViewWithTag("product/inventory/header")) },
-            foregroundSurfaces = { listOf(NativeBacking(beans.findViewWithTag("product/inventory/empty-card"),
-                host.appColor(R.color.mobile_surface))) },
+            foregroundSurfaces = { listOf(visibleCollectionSurface(host, beans,
+                "product/inventory/list-scroll", "product/inventory/empty-card")) },
         ) { beans.findViewWithTag("product/inventory/header-summary") }
 
         // Selecting this read-only view is not a start/prepare gesture. Assert both remain idle.
@@ -441,7 +441,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             }
             captureApplied(chat, root, "$mode-ai.png",
                 foregroundSurfaces = {
-                    listOf(NativeBacking(checkNotNull(assistantBody()), style.surface), NativeBacking(checkNotNull(card()), style.surface))
+                    listOf(SolidSurface(checkNotNull(assistantBody()), style.surface), SolidSurface(checkNotNull(card()), style.surface))
                 },
                 decorativeGuttersOf = { checkNotNull(card()) },
             ) { root.findViewWithTag("ai/chat/input-frame") }
@@ -482,11 +482,53 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             .filter { shield.clip.contains(it.x, it.y) }.also { check(it.size >= 2) { "No visible rounded corners for ${view.tag}" } }
     }
 
+    private fun visibleCollectionSurface(
+        host: MainActivity, root: View, listTag: String, emptyTag: String,
+    ): SolidSurface {
+        val list = root.findViewWithTag<View>(listTag)
+        val listRect = list?.let { localRect(root, it) }
+        val empty = root.findViewWithTag<View>(emptyTag)
+        val emptyRect = empty?.let { localRect(root, it) }
+        check((listRect != null) xor (emptyRect != null)) {
+            "Expected the real visible list or empty card, not both (list=$listTag empty=$emptyTag)"
+        }
+        if (listRect != null) {
+            checkNotNull(list)
+            val paper = root.background as PageBackdrop
+            val fill = TaskProductVisualStyle(host).surface
+            check(list.clipToOutline && paper.roundedAreas.any { it.clip == listRect && it.fill == fill })
+            if (list is ListView) check(list.count > 0)
+            return SolidSurface(list, fill)
+        }
+        return SolidSurface(checkNotNull(empty), host.appColor(R.color.mobile_surface))
+    }
+
     private fun captureScalePage(host: MainActivity, root: View, name: String) {
         val style = TaskProductVisualStyle(host)
         val quantity = root.findViewWithTag<View>("product/scale/quantity")
+        val isPhone = host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        val timerValue = root.findViewWithTag<View>("product/scale/timer/value")
+        val timerActions = root.findViewWithTag<View>("product/scale/timer/actions")
         captureApplied(host, root, name, backing = style.surface,
-            requiredWallpaper = { shieldCorners(root, quantity) },
+            foregroundSurfaces = {
+                if (isPhone) listOf(SolidSurface(timerValue, style.surface), SolidSurface(timerActions, style.surface))
+                else emptyList()
+            },
+            requiredWallpaper = { sampleGap ->
+                val corners = shieldCorners(root, quantity)
+                if (isPhone) {
+                    val paper = root.background as PageBackdrop
+                    val valueRect = checkNotNull(localRect(root, timerValue))
+                    val actionsRect = checkNotNull(localRect(root, timerActions))
+                    val readout = paper.roundedAreas.single { it.clip.contains(valueRect) }
+                    val actions = paper.roundedAreas.single { it.clip.contains(actionsRect) }
+                    check(readout.bounds.bottom < actions.bounds.top)
+                    val left = maxOf(readout.bounds.left, actions.bounds.left)
+                    val right = minOf(readout.bounds.right, actions.bounds.right)
+                    val inset = (right - left) / 4
+                    corners + sampleGap(Rect(left + inset, readout.bounds.bottom, right - inset, actions.bounds.top))
+                } else corners
+            },
         ) { quantity }
     }
 
@@ -718,7 +760,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         } finally { main { editor.takeUnless { it.isDestroyed }?.finish() } }
     }
 
-    private data class NativeBacking(val view: View, val fill: Int)
+    private data class SolidSurface(val view: View, val fill: Int)
 
     private fun captureApplied(
         page: ThemedActivity,
@@ -727,7 +769,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         base: Int = TaskProductVisualStyle(page).page,
         backing: Int = base,
         requiredWallpaper: ((Rect) -> Point) -> List<Point> = { emptyList() },
-        foregroundSurfaces: () -> List<NativeBacking> = { emptyList() },
+        foregroundSurfaces: () -> List<SolidSurface> = { emptyList() },
         decorativeGuttersOf: (() -> View)? = null,
         nativeCoverFill: Int? = null,
         protectedView: () -> View,
@@ -899,7 +941,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         }
         return candidates.minByOrNull { point ->
             abs(point.x - band.centerX()) + abs(point.y - band.centerY())
-        } ?: throw PixelEvidenceFailure("No flat, contrast-sensitive bare wallpaper sample inside Home gap $band")
+        } ?: throw PixelEvidenceFailure("No flat, contrast-sensitive bare wallpaper sample inside requested gap $band")
     }
 
     private fun captureCommittedFrame(root: View): Bitmap {

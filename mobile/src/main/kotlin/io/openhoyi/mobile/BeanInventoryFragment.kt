@@ -143,7 +143,10 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             "product/inventory/list-title").apply { protectRoundedBackdropContent(productStyle.surface, radius) })
         val list = host.beanList(panes.browserBody)
         listScroll = list.parent as ScrollView
-        listScroll?.protectRoundedBackdropContent(productStyle.surface, radius, clipContent = true)
+        listScroll?.apply {
+            tag = "product/inventory/list-scroll"
+            protectRoundedBackdropContent(productStyle.surface, radius, clipContent = true)
+        }
         (listScroll!!.layoutParams as LinearLayout.LayoutParams).topMargin = productStyle.dp(14)
         pendingListRestore = true
         listScroll?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> restoreListWhenReady() }

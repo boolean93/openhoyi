@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -134,16 +135,22 @@ class ScaleFragment : Fragment() {
                 .put("trendInline",trendHeight>0).put("trendBudget",trend.productLayoutEvidence)
             required+trendHeight
         }
-        val timerCard=style.column("product/scale/timer").apply {
+        val timerCard=style.column("product/scale/timer")
+        val timerReadoutShield = Any()
+        fun View.protectTimerReadout() = protectRoundedBackdropContent(style.surface, style.dp(12), group = timerReadoutShield)
+        style.add(secondary,timerCard)
+        style.add(timerCard,style.text(getString(R.string.scale_timer_title),TaskProductVisualStyle.section)
+            .apply { protectTimerReadout() })
+        timerValue=style.text("",TaskProductVisualStyle.largeValue,"product/scale/timer/value").apply { protectTimerReadout() }
+        style.add(timerCard,timerValue,16)
+        style.add(timerCard,style.text(getString(R.string.m6_app_timer),TaskProductVisualStyle.auxiliary,secondary=true)
+            .apply { protectTimerReadout() },8)
+        style.add(timerCard,style.text(getString(R.string.scale_timer_help),TaskProductVisualStyle.auxiliary,secondary=true)
+            .apply { protectTimerReadout() },8)
+        // Keep the existing 16dp gap visible between the readout and these controls.
+        val timerActions=style.row("product/scale/timer/actions").apply {
             protectRoundedBackdropContent(style.surface, style.dp(12))
         }
-        style.add(secondary,timerCard)
-        style.add(timerCard,style.text(getString(R.string.scale_timer_title),TaskProductVisualStyle.section))
-        timerValue=style.text("",TaskProductVisualStyle.largeValue,"product/scale/timer/value")
-        style.add(timerCard,timerValue,16)
-        style.add(timerCard,style.text(getString(R.string.m6_app_timer),TaskProductVisualStyle.auxiliary,secondary=true),8)
-        style.add(timerCard,style.text(getString(R.string.scale_timer_help),TaskProductVisualStyle.auxiliary,secondary=true),8)
-        val timerActions=style.row("product/scale/timer/actions")
         style.add(timerCard,timerActions,16)
         timerToggle=HoyiUi.button(host,timerActions,getString(R.string.scale_timer_start)) {
             if(timer.running)timer.pause(MobileMonotonicClock.elapsedRealtime())else timer.start(MobileMonotonicClock.elapsedRealtime());renderScale()
