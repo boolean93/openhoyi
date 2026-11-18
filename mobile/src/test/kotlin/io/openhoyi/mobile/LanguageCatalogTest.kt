@@ -11,7 +11,7 @@ class LanguageCatalogTest {
         val directory = File("../localization/catalog")
         val source = JSONObject(File(directory,"source.json").readText()).getJSONObject("strings")
         val keys = source.keys().asSequence().toSet()
-        assertEquals(1083,keys.size)
+        assertEquals(1084,keys.size)
         assertFalse(keys.contains("feedback_replay"))
         val format = Regex("%([1-9][0-9]*)\\$([0-9]*)([sd])")
         for(language in AppLanguage.entries.filter { it != AppLanguage.CHINESE }) {

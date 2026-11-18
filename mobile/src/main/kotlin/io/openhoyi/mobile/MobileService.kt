@@ -516,7 +516,11 @@ class MobileService : Service() {
                 lastShotState = current
                 val now = MobileMonotonicClock.elapsedRealtime()
                 val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, now)
-                runCatching { history?.transition(current, stopReason, weight) }
+                if (current == ExtractionState.OUTCOME_UNKNOWN) series.interruptElapsed()
+                val timing = if (current == ExtractionState.OUTCOME_UNKNOWN ||
+                    current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE)
+                    currentTimingEvidence() else null
+                runCatching { history?.transition(current, stopReason, weight, timing = timing) }
                     .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
@@ -537,7 +541,6 @@ class MobileService : Service() {
                     }
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) {
-                    series.interruptElapsed()
                     saveSeriesCheckpoint(force = true)
                     finishBrewFeedback(false)
                 }
@@ -639,7 +642,7 @@ class MobileService : Service() {
             manualPresentation.disconnected(requireIdle = committed, points = terminalManualPoints())
             if (committed) {
                 passiveHistoryId?.let { id ->
-                    runCatching { history?.abandon(id, "连接中断") }
+                    runCatching { history?.abandon(id, "连接中断", timing = currentTimingEvidence()) }
                         .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                 }
                 passiveHistoryId = null
@@ -799,7 +802,7 @@ class MobileService : Service() {
                         val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, observedAt)
                         passiveHistoryId?.let {
                             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
-                                "机器待机回报", weight) }
+                                "机器待机回报", weight, timing = currentTimingEvidence()) }
                                 .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                         }
                         passiveHistoryId = null
@@ -2160,7 +2163,7 @@ class MobileService : Service() {
         customCurveFirmwareBlock(profile)?.let { return it }
         studioStartBlock(profile)?.let { return it }
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
-            runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null) }
+            runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null, timing = currentTimingEvidence()) }
                 .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
             finishSeries(true)
         }
@@ -2288,12 +2291,12 @@ class MobileService : Service() {
     internal fun claimBrewFeedback(): BrewFeedbackResult? = feedbackDelivery.claim(
         (application as MobileApplication).feedbackPreferences.enabled)
     internal fun discardBrewFeedback() = feedbackDelivery.clear()
+    private fun currentTimingEvidence() = series.timingEvidence(appElapsedOutcomeWasUnknown)
+
     private fun finishSeries(observedEnd: Boolean) {
         finishBrewFeedback(observedEnd)
         extractionScaleReadout.finish(observedEnd)
         val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
-        runCatching { history?.attachTimingEvidence(finished.first, series.observedMachineElapsedSeconds, series.observedSampleCoverageMs) }
-            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
         val app = application as MobileApplication
         if (observedEnd && finished.second.isNotEmpty() &&
             history?.entries?.any { it.id == finished.first } == true) {
@@ -2302,6 +2305,9 @@ class MobileService : Service() {
         history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
     }
     private fun recordMachinePoint(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
+        // The controller handles the frame before this callback. Freeze before accepting
+        // a first post-UNKNOWN time, even if poll-based history never saw that state.
+        series.observeAppTimingUncertainty(appElapsedOutcomeWasUnknown)
         if (CurveUseEvidence.matches(frame)) runCatching {
             val observedId = history?.observeRunning()
             val recipe = activeShotRecipe?.takeIf { it.traceId == observedId }
@@ -2531,7 +2537,10 @@ class MobileService : Service() {
         if (mock != null) {
             manualPresentation.disconnected(requireIdle = false, points = terminalManualPoints())
             finishBrewFeedback(false)
-            if (ShotGate.active(shotState)) mock.stop()
+            if (ShotGate.active(shotState)) {
+                series.interruptElapsed()
+                mock.stop()
+            }
             running = false
             handler.removeCallbacks(mockTick)
             snapshot = MobileSnapshot(message = resolvedMessage(ResourceMessage(R.string.service_event_mock_stopped)))
@@ -2595,7 +2604,11 @@ class MobileService : Service() {
             val committed = passiveCommitted
             passiveCommitted = false
             if (committed) {
-                passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
+                series.interruptElapsed()
+                passiveHistoryId?.let { id ->
+                    runCatching { history?.abandon(id, "设备服务停止", timing = currentTimingEvidence()) }
+                        .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+                }
                 saveSeriesCheckpoint(force = true)
                 finishSeries(false)
             } else discardPassiveSeries(requireDeviceMatch = false)
@@ -2604,6 +2617,20 @@ class MobileService : Service() {
             passiveArmedRecovery = false
             passiveMayClearRecovery = false
             passiveRecoveryOwner = null
+        }
+        // An active App series may outlive the service before the 100ms watcher
+        // sees its final state. Preserve the same-cup evidence before closing the hub.
+        val endingState = shotState
+        if (endingState != ExtractionState.ENDED_OBSERVED && endingState != ExtractionState.IDLE)
+            series.interruptElapsed()
+        currentTimingEvidence()?.let { timing ->
+            runCatching {
+                when (endingState) {
+                    ExtractionState.ENDED_OBSERVED, ExtractionState.IDLE ->
+                        history?.transition(endingState, stopReason, null, timing = timing)
+                    else -> history?.abandon(timing.shotId, "设备服务停止", timing = timing)
+                }
+            }.onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
         }
         handler.removeCallbacks(mockTick)
         cancelSafetyNotification()

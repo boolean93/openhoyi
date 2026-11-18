@@ -53,10 +53,16 @@ class ShotHistoryTest {
             override fun write(value: String) { disk = value }
         }, now = { 1_000_000L }).entries.single().id)
     }
-    private class Memory : ShotHistory.Storage {
+    private class Memory : ShotHistory.AtomicTimingStorage {
         var value: String = ""
+        private var timing: String? = null
         override fun read() = value
+        override fun readTiming() = timing
         override fun write(value: String) { this.value = value }
+        override fun writeWithTiming(value: String, timing: String) {
+            this.value = value
+            this.timing = timing
+        }
     }
 
     @Test fun unknownOutcomeCanLaterBecomeObservedEnd() {
