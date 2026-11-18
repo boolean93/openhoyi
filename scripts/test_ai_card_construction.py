@@ -80,6 +80,31 @@ class CardConstructionEntryTest(unittest.TestCase):
             process.wait.assert_called_once_with(timeout=5)
             self.assertEqual((output / 'gesture-logcat.txt').read_text(), 'stage=link-copy-action\n')
 
+    def test_copy_display_must_be_physical_and_not_a_guest_override(self):
+        good = dict(size='Physical size: 720x1560', density='Physical density: 280')
+        check.require_copy_display(good)
+        for wrong in (dict(good, size='Physical size: 1440x3120\nOverride size: 720x1560'),
+                      dict(good, density='Physical density: 560\nOverride density: 280')):
+            with self.assertRaisesRegex(ValueError, 'no guest overrides'):
+                check.require_copy_display(wrong)
+
+    def test_health_distinguishes_guest_timeout_from_host_process_exit(self):
+        samples = [
+            ('ok', ' 577 Sl 2300000 qemu-system-x86\n 201 S 1000 adb\n'), ('ok', 'LISTEN'), ('timeout', ''),
+            ('ok', ' 201 S 1000 adb\n'), ('ok', ''), ('exit-1', ''),
+        ]
+        with patch.object(check, 'probe', side_effect=samples) as probe:
+            stalled = check.emulator_health('emulator-5554')
+            dropped = check.emulator_health('emulator-5554')
+        self.assertEqual(stalled['qemu'], [dict(pid=577, state='Sl', rssKiB=2300000)])
+        self.assertTrue(stalled['console5554'])
+        self.assertEqual(stalled['adbGuest'], 'timeout')
+        self.assertEqual(dropped['qemu'], [])
+        self.assertFalse(dropped['console5554'])
+        self.assertEqual(dropped['adbGuest'], 'exit-1')
+        self.assertGreaterEqual(dropped['monotonicNs'], stalled['monotonicNs'])
+        self.assertEqual(probe.call_args.args, (['adb', '-s', 'emulator-5554', 'shell', 'echo', 'alive'], 1.2))
+
     def test_workflow_is_opt_in_and_preserves_default_runner(self):
         source = (check.Path(__file__).parent.parent / '.github/workflows/mock-lifecycle.yml').read_text()
         self.assertIn("github.event_name == 'workflow_dispatch' && inputs.ai_card_checks == true", source)
@@ -88,6 +113,8 @@ class CardConstructionEntryTest(unittest.TestCase):
         self.assertIn("github.event_name == 'workflow_dispatch' && inputs.ai_copy_checks == true", source)
         self.assertIn('test "$AI_CARD_CHECKS" != "$AI_COPY_CHECKS"', source)
         self.assertIn("|| env.AI_COPY_CHECKS == 'true') && env.CI_CARD_AVD || 'test'", source)
+        self.assertIn('pre-emulator-launch-script: >-\n            if [ "$AI_COPY_CHECKS" = "true" ]; then', source)
+        self.assertIn("'hw.lcd.width=720' 'hw.lcd.height=1560' 'hw.lcd.density=280'", source)
 
 
 if __name__ == '__main__':
