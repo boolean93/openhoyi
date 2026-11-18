@@ -5,6 +5,8 @@ import android.app.Instrumentation
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -54,6 +56,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             verifyMissingDraft()
             verifyLightFlow(sample, invalid)
             verifyDarkFlow(sample)
+            verifyShortLandscape(sample)
         } finally {
             ownedMedia.forEach { context.contentResolver.delete(it, null, null) }
             main {
@@ -247,6 +250,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             }
             checkNotNull(context.contentResolver.openInputStream(sample)).use { check(it.read() >= 0) }
             checkSolidHomeRestored(host, home)
+            main {
+                val result = host.supportFragmentManager.findFragmentByTag("root:CURVES")?.view
+                    ?.findViewWithTag<View>("product/curve-library/results")
+                check(result != null && !result.clipToOutline) { "Solid must restore the native list outline" }
+            }
             verifyMistHome(host, "light")
         } finally { main { editor?.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
     }
@@ -283,21 +291,31 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         } finally { main { page.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
     }
 
+    private fun nodes(view: View): Sequence<View> = sequence {
+        yield(view)
+        if (view is ViewGroup) for (i in 0 until view.childCount) yieldAll(nodes(view.getChildAt(i)))
+    }
+
+    private fun PageBackdrop.hasProtection() = protectedAreas?.isNotEmpty() == true || roundedAreas.isNotEmpty()
+
+    private fun visiblePage(host: MainActivity, fragmentTag: String): View {
+        var root: View? = null
+        await("applied $fragmentTag visible") {
+            root = host.supportFragmentManager.findFragmentByTag(fragmentTag)?.view?.let { outer ->
+                nodes(outer).firstOrNull { it.isShown && it.isLaidOut && !it.isLayoutRequested &&
+                    (it.background as? PageBackdrop)?.hasProtection() == true }
+            }
+            root != null
+        }
+        return checkNotNull(root)
+    }
+
     private fun verifyAppliedPages(host: MainActivity, mode: String, originalHome: SolidHome) {
         fun go(destination: TaskDestination): View {
             main { host.select(destination) }
-            var root: View? = null
-            await("applied ${destination.name} visible") {
-                root = host.supportFragmentManager.findFragmentByTag("root:${destination.name}")?.view
-                root?.let { view -> view.isShown && view.isLaidOut && !view.isLayoutRequested &&
-                    (view.background as? PageBackdrop)?.protectedAreas?.isNotEmpty() == true } == true
-            }
-            return checkNotNull(root)
+            return visiblePage(host, "root:${destination.name}")
         }
-        fun nodes(view: View): Sequence<View> = sequence {
-            yield(view)
-            if (view is ViewGroup) for (i in 0 until view.childCount) yieldAll(nodes(view.getChildAt(i)))
-        }
+        val style = TaskProductVisualStyle(host)
         val settings = go(TaskDestination.SETTINGS) as SettingsDocumentLayout
         val scroll = settings.scroll
         val section = main { settings.findViewWithTag<View>("settings/section/devices") }
@@ -314,7 +332,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             val sectionBottom = sectionOrigin[1] - origin[1] + section.height
             val content = Rect(column.left, viewport.top, column.right,
                 minOf(viewport.bottom, sectionBottom - section.paddingBottom))
-            val areas = (settings.background as PageBackdrop).protectedAreas.orEmpty()
+            val areas = (settings.background as PageBackdrop).roundedAreas.map { it.clip }
             // scrollY changes synchronously; the drawable's geometry follows on traversal.
             if (content.isEmpty || content !in areas) return@await false
             requireSamePanel(settings, settings.findViewWithTag("settings/document/title"),
@@ -326,13 +344,14 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             }
             true
         }
-        captureApplied(host, settings, "$mode-settings.png") {
+        captureApplied(host, settings, "$mode-settings.png", backing = style.surface,
+            requiredWallpaper = { shieldCorners(settings, section, preferBottom = true) },
+        ) {
             nodes(scroll).filterIsInstance<TextView>().first {
                 it.background == null && it.getGlobalVisibleRect(Rect()) && it.height >= HoyiUi.dp(host, 18)
             }
         }
         val home = go(TaskDestination.BREW)
-        val style = TaskProductVisualStyle(host)
         captureApplied(host, home, "$mode-home.png", base = style.homePage, backing = style.surface,
             requiredWallpaper = {
                 check(home === originalHome.root && homeBounds(home) == originalHome.bounds) {
@@ -341,30 +360,55 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 homeWallpaperGaps(home)
             },
         ) { home.findViewWithTag("product/home/${if (mode == "light") "brew" else "steam"}-boiler/pressure") }
-        val curves = go(TaskDestination.CURVES)
+        captureCurvePage(host, go(TaskDestination.CURVES), "$mode-curve.png")
+        captureScalePage(host, go(TaskDestination.SCALE), "$mode-scale.png")
+        val history = go(TaskDestination.HISTORY)
+        captureApplied(host, history, "$mode-history.png", backing = style.surface,
+            requiredWallpaper = { shieldCorners(history, history.findViewWithTag("product/history/header")) },
+            foregroundSurfaces = { listOf(history.findViewWithTag("product/history/empty-card")) },
+        ) { history.findViewWithTag("product/history/count") }
+        val beans = go(TaskDestination.BEANS)
+        captureApplied(host, beans, "$mode-beans.png", backing = style.surface,
+            requiredWallpaper = { shieldCorners(beans, beans.findViewWithTag("product/inventory/header")) },
+            foregroundSurfaces = { listOf(beans.findViewWithTag("product/inventory/empty-card")) },
+        ) { beans.findViewWithTag("product/inventory/header-summary") }
+
+        // Selecting this read-only view is not a start/prepare gesture. Assert both remain idle.
+        val service = main { checkNotNull(host.currentService) }
         main {
-            requireSamePanel(curves, curves.findViewWithTag("product/curve-library/filter"),
-                nodes(curves).filterIsInstance<ListView>().first { it.getGlobalVisibleRect(Rect()) })
+            check(service.activeShotRecipe == null && service.brewPreparationState == io.openhoyi.session.BrewPreparation.State.IDLE)
+            host.showExtraction()
         }
-        captureApplied(host, curves, "$mode-curve.png") {
-            nodes(curves).filterIsInstance<ListView>().first { it.getGlobalVisibleRect(Rect()) }
-        }
+        val extraction = visiblePage(host, "extraction")
+        captureApplied(host, extraction, "$mode-extraction.png", nativeCover = true,
+            requiredWallpaper = {
+                val plot = checkNotNull(localRect(extraction, extraction.findViewWithTag("product/extraction/chart")))
+                listOf(Point(plot.left / 2, plot.centerY()),
+                    Point((plot.right + extraction.width) / 2, plot.centerY()))
+            },
+        ) { extraction.findViewWithTag("product/extraction/chart") }
+        main { check(service.activeShotRecipe == null && service.brewPreparationState == io.openhoyi.session.BrewPreparation.State.IDLE && service.autoPreheatInitialTemperature == null) }
+
         go(TaskDestination.SETTINGS)
         check(AiKeyStore(context).status() == AiKeyStatus.MISSING)
         val chat = launched(AiChatActivity::class.java) { host.startActivity(Intent(host, AiChatActivity::class.java)) }
         try {
             val presentation = main {
                 val field = AiChatActivity::class.java.getDeclaredField("presentation").apply { isAccessible = true }
-                (field.get(chat) as AiChatPresentation).also {
-                    // Real Activity and production presentation, but no memory/session write or send action.
-                    val previewCard = AiCurveCardConstructionChecks.cards().first()
-                    it.render(listOf(
-                        AiChatLine(true, "这支豆子怎么萃取？"),
-                        AiChatLine(false, "先用较低压力预浸。\n\n再平稳升压，后段放缓。", curveCards = listOf(previewCard)),
-                    ), it.input.text.toString(), false, "")
-                }
+                field.get(chat) as AiChatPresentation
             }
             val root = presentation.root
+            captureApplied(chat, root, "$mode-ai-welcome.png", backing = style.surface,
+                requiredWallpaper = { shieldCorners(root, root.findViewWithTag("ai/chat/welcome")) },
+            ) { root.findViewWithTag("ai/chat/welcome") }
+            main {
+                // Real Activity and production presentation, but no memory/session write or send action.
+                val previewCard = AiCurveCardConstructionChecks.cards().first()
+                presentation.render(listOf(
+                    AiChatLine(true, "这支豆子怎么萃取？"),
+                    AiChatLine(false, "先用较低压力预浸。\n\n再平稳升压，后段放缓。", curveCards = listOf(previewCard)),
+                ), presentation.input.text.toString(), false, "")
+            }
             fun assistantBody(): TextView? = root.findViewWithTag<View>("ai/chat/assistant")?.let {
                 nodes(it).filterIsInstance<TextView>().firstOrNull()
             }
@@ -402,8 +446,78 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     private fun requireSamePanel(root: View, vararg children: View) {
         val visible = children.map { checkNotNull(localRect(root, it)) }
         val paper = root.background as PageBackdrop
-        check(paper.protectedAreas.orEmpty().any { panel -> visible.all(panel::contains) }) {
-            "Semantic content must share one backdrop panel: children=$visible actual=${paper.protectedAreas}"
+        val areas = paper.protectedAreas.orEmpty() + paper.roundedAreas.map { it.clip }
+        check(areas.any { panel -> visible.all(panel::contains) }) {
+            "Semantic content must share one backdrop panel: children=$visible actual=$areas"
+        }
+    }
+
+    private fun shieldCorners(root: View, view: View, preferBottom: Boolean = false): List<Point> {
+        val child = checkNotNull(localRect(root, view))
+        val paper = root.background as PageBackdrop
+        val shield = checkNotNull(paper.roundedAreas.firstOrNull { it.clip.contains(child.centerX(), child.centerY())
+            || it.clip.contains(child.centerX(), child.top + 1) }) { "No rounded shield for ${view.tag}" }
+        val box = shield.bounds
+        val inset = root.resources.displayMetrics.density.toInt().coerceAtLeast(1)
+        val ys = if (preferBottom) listOf(box.bottom - 1 - inset, box.top + inset)
+            else listOf(box.top + inset, box.bottom - 1 - inset)
+        val sides = listOf(box.left + inset, box.right - 1 - inset)
+        return ys.flatMap { y -> sides.map { x -> Point(x, y) } }
+            .filter { shield.clip.contains(it.x, it.y) }.also { check(it.size >= 2) { "No visible rounded corners for ${view.tag}" } }
+    }
+
+    private fun captureScalePage(host: MainActivity, root: View, name: String) {
+        val style = TaskProductVisualStyle(host)
+        val quantity = root.findViewWithTag<View>("product/scale/quantity")
+        captureApplied(host, root, name, backing = style.surface,
+            requiredWallpaper = { shieldCorners(root, quantity) },
+        ) { quantity }
+    }
+
+    private fun captureCurvePage(host: MainActivity, root: View, name: String) {
+        val style = TaskProductVisualStyle(host)
+        val list = root.findViewWithTag<View>("product/curve-library/results")
+        val filters = root.findViewWithTag<View>("product/curve-library/filter")
+        captureApplied(host, root, name, backing = style.surface,
+            requiredWallpaper = {
+                val paper = root.background as PageBackdrop
+                val toolBounds = checkNotNull(localRect(root, filters))
+                val listBounds = checkNotNull(localRect(root, list))
+                val tools = checkNotNull(paper.roundedAreas.singleOrNull { it.clip.contains(toolBounds) })
+                val results = checkNotNull(paper.roundedAreas.singleOrNull { it.clip.contains(listBounds) })
+                check(tools != results && tools.bounds.bottom < results.bounds.top && list.clipToOutline)
+                shieldCorners(root, list) + shieldCorners(root, filters)
+            },
+        ) { list }
+    }
+
+    private fun verifyShortLandscape(sample: Uri) {
+        val imported = runBlocking { owner.import(sample, UUID.randomUUID().toString()) }
+        val config = AppBackgroundConfig(imported.choice, AppBackgroundConfig.MAX_STRENGTH)
+        val original = main { owner.current.config }
+        check(runBlocking { owner.apply(original, config, imported) } == AppBackgroundStore.Result.APPLIED)
+        val portrait = MainPageTestHost.launch(test, TaskDestination.SCALE, timeoutMs = 10_000).activity
+        var landscape: MainActivity? = null
+        try {
+            landscape = launched(MainActivity::class.java) { portrait.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+            val host = landscape
+            main {
+                check(host.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+                    host.resources.configuration.screenHeightDp <= 480) { "Landscape fixture must use a short real window" }
+            }
+            fun go(page: TaskDestination): View {
+                main { host.select(page) }
+                return visiblePage(host, "root:${page.name}")
+            }
+            captureScalePage(host, go(TaskDestination.SCALE), "landscape-scale.png")
+            captureCurvePage(host, go(TaskDestination.CURVES), "landscape-curve.png")
+            val settings = go(TaskDestination.SETTINGS)
+            captureApplied(host, settings, "landscape-settings.png", backing = TaskProductVisualStyle(host).surface,
+                requiredWallpaper = { shieldCorners(settings, settings.findViewWithTag("settings/document/title")) },
+            ) { settings.findViewWithTag("settings/document/title") }
+        } finally {
+            main { (landscape ?: portrait).finish() }
+            check(runBlocking { owner.apply(config, original, null) } == AppBackgroundStore.Result.APPLIED)
         }
     }
 
@@ -527,12 +641,13 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         requiredWallpaper: () -> List<Point> = { emptyList() },
         foregroundSurfaces: () -> List<View> = { emptyList() },
         decorativeGuttersOf: (() -> View)? = null,
+        nativeCover: Boolean = false,
         protectedView: () -> View,
     ) {
         await("$name has current backdrop and laid-out protected rows") {
             (root.background as? PageBackdrop)?.let {
                 (it.snapshot.image != null || it.snapshot.config.choice == AppBackground.Mist) &&
-                    it.protectedAreas?.isNotEmpty() == true
+                    it.hasProtection()
             } == true
         }
         data class Pixel(val x: Int, val y: Int, val color: Int)
@@ -549,7 +664,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 offset(decorOffset[0], decorOffset[1])
             }
             val cover = screenBounds(protectedView())
-            val surfaces = foregroundSurfaces().map(::screenBounds)
+            val surfaces = foregroundSurfaces().map(::screenBounds) + if (nativeCover) listOf(cover) else emptyList()
             val gutterNeighbor = decorativeGuttersOf?.invoke()?.let(::screenBounds)
             val start = IntArray(2)
             root.getLocationOnScreen(start)
@@ -595,10 +710,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 val gaps = requiredWallpaper().map { point ->
                     Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
                 }
-                check(gaps.isEmpty() || gaps.count { visibleDifference(it.color, base) } >= 2) {
-                    "$name needs contrast-sensitive points between the rounded Home controls"
+                check(gaps.isEmpty() || gaps.count { visibleDifference(it.color, base) } >= minOf(2, (gaps.size + 1) / 2)) {
+                    "$name needs contrast-sensitive wallpaper samples outside the rounded surfaces"
                 }
-                val protection = listOf(verifiedProtection) + nativeProtection
+                val protection = (if (nativeCover) emptyList() else listOf(verifiedProtection)) + nativeProtection
                 check(photo.size >= 5 && protection.all { it.size >= 5 }) {
                     "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
                         "(decorative=${photo.size}, protection=${protection.map { it.size }}, base=${Integer.toHexString(base)})"

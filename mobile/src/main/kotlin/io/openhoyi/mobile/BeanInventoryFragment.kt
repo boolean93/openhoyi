@@ -73,7 +73,10 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         pageHost.removeAllViews();pageHost.addView(root)
         val inventory = host.beanInventory(body) ?: return
         val batches = inventory.batches()
+        val headerGroup = Any()
+        val radius = productStyle.dp(12)
         val header = (body.tag as BeanPageRegions).header.apply {
+            protectRoundedBackdropContent(productStyle.surface, radius, group = headerGroup)
             tag = "product/inventory/header"; gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false
             foreground = inventoryRules(bottom = true)
         }
@@ -90,11 +93,14 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             host.beanActions(body).addView(dock,LinearLayout.LayoutParams(-1,-2))
             HoyiUi.button(host,dock,getString(R.string.beans_add),primary=true) {
                 startActivity(Intent(host,BeanEntryActivity::class.java))
-            }
+            }.keepOwnBackdropTreatment()
             collection = null; selectedBatchId = null; detailRequested = false
             val list = host.beanList(body)
             listScroll = list.parent as ScrollView
-            val empty = HoyiUi.card(host, list, getString(R.string.beans_empty))
+            val empty = HoyiUi.card(host, list, getString(R.string.beans_empty)).apply {
+                tag = "product/inventory/empty-card"
+                keepOwnBackdropTreatment()
+            }
             HoyiUi.label(host, empty, getString(R.string.beans_empty_hint), 16, muted = true)
             return
         }
@@ -102,7 +108,10 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             selectedBatchId = batches.first().batch.id
             detailRequested = false
         }
-        val tools=LinearLayout(host).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.END; isBaselineAligned=false }
+        val tools=LinearLayout(host).apply {
+            orientation=LinearLayout.HORIZONTAL; gravity=Gravity.END; isBaselineAligned=false
+            protectRoundedBackdropContent(productStyle.surface, radius, group = headerGroup)
+        }
         val headerTools = resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f
         val toolsParent = if (headerTools) (body.tag as BeanPageRegions).header else body
         toolsParent.addView(tools, LinearLayout.LayoutParams(if (headerTools) -2 else -1, -2))
@@ -131,9 +140,10 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         })
         body.addView(panes, LinearLayout.LayoutParams(-1, 0, 1f))
         productStyle.add(panes.browserBody, productStyle.text(getString(R.string.inventory_visual_in_stock), TaskProductVisualStyle.section,
-            "product/inventory/list-title"))
+            "product/inventory/list-title").apply { protectRoundedBackdropContent(productStyle.surface, radius) })
         val list = host.beanList(panes.browserBody)
         listScroll = list.parent as ScrollView
+        listScroll?.protectRoundedBackdropContent(productStyle.surface, radius, clipContent = true)
         (listScroll!!.layoutParams as LinearLayout.LayoutParams).topMargin = productStyle.dp(14)
         pendingListRestore = true
         listScroll?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> restoreListWhenReady() }

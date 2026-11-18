@@ -61,9 +61,12 @@ class ScaleFragment : Fragment() {
             if (BuildConfig.MOCK_MODE) words.addView(style.text(getString(R.string.scale_mock_notice),
                 TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-1, -2))
         }
+        header.protectRoundedBackdropContent(style.surface, style.dp(12))
         header.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
         (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = 0
-        guard=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/guard",true).also { style.add(body,it) }
+        guard=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/guard",true).also {
+            it.protectRoundedBackdropContent(style.surface, style.dp(10)); style.add(body,it)
+        }
         val workspace=ScaleVisualWorkspace(host,visual)
         productLayoutEvidence.put("workspace",workspace.productLayoutEvidence)
         body.addView(workspace,LinearLayout.LayoutParams(-1,0,1f))
@@ -79,6 +82,10 @@ class ScaleFragment : Fragment() {
         weightUnit=style.text("",visual.unit,"product/scale/weight/unit",true)
         quantity.addView(weightUnit,LinearLayout.LayoutParams(-2,-2).apply {marginStart=style.dp(8)})
         freshness=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/freshness",true).apply {gravity=android.view.Gravity.CENTER}
+        val readingGroup = Any()
+        listOf(readingLabel, quantity, freshness).forEach {
+            it.protectRoundedBackdropContent(style.surface, style.dp(12), group = readingGroup)
+        }
         val reading=ScaleReadingLayout(host,style,readingLabel,quantity,freshness)
         primary.addView(reading,LinearLayout.LayoutParams(-1,0,1f))
         tare=HoyiUi.button(host,primary,getString(R.string.scale_tare),
@@ -93,6 +100,10 @@ class ScaleFragment : Fragment() {
             layoutParams=LinearLayout.LayoutParams(-2,-2).apply {gravity=android.view.Gravity.CENTER_HORIZONTAL;topMargin=style.dp(8)}
         }
         tareStatus=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/tare-status",true).apply {gravity=android.view.Gravity.CENTER}
+        val tareGroup = Any()
+        listOf(tare, tareStatus).forEach {
+            it.protectRoundedBackdropContent(style.surface, style.dp(12), group = tareGroup)
+        }
         style.add(primary,tareStatus,8)
         trend=ScaleTrendPanel(host,primary,secondary,visual)
         workspace.onPrimarySpaceAvailable={width,height->
@@ -123,7 +134,9 @@ class ScaleFragment : Fragment() {
                 .put("trendInline",trendHeight>0).put("trendBudget",trend.productLayoutEvidence)
             required+trendHeight
         }
-        val timerCard=style.column("product/scale/timer")
+        val timerCard=style.column("product/scale/timer").apply {
+            protectRoundedBackdropContent(style.surface, style.dp(12))
+        }
         style.add(secondary,timerCard)
         style.add(timerCard,style.text(getString(R.string.scale_timer_title),TaskProductVisualStyle.section))
         timerValue=style.text("",TaskProductVisualStyle.largeValue,"product/scale/timer/value")
@@ -138,7 +151,9 @@ class ScaleFragment : Fragment() {
         toolLink(timerActions,getString(R.string.scale_timer_reset),centered=true) {timer.reset();renderScale()}.apply {
             style.button(this);tag="product/scale/timer/reset";layoutParams=LinearLayout.LayoutParams(0,-2,1f)
         }
-        val device=style.column("product/scale/device")
+        val device=style.column("product/scale/device").apply {
+            protectRoundedBackdropContent(style.surface, style.dp(12))
+        }
         style.add(secondary,device,24)
         style.add(device,style.text(getString(R.string.scale_device_section),TaskProductVisualStyle.section))
         var firstDeviceRow=true

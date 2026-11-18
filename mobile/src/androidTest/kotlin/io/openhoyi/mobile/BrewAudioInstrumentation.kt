@@ -165,7 +165,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (pageBackgroundChecks) {
                 check(disposableCiEmulator && !themePaletteChecks) { "Background checks require the dedicated disposable run" }
                 PageBackgroundRuntimeChecks(this).run()
-                report.putString("stream", "PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivityRecreateOnApply=true cancelFailureStale=true privateFiles=true aiHeaderFade=true aiComposer=true aiAttachmentMenu=true screenshots=18 noModelRequest=true noBle=true\n")
+                report.putString("stream", "PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivityRecreateOnApply=true cancelFailureStale=true privateFiles=true aiHeaderFade=true aiComposer=true aiAttachmentMenu=true dashboardCoverage=true screenshots=31 noModelRequest=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (themePaletteChecks) {

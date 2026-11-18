@@ -13,6 +13,7 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.ViewTreeObserver
 import android.widget.AbsListView
 import android.widget.TextView
@@ -89,7 +90,10 @@ internal data class RoundedBackdropArea(val bounds: Rect, val clip: Rect, val ra
 
 private object OwnBackdropTreatment
 
-private data class RoundedBackdropMark(val fill: Int, val radius: Float, val group: Any?, val horizontalOutset: Int)
+private data class RoundedBackdropMark(
+    val fill: Int, val radius: Float, val group: Any?, val horizontalOutset: Int,
+    val horizontalBounds: View?, val leaveBottomPaddingVisible: Boolean, val clipContent: Boolean,
+)
 
 private data class BackdropProtection(
     val group: Any?,
@@ -109,8 +113,11 @@ internal fun View.protectBackdropContent(
 /** A rounded piece of a native layout; realized only when the page displays a selected backdrop. */
 internal fun View.protectRoundedBackdropContent(
     fill: Int, radius: Int, group: Any? = null, horizontalOutset: Int = 0,
+    horizontalBounds: View? = null, leaveBottomPaddingVisible: Boolean = false, clipContent: Boolean = false,
 ) {
-    setTag(R.id.page_backdrop_content, RoundedBackdropMark(fill, radius.toFloat(), group, horizontalOutset))
+    require(!clipContent || group == null && horizontalBounds == null && horizontalOutset == 0 && !leaveBottomPaddingVisible)
+    setTag(R.id.page_backdrop_content, RoundedBackdropMark(fill, radius.toFloat(), group, horizontalOutset,
+        horizontalBounds, leaveBottomPaddingVisible, clipContent))
 }
 
 /** A native surface or translucent overlay supplies its own contrast treatment, including its labels. */
@@ -139,6 +146,8 @@ internal class PageBackdropBinding(
     private val solid = BackgroundSnapshot(AppBackgroundConfig())
     private var stop: (() -> Unit)? = null
     private var regionsIn: ViewTreeObserver? = null
+    private data class OriginalOutline(val provider: ViewOutlineProvider?, val clipToOutline: Boolean)
+    private val clippedContent = mutableMapOf<View, OriginalOutline>()
 
     init {
         root.addOnAttachStateChangeListener(this)
@@ -186,6 +195,11 @@ internal class PageBackdropBinding(
     }
 
     private fun unbindRegions() {
+        clippedContent.forEach { (view, original) ->
+            view.outlineProvider = original.provider
+            view.clipToOutline = original.clipToOutline
+        }
+        clippedContent.clear()
         regionsIn?.takeIf { it.isAlive }?.let {
             it.removeOnGlobalLayoutListener(this)
             it.removeOnScrollChangedListener(this)
@@ -235,11 +249,31 @@ internal class PageBackdropBinding(
             // Build corners in layout coordinates, not at the cut edge of the scrolling viewport.
             val x = viewPosition.x + view.scrollX - position.x
             val y = viewPosition.y + view.scrollY - position.y
-            val bounds = Rect(x - mark.horizontalOutset, y,
-                x + view.width + mark.horizontalOutset, y + view.height)
+            val bounds = Rect(x, y, x + view.width, y + view.height)
             clip.offset(-position.x, -position.y)
+            mark.horizontalBounds?.let(::relative)?.let { span ->
+                bounds.left = span.left; bounds.right = span.right
+                clip.left = span.left; clip.right = span.right
+            }
+            if (mark.leaveBottomPaddingVisible) {
+                bounds.bottom -= view.paddingBottom
+                clip.bottom = minOf(clip.bottom, bounds.bottom)
+            }
+            bounds.inset(-mark.horizontalOutset, 0)
             clip.left = (clip.left - mark.horizontalOutset).coerceAtLeast(0)
             clip.right = (clip.right + mark.horizontalOutset).coerceAtMost(root.width)
+            if (bounds.isEmpty || clip.isEmpty) return
+            if (mark.clipContent && view !in clippedContent) {
+                // Selected rows and ripples must respect the rounded list viewport too.
+                // Leaving the backdrop restores the precise native outline/clipping state.
+                clippedContent[view] = OriginalOutline(view.outlineProvider, view.clipToOutline)
+                view.outlineProvider = object : ViewOutlineProvider() {
+                    override fun getOutline(host: View, outline: android.graphics.Outline) {
+                        outline.setRoundRect(0, 0, host.width, host.height, mark.radius)
+                    }
+                }
+                view.clipToOutline = true
+            }
             val area = RoundedBackdropArea(bounds, clip, mark.radius, mark.fill)
             val group = mark.group
             if (group == null) rounded += area else roundedGroups[group]?.let {
