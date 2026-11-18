@@ -237,6 +237,7 @@ internal class BrewJournal(private val storage: Storage) {
         value is JSONArray -> "[" + (0 until value.length()).joinToString("") { canonical(value.get(it)) } + "]"
         value is String -> "s${value.length}:$value"
         value is Number -> "n$value;"
+        value is Boolean -> if (value) "t" else "f"
         else -> error("Unsupported journal value")
     }
     private fun checksum(values: JSONArray): String = MessageDigest.getInstance("SHA-256").digest(canonical(values).toByteArray(Charsets.UTF_8))
