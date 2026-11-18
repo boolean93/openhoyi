@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from check_theme_palette_ui import APP, BACKGROUND_MARKER, BACKGROUNDS, run_fixture
+from check_theme_palette_ui import APP, BACKGROUND_MARKER, BACKGROUNDS, run_fixture, with_software_keyboard
 from shared_mock_artifact import digest
 
 PNG = b'\x89PNG\r\n\x1a\nfixture'
@@ -43,6 +43,24 @@ class AppearanceEvidenceTest(unittest.TestCase):
             self.assertEqual({p.name for p in output.iterdir()}, {name, LOG})
             self.assertEqual(hashes, {name: digest(output / name)})
             self.assertIn('failed during light Home', (output / LOG).read_text())
+
+    def test_disposable_keyboard_setting_is_restored_on_failure(self):
+        for original in ('null', '0', '1'):
+            value = original
+
+            def adb(*args):
+                nonlocal value
+                self.assertEqual(args[:2], ('shell', 'settings'))
+                self.assertEqual(args[3:5], ('secure', 'show_ime_with_hard_keyboard'))
+                if args[2] == 'get':
+                    return value
+                value = args[5] if args[2] == 'put' else 'null'
+
+            with self.subTest(original=original), self.assertRaisesRegex(RuntimeError, 'fixture fail'):
+                with with_software_keyboard(adb):
+                    self.assertEqual(value, '1')
+                    raise RuntimeError('fixture fail')
+            self.assertEqual(value, original)
 
     def test_success_marker_still_requires_all_screenshots(self):
         def adb(*args, **_):

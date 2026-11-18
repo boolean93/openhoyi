@@ -74,6 +74,8 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
     @Deprecated("Drawable opacity") override fun getOpacity() = PixelFormat.OPAQUE
 }
 
+private object OwnBackdropTreatment
+
 private data class BackdropProtection(
     val group: Any?,
     val horizontalBounds: View?,
@@ -87,6 +89,11 @@ internal fun View.protectBackdropContent(
     leaveBottomPaddingVisible: Boolean = false,
 ) {
     setTag(R.id.page_backdrop_content, BackdropProtection(group, horizontalBounds, leaveBottomPaddingVisible))
+}
+
+/** A deliberately translucent overlay supplies its own contrast treatment, including its labels. */
+internal fun View.keepOwnBackdropTreatment() {
+    setTag(R.id.page_backdrop_content, OwnBackdropTreatment)
 }
 
 internal fun ThemedActivity.installPageBackdrop(view: View, base: Int) {
@@ -201,9 +208,9 @@ internal class PageBackdropBinding(
                 // This rectangle already hides everything it covers, including child labels.
                 val color = view.background as? ColorDrawable
                 if (color != null && Color.alpha(color.color) == 255 && view.alpha == 1f) return
-                (view.getTag(R.id.page_backdrop_content) as? BackdropProtection)?.let { mark ->
-                    protect(view, mark)
-                    return
+                when (val mark = view.getTag(R.id.page_backdrop_content)) {
+                    OwnBackdropTreatment -> return
+                    is BackdropProtection -> { protect(view, mark); return }
                 }
                 if (view is AbsListView ||
                     view is BoilerTemperatureDial || view is CurveStageView || view is CurveLibrarySparklineView ||

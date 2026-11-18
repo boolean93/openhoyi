@@ -165,7 +165,9 @@ internal class AiChatPresentation(
         }
         toolbar.addView(menuButton, LinearLayout.LayoutParams(style.dp(48), style.dp(48)))
         val header = style.column("ai/chat/header-overlay").apply {
-            protectBackdropContent(leaveBottomPaddingVisible = true)
+            // The gradient already provides contrast for the toolbar. A solid page backing here
+            // would mask the wallpaper throughout the lower toolbar, not just behind the labels.
+            keepOwnBackdropTreatment()
             val fade = style.dp(12)
             // Preserve the former 1dp separator plus 12dp transcript gap in the
             // scrollable leading space, without a hard divider below the overlay.

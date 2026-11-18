@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run palette windows and switch evidence on this workflow's disposable AVD only."""
 import argparse
+from contextlib import contextmanager, nullcontext
 import json
 import os
 from pathlib import Path
@@ -19,9 +20,10 @@ SAMPLES = tuple(f'{mode}-{palette}'
 STATES = ('on', 'off', 'disabled')
 SCREENSHOTS = tuple(f'{sample}-{state}.png' for sample in SAMPLES for state in STATES)
 BACKGROUND_MARKER = ('PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivityRecreateOnApply=true '
-                     'cancelFailureStale=true privateFiles=true screenshots=12 noModelRequest=true noBle=true')
+                     'cancelFailureStale=true privateFiles=true aiHeaderFade=true aiComposer=true '
+                     'screenshots=16 noModelRequest=true noBle=true')
 BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
-                    for page in ('photo', 'settings', 'home', 'curve', 'ai', 'home-mist'))
+                    for page in ('photo', 'settings', 'home', 'curve', 'ai', 'home-mist', 'ai-fade', 'ai-composer'))
 
 
 def validate_distinct_screenshots(hashes):
@@ -57,6 +59,23 @@ def run_fixture(adb, output, hashes, arg, directory, marker, names, log, *, reta
                 destination = output / name
                 destination.write_bytes(data)
                 hashes[name] = digest(destination)
+
+
+@contextmanager
+def with_software_keyboard(adb):
+    # The caller has already verified the dedicated disposable AVD.
+    key = 'show_ime_with_hard_keyboard'
+    original = adb('shell', 'settings', 'get', 'secure', key)
+    require(original in ('null', '0', '1'), 'Unexpected original keyboard setting')
+    try:
+        adb('shell', 'settings', 'put', 'secure', key, '1')
+        yield
+    finally:
+        if original == 'null':
+            adb('shell', 'settings', 'delete', 'secure', key)
+        else:
+            adb('shell', 'settings', 'put', 'secure', key, original)
+        require(adb('shell', 'settings', 'get', 'secure', key) == original, 'Keyboard setting not restored')
 
 
 def main(with_backgrounds=False):
@@ -107,8 +126,10 @@ def main(with_backgrounds=False):
             fixtures.append(('pageBackgroundChecks', 'page-background-evidence', BACKGROUND_MARKER, BACKGROUNDS,
                              'background-instrumentation.txt'))
         for arg, directory, marker, names, log in fixtures:
-            run_fixture(adb, output, receipt['screenshots'], arg, directory, marker, names, log,
-                        retain_partial=arg == 'pageBackgroundChecks')
+            background = arg == 'pageBackgroundChecks'
+            with with_software_keyboard(adb) if background else nullcontext():
+                run_fixture(adb, output, receipt['screenshots'], arg, directory, marker, names, log,
+                            retain_partial=background)
         validate_distinct_screenshots(receipt['screenshots'])
         receipt['appearanceCombined'] = with_backgrounds
         receipt['passed'] = True

@@ -40,7 +40,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     private fun <T> main(action: () -> T) = BoundedInstrumentationMain.run("page background", action = action)
 
     fun run() {
-        check(Build.VERSION.SDK_INT >= 29 && BuildConfig.MOCK_MODE &&
+        check(Build.VERSION.SDK_INT >= 30 && BuildConfig.MOCK_MODE &&
             context.packageName == "io.openhoyi.mobile.mock" && Build.HARDWARE in setOf("ranchu", "goldfish"))
         check(output.mkdir() && realPrefs.all.isEmpty())
         val ownedMedia = mutableListOf<Uri>()
@@ -379,6 +379,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 foregroundSurfaces = { listOf(checkNotNull(assistantBody()), checkNotNull(card())) },
                 decorativeGuttersOf = { checkNotNull(card()) },
             ) { root.findViewWithTag("ai/chat/input-frame") }
+            PageBackgroundAiChecks(test, chat, presentation, output).run(mode)
         } finally { main { chat.finish() } }
         await("same settings host after chat") { chat.isDestroyed && host.hasWindowFocus() && !host.isDestroyed }
     }
