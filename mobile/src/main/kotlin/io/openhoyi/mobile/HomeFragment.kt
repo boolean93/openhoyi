@@ -60,6 +60,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var brewTemperature: TextView
     private val boilerExceptions = mutableMapOf<HoyiSwitch, Button>()
     private var renderingBoilerSwitch = false
+    private val boilerDisplay = HomeBoilerDialHold()
     private val boilerDials = mutableListOf<BoilerTemperatureDial>()
     private lateinit var brewBoilerTemperature: TextView
     private lateinit var brewBoilerPressure: TextView
@@ -264,7 +265,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             startActivity(Intent(host, AiChatActivity::class.java))
         }).apply { tag = "product/home/boilers" }
         content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { if(spaciousHome) topMargin=dp(8) })
-        fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
+        fun boiler(label: Int, tagName: String, change: (Boolean) -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {
                 setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4),
                     dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4))
@@ -290,11 +291,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val toggle = HoyiSwitch(host).apply {
                 tag = "product/home/$tagName/toggle"
                 contentDescription = heading.text
-                setOnCheckedChangeListener { _, _ ->
-                    if (!renderingBoilerSwitch) {
-                        changeBoilerSetting(change())
-                        render()
-                    }
+                setOnCheckedChangeListener { _, checked ->
+                    if (!renderingBoilerSwitch) changeBoilerSetting(change(checked))
                 }
             }
             if (shortHome) {
@@ -320,7 +318,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
             }
-            boilerExceptions[toggle] = button(card, "") { changeBoilerSetting(change()) }.apply {
+            boilerExceptions[toggle] = button(card, "") { changeBoilerSetting(change(toggle.isChecked)) }.apply {
                 tag = "product/home/$tagName/exception"
                 visibility = View.GONE
                 layoutParams = LinearLayout.LayoutParams(-1, -2)
@@ -328,11 +326,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             return listOf(value, pressure, target, toggle)
         }
         boiler(R.string.home_brew_temperature, "brew-boiler") {
-            MachineSettingChange.BrewHeating(!(service?.snapshot?.settings?.brewHeating ?: false))
+            MachineSettingChange.BrewHeating(it)
         }.let { (value, pressure, target, toggle) -> brewBoilerTemperature=value as TextView; brewBoilerPressure=pressure as TextView;
             brewBoilerTarget=target as TextView; brewBoilerToggle=toggle as HoyiSwitch }
         boiler(R.string.home_steam_temperature, "steam-boiler") {
-            MachineSettingChange.SteamHeating(!(service?.snapshot?.settings?.steamHeating ?: false))
+            MachineSettingChange.SteamHeating(it)
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
         HomeViewportBudget.install(root, content, boilerRow, boilerDials, phoneHome, compactType, spaciousHome)
@@ -787,18 +785,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         render()
     }
     private fun changeBoilerSetting(change: MachineSettingChange) {
-        if(BuildConfig.MOCK_MODE)return
-        val owner=service ?: return
-        val recovery=owner.settingWriteState==SettingsWriteTracker.State.UNKNOWN &&
-            (change is MachineSettingChange.BrewHeating && owner.pendingSetting is MachineSettingChange.BrewHeating ||
-                change is MachineSettingChange.SteamHeating && owner.pendingSetting is MachineSettingChange.SteamHeating)
-        if(recovery) {
-            owner.refreshUnknownBoilerSettings()?.let(::toast)
-        } else {
-            if(!MachineSettingsEditGate.allowed(owner))return
-            owner.changeMachineSetting(change)?.let(::toast)
+        try {
+            if (BuildConfig.MOCK_MODE) return
+            val owner = service ?: return
+            val recovery = owner.settingWriteState == SettingsWriteTracker.State.UNKNOWN &&
+                (change is MachineSettingChange.BrewHeating && owner.pendingSetting is MachineSettingChange.BrewHeating ||
+                    change is MachineSettingChange.SteamHeating && owner.pendingSetting is MachineSettingChange.SteamHeating)
+            if (recovery) {
+                owner.refreshUnknownBoilerSettings()?.let(::toast)
+            } else {
+                if (!MachineSettingsEditGate.allowed(owner)) return
+                owner.changeMachineSetting(change)?.let(::toast)
+            }
+        } finally {
+            render()
         }
-        render()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         feedbackUi.save(outState)
@@ -900,24 +901,36 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
         })
-        val readings = MachineHomeReadings.from(liveMachine)
-        val brewCurrent = when (liveMachine) {
-            is IdleTelemetry -> liveMachine.brewTemperatureHundredthsC / 100f
-            is ExtractionTelemetry -> liveMachine.brewTemperatureHundredthsC / 100f
+        val pending = owner?.pendingSetting
+        val writeState = owner?.settingWriteState
+        val ownsPending = owner?.ownsBoilerDisplayWrite == true
+        fun inFlight(brew: Boolean) = HomeBoilerSwitchPresentation.pendingAppearance(
+            brew, pending, writeState, ownsPending, recoveryRunning = boilerRecoveryActive)
+        val dial = boilerDisplay.resolve(owner, owner?.boilerDisplayAddress,
+            liveMachine, s.coffeeAt, s.settings?.brewTemperatureC, s.settings?.steamTemperatureC, now,
+            hold = !shotActive && owner?.manualShotActive != true && (inFlight(true) || inFlight(false)) &&
+                (s.coffeeState == DeviceState.READY || owner?.boilerReadbackReconnecting == true))
+        val readings = MachineHomeReadings.from(dial.frame)
+        val brewCurrent = when (val frame = dial.frame) {
+            is IdleTelemetry -> frame.brewTemperatureHundredthsC / 100f
+            is ExtractionTelemetry -> frame.brewTemperatureHundredthsC / 100f
             else -> null
         }
-        boilerDials.getOrNull(0)?.present(brewCurrent, s.settings?.brewTemperatureC?.toFloat())
-        boilerDials.getOrNull(1)?.present(idle?.steamTemperatureHundredthsC?.div(100f), s.settings?.steamTemperatureC?.toFloat())
-        brewTemperature.show(readings.brewTemperature)
+        boilerDials.getOrNull(0)?.present(brewCurrent, dial.brewTarget?.toFloat())
+        boilerDials.getOrNull(1)?.present((dial.frame as? IdleTelemetry)?.steamTemperatureHundredthsC?.div(100f), dial.steamTarget?.toFloat())
+        // Only the round cards may hold the previous display; connection status, feed, and
+        // control gates still use independently freshness-checked live telemetry.
+        val liveReadings = if (dial.frame === liveMachine) readings else MachineHomeReadings.from(liveMachine)
+        brewTemperature.show(liveReadings.brewTemperature)
         brewBoilerTemperature.showMetric(readings.brewTemperature.compactTemperature())
-        brewPressure.show(readings.brewPressure)
+        brewPressure.show(liveReadings.brewPressure)
         brewBoilerPressure.showBoilerPressure(readings.brewPressure)
-        steamTemperature.show(readings.steamTemperature)
+        steamTemperature.show(liveReadings.steamTemperature)
         steamBoilerTemperature.showMetric(readings.steamTemperature.compactTemperature())
-        steamPressure.show(readings.steamPressure)
+        steamPressure.show(liveReadings.steamPressure)
         steamBoilerPressure.showBoilerPressure(readings.steamPressure)
-        brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.brewTemperatureC?.let { "${it} °C" } ?: "—"))
-        steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.steamTemperatureC?.let { "${it} °C" } ?: "—"))
+        brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.brewTarget?.let { "${it} °C" } ?: "—"))
+        steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.steamTarget?.let { "${it} °C" } ?: "—"))
         val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
@@ -941,7 +954,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     owner?.boilerReadbackReconnecting==true, preheatOccupied)
                 val state = getString(label)
                 boilerExceptions[toggle]?.let { status ->
-                    val exceptional = label != R.string.setting_on && label != R.string.setting_off
+                    val exceptional = HomeBoilerSwitchPresentation.showInline(label)
                     val refresh = label == R.string.home_boiler_refresh
                     val actionable = refresh && owner?.canRefreshUnknownBoilerSettings == true
                     val visible = if (exceptional) View.VISIBLE else View.GONE
@@ -957,7 +970,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     val description = "$heading, $state"
                     if (toggle.contentDescription != description) toggle.contentDescription = description
                 }
-                if (toggle.isChecked != (checked == true)) toggle.isChecked = checked == true
+                toggle.keepPendingAppearance = inFlight(brew)
+                val displayed = HomeBoilerSwitchPresentation.checked(
+                    brew, checked, pending, writeState, ownsPending, recoveryRunning = boilerRecoveryActive)
+                if (toggle.isChecked != displayed) toggle.isChecked = displayed
             }
             project(brewBoilerToggle, true, s.settings?.brewHeating)
             project(steamBoilerToggle, false, s.settings?.steamHeating)

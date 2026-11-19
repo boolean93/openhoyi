@@ -24,6 +24,9 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val capsule = RectF()
     private var touching = false
+    // Opt-in paint only; Android retains the real disabled touch and accessibility state.
+    var keepPendingAppearance = false
+        set(value) { if (field != value) { field = value; invalidate() } }
     private val palette = AppPalette(context)
     private val density = resources.displayMetrics.density
     private fun dp(value: Float) = value * density
@@ -106,6 +109,7 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        val fullInk = isEnabled || keepPendingAppearance
         val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
         // Native layout owns gravity, padding, RTL and integer density rounding too.
         capsule.set(trackDrawable.bounds)
@@ -126,18 +130,18 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
                 else blend(palette.switchOff, palette.switchOn, position)
             val radius = capsule.height() / 2
             paint.color = fill
-            paint.alpha = if (isEnabled) 255 else 140
+            paint.alpha = if (fullInk) 255 else 140
             canvas.drawRoundRect(capsule, radius, radius, paint)
             val x = left + halfThumb + travel * if (rtl) 1f - position else position
             paint.color = Color.BLACK; paint.alpha = 28
             canvas.drawCircle(x, capsule.centerY() + dp(.5f), radius * .90f, paint)
-            paint.color = 0xfffafaf7.toInt(); paint.alpha = if (isEnabled) 255 else 215
+            paint.color = 0xfffafaf7.toInt(); paint.alpha = if (fullInk) 255 else 215
             canvas.drawCircle(x, capsule.centerY(), radius * .89f, paint)
             paint.alpha = 255
             return
         }
         val fill = blend(palette.switchOff, palette.switchOn, position)
-        paint.alpha = if (isEnabled) 255 else 100
+        paint.alpha = if (fullInk) 255 else 100
         // A fine dark upper lip and lighter lower face suggest a shallow inset, not elevation.
         paint.shader = LinearGradient(0f, top, 0f, capsule.bottom,
             intArrayOf(blend(fill, Color.BLACK, 0.12f), fill, blend(fill, Color.WHITE, 0.04f)),
@@ -145,15 +149,15 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
         canvas.drawRoundRect(capsule, dp(11f), dp(11f), paint)
         paint.shader = null; paint.style = Paint.Style.STROKE; paint.strokeWidth = dp(0.65f)
         paint.color = blend(fill, if (dark) Color.WHITE else Color.BLACK, 0.22f)
-        paint.alpha = if (isEnabled) 255 else 100
+        paint.alpha = if (fullInk) 255 else 100
         canvas.drawRoundRect(capsule, dp(11f), dp(11f), paint)
         paint.style = Paint.Style.FILL
         val x = left + halfThumb + travel * if (rtl) 1f - position else position
-        paint.color = Color.BLACK; paint.alpha = if (isEnabled) 28 else 10
+        paint.color = Color.BLACK; paint.alpha = if (fullInk) 28 else 10
         canvas.drawCircle(x, top + dp(11.7f), dp(9.3f), paint)
         paint.shader = LinearGradient(0f, top + dp(2f), 0f, top + dp(20f),
             Color.WHITE, Color.parseColor("#E5EAE7"), Shader.TileMode.CLAMP)
-        paint.alpha = if (isEnabled) 255 else 130
+        paint.alpha = if (fullInk) 255 else 130
         canvas.drawCircle(x, top + dp(11f), dp(9f), paint)
         paint.shader = null; paint.alpha = 255
     }
