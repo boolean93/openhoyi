@@ -27,6 +27,7 @@ BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
                                  'ai-attachment-menu', 'scale', 'history', 'beans', 'extraction', 'ai-welcome')) + (
                         'landscape-home.png', 'landscape-scale.png', 'landscape-curve.png', 'landscape-settings.png',
                         'dark-home-disabled-modes.png', 'dark-curve-detail.png',
+                        'square-tablet-home.png', 'wide-tablet-home.png',
                     )
 BACKGROUND_FAILURE_FRAMES = tuple(f'{name.removesuffix(".png")}.failed.png' for name in BACKGROUNDS)
 
