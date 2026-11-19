@@ -20,4 +20,10 @@
     <string name="home_last_reuse">Use again</string>
     <string name="home_last_unavailable">Last cup\'s curve is unavailable</string>
     <string name="home_last_draft_changed">Last custom curve\'s settings cannot be verified</string>
+    <string name="home_shortcut_preset">Preset %1$s</string>
+    <string name="home_shortcut_legacy">Legacy preset %1$s</string>
+    <string name="home_shortcut_previous">Reuse last cup</string>
+    <string name="home_shortcut_last">Last cup</string>
+    <string name="home_shortcut_pressure_key">Pressure · bar</string>
+    <string name="home_shortcut_flow_key">Flow · mL/s</string>
 </resources>

@@ -27,7 +27,7 @@ class CurveDeletionTest {
             override fun write(value: String) = Unit
         })
         ledger.record("shot", doc().id, 1)
-        val refs = mapOf(1 to doc().id, 3 to PresetSlots.bind(doc().id))
+        val refs = mapOf(1 to doc().id, 3 to PresetSlots.bind(doc().id), 5 to PresetSlots.bind(doc().id))
         store.delete(doc().id, refs)
         assertNull(store.find(doc().id)); assertTrue(store.list().isEmpty()); assertTrue(library.items.isEmpty())
         assertTrue(CurveOrdering.recentUsed(library.items, ledger, 3).isEmpty())

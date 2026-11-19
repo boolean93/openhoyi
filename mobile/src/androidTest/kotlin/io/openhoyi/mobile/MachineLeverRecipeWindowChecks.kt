@@ -138,9 +138,9 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
             fun assertOnlyLocalSlots() {
                 val root = page.active("root:BREW").requireView()
                 check(root.findViewWithTag<View>("product/home/direct-preset/0") == null)
-                check((1..5).all { root.findViewWithTag<View>("product/home/direct-preset/$it") != null })
+                check((1..4).all { root.findViewWithTag<View>("product/home/direct-preset/$it") != null })
                 val container = root.findViewWithTag<ViewGroup>("product/home/direct-presets")
-                val cards = views(container).filter { it.tag?.toString()?.matches(Regex("product/home/direct-preset/[0-5]")) == true }
+                val cards = views(container).filter { it.tag?.toString()?.matches(Regex("product/home/(direct-preset/[0-4]|quick-launch)")) == true }
                 check(cards.size == 5) { "Empty lever card retained layout space" }
             }
             await("empty lever hidden") {
@@ -197,7 +197,7 @@ internal class MachineLeverRecipeWindowChecks(private val test: Instrumentation)
             await("sent first card") { tileText(document.name) }
             main {
                 val root = page.active("root:BREW").requireView()
-                check((0..5).all { root.findViewWithTag<View>("product/home/direct-preset/$it") != null })
+                check((0..4).all { root.findViewWithTag<View>("product/home/direct-preset/$it") != null })
                 check(root.findViewWithTag<View>("product/home/direct-preset/0/preview").visibility == View.VISIBLE)
                 noMachineOrShot()
             }

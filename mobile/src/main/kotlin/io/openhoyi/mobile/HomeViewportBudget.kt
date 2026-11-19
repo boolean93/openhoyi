@@ -16,8 +16,6 @@ internal object HomeViewportBudget {
             val updateBudget=android.view.ViewTreeObserver.OnGlobalLayoutListener {
                 val available=scroll.height
                 if(available>0) {
-                    if (!phoneHome) root.findViewWithTag<HomePresetGrid>("product/home/direct-presets")
-                        ?.updateLandscapeViewport(available)
                     // Weighted cards may differ by a pixel. Use one shared portrait budget so
                     // they cannot alternately resize the same hero and request another layout.
                     val portraitWidth = boilerDials.minOfOrNull { dial ->

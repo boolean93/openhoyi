@@ -81,13 +81,16 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                             check(text.currentTextColor == style.homeDialInk)
                         }
                     }
-                    for (slot in 1..5) {
-                        val preset = requireNotNull(root.findViewWithTag<View>("product/home/direct-preset/$slot"))
-                        val color = (preset.background as android.graphics.drawable.GradientDrawable).color?.defaultColor
-                        check(color == style.surface || color == style.homeSelected)
+                    for (slot in 1..4) {
+                        val action = checkNotNull(root.findViewWithTag<View>("product/home/direct-preset/$slot"))
+                        val tile = action.parent as View
+                        val surface = (tile.background ?: (tile.parent as View).background) as android.graphics.drawable.GradientDrawable
+                        val fill = checkNotNull(surface.color).defaultColor
+                        check(fill and 0xffffff == style.surface and 0xffffff)
+                        check(android.graphics.Color.alpha(fill) in 180..225)
                     }
                     check(kotlin.math.abs(activity.resources.configuration.fontScale-expectedFontScale)<.01f)
-                    val action=page.viewField<TextView>(home,"quickLaunch")
+                    val action=requireNotNull(root.findViewWithTag<View>("product/home/quick-launch"))
                     val bounds=complete(action);val config=activity.resources.configuration
                     File(directory,"selected-window.txt").writeText("screenDp=${config.screenWidthDp}x${config.screenHeightDp} font=${config.fontScale} curve=${chosen.id} complete=true bounds=$bounds noStart=true\n")
                     invariant()
@@ -120,7 +123,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 capture("devices-inline")
                 main {activity.onBackPressedDispatcher.onBackPressed()};test.waitForIdleSync()
                 await {activity.supportFragmentManager.primaryNavigationFragment is HomeFragment && activity.hasWindowFocus()}
-                main {check(page.active("root:BREW")===home);complete(page.viewField<TextView>(home,"quickLaunch"));invariant()}
+                main {check(page.active("root:BREW")===home);complete(requireNotNull(home.requireView().findViewWithTag<View>("product/home/quick-launch")));invariant()}
                 capture("home-restored")
                 main {ScaleTrendPanelChecks.verify(activity,directory);invariant()}
                 File(directory,"route.txt").writeText("actualConnect=true devicesAnchor=true returnedHome=true sameService=true dataUnchanged=true noCommands=true\n")

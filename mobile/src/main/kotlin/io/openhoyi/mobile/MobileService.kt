@@ -1222,6 +1222,13 @@ class MobileService : Service() {
     internal val machineModeWritePending:Boolean get()=MachineModePendingPresentation.active(
         machineWriteRecovery.owns(settingRecoveryOwner),machineWriteRecovery.kind,machineWriteRecovery.address,
         hub?.coffeeAddress,snapshot.coffeeState,settingsWrite.change,settingsWrite.state)
+    // The native hub only exposes coffeeAddress when READY. Its explicit boiler reconnect
+    // marker is itself tied to the replacement session generation and the very same address.
+    internal val boilerDisplayAddress: String? get() = hub?.coffeeAddress ?: boilerFallback?.takeIf {
+        it.used && hub === it.hub && boilerReadbackReconnecting && machineWriteRecovery.owns(it.owner)
+    }?.address
+    internal val ownsBoilerDisplayWrite: Boolean get() = machineWriteRecovery.owns(settingRecoveryOwner) &&
+        boilerDisplayAddress?.let(machineWriteRecovery::matchesDevice) == true
     val boilerReadbackRecoveryActive:Boolean get()=HomeBoilerSwitchPresentation.localProgress(
         machineWriteRecovery.owns(settingRecoveryOwner),settingsWrite.change,settingsWrite.state,
         boilerReadbackReconnecting,boilerSettingsRecoveryBusy)

@@ -3,7 +3,7 @@ package io.openhoyi.mobile
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.SettingsWriteTracker
 
-/** Pending intent belongs on its own button, never in the reported heating state. */
+/** Pending intent affects the matching Home switch only, not the reported heating state. */
 internal object HomeBoilerSwitchPresentation {
     fun localProgress(ownsOriginal:Boolean,pending:MachineSettingChange?,state:SettingsWriteTracker.State,
         reconnecting:Boolean,manualBusy:Boolean):Boolean = ownsOriginal &&
@@ -11,18 +11,39 @@ internal object HomeBoilerSwitchPresentation {
         (state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK) ||
             reconnecting || manualBusy)
 
+    private fun target(brew: Boolean, pending: MachineSettingChange?): Boolean? = when {
+        brew && pending is MachineSettingChange.BrewHeating -> pending.enabled
+        !brew && pending is MachineSettingChange.SteamHeating -> pending.enabled
+        else -> null
+    }
+
+    fun pendingAppearance(brew: Boolean, pending: MachineSettingChange?, state: SettingsWriteTracker.State?,
+        ownsPending: Boolean, recoveryRunning: Boolean = false): Boolean =
+        ownsPending && target(brew, pending) != null &&
+            (state == SettingsWriteTracker.State.WRITING || state == SettingsWriteTracker.State.WAITING_READBACK ||
+                state == SettingsWriteTracker.State.UNKNOWN && recoveryRunning)
+
+    fun checked(brew: Boolean, reportedEnabled: Boolean?, pending: MachineSettingChange?,
+        state: SettingsWriteTracker.State?, ownsPending: Boolean, recoveryRunning: Boolean = false): Boolean =
+        (target(brew, pending).takeIf { pendingAppearance(brew, pending, state, ownsPending, recoveryRunning) }
+            ?: reportedEnabled) == true
+
+    fun showInline(label: Int): Boolean = when (label) {
+        R.string.setting_on, R.string.setting_off, R.string.home_boiler_turning_on,
+        R.string.home_boiler_turning_off, R.string.home_boiler_syncing,
+        R.string.home_boiler_reconnecting -> false
+        else -> true
+    }
+
     fun label(brew:Boolean,reportedEnabled:Boolean?,pending:MachineSettingChange?,state:SettingsWriteTracker.State?,recovering:Boolean=false,reconnecting:Boolean=false,preheatOccupied:Boolean=false):Int {
-        val target=when {
-            brew && pending is MachineSettingChange.BrewHeating -> pending.enabled
-            !brew && pending is MachineSettingChange.SteamHeating -> pending.enabled
-            else -> null
-        }
+        val target = target(brew, pending)
         if(target!=null) {
             if(reconnecting)return R.string.home_boiler_reconnecting
             if(recovering)return R.string.home_boiler_syncing
             if(state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK))
                 return if(target) R.string.home_boiler_turning_on else R.string.home_boiler_turning_off
             if(state==SettingsWriteTracker.State.UNKNOWN)return R.string.home_boiler_refresh
+            if(state==SettingsWriteTracker.State.FAILED)return R.string.home_setting_failed
         }
         if(preheatOccupied)return R.string.home_boiler_preheat_occupied
         if(target!=null && state==SettingsWriteTracker.State.RECONCILED)

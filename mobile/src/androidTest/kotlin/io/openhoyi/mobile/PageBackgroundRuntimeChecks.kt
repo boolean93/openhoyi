@@ -684,7 +684,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     private data class SolidHome(val root: View, val original: ColorDrawable, val bounds: List<Rect>)
     private val homeGeometryTags = listOf(
         "brew-boiler", "brew-boiler/pressure", "brew-boiler/toggle", "steam-boiler",
-        "steam-boiler/pressure", "steam-boiler/toggle", "quick-title", "preview-legend",
+        "steam-boiler/pressure", "steam-boiler/toggle", "direct-presets",
     )
 
     private fun homeBounds(root: View) = homeGeometryTags.map { key ->
@@ -747,12 +747,12 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     private fun homeWallpaperGaps(root: View, sampleGap: (Rect) -> Point): List<Point> {
         val paper = root.background as PageBackdrop
         fun home(key: String): View = checkNotNull(root.findViewWithTag<View>("product/home/$key"))
-        val title = checkNotNull(localRect(root, home("quick-title")))
-        val legend = checkNotNull(localRect(root, home("preview-legend")))
-        val heading = Rect(title).apply { union(legend) }
-        check(paper.roundedAreas.none { it.bounds.contains(title) || it.bounds.contains(legend) } &&
-            paper.protectedAreas.orEmpty().none { it.contains(title) || it.contains(legend) }) {
-            "Quick curve title and legend must not bring back a row backing over a photo"
+        check(root.findViewWithTag<View>("product/home/quick-title") == null &&
+            root.findViewWithTag<View>("product/home/preview-legend") == null)
+        val shortcuts = checkNotNull(localRect(root, home("direct-presets")))
+        check(paper.roundedAreas.none { it.bounds.contains(shortcuts) } &&
+            paper.protectedAreas.orEmpty().none { it.contains(shortcuts) }) {
+            "Quick cards must not introduce a full strip backing over a photo"
         }
         fun dial(key: String): Rect {
             val column = home(key) as ViewGroup
@@ -773,7 +773,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         }
         val left = dial("brew-boiler")
         val right = dial("steam-boiler")
-        check(left.right < right.left && maxOf(left.bottom, right.bottom) <= heading.top)
+        check(left.right < right.left && maxOf(left.bottom, right.bottom) <= shortcuts.top)
         fun corner(dial: Rect, fromLeft: Boolean) = Point(
             if (fromLeft) dial.left + dial.width() / 11 else dial.right - dial.width() / 11,
             dial.top + dial.height() / 11,
@@ -790,9 +790,6 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         return buildList {
             addAll(listOf(corner(left, true), corner(left, false), corner(right, true), corner(right, false),
                 sampleGap(intercolumn(left, right))))
-            if (legend.left - title.right > 16 && title.centerY() in legend.top until legend.bottom) {
-                add(sampleGap(intercolumn(title, legend)))
-            }
             val control = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/control")))
             val logic = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/logic")))
             if (control.right < logic.left && control.centerY() in logic.top until logic.bottom) {
