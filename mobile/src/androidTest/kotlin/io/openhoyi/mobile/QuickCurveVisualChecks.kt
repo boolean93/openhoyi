@@ -137,12 +137,13 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                     val preview = requireNotNull(root.findViewWithTag<View>("$tag/preview"))
                     check(preview.isShown && preview.width > 0 && preview.height > 0)
                     val card = bounds[index]
-                    if (!portrait) {
-                        val heightDp = card.height() / density
-                        check(heightDp in 64f..68f) {
-                            "$tag height ${heightDp}dp, expected compact 66dp on the actual tablet viewport"
-                        }
+                    val heightDp = card.height() / density
+                    val expectedHeight = if (portrait) 59f else 66f
+                    check(kotlin.math.abs(heightDp - expectedHeight) <= 2f) {
+                        "$tag height ${heightDp}dp, expected compact ${expectedHeight}dp on the actual viewport"
                     }
+                    val titleBounds = Rect().also { check(title.getGlobalVisibleRect(it)) }
+                    val labelBounds = Rect().also { check(label.getGlobalVisibleRect(it)) }
                     val tapTag = if (index == 5) "product/home/quick-launch" else tag
                     val control = requireNotNull(root.findViewWithTag<View>(tapTag))
                     check(control.isClickable && control.isEnabled && control.width >= 48 * density && control.height >= 48 * density) {
@@ -150,7 +151,10 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                     }
                     items.put(JSONObject().put("name", names[index]).put("label", label.text.toString())
                         .put("rect", JSONArray(listOf(card.left, card.top, card.right, card.bottom)))
+                        .put("heightDp", heightDp.toDouble())
                         .put("nameSp", title.textSize / density).put("labelSp", label.textSize / density)
+                        .put("nameOffsetPx", JSONArray(listOf(titleBounds.left + title.paddingStart - card.left, titleBounds.top - card.top)))
+                        .put("labelOffsetPx", JSONArray(listOf(labelBounds.left - card.left, labelBounds.top - card.top)))
                         .put("previewPx", JSONArray(listOf(preview.width, preview.height))))
                 }
                 if (portrait) {

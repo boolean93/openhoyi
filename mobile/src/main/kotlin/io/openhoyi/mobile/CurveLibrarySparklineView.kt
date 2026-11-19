@@ -24,7 +24,7 @@ internal class CurveLibrarySparklineView(
         if (compact && width < dp(8f)) return
         val stages = preview.stages
         val horizontal = dp(if (compact) 1.8f else 3f)
-        val vertical = dp(if (compact) 1.8f else 4f)
+        val vertical = dp(if (compact) 1.5f else 4f)
         val left = paddingLeft + horizontal
         val right = width - paddingRight - horizontal
         val top = paddingTop + vertical
@@ -41,7 +41,7 @@ internal class CurveLibrarySparklineView(
                 else scale.flowMaxMlPerSecond
             return bottom - (bottom - top) * stage.target / 10f / limit
         }
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = dp(if (compact) 1.15f else 2f); paint.strokeCap = Paint.Cap.ROUND
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = dp(if (compact) 1.35f else 2f); paint.strokeCap = Paint.Cap.ROUND
         stages.forEachIndexed { index, stage ->
             val x1 = left + step * index
             val x2 = x1 + step
@@ -55,7 +55,7 @@ internal class CurveLibrarySparklineView(
                 canvas.drawLine(x1, y(stages[index - 1]), x1, level, paint)
             }
             paint.style = Paint.Style.FILL
-            canvas.drawCircle(if (index == stages.lastIndex) x2 else center, level, dp(if (compact) 1.2f else 2.5f), paint)
+            canvas.drawCircle(if (index == stages.lastIndex) x2 else center, level, dp(if (compact) 1.3f else 2.5f), paint)
             paint.style = Paint.Style.STROKE
         }
     }

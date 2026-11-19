@@ -32,11 +32,14 @@ internal class HomePresetGrid(
     private val labelInk = if (dark) style.ink else 0xff101938.toInt()
     private val surface = wallpaperTint(style.surface, if (dark) 219 else 184)
     private val separator = wallpaperTint(style.ink, if (dark) 48 else 23)
+    private val rim = if (dark) separator else 0x50ffffff
     private val radius = if (portrait) 10 else 15
     private val endGap = if (short) 7 else 17
     private val airyHeight = if (portrait) 59 else 66
     private val minHeightDp = if (short) 48 else airyHeight
     private val inner = if (portrait) 12 else if (short) 6 else 10
+    private val nameInset = if (portrait || short) 0 else 3
+    private val previewInset = if (portrait || short) 0 else 4
     private fun dp(value: Int) = style.dp(value)
     private fun LayoutParams.withStart(gap: Int) = apply { marginStart = dp(gap) }
 
@@ -58,9 +61,9 @@ internal class HomePresetGrid(
     private var columns = 0
     private val group = row().apply {
         tag = "product/home/preset-group"
-        background = style.shape(surface, radius = radius)
+        background = cardSurface()
         clipToOutline = true
-        elevation = dp(2).toFloat()
+        elevation = dp(3).toFloat()
     }
 
     init {
@@ -77,6 +80,8 @@ internal class HomePresetGrid(
         hasLegacy = legacy
         requestLayout()
     }
+
+    private fun cardSurface() = style.shape(surface, radius = radius).apply { setStroke(dp(1), rim) }
 
     private fun row() = style.row().apply {
         gravity = Gravity.CENTER_VERTICAL
@@ -113,7 +118,8 @@ internal class HomePresetGrid(
             val visual = tile(slot).visual
             fun required(text: TextView) =
                 kotlin.math.ceil(android.text.Layout.getDesiredWidth(text.text, text.paint)).toInt()
-            maxOf(dp(48), 2 * dp(inner) + maxOf(required(visual.name), required(visual.label) + dp(21)))
+            maxOf(dp(48), 2 * dp(inner) +
+                maxOf(required(visual.name) + dp(nameInset), required(visual.label) + dp(21 + previewInset)))
         }
         val widths = HomeDirectPresetSlots.wideWidths(usable, weights, measured)
         var groupWidth = dividers
@@ -191,8 +197,9 @@ internal class HomePresetGrid(
             clipToOutline = true
             words = style.column().apply {
                 gravity = Gravity.CENTER_VERTICAL
-                val vertical = if (short) 3 else if (portrait) 7 else 9
-                setPadding(dp(inner), dp(vertical), dp(inner), dp(vertical))
+                val top = if (short) 3 else if (portrait) 5 else 9
+                val bottom = if (short) 3 else if (portrait) 8 else 9
+                setPadding(dp(inner), dp(top), dp(inner), dp(bottom))
                 importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             }
             val label = style.text(title, TaskProductVisualStyle.Type(12, 500, 17), "$id/label").apply { setTextColor(labelInk) }
@@ -201,14 +208,18 @@ internal class HomePresetGrid(
                 importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
             }
             val header = object : LinearLayout(context) {
-                init { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false }
+                init {
+                    gravity = Gravity.CENTER_VERTICAL
+                    isBaselineAligned = false
+                    setPaddingRelative(0, 0, dp(previewInset), 0)
+                }
                 override fun onMeasure(w: Int, h: Int) {
                     val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
                     label.measure(natural, natural)
                     val total = MeasureSpec.getSize(w)
-                    val available = total - label.measuredWidth - dp(21)
+                    val available = total - paddingStart - paddingEnd - label.measuredWidth - dp(21)
                     // Decorative previews have lower priority than the full slot label.
-                    val max = dp(if (portrait) 38 else 43)
+                    val max = dp(if (portrait) 40 else 43)
                     val target = if (available >= dp(18)) (available - dp(4)).coerceIn(0, max) else 0
                     (spark.layoutParams as LinearLayout.LayoutParams).apply { width = target; marginStart = if (target > 0) dp(4) else 0 }
                     super.onMeasure(w, h)
@@ -216,13 +227,15 @@ internal class HomePresetGrid(
             }
             header.addView(PresetGlyph(context, glyph, labelInk), LinearLayout.LayoutParams(dp(16), dp(16)))
             header.addView(label, LinearLayout.LayoutParams(0, -2, 1f).withStart(5))
-            header.addView(spark, LinearLayout.LayoutParams(dp(38), dp(10)))
+            header.addView(spark, LinearLayout.LayoutParams(dp(40), dp(12)))
             words.addView(header, LinearLayout.LayoutParams(-1, -2))
             // The reference longest name is 133dp wide on a 360dp screen.
-            // Noto Sans SC 500 measures ~131dp at 13sp; preserve app font scaling.
+            // Noto Sans SC 550 measures ~132dp at 13sp; preserve app font scaling and a 1dp
+            // allowance for physical-pixel rounding on the 360dp acceptance viewport.
             val titleSp = if (portrait) 13 else if (short) 14 else 15
-            val name = style.text("", TaskProductVisualStyle.Type(titleSp, 500, titleSp + 5), nameId).apply {
+            val name = style.text("", TaskProductVisualStyle.Type(titleSp, 550, titleSp + 5), nameId).apply {
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                setPaddingRelative(dp(nameInset), 0, 0, 0)
             }
             words.addView(name, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (short) 0 else 3) })
             val button = Button(context).apply {
@@ -255,10 +268,8 @@ internal class HomePresetGrid(
             return words.measuredHeight
         }
         fun standalone(value: Boolean) {
-            background = if (value) style.shape(surface, radius = radius).apply {
-                setStroke(dp(1), if (dark) separator else 0x35ffffff)
-            } else null
-            elevation = if (value) dp(2).toFloat() else 0f
+            background = if (value) cardSurface() else null
+            elevation = if (value) dp(3).toFloat() else 0f
         }
     }
 

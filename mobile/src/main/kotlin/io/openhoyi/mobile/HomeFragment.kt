@@ -363,6 +363,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             TaskProductVisualStyle.Type(if (shortHome || phoneHome) 18 else 22, 700, if (shortHome || phoneHome) 25 else 30), "product/home/quick-title")
         val titleGroup = productStyle.row("product/home/shortcut-heading").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
+            if (!phoneHome && !shortHome) setPaddingRelative(dp(5), 0, 0, 0)
             addView(quickTitle, LinearLayout.LayoutParams(-2, -2))
         }
         val previewHeading = object : LinearLayout(host) {
@@ -374,7 +375,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
                 quickTitle.measure(natural, natural); previewLegend.measure(natural, natural)
-                val titleNaturalWidth = quickTitle.measuredWidth
+                val titleNaturalWidth = quickTitle.measuredWidth + titleGroup.paddingStart
                 val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
                     titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
                 orientation = if (stacked) VERTICAL else HORIZONTAL
