@@ -1252,8 +1252,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private fun TextView.showMetric(value: String) {
         if (text.toString() == value) return
         val unitStart = value.indexOf(' ')
-        text = if (unitStart < 0) value else SpannableString(value).apply {
-            setSpan(RelativeSizeSpan(if (parent is BoilerTemperatureDial) 0.53f else 0.36f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        val dial = parent as? BoilerTemperatureDial
+        text = when {
+            unitStart < 0 -> value
+            dial != null -> dial.formatReading(value, unitStart)
+            else -> SpannableString(value).apply {
+                setSpan(RelativeSizeSpan(0.36f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
         }
     }
     private fun number(hundredths: Int) = String.format(Locale.ROOT, "%.2f", hundredths / 100.0)

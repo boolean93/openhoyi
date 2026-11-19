@@ -10,6 +10,12 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.style.MetricAffectingSpan
+import android.text.style.RelativeSizeSpan
+import androidx.core.content.res.ResourcesCompat
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -63,6 +69,25 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         power.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         power.setPaddingRelative(0, 0, 0, 0)
         addView(power)
+    }
+
+    private val numeralFace by lazy { ResourcesCompat.getFont(context, R.font.task_chinese_bold) }
+
+    fun formatReading(reading: String, unitStart: Int): CharSequence = SpannableString(reading).apply {
+        // The existing bundled face has the reference's broad 1 foot, rounded 9 tail
+        // and diagonal 2 contour. Restrict it to the digits/decimal, not the °C unit.
+        numeralFace?.let { face ->
+            setSpan(object : MetricAffectingSpan() {
+                private fun apply(paint: TextPaint) {
+                    paint.typeface = face
+                    paint.textSize *= .95f
+                    paint.textScaleX *= 1.03f
+                }
+                override fun updateMeasureState(paint: TextPaint) = apply(paint)
+                override fun updateDrawState(paint: TextPaint) = apply(paint)
+            }, 0, unitStart, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        setSpan(RelativeSizeSpan(.53f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
     fun present(current: Float?, goal: Float?) {
