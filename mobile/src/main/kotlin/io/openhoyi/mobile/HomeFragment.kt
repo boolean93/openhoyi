@@ -58,6 +58,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var coffee: TextView
     private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
+    private val boilerExceptions = mutableMapOf<HoyiSwitch, Button>()
     private var renderingBoilerSwitch = false
     private val boilerDials = mutableListOf<BoilerTemperatureDial>()
     private lateinit var brewBoilerTemperature: TextView
@@ -142,6 +143,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     }
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
         boilerDials.clear()
+        boilerExceptions.clear()
         compactQuickHeading = null
         feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
@@ -322,6 +324,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 productStyle.apply(pressure, TaskProductVisualStyle.Type(if (compactType) 14 else if (phoneHome) 16 else 18, 400, if (compactType) 20 else if (phoneHome) 24 else 26))
                 pressure.gravity = android.view.Gravity.CENTER
                 card.addView(pressure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+            }
+            boilerExceptions[toggle] = button(card, "") { changeBoilerSetting(change()) }.apply {
+                tag = "product/home/$tagName/exception"
+                visibility = View.GONE
+                layoutParams = LinearLayout.LayoutParams(-1, -2)
             }
             return listOf(value, pressure, target, toggle)
         }
@@ -988,8 +995,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
-        brewBoilerToggle.isEnabled = if(brewRecovery)owner?.canRefreshUnknownBoilerSettings==true else boilerEditable
-        steamBoilerToggle.isEnabled = if(steamRecovery)owner?.canRefreshUnknownBoilerSettings==true else boilerEditable
+        brewBoilerToggle.isEnabled = boilerEditable && !brewRecovery
+        steamBoilerToggle.isEnabled = boilerEditable && !steamRecovery
 
         val preheatOccupied=PreheatStatusPresentation.boilerOccupied(
             owner?.brewPreparationState ?: BrewPreparation.State.IDLE,s.coffeeState==DeviceState.READY,
@@ -1003,9 +1010,20 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         renderingBoilerSwitch = true
         try {
             fun project(toggle: HoyiSwitch, brew: Boolean, checked: Boolean?) {
-                val state = getString(HomeBoilerSwitchPresentation.label(brew, checked,
+                val label = HomeBoilerSwitchPresentation.label(brew, checked,
                     owner?.pendingSetting, owner?.settingWriteState, owner?.boilerSettingsRecoveryBusy==true,
-                    owner?.boilerReadbackReconnecting==true, preheatOccupied))
+                    owner?.boilerReadbackReconnecting==true, preheatOccupied)
+                val state = getString(label)
+                boilerExceptions[toggle]?.let { status ->
+                    val exceptional = label != R.string.setting_on && label != R.string.setting_off
+                    val refresh = label == R.string.home_boiler_refresh
+                    val actionable = refresh && owner?.canRefreshUnknownBoilerSettings == true
+                    val visible = if (exceptional) View.VISIBLE else View.GONE
+                    if (status.visibility != visible) status.visibility = visible
+                    status.isEnabled = actionable
+                    status.isClickable = actionable
+                    status.show(state)
+                }
                 val heading = getString(if (brew) R.string.home_brew_boiler else R.string.home_steam_boiler)
                 if (android.os.Build.VERSION.SDK_INT >= 30) {
                     if (toggle.stateDescription != state) toggle.stateDescription = state

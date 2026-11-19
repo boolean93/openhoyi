@@ -75,7 +75,9 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         projectTarget()
     }
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
-        val small=MeasureSpec.getSize(widthMeasureSpec)<180*density
+        val diameterPx = MeasureSpec.getSize(widthMeasureSpec)
+        val measuredTextBudget = diameterPx - (62 * density).toInt()
+        val small = diameterPx < 180 * density || headingLine + valueLine + targetLine > measuredTextBudget
         if(smallLabels!=small || small && lastSmallDiameter!=MeasureSpec.getSize(widthMeasureSpec)) {
             lastSmallDiameter=MeasureSpec.getSize(widthMeasureSpec)
             smallLabels=small
