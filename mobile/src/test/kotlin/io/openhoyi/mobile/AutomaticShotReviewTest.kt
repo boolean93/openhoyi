@@ -48,9 +48,9 @@ class AutomaticShotReviewTest {
         val messages = Json.parseToJsonElement(ShotReviewWire.request(staged, 8, AppLanguage.CHINESE)!!)
             .jsonObject.getValue("messages").jsonArray
         val prompt = messages[0].jsonObject.getValue("content").jsonPrimitive.content
-        listOf("exactly three short plain-text lines", "1. What went well", "observed time interval",
-            "2. What deviated", "no clear anomaly", "never label a stage as",
-            "3. Next cup", "exactly one measurement", "exactly one change to one variable",
+        listOf("exactly three string keys: good, deviation, nextCup", "what went well", "observed time interval",
+            "what deviated", "no clear anomaly", "never label a stage as",
+            "next cup", "exactly one measurement", "exactly one change to one variable",
             "unverified hypotheses, not diagnoses", "never prescribe changing both",
             "mL/s", "scale mass flow in g/s", "never state beverage grams", "never state a brew ratio",
             "never state scale-derived g/s").forEach { assertTrue(it, prompt.contains(it)) }
@@ -62,7 +62,8 @@ class AutomaticShotReviewTest {
         assertEquals(listOf(8.8, 8.8, 8.7, 6.8, 5.6), rows.map { it.getValue("pressureBar").jsonPrimitive.double })
         assertTrue(rows.all { it["beverageGrams"] == JsonNull && it["estimatedScaleFlowGramsPerSecond"] == JsonNull })
         assertEquals("表现：3–5 秒，压力较稳。\n变化：5–7 秒，压力明显下降。\n下杯：只补测杯中出液重量。",
-            ShotReviewWire.answer(response("表现：3–5 秒，压力较稳。\n变化：5–7 秒，压力明显下降。\n下杯：只补测杯中出液重量。")))
+            ShotReviewWire.answer(response(reviewContent("表现：3–5 秒，压力较稳。",
+                "变化：5–7 秒，压力明显下降。", "下杯：只补测杯中出液重量。"))))
     }
 
     @Test fun `scale flow and beverage evidence are independent and never invent a shot target or dose`() {
@@ -82,7 +83,7 @@ class AutomaticShotReviewTest {
     }
 
     @Test fun `wire adapter sends one protected request with no tools to a fake provider`() = runBlocking {
-        val fake = FakeAiConnection(answer = aiAnswer("pressure stable"))
+        val fake = FakeAiConnection(answer = aiAnswer(reviewContent("pressure stable")))
         var count = 0
         val transport = AiSafeTransport({ "fake-shot-token-never-real" }, { true }, AiRequestBudget(), {
             assertEquals(AiSafeTransport.ENDPOINT, it.toString())
@@ -91,7 +92,7 @@ class AutomaticShotReviewTest {
         })
         try {
             val request = requireNotNull(ShotReviewWire.request(points, 18, AppLanguage.ENGLISH))
-            assertEquals("pressure stable", ShotReviewWire.answer(ShotReviewWire.send(transport, request)))
+            assertEquals("pressure stable", ShotReviewWire.answer(ShotReviewWire.send(transport, request))?.lineSequence()?.first())
             assertEquals(1, count)
             val wire = Json.parseToJsonElement(fake.sent.toString("UTF-8")).jsonObject
             assertTrue(wire.getValue("stream").jsonPrimitive.boolean)
@@ -109,7 +110,7 @@ class AutomaticShotReviewTest {
             val last = CompletableDeferred<String>()
             val review = AutomaticShotReview(owner, { it == config }, rows, { _, body ->
                 calls++
-                if (body.contains("12345")) last.await() else response("second cup")
+                if (body.contains("12345")) last.await() else response(reviewContent("second cup"))
             })
             val firstPoints = listOf(point(500), point(12345))
             review.afterPersisted("cup-one", config, firstPoints, null)
@@ -118,10 +119,10 @@ class AutomaticShotReviewTest {
             yield()
             assertEquals(2, calls)
             assertEquals(ShotReviewStatus.PENDING, review.result("cup-one")?.status)
-            assertEquals("second cup", review.result("cup-two")?.text)
-            last.complete(response("first cup"))
+            assertEquals("second cup", review.result("cup-two")?.text?.lineSequence()?.first())
+            last.complete(response(reviewContent("first cup")))
             yield()
-            assertEquals("first cup", review.result("cup-one")?.text)
+            assertEquals("first cup", review.result("cup-one")?.text?.lineSequence()?.first())
             review.afterPersisted("cup-one", config, points, 30)
             yield()
             assertEquals(2, calls)
@@ -186,11 +187,16 @@ class AutomaticShotReviewTest {
         assertNull(ledger.read("thin"))
     }
 
-    @Test fun `ready text stays bounded and tools or incomplete answers are rejected`() {
+    @Test fun `ready output requires three bounded slots without truncating the advice`() {
         assertNull(ShotReviewWire.answer("""{"choices":[{"finish_reason":"tool_calls","message":{"content":"hi"}}]}"""))
         assertNull(ShotReviewWire.answer("""{"choices":[{"finish_reason":"length","message":{"content":"hi"}}]}"""))
-        assertEquals(360, ShotReviewWire.answer(response("x".repeat(1000)))!!.length)
-        assertEquals("line1\nline2\nline3", ShotReviewWire.answer(response("line1\nline2\nline3\nline4")))
+        assertNull(ShotReviewWire.answer(response("one arbitrary line")))
+        assertNull(ShotReviewWire.answer(response("""{"good":"well","deviation":"slowed"}""")))
+        assertNull(ShotReviewWire.answer(response("""{"good":"well","deviation":"slowed","nextCup":"measure","extra":"ignore"}""")))
+        assertNull(ShotReviewWire.answer(response(reviewContent("well", "slowed", " "))))
+        assertNull(ShotReviewWire.answer(response(reviewContent("well", "slowed", "before\nafter"))))
+        assertNull(ShotReviewWire.answer(response(reviewContent("well", "slowed", "x".repeat(116)))))
+        assertEquals("well\nslowed\nmeasure", ShotReviewWire.answer(response(reviewContent("well", "slowed", "measure"))))
     }
 
     @Test fun `default denial and changing consent or credential changes the revision fence`() {
@@ -298,6 +304,9 @@ class AutomaticShotReviewTest {
         assertFalse(corrupt.prune())
         assertEquals("not a ledger", disk!!.decodeToString())
     }
+
+    private fun reviewContent(good: String, deviation: String = "no clear anomaly", next: String = "measure output") =
+        buildJsonObject { put("good", good); put("deviation", deviation); put("nextCup", next) }.toString()
 
     private fun response(text: String) = """{"choices":[{"finish_reason":"stop","message":{"content":${JsonPrimitive(text)}}}]}"""
 

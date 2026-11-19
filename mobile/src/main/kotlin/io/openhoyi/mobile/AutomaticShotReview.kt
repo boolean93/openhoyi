@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap
 /** A closed, one-shot workflow. No chat context, tools, uploads, retries, or machine controls. */
 internal object ShotReviewWire {
     const val RESPONSE_CHARS = 360
+    private const val SLOT_CHARS = 115
+    private val reviewSlots = listOf("good", "deviation", "nextCup")
     private const val MAX_POINTS = 96
 
     fun eligible(entry: ShotHistory.Entry, passiveConfirmed: Boolean, appOutcomeUnknown: Boolean): Boolean =
@@ -54,14 +56,15 @@ internal object ShotReviewWire {
                 add(buildJsonObject {
                     put("role", "system")
                     put("content", "Review this espresso extraction in ${language.nativeName} (${language.tag}). " +
-                        "Return exactly three short plain-text lines, one per item in this order, with localized labels. " +
-                        "1. What went well: give an observed time interval and the pressure or flow evidence that supports " +
+                        "Return only a JSON object with exactly three string keys: good, deviation, nextCup. " +
+                        "Keep each value to one plain-text line of at most 110 characters, including a localized label. " +
+                        "For good (what went well): give an observed time interval and the pressure or flow evidence that supports " +
                         "a favorable or stable phase. If the data do not support one, say so. " +
-                        "2. What deviated: give the observed time interval and measured departure from the local trend, " +
+                        "For deviation (what deviated): give the observed time interval and measured departure from the local trend, " +
                         "or state that no clear anomaly is identifiable. No immutable stage boundaries or recipe targets " +
                         "are supplied, so distinguish a series anomaly from target deviation: never label a stage as " +
                         "passing/failing a target, and don't invent named recipe stages. " +
-                        "3. Next cup: propose exactly one change to one variable, keeping all others constant; if the " +
+                        "For nextCup (next cup): propose exactly one change to one variable, keeping all others constant; if the " +
                         "evidence cannot support a change, ask for exactly one measurement instead. Grind and puck " +
                         "distribution are separate, unverified hypotheses, not diagnoses; never prescribe changing both. " +
                         "Do not claim channeling, a root cause, or taste. " +
@@ -91,9 +94,15 @@ internal object ShotReviewWire {
         val message = choice["message"]?.jsonObject ?: return null
         if ((message["tool_calls"] as? JsonArray)?.isNotEmpty() == true) return null
         val text = (message["content"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
-        text.lineSequence().map { line ->
-            line.filterNot { it.isISOControl() || Character.getType(it) == Character.FORMAT.toInt() }.trim()
-        }.filter { it.isNotEmpty() }.take(3).joinToString("\n").take(RESPONSE_CHARS).takeIf { it.isNotBlank() }
+        val slots = Json.parseToJsonElement(text) as? JsonObject ?: return null
+        if (slots.keys != reviewSlots.toSet()) return null
+        val lines = reviewSlots.map { slot ->
+            val value = (slots[slot] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+            if (value.any { it.isISOControl() || Character.getType(it) in setOf(
+                    Character.FORMAT.toInt(), Character.LINE_SEPARATOR.toInt(), Character.PARAGRAPH_SEPARATOR.toInt()) }) return null
+            value.trim().takeIf { it.length in 1..SLOT_CHARS } ?: return null
+        }
+        lines.joinToString("\n").takeIf { it.length <= RESPONSE_CHARS }
     }.getOrNull()
 }
 
