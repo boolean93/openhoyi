@@ -581,6 +581,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             return id
         }
+        fun assignReviewFixtureId(id: String) { main { nextId = id } }
         fun startReviewFixtureShot(owner: MobileService, id: String) {
             main {
                 nextId = id
@@ -3078,8 +3079,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val deviation = "变化：2–3 秒压力快速下降。" + "仅用于验证换行。".repeat(10)
         val suggestion = "下杯：只补测出液重量。" + "确保完整的第三项。".repeat(9)
         var widthDp = 0
+        val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
+        val options = context.getSharedPreferences(ShortcutStartPolicy.PREFERENCES, Context.MODE_PRIVATE)
+        val oldD = presets.getString(PresetSlots.key(4), null)
+        val oldDirect = options.all[ShortcutStartPolicy.DIRECT_START] as? Boolean
         try {
             scope.prepare()
+            // Deterministic disposable fixture only; keep the preferences stable throughout
+            // Scope's business-disk snapshots and restore their entries after cleanup.
+            check(presets.edit().putString(PresetSlots.key(4), scope.curveId).commit())
+            check(options.edit().putBoolean(ShortcutStartPolicy.DIRECT_START, true).commit())
             scope.install(false)
             main { write(app, "fontSizePreferences", AppFontSizePreference(object : AppFontSizePreference.Storage {
                 override fun read() = "large"
@@ -3152,14 +3161,63 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
 
             permitted.set(false)
-            brew("qa-review-no-key", 5500, end = false)
-            await("next running cup never inherits the previous cup verdict") {
-                owner.chartTraceIdentity == "qa-review-no-key" && owner.shotState == ExtractionState.RUNNING &&
-                    label().visibility == View.GONE && label().text.isEmpty() && reviewDialog()?.isShowing != true
+            scope.assignReviewFixtureId("qa-review-no-key")
+            main {
+                val detail = checkNotNull(reviewDialog()?.window?.decorView)
+                check(detail.findViewWithTag<Button>("app-dialog-positive").performClick())
             }
+            await("dismissed details leave the real A–D chooser available") {
+                reviewDialog()?.isShowing != true && root(host).findViewWithTag<View>(
+                    "product/extraction/shortcuts")?.let { it.isShown && it.isEnabled } == true
+            }
+            fun fragment() = host.supportFragmentManager.findFragmentByTag("extraction") as ExtractionFragment
+            fun shortcuts() = field(fragment(), "liveShortcutsDialog") as? AlertDialog
+            main { check(root(host).findViewWithTag<Button>("product/extraction/shortcuts").performClick()) }
+            await("real D slot row") {
+                shortcuts()?.window?.decorView?.findViewWithTag<Button>("product/extraction/shortcut/4")
+                    ?.let { it.isShown && it.isEnabled } == true
+            }
+            main { check(shortcuts()?.window?.decorView?.findViewWithTag<Button>("product/extraction/shortcut/4")
+                ?.performClick() == true) }
+            await("one explicit D selection started its own Mock shot") {
+                owner.chartTraceIdentity == "qa-review-no-key" && owner.mockExtractionPendingStartId != null &&
+                    owner.shotState == ExtractionState.STARTING
+            }
+            scope.completeScenarioStart(owner)
+            await("next running cup never inherits previous cup verdict or picker") {
+                field(owner, "lastShotState") == ExtractionState.RUNNING &&
+                    owner.chartTraceIdentity == "qa-review-no-key" && owner.shotState == ExtractionState.RUNNING &&
+                    label().visibility == View.GONE && label().text.isEmpty() && reviewDialog()?.isShowing != true &&
+                    shortcuts()?.isShowing != true
+            }
+            scope.offerScenarioFrame(owner, 6500, 10, slot = 4)
+            scope.offerScenarioFrame(owner, 7500, 20, slot = 4)
+            val stopTarget = Rect()
+            await("STOP fully visible in the focused host after A–D dispatch") {
+                val stop = root(host).findViewWithTag<Button>("product/extraction/stop") ?: return@await false
+                if (!host.hasWindowFocus() || !stop.isShown || !stop.isEnabled) return@await false
+                val visible = Rect()
+                val origin = IntArray(2)
+                stop.getLocationOnScreen(origin)
+                stopTarget.set(origin[0], origin[1], origin[0] + stop.width, origin[1] + stop.height)
+                stop.getGlobalVisibleRect(visible) && stop.width > 0 && stop.height > 0 &&
+                    visible.width() >= stop.width && visible.height() >= stop.height
+            }
+            val down = SystemClock.uptimeMillis()
+            for (action in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP)) {
+                val event = android.view.MotionEvent.obtain(down, SystemClock.uptimeMillis(), action,
+                    stopTarget.exactCenterX(), stopTarget.exactCenterY(), 0)
+                try { check(test.uiAutomation.injectInputEvent(event, true)) } finally { event.recycle() }
+            }
+            await("native touch reached STOP without any overlay intercepting it") {
+                owner.shotState == ExtractionState.STOP_REQUESTED && owner.mockExtractionPendingStopId != null
+            }
+            main { owner.completeMockExtractionStop(scope.scenarioOwner(),
+                checkNotNull(owner.mockExtractionPendingStopId), OperationResult.Success()) }
             scope.finishReviewFixtureShot(owner, 11_000)
             scope.awaitReviewSamples("qa-review-no-key")
-            main { check(calls.get() == 1 && label().visibility == View.GONE) }
+            main { check(calls.get() == 1 && label().visibility == View.GONE &&
+                app.history.entries.single { it.id == "qa-review-no-key" }.slot == 4) }
 
             permitted.set(true)
             brew("qa-review-failed", 11_000)
@@ -3176,6 +3234,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             File(directory, "proof.json").writeText(JSONObject().put("sourceSha", sha)
                 .put("actualMainActivityExtractionFragment", true).put("actualMockServiceCompletions", 3)
                 .put("distinctFirstVerdict", true).put("noReuseOnNextCup", true)
+                .put("actualLiveSlotDStart", true).put("nativeStopTouchUnobstructed", true)
                 .put("viewportWidthDp", widthDp).put("appFont", "large").put("onlyOpenedOnTap", true)
                 .put("allThreeSlotsReadableWithoutTruncation", true)
                 .put("missingKeySilent", true).put("pendingAndFailureNonblocking", true)
@@ -3184,6 +3243,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             try { scope.cleanup() } finally {
                 removeFake?.invoke()
                 main { write(app, "fontSizePreferences", originalFontOwner) }
+                check(presets.edit().putString(PresetSlots.key(4), oldD).commit())
+                check(options.edit().apply {
+                    if (oldDirect == null) remove(ShortcutStartPolicy.DIRECT_START)
+                    else putBoolean(ShortcutStartPolicy.DIRECT_START, oldDirect)
+                }.commit())
             }
         }
     }

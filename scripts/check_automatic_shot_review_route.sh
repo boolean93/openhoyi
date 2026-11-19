@@ -33,5 +33,6 @@ assert proof["viewportWidthDp"] == 320 and proof["appFont"] == "large"
 assert proof["fakeRequests"] == 2 and proof["realOutboundRequests"] == 0
 assert all(proof[key] is True for key in ("actualMainActivityExtractionFragment",
     "distinctFirstVerdict", "noReuseOnNextCup", "missingKeySilent", "pendingAndFailureNonblocking",
-    "onlyOpenedOnTap", "allThreeSlotsReadableWithoutTruncation"))
+    "onlyOpenedOnTap", "allThreeSlotsReadableWithoutTruncation",
+    "actualLiveSlotDStart", "nativeStopTouchUnobstructed"))
 PY
