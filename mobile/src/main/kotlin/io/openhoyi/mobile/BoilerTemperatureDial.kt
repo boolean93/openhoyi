@@ -27,6 +27,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private val targetSize=target.textSize
     private val targetLine=target.lineHeight
     private val words=LinearLayout(context).apply {orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
+    private val spacer=android.widget.Space(context)
     private lateinit var targetBand:TextView
     private var smallLabels:Boolean?=null
     private var lastSmallDiameter=0
@@ -54,15 +55,22 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             field.gravity = Gravity.CENTER; field.setTextColor(ink)
             words.addView(field, LinearLayout.LayoutParams(-1,-2))
         }
+        // Preserve the title/current baselines while the target moves to the scale band.
+        words.addView(spacer,LinearLayout.LayoutParams(1,target.lineHeight))
+        addView(words, LayoutParams(-1,-1).apply {
+            val inset=(25*density).toInt(); setMargins(inset,inset,inset,inset)
+        })
         val touch = (48 * density).toInt()
-        words.addView(power, LinearLayout.LayoutParams(touch,touch))
-        addView(words, LayoutParams(-1,-1))
+        addView(power, LayoutParams(touch, touch, Gravity.CENTER_HORIZONTAL))
         targetBand=TextView(context).apply {
+            tag = target.tag
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,target.textSize)
             typeface=target.typeface; includeFontPadding=false; gravity=Gravity.CENTER
             setTextColor(ink); setCompatibleLineHeight(target.lineHeight)
         }
-        words.addView(targetBand, LinearLayout.LayoutParams(-1,-2))
+        addView(targetBand,LayoutParams(-1,-2,Gravity.BOTTOM).apply {
+            leftMargin=(24*density).toInt(); rightMargin=leftMargin; bottomMargin=(30*density).toInt()
+        })
         fun projectTarget() {
             targetBand.text=target.text
             target.visibility=GONE
@@ -75,9 +83,8 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         projectTarget()
     }
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
-        val diameterPx = MeasureSpec.getSize(widthMeasureSpec)
-        val measuredTextBudget = diameterPx - (62 * density).toInt()
-        val small = diameterPx < 180 * density || headingLine + valueLine + targetLine > measuredTextBudget
+        val diameter=MeasureSpec.getSize(widthMeasureSpec)
+        val small=diameter<180*density || headingLine + valueLine + targetLine + 62*density > diameter
         if(smallLabels!=small || small && lastSmallDiameter!=MeasureSpec.getSize(widthMeasureSpec)) {
             lastSmallDiameter=MeasureSpec.getSize(widthMeasureSpec)
             smallLabels=small
@@ -95,17 +102,15 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             value.minimumHeight=if(small) 0 else valueMin
             value.minHeight=if(small) 0 else valueMin
             if(small) value.setLineSpacing(0f,1f) else value.setCompatibleLineHeight(valueLine)
-            val diameter=MeasureSpec.getSize(widthMeasureSpec)
-            val touch = (48 * density).toInt()
-            val textBudget = (diameter - touch - (14 * density).toInt()).coerceAtLeast(1)
-            heading.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.28f).toInt() else -2)
-            value.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.45f).toInt() else -2)
-            words.gravity=Gravity.CENTER
-            heading.translationY = 5 * density
-            words.layoutParams=LayoutParams(-1,-1).apply {
+            val veryTight = diameter < 145 * density
+            heading.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*.145f).toInt() else -2)
+            value.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*(if(veryTight) .20f else .26f)).toInt() else -2)
+            words.gravity=if(small) Gravity.TOP or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
+            words.layoutParams=LayoutParams(-1,if(small) (diameter*.405f).toInt() else -1).apply {
                 val inset=((if(small) 12 else 25)*density).toInt()
-                setMargins(inset,0,inset,0)
+                setMargins(inset,if(small) (diameter*(if(veryTight) .12f else .17f)).toInt() else (25*density).toInt(),inset,if(small) 0 else inset)
             }
+            spacer.layoutParams=LinearLayout.LayoutParams(1,if(small) 0 else targetLine)
             targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) compactHeadingPx else targetSize)
             if(small) {
                 targetBand.setSingleLine(true);targetBand.setLineSpacing(0f,1f)
@@ -115,9 +120,25 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
                 targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,targetSize)
                 targetBand.setCompatibleLineHeight(targetLine)
             }
-            targetBand.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.27f).toInt() else -2)
+            targetBand.layoutParams=LayoutParams(-1,if(small) (diameter*.16f).toInt() else -2,Gravity.BOTTOM).apply {
+                leftMargin=((if(small) 12 else 24)*density).toInt();rightMargin=leftMargin
+                bottomMargin=if(small) (diameter*.246f).toInt() else (30*density).toInt()
+            }
         }
         super.onMeasure(widthMeasureSpec,heightMeasureSpec)
+    }
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        // Keep the original caption/current layout independent of the new control.
+        // Move the target down only as far as needed to keep the complete switch hit
+        // area above it; tighter gauges use the compact text rows measured above.
+        val valueBottom = words.top + value.bottom
+        val targetClearance = (6 * density).toInt()
+        val latestTarget = (height - targetBand.measuredHeight - targetClearance).coerceAtLeast(targetBand.top)
+        val targetTop = maxOf(targetBand.top, valueBottom + power.measuredHeight).coerceAtMost(latestTarget)
+        val switchTop = (targetTop - power.measuredHeight).coerceAtLeast(0)
+        power.layout(power.left, switchTop, power.right, switchTop + power.measuredHeight)
+        targetBand.layout(targetBand.left, targetTop, targetBand.right, targetTop + targetBand.measuredHeight)
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
