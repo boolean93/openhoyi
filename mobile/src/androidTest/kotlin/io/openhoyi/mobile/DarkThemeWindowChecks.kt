@@ -55,10 +55,13 @@ internal class DarkThemeWindowChecks(private val test: Instrumentation) {
                 val home = page.active("root:BREW") as HomeFragment
                 val palette = TaskProductVisualStyle(activity)
                 check((home.requireView().background as ColorDrawable).color == palette.homePage)
-                for (slot in 1..5) {
-                    val tile = checkNotNull(home.requireView().findViewWithTag<View>("product/home/direct-preset/$slot"))
-                    val fill = (tile.background as android.graphics.drawable.GradientDrawable).color?.defaultColor
-                    check(fill == palette.surface || fill == palette.homeSelected)
+                for (slot in 1..4) {
+                    val action = checkNotNull(home.requireView().findViewWithTag<View>("product/home/direct-preset/$slot"))
+                    val tile = action.parent as View
+                    val surface = (tile.background ?: (tile.parent as View).background) as android.graphics.drawable.GradientDrawable
+                    val fill = checkNotNull(surface.color).defaultColor
+                    check(fill and 0xffffff == palette.surface and 0xffffff)
+                    check(android.graphics.Color.alpha(fill) in 180..225)
                 }
             }
             SystemClock.sleep(650) // Capture after the window enter animation, not during its dimmed transition.

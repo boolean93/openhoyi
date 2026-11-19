@@ -69,15 +69,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var steamBoilerTarget: TextView
     private lateinit var brewBoilerToggle: HoyiSwitch
     private lateinit var steamBoilerToggle: HoyiSwitch
-    private lateinit var lastCurveRow: LinearLayout
-    private lateinit var lastCurveName: TextView
-    private lateinit var lastCurvePreview: CurveLibrarySparklineView
-    private lateinit var lastCurveDivider: View
     private var lastCurveReference: HomeLastCurve.Reference? = null
     private var lastCurveState: HomeLastCurve = HomeLastCurve.Empty
     private var lastCurveDirty = true
     private var previousCupActive = false
-    private lateinit var quickLaunch: Button
     private lateinit var quickRow: LinearLayout
     private var compactQuickHeading: View? = null
     private lateinit var brewPressure: TextView
@@ -101,8 +96,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var brewButton: Button
     private lateinit var browseCurvesButton: Button
     private lateinit var presetButtons: List<Button>
-    private lateinit var directPresets: List<HomePresetGrid.Visual>
-    private var layoutDirectPresets: (Boolean) -> Unit = {}
+    private lateinit var directPresets: HomePresetGrid
     private var presetVisualsDirty = true
     private var customCurveRevision = -1L
     private lateinit var candidates: LinearLayout
@@ -156,7 +150,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
         val shortHome = TaskLayoutPolicy.compactHome(resources.configuration.screenHeightDp, phoneHome)
         val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
-        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4)) }
+        val content = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4))
+            clipToPadding = false // The shortcut strip extends into the inset, including its contact shadow.
+        }
+        val shortcutOutset = dp(if (phoneHome) 3 else if (shortHome) 0 else 6)
         root.addView(ScrollView(host).apply {
             tag = "product/home/page-scroll"
             isFillViewport = true
@@ -338,10 +337,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
         HomeViewportBudget.install(root, content, boilerRow, boilerDials, phoneHome, compactType, spaciousHome)
         quickRow = productStyle.column("product/home/quick-extraction")
-        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2))
+        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply {
+            marginStart = -shortcutOutset; marginEnd = -shortcutOutset
+        })
         val previewLegend=productStyle.text("",TaskProductVisualStyle.Type(12,400,20),"product/home/preview-legend").apply {
-            val pressure="━ " + getString(R.string.curve_control_mode_pressure)
-            val flow="━ " + getString(R.string.curve_control_mode_flow)
+            val pressure="━ " + getString(R.string.home_shortcut_pressure_key)
+            val flow="━ " + getString(R.string.home_shortcut_flow_key)
             fun inks(pressureColor: Int, flowColor: Int) = android.text.SpannableString("$pressure    $flow").apply {
                 setSpan(android.text.style.ForegroundColorSpan(pressureColor), 0, pressure.length, 0)
                 setSpan(android.text.style.ForegroundColorSpan(flowColor), pressure.length + 4, length, 0)
@@ -359,7 +360,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
         }
         val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
-            TaskProductVisualStyle.Type(if (compactType) 16 else if (shortHome) 18 else 22, 500, if (compactType) 24 else if (shortHome) 28 else 32), "product/home/quick-title")
+            TaskProductVisualStyle.Type(if (shortHome || phoneHome) 18 else 22, 700, if (shortHome || phoneHome) 25 else 30), "product/home/quick-title")
         val titleGroup = productStyle.row("product/home/shortcut-heading").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
             addView(quickTitle, LinearLayout.LayoutParams(-2, -2))
@@ -426,103 +427,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     super.onMeasure(widthMeasureSpec, heightMeasureSpec)
                 }
             }
-            content.addView(sharedHeading, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-1, -2))
+            content.addView(sharedHeading, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-1, -2).apply {
+                marginStart = -shortcutOutset; marginEnd = -shortcutOutset
+            })
         } else {
             quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
         }
-        lastCurveRow = object : LinearLayout(host) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                if (phoneHome && compactType && childCount == 4) {
-                    val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
-                    val inline = HomePortraitBudget.inlineLastCurve((available / resources.displayMetrics.density).toInt(), resources.configuration.fontScale)
-                    orientation = if (inline) HORIZONTAL else VERTICAL
-                    (getChildAt(0).layoutParams as LayoutParams).apply { width = if (inline) dp(96) else -1; height = dp(44) }
-                    // Portrait keeps the quiet gap rather than a divider; render does not fight layout.
-                    (getChildAt(2).layoutParams as LayoutParams).apply { width = if (inline) 0 else -1; weight = if (inline) 1f else 0f; marginStart = if (inline) dp(12) else 0 }
-                    (getChildAt(3).layoutParams as LayoutParams).apply {
-                        width = if (inline) (dp(124) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() else -1
-                        marginStart = if (inline) dp(8) else 0; topMargin = if (inline) 0 else dp(8)
-                    }
-                }
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-            }
-        }.apply {
-            tag = "product/home/last-curve"
-            orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            minimumHeight = dp(if(spaciousHome) 64 else 48)
-            setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 4 else 0),
-                dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 4 else 0))
-            background = productStyle.shape(productStyle.surface, true)
-            elevation=resources.displayMetrics.density
-        }
-        if (compactTopRow != null) compactTopRow.addView(lastCurveRow,
-            LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
-        else quickRow.addView(lastCurveRow, LinearLayout.LayoutParams(-1, -2).apply {
-            if (spaciousHome) topMargin = dp(6)
-        })
-        lastCurvePreview = CurveLibrarySparklineView(host, productStyle).apply {
-            visibility = View.GONE
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            tag = "product/home/last-curve/preview"
-        }
-        lastCurveRow.addView(lastCurvePreview, LinearLayout.LayoutParams(dp(if (shortWideHome) 48 else if (shortHome) 96 else 160),
-            dp(if (shortHome) 40 else 48)))
-        lastCurveDivider = View(host).apply {
-            setBackgroundColor(productStyle.border)
-            visibility = View.GONE
-        }
-        lastCurveRow.addView(lastCurveDivider, LinearLayout.LayoutParams(dp(1), dp(if (shortHome) 36 else 48)).apply {
-            marginStart = dp(if (shortHome) 4 else 12)
-            marginEnd = dp(if (shortHome) 8 else 16)
-        })
-        val lastWords = productStyle.column()
-        lastCurveRow.addView(lastWords, if(phoneHome) LinearLayout.LayoutParams(-1,-2) else LinearLayout.LayoutParams(0, -2, 1f))
-        val lastHeading = productStyle.text(getString(R.string.home_last_heading),
-            TaskProductVisualStyle.Type(if (compactType) 12 else 17, 400, if (compactType) 18 else 24),
-            secondary = true).apply {
-                if (shortWideHome) {
-                    setSingleLine(true)
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                }
-            }
-        lastWords.addView(lastHeading)
-        lastCurveName = productStyle.text(getString(R.string.history_no_local),
-            TaskProductVisualStyle.Type(if (compactType) 16 else 20, 500, if (compactType) 24 else 28),
-            "product/home/quick-recipe").apply {
-            maxLines = if (shortWideHome) Int.MAX_VALUE else if(phoneHome) 3 else 1
-            ellipsize = if (shortWideHome) null else android.text.TextUtils.TruncateAt.END
-        }
-        lastWords.addView(lastCurveName)
-        quickLaunch = button(lastCurveRow, getString(R.string.home_curve_select), primary = true) {
-            useLastCurve()
-        }.apply {
-            textSize=if (compactType) 16f else 21f
-            if (compactType) typeface = TaskTypography.face(context, 500)
-            setSingleLine(true)
-            if (shortWideHome) setPadding(dp(4), paddingTop, dp(4), paddingBottom)
-            tag = "product/home/quick-launch"
-            minimumHeight=dp(48); minHeight=dp(48)
-            layoutParams = LinearLayout.LayoutParams((dp(if (shortWideHome) 96 else 124)*resources.configuration.fontScale.coerceAtLeast(1f)).toInt(), -2).apply { marginStart = dp(8) }
-        }
-        if(phoneHome) {
-            lastCurveRow.orientation=LinearLayout.VERTICAL
-            lastCurveDivider.visibility=View.GONE
-            (lastCurvePreview.layoutParams as LinearLayout.LayoutParams).apply { width=-1; height=dp(44) }
-            (quickLaunch.layoutParams as LinearLayout.LayoutParams).apply { width=-1; marginStart=0; topMargin=dp(8) }
-        }
-        val presetRow = HomePresetGrid(host, productStyle, phoneHome, compactType, shortHome,
-            shortWideHome, spaciousHome, onNameLongClick = { fullName ->
-                AlertDialog.Builder(host).setTitle(R.string.home_preset_full_name)
-                    .setMessage(fullName).setPositiveButton(android.R.string.ok, null).let(::showTransient)
-            }) { slot ->
+        directPresets = HomePresetGrid(host, productStyle, phoneHome, shortHome, onSlotClick = { slot ->
             if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot)
-        }
-        quickRow.addView(presetRow, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(if (shortHome) 0 else 6)
+        }, onNameLongClick = { fullName ->
+            AlertDialog.Builder(host).setTitle(R.string.home_preset_full_name)
+                .setMessage(fullName).setPositiveButton(android.R.string.ok, null).let(::showTransient)
+        }, onLastClick = ::useLastCurve)
+        quickRow.addView(directPresets, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(if (shortHome) 0 else if (phoneHome) 6 else 10)
         })
-        directPresets = presetRow.visuals
-        layoutDirectPresets = presetRow::showLever
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         coffeeDot = statusDot(machineChip)
@@ -1070,7 +989,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
         compactQuickHeading?.visibility = quickRow.visibility
-        lastCurveRow.visibility = quickRow.visibility
         if (!cupActive && (lastCurveDirty || previousCupActive)) {
             showLastCurve(resolveLastCurve())
             lastCurveDirty = false
@@ -1146,14 +1064,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val leverAddress = service?.leverDeviceAddress
         val leverAttempt = leverAddress?.let(leverStore::attemptFor)
         val leverRecord = leverAddress?.let(leverStore::recordFor)
-        layoutDirectPresets(leverRecord != null)
+        val legacyBinding = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(5), null)
+        directPresets.showSlots(leverRecord != null, HomeDirectPresetSlots.showLegacy(legacyBinding) &&
+            PresetSlots.curveId(5, legacyBinding, library) != PresetSlots.EMPTY)
         val leverUnknown = leverAttempt?.state == MachineLeverRecipeStore.State.UNKNOWN
         val leverName = when {
             leverUnknown -> getString(R.string.lever_unknown_short)
             leverRecord != null -> leverRecord.snapshot.name
             else -> getString(R.string.lever_empty)
         }
-        directPresets.first().apply {
+        directPresets.visuals.first().apply {
             name.show(leverName)
             val description = "${getString(R.string.lever_title)} · ${getString(R.string.lever_recent)} · $leverName"
             if (button.contentDescription?.toString() != description) button.contentDescription = description
@@ -1176,13 +1096,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 val label = getString(R.string.home_slot_curve, slot.toString(),
                     if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: id)
                 if (button.text.toString() != label) button.text = label
-                val visual = directPresets[index + 1]
+                val visual = directPresets.visuals[index + 1]
                 val homeName = if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else HomePresetName.resolve(item?.customDocument?.name, item?.name, getString(R.string.home_slot_unconfigured))
-                visual.button.contentDescription = homeName
-                visual.button.background = productStyle.shape(if (item != null && item.id == selected?.id) productStyle.homeSelected else productStyle.surface, true)
+                visual.button.contentDescription = "${visual.label.text} · $homeName"
+                visual.button.isSelected = item != null && item.id == selected?.id
                 visual.button.isEnabled = empty || unavailable || item?.let(library::canStart) == true
                 visual.name.show(homeName)
-                visual.name.setTextColor(if (!unavailable && visual.button.isEnabled) productStyle.homePresetText else productStyle.onDisabled)
+                visual.name.setTextColor(if (!unavailable && visual.button.isEnabled) productStyle.ink else productStyle.muted)
                 val thumbnail = HomePresetPreview.from(item, presetScale)
                 visual.sparkline.visibility = if (thumbnail == null) View.GONE else View.VISIBLE
                 if (thumbnail != null) {
@@ -1222,17 +1142,19 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 R.string.home_last_draft_changed else R.string.home_last_unavailable)
             is HomeLastCurve.Ready -> state.item.name
         }
-        lastCurveName.show(label)
-        lastCurveName.setTextColor(if (ready == null) productStyle.muted else productStyle.ink)
-        val preview = ready?.preview
-        lastCurvePreview.visibility = if (preview == null) View.GONE else View.VISIBLE
-        lastCurveDivider.visibility = if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) View.GONE else lastCurvePreview.visibility
-        if (preview != null) {
-            lastCurvePreview.preview = preview
-            lastCurvePreview.scale = CurveStageParameters.SharedScale.from((application as MobileApplication).curves.items)
+        directPresets.last.apply {
+            this.label.show(getString(if (ready == null) R.string.home_shortcut_last else R.string.home_shortcut_previous))
+            name.show(label)
+            name.setTextColor(if (ready == null) productStyle.muted else productStyle.ink)
+            val preview = ready?.preview
+            sparkline.visibility = if (preview == null) View.GONE else View.VISIBLE
+            if (preview != null) {
+                sparkline.preview = preview
+                sparkline.scale = CurveStageParameters.SharedScale.from((application as MobileApplication).curves.items)
+            }
+            val action = getString(if (ready == null) R.string.home_curve_select else R.string.home_last_reuse)
+            button.contentDescription = "${this.label.text} · $label · $action"
         }
-        quickLaunch.show(getString(if (ready == null) R.string.home_curve_select else R.string.home_last_reuse))
-        quickLaunch.contentDescription = getString(R.string.home_last_heading) + " · " + label + " · " + quickLaunch.text
     }
     private fun useLastCurve() {
         val reference = host.lastCurveReference()

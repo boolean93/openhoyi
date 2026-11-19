@@ -69,9 +69,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 home.getString(R.string.home_manual_shot_status)) { "Home duplicated the shell machine status" }
             val tags = listOf("brew-boiler", "steam-boiler",
                 "brew-boiler/toggle", "steam-boiler/toggle", "machine-mode/control", "machine-mode/logic") +
-                (if (activeCup) emptyList() else listOf("quick-launch") + (1..5).flatMap {
-                    listOf("direct-preset/$it", "direct-preset/$it/preview")
-                }) + (if (lastCurveRecorded) listOf("last-curve/preview", "quick-recipe") else emptyList())
+                (if (activeCup) emptyList() else listOf("quick-launch") + (1..4).map { "direct-preset/$it" }) + (if (lastCurveRecorded) listOf("quick-recipe") else emptyList())
             val bounds = tags.associateWith { name ->
                 val viewTag = if (name.startsWith("machine-mode/")) name else "product/home/$name"
                 val view = requireNotNull(descendants(root).singleOrNull { it.tag == viewTag }) {

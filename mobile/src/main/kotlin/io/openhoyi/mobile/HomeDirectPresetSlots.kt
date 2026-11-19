@@ -1,13 +1,17 @@
 package io.openhoyi.mobile
 
-/** Slot zero is a per-device last-SENT journal card, never an empty assignment target.
- * Local shortcuts retain their original indices even when the journal card is absent.
- */
+/** Layout identities only. Slot zero is the per-device journal; LAST is not a brew wire slot. */
 internal object HomeDirectPresetSlots {
+    const val LAST = 6
+    fun visible(hasSentRecord: Boolean): List<Int> = if (hasSentRecord) (0..4).toList() + LAST else (1..4).toList() + LAST
+
     fun columns(availableWidthDp: Int, count: Int, portrait: Boolean, fontScale: Float): Int {
-        val minimum = (96 * fontScale.coerceAtLeast(1f)).toInt()
-        val fit = ((availableWidthDp + 10) / (minimum + 10)).coerceAtLeast(1)
-        return minOf(count, fit, if (portrait) 2 else count)
+        // Under constrained windows labels can reflow, preserving both font and touch size.
+        val minimum = ((if (portrait) 100 else 80) * fontScale.coerceAtLeast(1f)).toInt()
+        val gap = 7
+        val fit = ((availableWidthDp + gap) / (minimum + gap)).coerceAtLeast(1)
+        return minOf(count, fit, if (portrait || fit < count) 2 else count)
     }
-    fun visible(hasSentRecord: Boolean): List<Int> = if (hasSentRecord) (0..5).toList() else (1..5).toList()
+
+    fun showLegacy(binding: String?): Boolean = !binding.isNullOrBlank() && binding != PresetSlots.EMPTY
 }

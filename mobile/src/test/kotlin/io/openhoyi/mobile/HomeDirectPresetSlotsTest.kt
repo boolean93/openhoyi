@@ -12,7 +12,7 @@ class HomeDirectPresetSlotsTest {
         val snapshot = MachineLeverRecipeStore.Snapshot("aa:bb", "draft-one", "Recipe",
             "08825c0046031e5a0000009608019000000000d8", 1234L, "1.1.5")
         fun slots(address: String?) = HomeDirectPresetSlots.visible(store.recordFor(address) != null)
-        val shortcuts = (1..5).toList()
+        val shortcuts = listOf(1, 2, 3, 4, HomeDirectPresetSlots.LAST)
         assertEquals(shortcuts, slots(snapshot.address))
         for (state in listOf(MachineLeverRecipeStore.State.FAILED, MachineLeverRecipeStore.State.UNKNOWN)) {
             val token = requireNotNull(store.begin(snapshot))
@@ -22,11 +22,11 @@ class HomeDirectPresetSlotsTest {
             if (state == MachineLeverRecipeStore.State.UNKNOWN) assertTrue(store.acknowledge(token))
         }
         assertTrue(store.complete(requireNotNull(store.begin(snapshot)), MachineLeverRecipeStore.State.SENT))
-        assertEquals((0..5).toList(), slots(snapshot.address))
+        assertEquals(listOf(0) + shortcuts, slots(snapshot.address))
         assertEquals(shortcuts, slots("other-device"))
         assertEquals(shortcuts, slots(null))
         assertTrue(store.complete(requireNotNull(store.begin(snapshot)), MachineLeverRecipeStore.State.UNKNOWN))
-        assertEquals((0..5).toList(), slots(snapshot.address)) // unknown cannot erase previous SENT
+        assertEquals(listOf(0) + shortcuts, slots(snapshot.address)) // unknown cannot erase previous SENT
         assertTrue(store.blocked)
     }
 }
