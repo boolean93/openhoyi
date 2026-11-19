@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import struct
+import time
 
 from mock_runner_contract import APP, TEST
 from shared_mock_artifact import DESTINATIONS, digest, inspect_apk, require, run
@@ -27,7 +29,6 @@ BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
                                  'ai-attachment-menu', 'scale', 'history', 'beans', 'extraction', 'ai-welcome')) + (
                         'landscape-home.png', 'landscape-scale.png', 'landscape-curve.png', 'landscape-settings.png',
                         'dark-home-disabled-modes.png', 'dark-curve-detail.png',
-                        'square-tablet-home.png', 'wide-tablet-home.png',
                     )
 BACKGROUND_FAILURE_FRAMES = tuple(f'{name.removesuffix(".png")}.failed.png' for name in BACKGROUNDS)
 
@@ -84,6 +85,58 @@ def with_software_keyboard(adb):
         require(adb('shell', 'settings', 'get', 'secure', key) == original, 'Keyboard setting not restored')
 
 
+def capture_boiler_aspects(adb, output, receipt):
+    """After the Android test exits, let each display resize settle before starting a fresh Mock task."""
+    old_size = re.search(r'Override size: ([0-9]+x[0-9]+)', adb('shell', 'wm', 'size'))
+    old_density = re.search(r'Override density: ([0-9]+)', adb('shell', 'wm', 'density'))
+    old_rotation = adb('shell', 'settings', 'get', 'system', 'user_rotation')
+    old_auto = adb('shell', 'settings', 'get', 'system', 'accelerometer_rotation')
+    require(old_rotation in ('null', '0', '1', '2', '3') and old_auto in ('null', '0', '1'),
+            'Unexpected disposable display rotation setting')
+    receipt['boilerViewports'] = {}
+    xml_file = '/sdcard/openhoyi-boiler-fixture.xml'
+    try:
+        adb('shell', 'wm', 'density', '160')
+        adb('shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0')
+        for size, rotation, expected, name in (
+            ('960x1100', '0', (960, 1100), 'square-tablet-home.png'),
+            ('720x1280', '1', (1280, 720), 'wide-tablet-home.png'),
+        ):
+            adb('shell', 'am', 'force-stop', APP)
+            adb('shell', 'wm', 'size', size)
+            adb('shell', 'settings', 'put', 'system', 'user_rotation', rotation)
+            time.sleep(2)
+            started = adb('shell', 'am', 'start', '-W', '-n', APP + '/io.openhoyi.mobile.MainActivity',
+                          '--es', 'io.openhoyi.mobile.initial_destination', 'BREW')
+            require('Status: ok' in started, 'Mock Home activity not started')
+            for attempt in range(4):
+                adb('shell', 'uiautomator', 'dump', xml_file, timeout=15)
+                ui = adb('shell', 'cat', xml_file)
+                page_ready = (('冲泡锅炉' in ui or 'brew boiler' in ui.lower())
+                              and ('蒸汽锅炉' in ui or 'steam boiler' in ui.lower()))
+                if page_ready:
+                    break
+                time.sleep(1)
+            data = adb('exec-out', 'screencap', '-p', binary=True)
+            require(data.startswith(bytes.fromhex('89504e470d0a1a0a')), 'Invalid screen capture')
+            actual = struct.unpack('>II', data[16:24])
+            file = output / name
+            file.write_bytes(data)
+            receipt['screenshots'][name] = digest(file)
+            receipt['boilerViewports'][name] = dict(width=actual[0], height=actual[1], boilerLabels=page_ready)
+            require(actual == expected and page_ready, f'{name}: expected {expected}, got {actual}, labels={page_ready}')
+    finally:
+        adb('shell', 'rm', '-f', xml_file)
+        adb('shell', 'am', 'force-stop', APP)
+        adb('shell', 'wm', 'size', old_size.group(1) if old_size else 'reset')
+        adb('shell', 'wm', 'density', old_density.group(1) if old_density else 'reset')
+        for key, value in (('user_rotation', old_rotation), ('accelerometer_rotation', old_auto)):
+            if value == 'null':
+                adb('shell', 'settings', 'delete', 'system', key)
+            else:
+                adb('shell', 'settings', 'put', 'system', key, value)
+
+
 def main(with_backgrounds=False):
     flag, avd_var, avd_kind = ('PAGE_BACKGROUND_CHECKS', 'CI_BACKGROUND_AVD', 'background') if with_backgrounds else (
         'THEME_PALETTE_CHECKS', 'CI_THEME_AVD', 'theme')
@@ -136,6 +189,8 @@ def main(with_backgrounds=False):
             with with_software_keyboard(adb) if background else nullcontext():
                 run_fixture(adb, output, receipt['screenshots'], arg, directory, marker, names, log,
                             retain_partial=background, failure_frames=BACKGROUND_FAILURE_FRAMES if background else ())
+        if with_backgrounds:
+            capture_boiler_aspects(adb, output, receipt)
         validate_distinct_screenshots(receipt['screenshots'])
         receipt['appearanceCombined'] = with_backgrounds
         receipt['passed'] = True
