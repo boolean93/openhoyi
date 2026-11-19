@@ -101,7 +101,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             heading.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.28f).toInt() else -2)
             value.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.45f).toInt() else -2)
             words.gravity=Gravity.CENTER
-            heading.translationY = if (small) 0f else 5 * density
+            heading.translationY = 5 * density
             words.layoutParams=LayoutParams(-1,-1).apply {
                 val inset=((if(small) 12 else 25)*density).toInt()
                 setMargins(inset,0,inset,0)
