@@ -81,6 +81,50 @@ internal class HomePresetGrid(
         requestLayout()
     }
 
+    private val contactPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val contactCutout = Path()
+    // Draw the contact shadow in the parent so the card's rounded ripple clipping
+    // cannot cut it off. Leave dark material on its existing native elevation.
+    override fun dispatchDraw(canvas: Canvas) {
+        if (!dark) {
+            for (rowIndex in 0 until childCount) {
+                val child = getChildAt(rowIndex)
+                if (child is Tile) {
+                    drawContact(canvas, child, 0, 0)
+                } else if (child is LinearLayout) {
+                    for (cardIndex in 0 until child.childCount) {
+                        val card = child.getChildAt(cardIndex)
+                        if (card === group || card is Tile) drawContact(canvas, card, child.left, child.top)
+                    }
+                }
+            }
+        }
+        super.dispatchDraw(canvas)
+    }
+
+    private fun drawContact(canvas: Canvas, card: View, x: Int, y: Int) {
+        val density = resources.displayMetrics.density
+        val left = (x + card.left).toFloat()
+        val top = (y + card.top).toFloat()
+        val right = (x + card.right).toFloat()
+        val bottom = (y + card.bottom).toFloat()
+        val radiusPx = radius * density
+        // Clip out the actual rounded card so the translucent fill keeps its own color.
+        val saved = canvas.save()
+        contactCutout.rewind()
+        contactCutout.addRoundRect(left, top, right, bottom, radiusPx, radiusPx, Path.Direction.CW)
+        canvas.clipOutPath(contactCutout)
+        for (layer in 3 downTo 1) {
+            val spread = layer * density
+            val offset = 1.25f * density
+            contactPaint.color = Color.argb(if (layer == 1) 9 else 6, 29, 38, 59)
+            val corner = radiusPx + spread
+            canvas.drawRoundRect(left - spread, top - spread + offset, right + spread,
+                bottom + spread + offset, corner, corner, contactPaint)
+        }
+        canvas.restoreToCount(saved)
+    }
+
     private fun cardSurface() = style.shape(surface, radius = radius).apply { setStroke(dp(1), rim) }
 
     private fun row() = style.row().apply {
@@ -199,8 +243,8 @@ internal class HomePresetGrid(
             clipToOutline = true
             words = style.column().apply {
                 gravity = Gravity.CENTER_VERTICAL
-                val top = if (short) 3 else if (portrait) 5 else 9
-                val bottom = if (short) 3 else if (portrait) 8 else 9
+                val top = if (short) 3 else if (portrait) 5 else 8
+                val bottom = if (short) 3 else if (portrait) 8 else 10
                 setPadding(dp(inner), dp(top), dp(inner), dp(bottom))
                 importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             }
@@ -221,7 +265,7 @@ internal class HomePresetGrid(
                     val total = MeasureSpec.getSize(w)
                     val available = total - paddingStart - paddingEnd - label.measuredWidth - dp(21)
                     // Decorative previews have lower priority than the full slot label.
-                    val max = dp(if (portrait) 40 else 43)
+                    val max = dp(if (portrait) 40 else 46)
                     val target = if (available >= dp(18)) (available - dp(4)).coerceIn(0, max) else 0
                     (spark.layoutParams as LinearLayout.LayoutParams).apply { width = target; marginStart = if (target > 0) dp(4) else 0 }
                     super.onMeasure(w, h)
@@ -229,7 +273,7 @@ internal class HomePresetGrid(
             }
             header.addView(PresetGlyph(context, glyph, labelInk), LinearLayout.LayoutParams(dp(16), dp(16)))
             header.addView(label, LinearLayout.LayoutParams(0, -2, 1f).withStart(5))
-            header.addView(spark, LinearLayout.LayoutParams(dp(40), dp(12)))
+            header.addView(spark, LinearLayout.LayoutParams(dp(40), dp(16)))
             words.addView(header, LinearLayout.LayoutParams(-1, -2))
             // The reference longest name is 133dp wide on a 360dp screen.
             // Noto Sans SC 550 measures ~132dp at 13sp; preserve app font scaling and a 1dp
