@@ -9,6 +9,10 @@ The API key settings page has a separate, default-off switch. It discloses that 
 - A local per-cup attempt marker commits **before** sending. The same eligible retained cup is never replayed, including on restart, even if a timeout or process death leaves the outcome unknown. The bounded ledger prunes with the existing recent sample retention. Corrupt ledger state fails closed. Endpoint, transport operation, credential epoch and consent revision are fenced. Disabling or changing the credential closes stale in-flight transport and suppresses stale results. If a request already reached the provider, cancellation does not guarantee it was not processed or charged.
 - The live finish page shows a compact progress/result line for its current cup. The full historical detail shows the persistent frozen result while that cup's samples are retained. Later cups, navigation, and process restarts cannot reassign results. Mock never sends to a real provider.
 
+## Review content
+
+The request asks for exactly three lines: an evidenced good/stable time interval, an evidenced anomaly (or explicitly no identifiable anomaly), and exactly one next-cup change or one additional measurement if evidence is insufficient. It treats grind and puck distribution as separate hypotheses, not causes. No immutable same-shot stage targets are available in the durable history: the current or edited preset is never queried, and sample time intervals are not advertised as intended recipe stages. Missing beverage or scale data never authorizes a weight/scale-flow estimate, and the dose is not shared, so the prompt forbids a brew ratio. These are prompt and payload contracts, not a claim about the quality of an untested provider response.
+
 ## Verification
 
 Offline unit tests exercise bounded sample payloads, same protected transport with a fake HTTPS connection, durable-attempt contract, isolation, duplicate prevention, timeout, local persistence, consent and key-rotation fences. Real hardware or paid provider acceptance is separate.

@@ -40,6 +40,47 @@ class AutomaticShotReviewTest {
         assertNull(ShotReviewWire.request(series.filter { it.brewing == false }, null, AppLanguage.ENGLISH))
     }
 
+    @Test fun `staged missing scale cup requires grounded three line rubric without false target or yield`() {
+        // A measured stable 3–5s interval and rapid pressure drop in the next
+        // interval, not named recipe stages or proof of grind/distribution.
+        val staged = listOf(3000L to 88, 4000L to 88, 5000L to 87, 6000L to 68, 7000L to 56)
+            .map { (at, pressure) -> point(at).copy(pressureTenthsBar = pressure) }
+        val messages = Json.parseToJsonElement(ShotReviewWire.request(staged, 8, AppLanguage.CHINESE)!!)
+            .jsonObject.getValue("messages").jsonArray
+        val prompt = messages[0].jsonObject.getValue("content").jsonPrimitive.content
+        listOf("exactly three short plain-text lines", "1. What went well", "observed time interval",
+            "2. What deviated", "no clear anomaly", "never label a stage as",
+            "3. Next cup", "exactly one measurement", "exactly one change to one variable",
+            "unverified hypotheses, not diagnoses", "never prescribe changing both",
+            "mL/s", "scale mass flow in g/s", "never state beverage grams", "never state a brew ratio",
+            "never state scale-derived g/s").forEach { assertTrue(it, prompt.contains(it)) }
+        val data = Json.parseToJsonElement(messages[1].jsonObject.getValue("content").jsonPrimitive.content).jsonObject
+        val evidence = data.getValue("evidence").jsonObject
+        for (key in listOf("immutableStageTargetsAvailable", "doseGramsAvailable",
+            "beverageWeightAvailable", "estimatedScaleFlowAvailable")) assertFalse(evidence.getValue(key).jsonPrimitive.boolean)
+        val rows = data.getValue("observations").jsonArray.map { it.jsonObject }
+        assertEquals(listOf(8.8, 8.8, 8.7, 6.8, 5.6), rows.map { it.getValue("pressureBar").jsonPrimitive.double })
+        assertTrue(rows.all { it["beverageGrams"] == JsonNull && it["estimatedScaleFlowGramsPerSecond"] == JsonNull })
+        assertEquals("表现：3–5 秒，压力较稳。\n变化：5–7 秒，压力明显下降。\n下杯：只补测杯中出液重量。",
+            ShotReviewWire.answer(response("表现：3–5 秒，压力较稳。\n变化：5–7 秒，压力明显下降。\n下杯：只补测杯中出液重量。")))
+    }
+
+    @Test fun `scale flow and beverage evidence are independent and never invent a shot target or dose`() {
+        val massFlowOnly = points.first().copy(scaleFlowHundredths = 130)
+        val payload = ShotReviewWire.request(listOf(massFlowOnly, points.last()), 8, AppLanguage.ENGLISH)!!
+        val content = Json.parseToJsonElement(payload).jsonObject.getValue("messages").jsonArray[1]
+            .jsonObject.getValue("content").jsonPrimitive.content
+        val data = Json.parseToJsonElement(content).jsonObject
+        val evidence = data.getValue("evidence").jsonObject
+        assertFalse(evidence.getValue("beverageWeightAvailable").jsonPrimitive.boolean)
+        assertTrue(evidence.getValue("estimatedScaleFlowAvailable").jsonPrimitive.boolean)
+        assertFalse(evidence.getValue("immutableStageTargetsAvailable").jsonPrimitive.boolean)
+        assertFalse(evidence.getValue("doseGramsAvailable").jsonPrimitive.boolean)
+        val measured = data.getValue("observations").jsonArray.first().jsonObject
+        assertEquals(JsonPrimitive(1.3), measured["estimatedScaleFlowGramsPerSecond"])
+        assertEquals(JsonPrimitive(2.2), measured["machineFlowMlPerSecond"])
+    }
+
     @Test fun `wire adapter sends one protected request with no tools to a fake provider`() = runBlocking {
         val fake = FakeAiConnection(answer = aiAnswer("pressure stable"))
         var count = 0
