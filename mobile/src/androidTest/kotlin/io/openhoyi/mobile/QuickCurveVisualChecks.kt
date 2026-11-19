@@ -1,18 +1,20 @@
 package io.openhoyi.mobile
 
 import android.app.Instrumentation
+import android.content.ContentValues
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
-import android.net.Uri
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.view.View
 import android.widget.TextView
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.DataInputStream
 import java.io.File
 import java.util.UUID
 
@@ -49,7 +51,6 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 "08825c0046031e5a0000009608019000000000d8", 1L, "1.1.5")))
             check(lever.complete(token, MachineLeverRecipeStore.State.SENT))
         }
-        val wallpaper = File.createTempFile("shortcut-visual-", ".png", context.cacheDir)
         // An asymmetric high-/low-luminance fixture makes foreground materials and gaps observable.
         val side = 600
         val colors = intArrayOf(0xffc0cbc5.toInt(), 0xff969c98.toInt(), 0xffe9e5db.toInt(), 0xfff5f7f1.toInt())
@@ -59,21 +60,42 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
             colors[(if (x < side / 2) 0 else 2) + (x / 70 + y / 70) % 2]
         }
         val source = Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888)
+        val resolver = context.contentResolver
+        val wallpaper = try {
+            checkNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "shortcut-visual-${UUID.randomUUID()}.png")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }))
+        } catch (failure: Throwable) {
+            source.recycle()
+            throw failure
+        }
         try {
-            wallpaper.outputStream().use { check(source.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            checkNotNull(resolver.openOutputStream(wallpaper)).use {
+                check(source.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
+            check(resolver.update(wallpaper, ContentValues().apply {
+                put(MediaStore.Images.Media.IS_PENDING, 0)
+            }, null, null) == 1)
+            val magic = ByteArray(8)
+            DataInputStream(checkNotNull(resolver.openInputStream(wallpaper))).use { it.readFully(magic) }
+            check(magic.contentEquals(byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10))) {
+                "Generated fixture input is not PNG"
+            }
             val backgrounds = main { app.pageBackgrounds }
             runBlocking {
                 withTimeout(15000) {
                     val previous = backgrounds.current.config
                     check(previous.choice == AppBackground.Solid)
-                    val draft = backgrounds.import(Uri.fromFile(wallpaper), UUID.randomUUID().toString())
+                    val draft = backgrounds.import(wallpaper, UUID.randomUUID().toString())
                     val next = AppBackgroundConfig(draft.choice, AppBackgroundConfig.MAX_STRENGTH)
                     check(backgrounds.apply(previous, next, draft) == AppBackgroundStore.Result.APPLIED)
                 }
             }
         } finally {
             source.recycle()
-            wallpaper.delete()
+            check(resolver.delete(wallpaper, null, null) == 1) { "Could not delete owned fixture MediaStore row" }
         }
 
         val page = MainPageTestHost.launch(test, timeoutMs = 15000)
