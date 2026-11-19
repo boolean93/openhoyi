@@ -651,10 +651,6 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 try {
                     val home = solidHome(host).root
                     val expected = size.split('x').map(String::toInt).sorted()
-                    val screen = main { host.resources.displayMetrics.let { listOf(it.widthPixels, it.heightPixels).sorted() } }
-                    check(screen.zip(expected).all { (actual, wanted) -> actual in (wanted - 96)..wanted }) {
-                        "Expected aspect viewport $size; app metrics are $screen"
-                    }
                     await("round boiler instruments fitted in $size") {
                         listOf("brew", "steam").all { boiler ->
                             val key = "product/home/$boiler-boiler"
@@ -668,7 +664,13 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     }
                     val frame = captureCommittedFrame(home)
                     try {
-                        if (frame.width > 0) writeScreenshot(name, frame)
+                        writeScreenshot(name, frame)
+                        val display = listOf(frame.width, frame.height).sorted()
+                        check(display == expected) { "Expected physical capture $size; screenshot was $display" }
+                        val root = main { Rect().also { home.getGlobalVisibleRect(it) } }
+                        File(output, name.removeSuffix(".png") + ".txt").writeText(
+                            "display=${frame.width}x${frame.height} app=${root.width()}x${root.height()}\n"
+                        )
                     } finally {
                         frame.recycle()
                     }
