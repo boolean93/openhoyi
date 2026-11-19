@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "bc29e2bdb3f0f2c5a9a60556467f47abd68963943c8990edf4fdc66e4ee6dd30",
+  "sha256": "0d4893900b6bc19d26000b9469c2e9f0a6130c9fc35e13a6b19606279db4ec00",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -1085,6 +1085,11 @@
     "curve_editor_duration_short": "首段限时",
     "curve_editor_compensation_short": "重量补偿",
     "home_preset_full_name": "曲线完整名称",
-    "machine_settings_schedule_every_day": "每天"
+    "machine_settings_schedule_every_day": "每天",
+    "extraction_shortcuts": "快捷槽位",
+    "extraction_shortcuts_empty": "未设置",
+    "extraction_shortcuts_unavailable_name": "%1$s（不可用）",
+    "extraction_shortcuts_choice": "%1$s · %2$s",
+    "extraction_shortcuts_busy": "正在萃取或准备，请结束后再切换快捷槽位。"
   }
 }

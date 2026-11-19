@@ -1082,5 +1082,10 @@
   "curve_editor_duration_short": "First-stage time",
   "curve_editor_compensation_short": "Weight offset",
   "home_preset_full_name": "Full curve name",
-  "machine_settings_schedule_every_day": "Every day"
+  "machine_settings_schedule_every_day": "Every day",
+  "extraction_shortcuts": "Quick slots",
+  "extraction_shortcuts_empty": "Not configured",
+  "extraction_shortcuts_unavailable_name": "%1$s (unavailable)",
+  "extraction_shortcuts_choice": "%1$s · %2$s",
+  "extraction_shortcuts_busy": "Finish the active extraction or preparation before switching quick slots."
 }
