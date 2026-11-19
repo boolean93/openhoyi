@@ -12,3 +12,10 @@ The API key settings page has a separate, default-off switch. It discloses that 
 ## Verification
 
 Offline unit tests exercise bounded sample payloads, same protected transport with a fake HTTPS connection, durable-attempt contract, isolation, duplicate prevention, timeout, local persistence, consent and key-rotation fences. Real hardware or paid provider acceptance is separate.
+
+## 本次工作计划
+
+- 基线：`develop` 的 `8bf760bfd0bd3656d8eab4a6e749c9eeb1f14e7b`；工作分支 `feature/automatic-shot-review`。本阶段只开发与验证，不推送或创建 PR；后续 PR 目标为 `develop`，按 [Git 工作流](git-workflow.md) 运行门禁和核对精确提交。
+- 验证：`:mobile:testMockUnitTest` 筛选 `AutomaticShotReviewTest`、`ShotSamplesStoreTest`、`AiSafeTransportTest`，并编译非 Mock 代码。UI 实机验收及真实 DeepSeek 端到端调用未进行。
+- 范围：只读取完成萃取后的历史采样及合法的机器计时，不修改蓝牙协议、机器门禁、指令队列、停止判定或任何固件。未知网络结果不重试。
+- 本阶段不打包分发、不签名、不安装、不升级、不发版。回退用普通代码回退；新设置与评价记录独立于既有历史样本，旧版可忽略它们，无需通过卸载或清空数据恢复。
