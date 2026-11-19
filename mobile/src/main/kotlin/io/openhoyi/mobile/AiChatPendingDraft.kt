@@ -15,9 +15,15 @@ internal class AiChatPendingDraft {
 
     fun committed() { pending = null }
 
+    fun recoverableDraft(nextDraft: String): String = pending?.let { question ->
+        if (nextDraft.isEmpty() || nextDraft == question) question else "$question\n\n$nextDraft"
+    } ?: nextDraft
+
+    fun remainingDraftCapacity(limit: Int): Int = pending?.let { (limit - it.length - 2).coerceAtLeast(0) } ?: limit
+
     fun restore(nextDraft: String = ""): String? {
-        val question = pending ?: return null
-        draft = if (nextDraft.isEmpty()) question else "$question\n\n$nextDraft"
+        if (pending == null) return null
+        draft = recoverableDraft(nextDraft)
         pending = null
         return draft
     }

@@ -819,7 +819,14 @@ internal class AiChatPresentation(
         renderDraftImages(if (busy) emptyList() else attachments, draftImagesEnabled)
     }
 
-    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null, allowDraftWhileBusy: Boolean = false) {
+    private var currentDraftCapacity = AiChatPolicy.INPUT_CHARS
+    fun setDraftCapacity(capacity: Int) {
+        if (capacity == currentDraftCapacity) return
+        currentDraftCapacity = capacity
+        input.filters = arrayOf(InputFilter.LengthFilter(capacity))
+    }
+
+    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null, allowDraftWhileBusy: Boolean = false, draftCapacity: Int = AiChatPolicy.INPUT_CHARS) {
         currentModelId = AiModelPolicy.known(modelId).id
         this.busy = busy
         val cardActions = lines.filterNot { it.user }.flatMap { line ->
@@ -853,6 +860,7 @@ internal class AiChatPresentation(
         attachmentButton?.isEnabled = !busy && !attachmentBusy
         streamBaseStatus = statusText
         updateStreamPreview(streamSnapshot)
+        setDraftCapacity(draftCapacity)
         input.isEnabled = (!busy || allowDraftWhileBusy) && !attachmentBusy
         send.isEnabled = !attachmentBusy
         send.contentDescription = context.getString(if (busy) R.string.ai_stop else R.string.ai_send)

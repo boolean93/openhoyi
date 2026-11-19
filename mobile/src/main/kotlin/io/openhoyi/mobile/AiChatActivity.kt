@@ -165,7 +165,7 @@ class AiChatActivity : ThemedActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
             override fun afterTextChanged(s: Editable?) {
-                if (memory.submission.pending != null) return
+                if (memory.submission.pending != null && !canEditDuringReply()) return
                 rememberInput()
                 draftSave?.cancel()
                 draftSave = scope.launch { delay(300); persistSession() }
@@ -254,7 +254,7 @@ class AiChatActivity : ThemedActivity() {
         val epoch = memory.credentialEpoch
         val saved = synchronized(sessionLock) {
             val state = epoch?.let { AiSession(it, memory.lines.toList(), memory.protocol,
-                memory.submission.pending ?: memory.draft, sessionUsage, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList()) }
+                memory.submission.persistedDraft(), sessionUsage, memory.attachments.toList(), memory.inactive.toList(), memory.ocr.toList()) }
             state != null && AiSessionTransactions.commit(sessionLock, state,
                 save = { AiKeyStore(this).credentialEpoch() == epoch && sessionStore.save(it) },
                 committed = { sessionBase = it })
@@ -914,6 +914,11 @@ class AiChatActivity : ThemedActivity() {
         AiErrorPresentation.Semantic.LOCAL_PROCESSING -> R.string.ai_error_local_processing
         else -> R.string.ai_error_unknown
     }
+    private fun canEditDuringReply() = compactionStatus == CompactionStatus.RUNNING || compactionStatus == CompactionStatus.SAVED
+
+    private fun AiChatPendingDraft.persistedDraft(): String =
+        pending?.let { recoverableDraft(if (::input.isInitialized) input.text.toString() else "") } ?: draft
+
     private fun render() {
         val statusText = when {
             busy -> retryProgress?.let { progress ->
@@ -936,12 +941,13 @@ class AiChatActivity : ThemedActivity() {
             it.original.name + ": " + getString(ocrNotice(it.status)) + (it.pages?.let { count -> "\n" + getString(R.string.ai_ocr_reference, count, it.referenceInput ?: 0, it.referenceOutput ?: 0) } ?: "")
         }
         presentation.render(memory.lines, memory.submission.pending ?: memory.draft, busy, listOf(compactionMessage, statusText.takeUnless { compactionStatus == CompactionStatus.RUNNING && retryProgress == null }.orEmpty(), contextStatus, ocrStatus).filter { it.isNotBlank() }.joinToString("\n"), memory.attachments, attachmentBusy, memory.protocol.modelId, memory.credentialEpoch, "${memory.credentialEpoch}:${memory.protocol.modelId}:${memory.contextGeneration}",
-            allowDraftWhileBusy = compactionStatus == CompactionStatus.RUNNING || compactionStatus == CompactionStatus.SAVED)
+            allowDraftWhileBusy = canEditDuringReply(), draftCapacity = memory.submission.remainingDraftCapacity(AiChatPolicy.INPUT_CHARS))
         presentation.updateStreamPreview(streamPreview.snapshot())
     }
     private fun restorePendingDraft() {
         val draft = memory.submission.restore(if (::input.isInitialized) input.text.toString() else "") ?: return
         if (::input.isInitialized) {
+            presentation.setDraftCapacity(AiChatPolicy.INPUT_CHARS)
             input.setText(draft)
             input.setSelection(memory.selectionStart.coerceIn(0, draft.length), memory.selectionEnd.coerceIn(0, draft.length))
         }
