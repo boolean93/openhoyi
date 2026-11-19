@@ -23,6 +23,17 @@ class HomePresetNameTest {
         }
     }
 
+    @Test fun tabletLendsWidthToTheRealDefaultLongestNameWithoutChangingSlotOrder() {
+        val weights = listOf(1.02f, .91f, .91f, 1.15f, 1.03f, 1.19f)
+        val reference = HomeDirectPresetSlots.wideWidths(960, weights, List(6) { 70 })
+        val actual = HomeDirectPresetSlots.wideWidths(960, weights, listOf(140, 90, 82, 100, 173, 173))
+        assertEquals(960, actual.sum())
+        assertTrue(reference[4] < 173)
+        assertTrue(actual[4] >= 173)
+        assertTrue(actual.last() >= 173)
+        assertEquals(reference, HomeDirectPresetSlots.wideWidths(960, weights, List(6) { 200 }))
+    }
+
     @Test fun onlyExplicitLegacyBindingsKeepTheExtraShortcut() {
         assertFalse(HomeDirectPresetSlots.showLegacy(null))
         assertFalse(HomeDirectPresetSlots.showLegacy(""))

@@ -59,6 +59,15 @@ internal object HomePresetRowChecks {
                         "Longest factory curve should fit the approved widths"
                     }
                 }
+                if (widthDp == 980 && !portrait && lever) {
+                    grid.visuals[3].name.text = "Espresso"
+                    grid.visuals[4].name.text = long
+                    measure()
+                    check(grid.visuals[4].name.lineCount == 1) { "Default longest name in D should borrow room from C" }
+                    grid.visuals[3].name.text = long
+                    grid.visuals[4].name.text = "Espresso"
+                    measure()
+                }
                 val shortHeight = grid.height
                 grid.visuals[4].name.text = "Morning espresso 完整的自定义配方 ".repeat(4)
                 measure()

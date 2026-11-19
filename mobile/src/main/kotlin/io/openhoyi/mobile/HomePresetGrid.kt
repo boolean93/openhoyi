@@ -33,6 +33,7 @@ internal class HomePresetGrid(
     private val surface = wallpaperTint(style.surface, if (dark) 219 else 184)
     private val separator = wallpaperTint(style.ink, if (dark) 48 else 23)
     private val radius = if (portrait) 10 else 15
+    private val endGap = if (short) 7 else 17
     private val airyHeight = if (portrait) 59 else 66
     private val minHeightDp = if (short) 48 else airyHeight
     private val inner = if (portrait) 12 else if (short) 6 else 10
@@ -94,7 +95,33 @@ internal class HomePresetGrid(
             arranged = newLayout
             columns = fit
         }
+        if (!portrait && fit == visible.size) sizeWideTiles(visible, MeasureSpec.getSize(widthMeasureSpec))
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
+    private fun sizeWideTiles(visible: List<Int>, widthPx: Int) {
+        val dividers = dp(1) * 3
+        val usable = (widthPx - dividers - dp(endGap) * (if (hasLever) 2 else 1)).coerceAtLeast(0)
+        val weights = visible.map { when (it) {
+            0 -> 1.02f
+            3 -> 1.15f
+            4 -> 1.03f
+            HomeDirectPresetSlots.LAST -> 1.19f
+            else -> .91f
+        } }
+        val measured = visible.map { slot ->
+            val visual = tile(slot).visual
+            fun required(text: TextView) =
+                kotlin.math.ceil(android.text.Layout.getDesiredWidth(text.text, text.paint)).toInt()
+            maxOf(dp(48), 2 * dp(inner) + maxOf(required(visual.name), required(visual.label) + dp(21)))
+        }
+        val widths = HomeDirectPresetSlots.wideWidths(usable, weights, measured)
+        var groupWidth = dividers
+        visible.forEachIndexed { index, slot ->
+            (tile(slot).layoutParams as LayoutParams).width = widths[index]
+            if (slot in 1..4) groupWidth += widths[index]
+        }
+        (group.layoutParams as LayoutParams).width = groupWidth
     }
 
     private fun arrange(visible: List<Int>, fit: Int) {
@@ -104,19 +131,18 @@ internal class HomePresetGrid(
         if (!portrait && fit == visible.size) {
             val strip = row()
             addView(strip, LayoutParams(-1, -2))
-            val gap = if (short) 7 else 17
             if (hasLever) {
                 slots[0].standalone(true)
-                strip.addView(slots[0], LayoutParams(0, -1, 1.02f))
+                strip.addView(slots[0], LayoutParams(0, -1))
             }
-            strip.addView(group, LayoutParams(0, -1, 3.95f).withStart(if (hasLever) gap else 0))
+            strip.addView(group, LayoutParams(0, -1).withStart(if (hasLever) endGap else 0))
             (1..4).forEach { index ->
                 if (index > 1) group.addView(View(context).apply { setBackgroundColor(separator) }, LayoutParams(dp(1), -1))
                 slots[index].standalone(false)
-                group.addView(slots[index], LayoutParams(0, -1, when (index) { 3 -> 1.15f; 4 -> 1.03f; else -> .91f }))
+                group.addView(slots[index], LayoutParams(0, -1))
             }
             previous.standalone(true)
-            strip.addView(previous, LayoutParams(0, -1, 1.19f).withStart(gap))
+            strip.addView(previous, LayoutParams(0, -1).withStart(endGap))
         } else {
             visible.chunked(fit).forEachIndexed { rowIndex, entries ->
                 val strip = row()
