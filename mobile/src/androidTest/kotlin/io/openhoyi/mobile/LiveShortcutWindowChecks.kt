@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.view.View
 import android.widget.Button
+import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.ExtractionState
 
 /** Disposable Mock app only; never connect, select or operate an appliance. */
@@ -156,6 +157,14 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 check(long.text.toString().endsWith(draft.name) && long.ellipsize == null)
             }
             screenshot(java.io.File(evidence, "expanded-long-name.png"))
+            fun requestPreheat(): AlertDialog {
+                check(shortcutButton().performClick())
+                check(row(4).performClick())
+                val dialog = (prepDialogs.get(fragment) as List<*>).lastOrNull() as? AlertDialog
+                return checkNotNull(dialog).also { check(it.isShowing) }
+            }
+            var cancelledDialog: AlertDialog? = null
+            var approvedDialog: AlertDialog? = null
             main {
                 check(row(1).performClick())
                 check(selection.getString("selected", null) == draft.id)
@@ -187,25 +196,33 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 settingsField.set(runtime, settings.copy(flags = settings.flags or 0x04))
                 tempField.setInt(runtime, 7500)
                 refreshMock.invoke(owner, runtime, MobileMonotonicClock.elapsedRealtime())
-                fun requestPreheat(): AlertDialog {
-                    check(shortcutButton().performClick())
-                    check(row(4).performClick())
-                    val dialog = (prepDialogs.get(fragment) as List<*>).lastOrNull() as? AlertDialog
-                    return checkNotNull(dialog).also { check(it.isShowing) }
+                val dialog = requestPreheat()
+                cancelledDialog = dialog
+                check(dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick())
+            }
+            // AlertController posts listener and dismissal messages to main. Return from the
+            // click block before checking the actual product response or opening another dialog.
+            await("cancel dialog dismissed") { cancelledDialog?.isShowing == false }
+            main {
+                check(owner.brewPreparationState == BrewPreparation.State.IDLE)
+                noShot()
+                val dialog = requestPreheat()
+                approvedDialog = dialog
+                check(dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick())
+            }
+            await("confirmed preheat while the shot remains idle") {
+                val state = owner.brewPreparationState
+                ownsPreparation = state != BrewPreparation.State.IDLE && owner.brewPreparationProfileId == "factory-v3-002"
+                noShot()
+                check(state !in setOf(BrewPreparation.State.FAILED, BrewPreparation.State.UNKNOWN)) {
+                    "Preheat transition failed: $state"
                 }
-                val cancel = requestPreheat().getButton(AlertDialog.BUTTON_NEGATIVE)
-                check(cancel.performClick())
-                check(owner.brewPreparationState == io.openhoyi.session.BrewPreparation.State.IDLE)
-                noShot()
-                val prepare = requestPreheat().getButton(AlertDialog.BUTTON_POSITIVE)
-                check(prepare.performClick())
-                ownsPreparation = owner.brewPreparationState != io.openhoyi.session.BrewPreparation.State.IDLE
-                check(ownsPreparation)
-                noShot()
-                check(!shortcutButton().isEnabled)
+                approvedDialog?.isShowing == false && ownsPreparation &&
+                    state in setOf(BrewPreparation.State.WRITING, BrewPreparation.State.WAITING_TEMP, BrewPreparation.State.READY) &&
+                    !shortcutButton().isEnabled
             }
             await("target reached without a deferred start") {
-                owner.brewPreparationState == io.openhoyi.session.BrewPreparation.State.READY
+                owner.brewPreparationState == BrewPreparation.State.READY
             }
             main {
                 noShot()
