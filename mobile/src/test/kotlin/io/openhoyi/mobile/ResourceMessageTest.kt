@@ -112,7 +112,7 @@ class ResourceMessageTest {
     @Test fun allDefaultTemplatesMatchTheirPreviousFormatting() {
         val keys=org.json.JSONObject(java.io.File("../localization/catalog/source.json").readText())
             .getJSONObject("strings").keys().asSequence().toList()
-        assertEquals(1084,keys.size)
+        assertEquals(1089,keys.size)
         assertFalse(keys.contains("feedback_replay"))
         val pattern=Regex("%([1-9][0-9]*)\\$([0-9]*)([sd])")
         for(key in keys) {
