@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       quick_curve_visual:
-        description: Capture only populated Home quick curves on phone and tablet, with wallpaper in both themes
+        description: Capture only populated Home quick curves on phone and tablet, with wallpaper and solid backgrounds in both themes
         type: boolean
         required: false
         default: false
@@ -14,6 +14,11 @@ on:
         required: false
         default: both
         options: [both, phone, tablet]
+
+      quick_curve_boiler_view:
+        description: Also verify offscreen production boiler controls on the phone emulator (no BLE)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,6 +33,7 @@ jobs:
     timeout-minutes: 30
     env:
       QUICK_CURVE_VISUAL: ${{ inputs.quick_curve_visual == true && 'true' || 'false' }}
+      QUICK_CURVE_BOILER_VIEW: ${{ inputs.quick_curve_boiler_view == true && 'true' || 'false' }}
       QUICK_CURVE_PROFILE: ${{ matrix.profile }}
       QUICK_CURVE_AVD: openhoyi-quick-curve-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.profile }}
     steps:

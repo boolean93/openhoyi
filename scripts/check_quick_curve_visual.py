@@ -33,10 +33,11 @@ def display_value(report, kind):
     return rows[-1]
 
 
-def validate_capture(image, geometry, width, height, dpi, theme):
+def validate_capture(image, geometry, width, height, dpi, theme, background="wallpaper"):
     require(png_size(image) == (width, height), "Wrong screenshot PNG geometry")
     require(geometry["density"] == dpi / 160 and geometry["dark"] == (theme == "dark") and
             geometry["portrait"] == (height > width), "Android view proof did not match expected configuration")
+    require(geometry["wallpaper"] == (background == "wallpaper"), "Wrong captured backdrop")
     cards = geometry["items"]
     require(len(cards) == 6 and cards[3]["name"] == cards[5]["name"] == "HOYI Limit Extraction",
             "Expected six visible controls including both long titles")
@@ -126,13 +127,22 @@ def main():
         for kind, source in DESTINATIONS.items():
             require(digest(source) == apks[kind]["sha256"], "APK changed before install")
             require(adb("install", source, timeout=120).splitlines()[-1] == "Success", "Mock fixture install failed")
-        for theme in ("light", "dark"):
-            name = f"{profile}-{theme}"
+        if os.environ.get("QUICK_CURVE_BOILER_VIEW") == "true" and profile == "phone":
+            name = f"{profile}-boiler-view"
+            report = adb("shell", "am", "instrument", "-w", "-r", "-e", "unifiedSwitchChecks", "true", RUNNER, timeout=100)
+            (output / f"{name}-instrumentation.txt").write_text(report + "\n")
+            require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "UNIFIED_SWITCH_PASSED" in report,
+                    "Offscreen boiler view checks failed")
+            receipt["offscreenBoilerViewPassed"] = True
+        for background, theme in ((background, theme) for background in ("wallpaper", "solid")
+                                  for theme in ("light", "dark")):
+            name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "")
             # All data in this exact ephemeral install is synthetic and fixture-owned.
             require(adb("shell", "pm", "clear", APP) == "Success", "Cannot reset isolated Mock fixture")
             try:
                 report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
-                             "-e", "quickCurveVisualTheme", theme, RUNNER, timeout=100)
+                             "-e", "quickCurveVisualTheme", theme, "-e", "quickCurveVisualBackground",
+                             background, RUNNER, timeout=100)
             except (subprocess.SubprocessError, OSError) as failure:
                 # am instrument can disappear with a nonzero exit or a killed process.
                 output_text = getattr(failure, "output", None)
@@ -149,9 +159,9 @@ def main():
             target = output / f"{name}.png"
             target.write_bytes(image)
             (output / f"{name}.json").write_text(json.dumps(geometry, ensure_ascii=False, indent=2) + "\n")
-            validate_capture(image, geometry, width, height, dpi, theme)
+            validate_capture(image, geometry, width, height, dpi, theme, background)
             receipt["screenshots"][target.name] = digest(target)
-        require(len(set(receipt["screenshots"].values())) == 2, "Duplicate capture outputs")
+        require(len(set(receipt["screenshots"].values())) == 4, "Duplicate capture outputs")
         receipt["passed"] = True
     except (ValueError, KeyError, subprocess.SubprocessError, OSError):
         save_failure(adb, output, name)

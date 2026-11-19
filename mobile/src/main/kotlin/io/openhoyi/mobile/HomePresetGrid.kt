@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
@@ -32,7 +33,7 @@ internal class HomePresetGrid(
     private val labelInk = if (dark) style.ink else 0xff101938.toInt()
     private val surface = wallpaperTint(style.surface, if (dark) 219 else 184)
     private val separator = wallpaperTint(style.ink, if (dark) 48 else 23)
-    private val rim = if (dark) separator else 0x50ffffff
+    private val rim = if (dark) wallpaperTint(style.ink, 29) else 0x50ffffff
     private val radius = if (portrait) 10 else 15
     private val endGap = if (short) 7 else 17
     private val airyHeight = if (portrait) 59 else 66
@@ -84,18 +85,16 @@ internal class HomePresetGrid(
     private val contactPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val contactCutout = Path()
     // Draw the contact shadow in the parent so the card's rounded ripple clipping
-    // cannot cut it off. Leave dark material on its existing native elevation.
+    // cannot cut it off. Tablet A–D has a single contact shadow around the group.
     override fun dispatchDraw(canvas: Canvas) {
-        if (!dark) {
-            for (rowIndex in 0 until childCount) {
-                val child = getChildAt(rowIndex)
-                if (child is Tile) {
-                    drawContact(canvas, child, 0, 0)
-                } else if (child is LinearLayout) {
-                    for (cardIndex in 0 until child.childCount) {
-                        val card = child.getChildAt(cardIndex)
-                        if (card === group || card is Tile) drawContact(canvas, card, child.left, child.top)
-                    }
+        for (rowIndex in 0 until childCount) {
+            val child = getChildAt(rowIndex)
+            if (child is Tile) {
+                drawContact(canvas, child, 0, 0)
+            } else if (child is LinearLayout) {
+                for (cardIndex in 0 until child.childCount) {
+                    val card = child.getChildAt(cardIndex)
+                    if (card === group || card is Tile) drawContact(canvas, card, child.left, child.top)
                 }
             }
         }
@@ -117,7 +116,8 @@ internal class HomePresetGrid(
         for (layer in 3 downTo 1) {
             val spread = layer * density
             val offset = 1.25f * density
-            contactPaint.color = Color.argb(if (layer == 1) 9 else 6, 29, 38, 59)
+            contactPaint.color = if (dark) Color.argb(when (layer) { 1 -> 56; 2 -> 32; else -> 18 }, 0, 0, 0)
+                else Color.argb(if (layer == 1) 9 else 6, 29, 38, 59)
             val corner = radiusPx + spread
             canvas.drawRoundRect(left - spread, top - spread + offset, right + spread,
                 bottom + spread + offset, corner, corner, contactPaint)
@@ -125,7 +125,18 @@ internal class HomePresetGrid(
         canvas.restoreToCount(saved)
     }
 
-    private fun cardSurface() = style.shape(surface, radius = radius).apply { setStroke(dp(1), rim) }
+    private fun cardSurface() = style.shape(surface, radius = radius).apply {
+        if (dark) {
+            orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            // A small palette-derived top lift reads above the shadow on a near-black
+            // solid background, without a bright full outline or sacrificing contrast.
+            colors = intArrayOf(
+                wallpaperTint(androidx.core.graphics.ColorUtils.blendARGB(style.surface, style.ink, .07f), 219),
+                surface,
+            )
+        }
+        setStroke(dp(1), rim)
+    }
 
     private fun row() = style.row().apply {
         gravity = Gravity.CENTER_VERTICAL

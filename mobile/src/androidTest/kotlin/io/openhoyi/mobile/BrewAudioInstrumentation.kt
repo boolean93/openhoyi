@@ -25,6 +25,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var fontSizeChecks = false
     private var themePaletteChecks = false
     private var quickCurveVisualTheme: String? = null
+    private var quickCurveVisualBackground = "wallpaper"
     private var pageBackgroundChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
@@ -119,6 +120,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
         quickCurveVisualTheme = arguments?.getString("quickCurveVisualTheme")
+        quickCurveVisualBackground = arguments?.getString("quickCurveVisualBackground") ?: "wallpaper"
         documentContracts = arguments?.getString("documentContracts") == "true"
         idleEvents = arguments?.getString("idleEvents") == "true"
         advancedFlows = arguments?.getString("advancedFlows") == "true"
@@ -169,7 +171,9 @@ class BrewAudioInstrumentation : Instrumentation() {
                     android.os.Build.HARDWARE in setOf("ranchu", "goldfish")) {
                     "Quick curves require a dedicated disposable Android emulator and explicit theme"
                 }
-                QuickCurveVisualChecks(this).run(dark = theme == "dark")
+                check(quickCurveVisualBackground in setOf("wallpaper", "solid"))
+                QuickCurveVisualChecks(this).run(dark = theme == "dark",
+                    wallpaperEnabled = quickCurveVisualBackground == "wallpaper")
                 report.putString("stream", "QUICK_CURVE_VISUAL_PASSED androidHome=true tap48=true noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
             }

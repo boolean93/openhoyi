@@ -49,11 +49,16 @@ class TestQuickCurveVisual(unittest.TestCase):
             self.assertTrue((out / "tablet-light-failed.png").is_file())
 
     def test_populated_card_assertion_remains_required(self):
-        geometry = dict(density=2.25, dark=False, portrait=False,
+        geometry = dict(density=2.25, dark=False, portrait=False, wallpaper=True,
                         items=[dict(name="HOYI Limit Extraction")] * 6)
         validate_capture(frame(2560, 1600), geometry, 2560, 1600, 360, "light")
         with self.assertRaises(ValueError):
             validate_capture(frame(1600, 2560), geometry, 2560, 1600, 360, "light")
+        with self.assertRaisesRegex(ValueError, "backdrop"):
+            validate_capture(frame(2560, 1600), geometry, 2560, 1600, 360, "light", "solid")
+        geometry["wallpaper"] = False
+        validate_capture(frame(2560, 1600), geometry, 2560, 1600, 360, "light", "solid")
+        geometry["wallpaper"] = True
         geometry["items"] = geometry["items"][:-1]
         with self.assertRaises(ValueError):
             validate_capture(frame(2560, 1600), geometry, 2560, 1600, 360, "light")
