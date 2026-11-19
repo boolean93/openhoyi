@@ -24,6 +24,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private val density = resources.displayMetrics.density
     private val style = TaskProductVisualStyle(context)
     private val dark = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    internal val faceFill = if (dark) style.homePage else 0xfffcfaf7.toInt()
     private val ink = if (dark) style.homeDialInk else Color.rgb(10, 30, 19)
     private val marks = if (dark) Color.rgb(129, 155, 143) else Color.rgb(160, 182, 149)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -73,7 +74,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             field.measure(exact((diameter * width).roundToInt()), exact((diameter * height).roundToInt()))
         }
         set(heading, .70f, .10f, .066f)
-        set(value, .77f, .17f, .162f)
+        set(value, .77f, .20f, .162f)
         set(target, .64f, .10f, .057f)
         set(pressure, .62f, .10f, .057f)
         power.setDialDiameter(diameter)
@@ -104,7 +105,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         // Face, rim and arc: reference face is ~96%, arc center radius ~44%.
         paint.style = Paint.Style.FILL
         paint.shader = LinearGradient(0f, 0f, 0f, d,
-            if (dark) intArrayOf(style.surface, style.homePage) else intArrayOf(0xfffdfbf8.toInt(), 0xfffcfaf7.toInt()),
+            if (dark) intArrayOf(style.surface, faceFill) else intArrayOf(0xfffdfbf8.toInt(), faceFill),
             null, Shader.TileMode.CLAMP)
         canvas.drawCircle(c, c, d * .481f, paint)
         paint.shader = null
@@ -135,7 +136,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         canvas.translate(c - d * .055f, d * .148f)
         canvas.scale(d * .11f / 100f, d * .11f / 100f)
         paint.color = if (dark) style.homeDialProgress else 0xff08602b.toInt()
-        paint.strokeWidth = 7f; paint.strokeJoin = Paint.Join.ROUND
+        paint.strokeWidth = 8f; paint.strokeJoin = Paint.Join.ROUND
         if (steam) {
             icon.reset()
             icon.moveTo(20f,53f); icon.cubicTo(1f,48f,6f,26f,25f,25f)

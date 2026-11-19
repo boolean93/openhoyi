@@ -370,14 +370,17 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             }
         }
         val home = go(TaskDestination.BREW)
-        captureApplied(host, home, "$mode-home.png", base = style.homePage, backing = style.surface, translucentCover = true,
+        val boilerPressure = home.findViewWithTag<View>("product/home/${if (mode == "light") "brew" else "steam"}-boiler/pressure")
+        val boilerDial = boilerPressure.parent as BoilerTemperatureDial
+        captureApplied(host, home, "$mode-home.png", base = style.homePage, backing = style.surface,
+            nativeCoverFill = boilerDial.faceFill,
             requiredWallpaper = { sampleGap ->
                 check(home === originalHome.root && homeBounds(home) == originalHome.bounds) {
                     "Applying the backdrop must not move Home labels or hit targets"
                 }
                 homeWallpaperGaps(home, sampleGap)
             },
-        ) { home.findViewWithTag("product/home/${if (mode == "light") "brew" else "steam"}-boiler/pressure") }
+        ) { boilerPressure }
         if (mode == "dark") captureDisabledHomeModes(home)
         val curves = go(TaskDestination.CURVES)
         captureCurvePage(host, curves, "$mode-curve.png")
