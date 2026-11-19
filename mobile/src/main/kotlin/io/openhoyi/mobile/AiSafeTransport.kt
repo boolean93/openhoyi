@@ -90,6 +90,7 @@ internal class AiSafeTransport(
     private val retryState: AiRetryState? = null,
     private val onRetry: (AiRetryProgress?) -> Unit = {},
     private val onProgress: (AiStreamDelta) -> Unit = {},
+    private val beforeWrite: () -> Boolean = { true },
 ) : KoogHttpClient {
     init { require(errorReadTimeoutMillis in 1..2000) }
     override val clientName = "OpenHOYI-DeepSeek"
@@ -167,6 +168,9 @@ internal class AiSafeTransport(
                     socket.connect()
                     checkAvailable { pending.isActive && !cancelled.get() }
                     stage(AiStage.WRITE)
+                    // A background caller may additionally linearize its consent/credential check
+                    // immediately before obtaining the stream. Never hold those locks across I/O.
+                    if (!beforeWrite()) throw AiFailure(AiProblem.KEY)
                     writeBoundary.set(true) // Before the getter: obtaining an output stream can already send headers.
                     notifyRetry(null)
                     socket.outputStream.use { output ->

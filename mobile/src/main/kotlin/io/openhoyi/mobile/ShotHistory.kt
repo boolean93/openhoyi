@@ -22,6 +22,7 @@ class ShotHistory(
         /** Save both values through one durable transaction. */
         fun writeWithTiming(value: String, timing: String)
     }
+    internal companion object { const val MAX_ENTRIES = 500 }
     enum class Status { STARTING, RUNNING, STOP_REQUESTED, ENDED, UNKNOWN, NOT_STARTED }
     data class Entry(
         val id: String,
@@ -240,8 +241,8 @@ class ShotHistory(
         val before = entries.size
         val cutoff = now() - 30L * 24 * 60 * 60 * 1000
         entries.removeAll { it.startedAtMs < cutoff }
-        if (entries.size > 500) {
-            val oldest = entries.sortedBy { it.startedAtMs }.take(entries.size - 500).map { it.id }.toSet()
+        if (entries.size > MAX_ENTRIES) {
+            val oldest = entries.sortedBy { it.startedAtMs }.take(entries.size - MAX_ENTRIES).map { it.id }.toSet()
             entries.removeAll { it.id in oldest }
         }
         return entries.size != before

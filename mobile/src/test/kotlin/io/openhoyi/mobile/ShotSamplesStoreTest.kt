@@ -126,6 +126,24 @@ class ShotSamplesStoreTest {
         } finally { dir.deleteRecursively() }
     }
 
+    @Test fun completionRedecodesForeignBeverageSidecarInsteadOfSendingUnpersistedEvidence() {
+        val dir = Files.createTempDirectory("openhoyi-foreign-beverage-sidecar").toFile()
+        try {
+            val sidecar = dir.resolve("beverage-samples-shot-1.tsv")
+            sidecar.writeText("# unknown owner")
+            val point = ShotPoint(100, 90, 20, 3, 9300, 10, brewing = true,
+                beverageHundredthsGram = 5, beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0)
+            val persisted = java.util.concurrent.CompletableFuture<ShotPoint>()
+            val repository = ShotSamplesRepository(dir)
+            repository.save("shot-1", listOf(point)) { persisted.complete(it.single()) }
+            val decoded = persisted.get(3, TimeUnit.SECONDS)
+            assertNull(decoded.beverageHundredthsGram)
+            assertNull(decoded.beverageSource)
+            assertEquals(point.weightHundredthsGram, decoded.weightHundredthsGram)
+            assertEquals("# unknown owner", sidecar.readText())
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun v3RoundTripsKnownPhaseAndLegacyVersionsKeepUnknownPhase() {
         val dir=Files.createTempDirectory("phase-samples").toFile()
         try {

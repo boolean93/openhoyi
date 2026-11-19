@@ -6,4 +6,5 @@
     <string name="shot_review_ready">AI extraction review: %1$s</string>
     <string name="shot_review_failed">No AI review was received.</string>
     <string name="shot_review_unknown">AI review outcome is unconfirmed and will not be retried automatically.</string>
+    <string name="shot_review_revoke_failed">Could not save the off setting. Reviews are paused for now. To prevent them after restarting, retry or remove the saved API key.</string>
 </resources>

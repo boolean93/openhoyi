@@ -12,6 +12,10 @@ internal object ShotReviewWire {
     const val RESPONSE_CHARS = 360
     private const val MAX_POINTS = 96
 
+    fun eligible(entry: ShotHistory.Entry, passiveConfirmed: Boolean, appOutcomeUnknown: Boolean): Boolean =
+        entry.status == ShotHistory.Status.ENDED && entry.endedAtMs != null && entry.machineTimingInterrupted != true &&
+            if (entry.curveId == "manual") passiveConfirmed else entry.observedRunning && !appOutcomeUnknown
+
     fun request(points: List<ShotPoint>, machineSeconds: Int?, language: AppLanguage): String? {
         val brewing = points.filter { it.brewing == true }
         if (brewing.size < 2 || brewing.last().elapsedMs <= brewing.first().elapsedMs) return null
@@ -153,12 +157,19 @@ internal class AutomaticShotReview(
     }
 }
 
+/** Check two independently persistent grants. When disabling, either successful revocation is enough. */
 internal class ShotReviewPreferences(
     private val loadEpoch: () -> String?,
     private val persistEpoch: (String?) -> Boolean,
+    private val grantExists: () -> Boolean,
+    private val revokeGrant: () -> Boolean,
+    private val createGrant: () -> Boolean,
 ) {
     private data class State(val epoch: String?, val revision: Long)
-    @Volatile private var state = State(runCatching(loadEpoch).getOrNull(), 0)
+    private fun load() = runCatching { if (grantExists()) loadEpoch() else null }.getOrNull()
+    @Volatile private var state = State(load(), 0)
+    @Volatile var revocationUnconfirmed = false
+        private set
     fun enabledRevision() = state.let { if (it.epoch != null) it.revision else null }
     fun revision(epoch: String?): Long? = state.let { if (epoch != null && epoch == it.epoch) it.revision else null }
 
@@ -169,11 +180,20 @@ internal class ShotReviewPreferences(
     }
 
     @Synchronized fun set(epoch: String?): Boolean {
-        // Opt-out fence applies immediately, even when disk is failing.
+        // Fence sends and delivery immediately even when durable storage cannot be reached.
         val next = State(null, state.revision + 1)
         state = next
-        val saved = runCatching { persistEpoch(epoch) }.getOrDefault(false)
-        if (saved && epoch != null) state = next.copy(epoch = epoch)
+        if (epoch == null) {
+            val revoked = runCatching(revokeGrant).getOrDefault(false)
+            val cleared = runCatching { persistEpoch(null) }.getOrDefault(false)
+            revocationUnconfirmed = !revoked && !cleared
+            return !revocationUnconfirmed
+        }
+        val saved = runCatching { persistEpoch(epoch) && createGrant() }.getOrDefault(false)
+        if (saved) {
+            state = next.copy(epoch = epoch)
+            revocationUnconfirmed = false
+        }
         return saved
     }
 }

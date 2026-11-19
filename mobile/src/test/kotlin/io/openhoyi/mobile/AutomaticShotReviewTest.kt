@@ -154,18 +154,103 @@ class AutomaticShotReviewTest {
 
     @Test fun `default denial and changing consent or credential changes the revision fence`() {
         var saved: String? = null
-        var writable = true
-        val consent = ShotReviewPreferences({ saved }) { if (writable) { saved = it; true } else false }
+        var grant = false
+        val consent = ShotReviewPreferences({ saved }, { saved = it; true }, { grant },
+            { grant = false; true }, { grant = true; true })
         assertNull(consent.revision("key1"))
         assertTrue(consent.set("key1"))
         val first = requireNotNull(consent.revision("key1"))
         assertNull(consent.revision("key2"))
-        writable = false
-        assertFalse(consent.set(null))
+        assertTrue(consent.set(null))
+        assertFalse(consent.publishForRevision("key1", first) { error("must not publish") })
         assertNull(consent.revision("key1"))
-        writable = true
         assertTrue(consent.set("key1"))
         assertNotEquals(first, consent.revision("key1"))
+    }
+
+    @Test fun `failed preference revocation still denies a fresh process after keystore withdrawal`() {
+        var saved: String? = null
+        var grant = false
+        var prefsWritable = true
+        var grantWritable = true
+        fun fresh() = ShotReviewPreferences({ saved }, { next -> if (prefsWritable) { saved = next; true } else false },
+            { grant }, { if (grantWritable) { grant = false; true } else false }, { grant = true; true })
+        val consent = fresh()
+        assertTrue(consent.set("key1"))
+        prefsWritable = false
+        assertTrue(consent.set(null))
+        assertEquals("key1", saved)
+        assertNull(fresh().revision("key1"))
+        prefsWritable = true
+        assertTrue(consent.set("key1"))
+        grantWritable = false
+        assertTrue(consent.set(null))
+        assertTrue(grant)
+        assertNull(fresh().revision("key1"))
+        assertTrue(consent.set("key1"))
+        prefsWritable = false
+        assertFalse(consent.set(null))
+        assertTrue(consent.revocationUnconfirmed)
+        assertNull(consent.revision("key1")) // Fail closed now; expose unresolved durability.
+        assertNotNull(fresh().revision("key1"))
+        assertNull(fresh().revision("key2")) // Replacing/deleting the old key invalidates its saved grant.
+    }
+
+    @Test fun `revocation at the write permit blocks even a connected fake provider`() = runBlocking {
+        val fake = FakeAiConnection()
+        val transport = AiSafeTransport({ "fake-shot-token-never-real" }, { true }, AiRequestBudget(), { fake },
+            beforeWrite = { false })
+        val error = runCatching { ShotReviewWire.send(transport, requireNotNull(
+            ShotReviewWire.request(points, 4, AppLanguage.CHINESE))) }.exceptionOrNull()
+        assertEquals(AiProblem.KEY, (error as AiFailure).problem)
+        assertEquals(0, fake.sent.size())
+        assertTrue(fake.disconnected.get())
+    }
+
+    @Test fun `only confirmed completed app or passive cups are eligible`() {
+        val app = ShotHistory.Entry("shot-a", "factory-r7", 1, 9, null,
+            ShotHistory.Status.ENDED, null, null, observedRunning = true)
+        assertTrue(ShotReviewWire.eligible(app, false, false))
+        assertFalse(ShotReviewWire.eligible(app, false, true))
+        assertFalse(ShotReviewWire.eligible(app.copy(observedRunning = false), false, false))
+        assertFalse(ShotReviewWire.eligible(app.copy(machineTimingInterrupted = true), false, false))
+        assertFalse(ShotReviewWire.eligible(app.copy(status = ShotHistory.Status.UNKNOWN), false, false))
+        assertFalse(ShotReviewWire.eligible(app.copy(endedAtMs = null), false, false))
+        val manual = app.copy(curveId = "manual", observedRunning = false)
+        assertTrue(ShotReviewWire.eligible(manual, true, false))
+        assertFalse(ShotReviewWire.eligible(manual, false, false))
+        assertFalse(ShotReviewWire.eligible(manual.copy(machineTimingInterrupted = true), true, false))
+    }
+
+    @Test fun `bounded durable ledger prunes only evicted local cup and rejects corrupt state`() {
+        var disk: ByteArray? = null
+        var writable = true
+        fun fresh() = BoundedShotReviewLedger({ disk }, { data ->
+            check(writable)
+            disk = data
+        })
+        val ledger = fresh()
+        ledger.publishRetained(setOf("cup1", "cup2"))
+        assertTrue(ledger.reserve("cup1"))
+        ledger.finish("cup1", ShotReviewResult(ShotReviewStatus.READY, "reviewed"))
+        assertTrue(ledger.reserve("cup2"))
+        val restarted = fresh()
+        restarted.publishRetained(setOf("cup2", "cup3"))
+        assertTrue(restarted.prune())
+        assertNull(restarted.read("cup1"))
+        assertEquals(ShotReviewStatus.PENDING, restarted.read("cup2")?.status)
+        assertFalse(restarted.reserve("cup2"))
+        assertFalse(restarted.reserve("cup1"))
+        writable = false
+        assertFalse(restarted.reserve("cup3"))
+        assertNull(restarted.read("cup3"))
+        writable = true
+        disk = "not a ledger".toByteArray()
+        val corrupt = fresh()
+        corrupt.publishRetained(setOf("cup3"))
+        assertFalse(corrupt.reserve("cup3"))
+        assertFalse(corrupt.prune())
+        assertEquals("not a ledger", disk!!.decodeToString())
     }
 
     private fun response(text: String) = """{"choices":[{"finish_reason":"stop","message":{"content":${JsonPrimitive(text)}}}]}"""
