@@ -26,6 +26,12 @@ internal object ShotReviewWire {
             put("savedBrewingObservationCount", brewing.size)
             put("observedBrewSampleSpanMs", brewing.last().elapsedMs - brewing.first().elapsedMs)
             put("peakObservedPressureBar", brewing.maxOf { it.pressureTenthsBar } / 10.0)
+            put("evidence", buildJsonObject {
+                put("immutableStageTargetsAvailable", false)
+                put("doseGramsAvailable", false)
+                put("beverageWeightAvailable", selected.any { it.beverageHundredthsGram != null })
+                put("estimatedScaleFlowAvailable", selected.any { it.scaleFlowHundredths != null })
+            })
             put("observations", buildJsonArray {
                 selected.forEach { p -> add(buildJsonObject {
                     put("elapsedMs", p.elapsedMs)
@@ -48,13 +54,24 @@ internal object ShotReviewWire {
                 add(buildJsonObject {
                     put("role", "system")
                     put("content", "Review this espresso extraction in ${language.nativeName} (${language.tag}). " +
-                        "Write 2–3 short plain text lines: observed pressure/flow development and the most useful caveat or check. " +
-                        "Use only given observations. Null means unavailable. The series is thinned without interpolation; elapsedMs " +
-                        "is from series start, not the machine extraction timer. Only observed brewing samples are included. " +
-                        "Machine water and flow are millilitres and millilitres/second, not beverage grams. Scale flow is an estimate; " +
-                        "beverage sources can be estimated and segments cannot be joined as one continuous net weight. " +
-                        "No recipe targets or tasting evidence are provided: do not claim target adherence, diagnose cause or flavour, " +
-                        "or give machine-control commands. Do not echo raw data, output links, or use markdown.")
+                        "Return exactly three short plain-text lines, one per item in this order, with localized labels. " +
+                        "1. What went well: give an observed time interval and the pressure or flow evidence that supports " +
+                        "a favorable or stable phase. If the data do not support one, say so. " +
+                        "2. What deviated: give the observed time interval and measured departure from the local trend, " +
+                        "or state that no clear anomaly is identifiable. No immutable stage boundaries or recipe targets " +
+                        "are supplied, so distinguish a series anomaly from target deviation: never label a stage as " +
+                        "passing/failing a target, and don't invent named recipe stages. " +
+                        "3. Next cup: propose exactly one change to one variable, keeping all others constant; if the " +
+                        "evidence cannot support a change, ask for exactly one measurement instead. Grind and puck " +
+                        "distribution are separate, unverified hypotheses, not diagnoses; never prescribe changing both. " +
+                        "Do not claim channeling, a root cause, or taste. " +
+                        "Use only the observations. Null means unavailable. The series is thinned without interpolation; " +
+                        "elapsedMs is relative to sample-series start, not machine extraction time. " +
+                        "Machine flow is volumetric in mL/s and machine water is mL; neither is beverage weight or " +
+                        "the estimated scale mass flow in g/s. With no beverage measurement, never state beverage grams. " +
+                        "With no scale flow, never state scale-derived g/s. The dose is absent: never state a brew ratio. " +
+                        "Even when present, label estimated measurements and do not join beverage segments or treat the " +
+                        "last sample as guaranteed final yield. No machine commands, long data recaps, links, or markdown.")
                 })
                 add(buildJsonObject {
                     put("role", "user")
