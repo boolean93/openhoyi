@@ -733,7 +733,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             val column = home(key) as ViewGroup
             val dial = (0 until column.childCount).map(column::getChildAt).filterIsInstance<BoilerTemperatureDial>().single()
             val power = home("$key/toggle") as HoyiSwitch
-            check(power.parent?.parent === dial)
+            check(power.parent === dial)
+            val goal = dial.findViewWithTag<View>("product/home/$key/target")
+            check(goal != null && power.bottom <= goal.top) { "Boiler switch must remain above its target" }
             val touch = (48 * root.resources.displayMetrics.density).toInt()
             check(power.width >= touch && power.height >= touch && !power.contentDescription.isNullOrEmpty())
             return checkNotNull(localRect(root, dial))
