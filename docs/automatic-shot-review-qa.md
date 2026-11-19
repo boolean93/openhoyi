@@ -1,6 +1,6 @@
 # Automatic shot review: dedicated Mock route check
 
-This **QA-only branch** sits on feature commit `7dadffcf`. The opt-in fake seam is not part of that feature or release branch. Use a fresh/disposable Android 34+ emulator on an approved hosted runner. Do not install this fixture on someone's tablet, use a real key, or attach hardware.
+This **QA-only branch** sits on feature commit `7dadffcf83c48cb469a7a555d96408b7c87fd12c`. The opt-in fake seam is not part of that feature or release branch. Use a fresh/disposable Android 34+ emulator on an approved hosted runner. Do not install this fixture on someone's tablet, use a real key, or attach hardware.
 
 ```sh
 ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
