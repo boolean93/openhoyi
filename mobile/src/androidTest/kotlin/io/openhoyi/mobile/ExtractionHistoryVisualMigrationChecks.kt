@@ -589,6 +589,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(owner.chartTraceIdentity == id && owner.shotState == ExtractionState.STARTING)
             }
             completeScenarioStart(owner)
+            // Use the Service's actual watch loop; never skip a RUNNING observation
+            // by racing synthetic state changes within one real Handler interval.
+            await("service observed synthetic RUNNING before terminal input") {
+                field(owner, "lastShotState") == ExtractionState.RUNNING
+            }
         }
         fun finishReviewFixtureShot(owner: MobileService, at: Long) {
             advanceTo(at)
@@ -3118,7 +3123,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             await("pending synthetic evaluation does not block completed extraction UI") {
                 calls.get() == 2 && owner.shotState == ExtractionState.ENDED_OBSERVED &&
                     label().text == host.getString(R.string.shot_review_pending) &&
-                    root(host).findViewWithTag<View>("product/extraction/start")?.isShown == true
+                    root(host).findViewWithTag<View>("product/extraction/start")?.let { it.isShown && it.isEnabled } == true
             }
             fail.complete(Unit)
             await("failed synthetic response remains on the correct completed cup") {
