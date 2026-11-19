@@ -738,7 +738,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         for (device in listOf("coffee", "scale")) {
             val panel = checkNotNull(shell.findViewWithTag<View>("task-shell-$device-group"))
             val fill = (panel.background as android.graphics.drawable.GradientDrawable).color?.defaultColor
-            check(fill != null && (if (photo) Color.alpha(fill) < 64 else fill == host.getColor(R.color.task_shell_card)))
+            val expected = if (photo) wallpaperTint(TaskShellVisualStyle(host).selected, 216)
+                else host.getColor(R.color.task_shell_card)
+            check(fill == expected) { "Device facts and actions must share the selected-tab tint only over a photo" }
         }
     }
 
