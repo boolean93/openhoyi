@@ -100,7 +100,7 @@ def capture_boiler_aspects(adb, output, receipt):
         adb('shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0')
         for size, rotation, expected, name in (
             ('960x1100', '0', (960, 1100), 'square-tablet-home.png'),
-            ('720x1280', '1', (1280, 720), 'wide-tablet-home.png'),
+            ('800x1280', '1', (1280, 800), 'wide-tablet-photo-home.png'),
         ):
             adb('shell', 'am', 'force-stop', APP)
             adb('shell', 'wm', 'size', size)

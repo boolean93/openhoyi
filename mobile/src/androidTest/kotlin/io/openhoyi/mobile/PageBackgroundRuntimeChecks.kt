@@ -66,6 +66,12 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             check(rejectedEvidence.isEmpty()) {
                 rejectedEvidence.joinToString(separator = "\n", prefix = "Window evidence failed:\n")
             }
+            // Evidence branch only: seed a generated fixture photo for the post-run
+            // 16:10 screenshot. Import owns a private copy and no user photos are used.
+            val imported = runBlocking { owner.import(sample, UUID.randomUUID().toString()) }
+            val wallpaper = AppBackgroundConfig(imported.choice, AppBackgroundConfig.MAX_STRENGTH)
+            val original = main { owner.current.config }
+            check(runBlocking { owner.apply(original, wallpaper, imported) } == AppBackgroundStore.Result.APPLIED)
         } finally {
             ownedMedia.forEach { context.contentResolver.delete(it, null, null) }
             main {
