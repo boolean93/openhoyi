@@ -56,6 +56,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var automaticReview: TextView
     private var automaticReviewId: String? = null
     private var unbindAutomaticReview: (() -> Unit)? = null
+    private var automaticReviewDialog: AlertDialog? = null
     private lateinit var chooseCurve: Button
     private lateinit var connectDevices: Button
     private lateinit var chooseBeans: Button
@@ -202,8 +203,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         }
         automaticReview = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/automatic-shot-review").apply {
             visibility = View.GONE
-            maxLines = 3
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = android.view.Gravity.CENTER_VERTICAL
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         style.add(content, automaticReview)
@@ -419,6 +419,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
     }
     override fun onPause() {
+        automaticReviewDialog?.dismiss(); automaticReviewDialog = null
         host.revokeShortcutStart()
         feedbackUi.leave(host.isChangingConfigurations)
         visible=false;handler.removeCallbacks(refresh)
@@ -573,6 +574,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         super.onSaveInstanceState(outState)
     }
     override fun onDestroyView() {
+        automaticReviewDialog?.dismiss(); automaticReviewDialog = null
         unbindAutomaticReview?.invoke()
         unbindAutomaticReview = null
         automaticReviewId = null
@@ -657,8 +659,17 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         }
         val reviewId = owner?.chartTraceIdentity?.takeIf { observedCup && !active && owner.manualShotActive != true }
         if (reviewId != automaticReviewId) {
+            automaticReviewDialog?.dismiss()
+            automaticReviewDialog = null
             unbindAutomaticReview?.invoke()
-            unbindAutomaticReview = reviewId?.let { (application as MobileApplication).shotReviews.bind(automaticReview, it) }
+            unbindAutomaticReview = reviewId?.let { id ->
+                (application as MobileApplication).shotReviews.bind(automaticReview, id) { review ->
+                    if (service?.chartTraceIdentity == id && automaticReviewId == id) {
+                        automaticReviewDialog?.dismiss()
+                        automaticReviewDialog = showShotReviewDetails(host, review)
+                    }
+                }
+            }
             automaticReviewId = reviewId
         }
         readiness.show(guidance + unknownAdvice)
