@@ -128,15 +128,19 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
 
     private fun exact(size: Int) = MeasureSpec.makeMeasureSpec(size, MeasureSpec.EXACTLY)
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        fun at(view: android.view.View, y: Float, opticalX: Float = 0f) {
+        fun at(view: android.view.View, y: Float, opticalX: Float = 0f, anchorHeight: Int = view.measuredHeight) {
             val x = (width - view.measuredWidth) / 2 + (width * opticalX).roundToInt()
-            val t = (height * y - view.measuredHeight / 2f).roundToInt()
+            val t = (height * y - anchorHeight / 2f).roundToInt()
             view.layout(x, t, x + view.measuredWidth, t + view.measuredHeight)
         }
         at(heading, .300f)
         // The measured Noto glyphs sit 16 normalized pixels lower than Roboto in
         // the same line box. Align the live line optically to the reference anchor.
-        if (numeralFace != null) at(value, .428f, .012f) else at(value, .455f)
+        val numberSlot = (height * .20f).roundToInt()
+        // A taller native line can use extra descent space without pulling the
+        // previously accepted number's visible ink upward.
+        if (numeralFace != null) at(value, .428f, .012f, numberSlot)
+        else at(value, .455f, anchorHeight = numberSlot)
         at(target, .728f)
         val x = (width - power.measuredWidth) / 2
         power.layout(x, target.top - touch, x + power.measuredWidth, target.top)
