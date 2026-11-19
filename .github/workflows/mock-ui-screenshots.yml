@@ -2,6 +2,12 @@ name: Capture Mock UI
 
 on:
   workflow_dispatch:
+    inputs:
+      quick_curve_visual:
+        description: Capture only populated Home quick curves on phone and tablet, with wallpaper in both themes
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -10,6 +16,9 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      QUICK_CURVE_VISUAL: ${{ inputs.quick_curve_visual == true && 'true' || 'false' }}
+      QUICK_CURVE_AVD: openhoyi-quick-curve-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,12 +50,16 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
+          avd-name: ${{ env.QUICK_CURVE_VISUAL == 'true' && env.QUICK_CURVE_AVD || 'test' }}
+          emulator-port: 5554
           target: default
           arch: x86_64
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/capture_mock_ui.sh
+          script: >-
+            if [ "$QUICK_CURVE_VISUAL" = true ]; then python3 scripts/check_quick_curve_visual.py;
+            else bash scripts/capture_mock_ui.sh; fi
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v6

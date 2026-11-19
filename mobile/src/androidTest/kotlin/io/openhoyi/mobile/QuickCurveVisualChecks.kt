@@ -1,0 +1,161 @@
+package io.openhoyi.mobile
+
+import android.app.Instrumentation
+import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Rect
+import android.net.Uri
+import android.os.SystemClock
+import android.view.View
+import android.widget.TextView
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.util.UUID
+
+/** Real Home window, synthetic data only. Caller must provide a fresh disposable CI emulator. */
+internal class QuickCurveVisualChecks(private val test: Instrumentation) {
+    private fun <T> main(block: () -> T): T = BoundedInstrumentationMain.run("Home shortcut capture", 5000, block)
+
+    fun run(dark: Boolean) {
+        val context = test.targetContext
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        val app = context.applicationContext as MobileApplication
+        val ids = listOf("factory-v3-050", "factory-v3-001", "factory-v3-002", "factory-v3-004", "factory-v3-005", "factory-v3-004")
+        val names = listOf("浅烘Slayer长预浸", "Espresso深烘", "SOE浅烘", "HOYI Limit Extraction", "Hyper Ex 超萃手冲", "HOYI Limit Extraction")
+        val tags = (0..4).map { "product/home/direct-preset/$it" } + "product/home/last-curve"
+        val titleTags = tags.take(5).map { "$it/name" } + "product/home/quick-recipe"
+        val labels = listOf("拨杆配方", "预设 A", "预设 B", "预设 C", "预设 D", "复用上一杯")
+        main {
+            check(app.history.entries.isEmpty()) { "Refusing to seed application with existing shot history" }
+            check(app.languagePreferences.select(AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
+            check(app.fontSizePreferences.select(AppFontSize.MEDIUM) != AppFontSizePreference.Selection.SAVE_FAILED)
+            check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
+            val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
+            check(presets.all.isEmpty()) { "Expected fresh disposable Mock data" }
+            var editor = presets.edit()
+            for (index in 1..4) editor = editor.putString(PresetSlots.key(index), ids[index])
+            check(editor.commit())
+            val usage = app.curveUsageResult.getOrThrow()
+            check(usage.latest() == null)
+            check(usage.record("shortcut-visual-fixture", ids.last(), 1L))
+            val lever = app.leverRecipes
+            val address = "00:00:00:00:00:01"
+            check(lever.attemptFor(address) == null && !lever.blocked)
+            val token = requireNotNull(lever.begin(MachineLeverRecipeStore.Snapshot(address, ids.first(), names.first(),
+                "08825c0046031e5a0000009608019000000000d8", 1L, "1.1.5")))
+            check(lever.complete(token, MachineLeverRecipeStore.State.SENT))
+        }
+        val wallpaper = File.createTempFile("shortcut-visual-", ".png", context.cacheDir)
+        // An asymmetric high-/low-luminance fixture makes foreground materials and gaps observable.
+        val side = 600
+        val colors = intArrayOf(0xffc0cbc5.toInt(), 0xff969c98.toInt(), 0xffe9e5db.toInt(), 0xfff5f7f1.toInt())
+        val pixels = IntArray(side * side) { index ->
+            val x = index % side
+            val y = index / side
+            colors[(if (x < side / 2) 0 else 2) + (x / 70 + y / 70) % 2]
+        }
+        val source = Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888)
+        try {
+            wallpaper.outputStream().use { check(source.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            val backgrounds = main { app.pageBackgrounds }
+            runBlocking {
+                withTimeout(15000) {
+                    val previous = backgrounds.current.config
+                    check(previous.choice == AppBackground.Solid)
+                    val draft = backgrounds.import(Uri.fromFile(wallpaper), UUID.randomUUID().toString())
+                    val next = AppBackgroundConfig(draft.choice, AppBackgroundConfig.MAX_STRENGTH)
+                    check(backgrounds.apply(previous, next, draft) == AppBackgroundStore.Result.APPLIED)
+                }
+            }
+        } finally {
+            source.recycle()
+            wallpaper.delete()
+        }
+
+        val page = MainPageTestHost.launch(test, timeoutMs = 15000)
+        val host = page.activity
+        val out = File(context.filesDir, "quick-curve-visual").apply { check(mkdirs() || isDirectory) }
+        try {
+            val deadline = SystemClock.elapsedRealtime() + 12000
+            while (!main {
+                val root = page.active("root:BREW").requireView()
+                host.currentService?.running == true && titleTags.indices.all { index ->
+                    root.findViewWithTag<TextView>(titleTags[index])?.let { it.text.toString() == names[index] && it.layout != null } == true
+                }
+            }) {
+                check(SystemClock.elapsedRealtime() < deadline) { "Populated quick-curve Home did not become ready" }
+                SystemClock.sleep(50)
+            }
+            SystemClock.sleep(300)
+            val proof = main {
+                val root = page.active("root:BREW").requireView()
+                val density = host.resources.displayMetrics.density
+                val portrait = host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                val bounds = tags.map { tag -> Rect().apply {
+                    val view = checkNotNull(root.findViewWithTag<View>(tag))
+                    check(view.getGlobalVisibleRect(this) && width() == view.width && height() == view.height) {
+                        "$tag clipped or needs scrolling: $this / ${view.width}×${view.height}"
+                    }
+                } }
+                val items = JSONArray()
+                tags.indices.forEach { index ->
+                    val tag = tags[index]
+                    val title = requireNotNull(root.findViewWithTag<TextView>(titleTags[index]))
+                    val layout = requireNotNull(title.layout)
+                    val label = requireNotNull(root.findViewWithTag<TextView>("$tag/label"))
+                    check(label.text.toString() == labels[index]) { "Unexpected slot label: ${label.text}" }
+                    check(layout.lineCount == 1 && layout.getEllipsisCount(0) == 0 &&
+                        layout.getLineWidth(0) <= (title.width - title.compoundPaddingLeft - title.compoundPaddingRight) + 1f) {
+                        "Shortcut name wraps or clips: ${title.text}"
+                    }
+                    val preview = requireNotNull(root.findViewWithTag<View>("$tag/preview"))
+                    check(preview.isShown && preview.width > 0 && preview.height > 0)
+                    val card = bounds[index]
+                    val tapTag = if (index == 5) "product/home/quick-launch" else tag
+                    val control = requireNotNull(root.findViewWithTag<View>(tapTag))
+                    check(control.isClickable && control.isEnabled && control.width >= 48 * density && control.height >= 48 * density) {
+                        "$tapTag must be a direct action ≥48dp"
+                    }
+                    items.put(JSONObject().put("name", names[index]).put("label", label.text.toString())
+                        .put("rect", JSONArray(listOf(card.left, card.top, card.right, card.bottom)))
+                        .put("nameSp", title.textSize / density).put("labelSp", label.textSize / density)
+                        .put("previewPx", JSONArray(listOf(preview.width, preview.height))))
+                }
+                if (portrait) {
+                    check(bounds.indices.all { index ->
+                        val even = index - index % 2
+                        bounds[index].top == bounds[even].top &&
+                            (index % 2 == 0 || bounds[index].left >= bounds[even].right) &&
+                            (index < 2 || bounds[index].top > bounds[index - 2].top)
+                    }) { "Expected three rows in reading order: $bounds" }
+                } else {
+                    check(bounds.all { it.top == bounds.first().top } &&
+                        bounds.zipWithNext().all { (first, next) -> first.right <= next.left }) {
+                        "Expected six shortcut controls in one tablet row: $bounds"
+                    }
+                    check(root.findViewWithTag<View>("product/home/preset-group")?.isShown == true)
+                }
+                check(root.findViewWithTag<View>("product/home/direct-preset/5")?.isShown != true)
+                check(mainWallpaperVisible(root))
+                check(host.currentService?.shotState == io.openhoyi.session.ExtractionState.IDLE && app.history.entries.isEmpty()) {
+                    "Visual fixture must not initiate or record an extraction"
+                }
+                JSONObject().put("portrait", portrait).put("dark", dark).put("density", density.toDouble()).put("items", items)
+            }
+            val bitmap = checkNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(out, "home.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            } finally { bitmap.recycle() }
+            File(out, "geometry.json").writeText(proof.toString(2))
+        } finally {
+            main { host.finish() }
+        }
+    }
+
+    private fun mainWallpaperVisible(root: View): Boolean =
+        (root.background as? PageBackdrop)?.snapshot?.image != null
+}
