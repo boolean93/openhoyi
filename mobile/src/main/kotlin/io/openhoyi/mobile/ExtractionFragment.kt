@@ -24,7 +24,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.StopReason
 import java.util.Locale
 
-/** A screen never owns BLE. Explicit start or a one-shot Home tap can start; navigation cannot. */
+/** A screen never owns BLE. Explicit start or a one-shot shortcut tap can start; navigation cannot. */
 class ExtractionFragment : androidx.fragment.app.Fragment() {
     private val host get() = requireActivity() as MainActivity
     private val application get() = host.application
@@ -40,9 +40,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         private set
     private val machineAlarms by lazy { MachineAlarms(host) }
     private var presetSlot = 7
-    fun setPresetSlot(slot:Int) {
+    fun setPresetSlot(slot:Int, refresh: Boolean = false) {
         val next=slot.takeIf { it in 1..5 } ?: 7
-        if (presetSlot!=next) {presetSlot=next;if(::readiness.isInitialized)render()}
+        if (presetSlot != next || refresh) { presetSlot = next; if (::readiness.isInitialized) render() }
     }
     private var service: MobileService? = null
     private var visible = false
@@ -80,6 +80,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private var statusDetailsDialog: AlertDialog? = null
     private var statusMenuButton: Button? = null
     private lateinit var chartToolsButton: Button
+    private lateinit var liveShortcutsButton: Button
+    private var liveShortcutsDialog: AlertDialog? = null
+    private var liveShortcutsSession: LiveShortcutSession<MobileService>? = null
     private var seriesSelector: ChartSeriesSelector? = null
     private var toolsDialog: AlertDialog? = null
     private val toolsMenuButtons = linkedMapOf<Button, Button>()
@@ -263,7 +266,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = 0 })
         pageHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> chart.liveHeaderHeightPx = pageHeader.height }
         seriesSelector = ChartSeriesSelector(chart)
-        (portraitIdentityRow ?: pageHeader).addView(seriesSelector!!.button,
+        val chartControlsRow = portraitIdentityRow ?: pageHeader
+        chartControlsRow.addView(seriesSelector!!.button,
             LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(4) })
         val chartTools = object : Button(host) {
             private val badge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
@@ -289,7 +293,30 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             setOnClickListener { showTools() }
         }
         chartToolsButton=chartTools
-        (portraitIdentityRow ?: pageHeader).addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+        chartControlsRow.addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+        liveShortcutsButton = Button(host).apply {
+            text = getString(R.string.extraction_shortcuts)
+            tag = "product/extraction/shortcuts"
+            style.button(this)
+            minimumWidth = dp(48); minimumHeight = dp(48)
+            setOnClickListener { showLiveShortcuts() }
+        }
+        chartControlsRow.addView(liveShortcutsButton, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+        // Keep the portrait identity/action row and plot inset; compact low-frequency chrome first.
+        fun compactChartControls(width: Int) {
+            val available = width / resources.configuration.fontScale.coerceAtLeast(1f)
+            val compact = available < dp(420)
+            seriesSelector?.setCompactButton(compact)
+            val toolLabel = if (compact) "" else getString(R.string.task_tools)
+            if (chartTools.text.toString() != toolLabel) {
+                chartTools.text = toolLabel
+                chartTools.compoundDrawablePadding = dp(if (compact) 0 else 8)
+            }
+        }
+        compactChartControls(resources.displayMetrics.widthPixels)
+        chartControlsRow.addOnLayoutChangeListener { _, left, _, right, _, _, _, _, _ ->
+            if (right > left) compactChartControls(right - left)
+        }
         plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f))
         workspace.onPrimarySpaceAvailable = { width, height ->
             if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT)
@@ -412,6 +439,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         host.revokeShortcutStart()
         feedbackUi.leave(host.isChangingConfigurations)
         visible=false;handler.removeCallbacks(refresh)
+        closeLiveShortcuts()
         seriesSelector?.close()
         if (::chart.isInitialized) chart.dismissInspection()
         toolsDialog?.dismiss();toolsDialog=null
@@ -513,6 +541,61 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         render()
     }
 
+    private fun closeLiveShortcuts() {
+        liveShortcutsDialog?.dismiss()
+        liveShortcutsDialog = null
+        liveShortcutsSession = null
+    }
+
+    private fun showLiveShortcuts() {
+        host.liveShortcutBlock(this)?.let { toast(it); return }
+        closeLiveShortcuts()
+        val session = host.liveShortcutSession(this)
+            ?: run { toast(getString(R.string.service_unavailable)); return }
+        liveShortcutsSession = session
+        val rows = style.column().apply { setPadding(dp(16), dp(4), dp(16), dp(4)) }
+        host.liveShortcutChoices().forEach { choice ->
+            val name = choice.item?.name ?: getString(if (choice.curveId == PresetSlots.EMPTY)
+                R.string.extraction_shortcuts_empty else R.string.curve_slot_unavailable)
+            val label = ('A' + (choice.slot - 1)).toString()
+            val title = if (choice.item != null && choice.route == null)
+                getString(R.string.extraction_shortcuts_unavailable_name, name) else name
+            rows.addView(Button(host).apply {
+                text = getString(R.string.extraction_shortcuts_choice, label, title)
+                tag = "product/extraction/shortcut/${choice.slot}"
+                style.button(this)
+                isAllCaps = false
+                setSingleLine(false)
+                maxLines = Int.MAX_VALUE
+                ellipsize = null
+                gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                minimumHeight = dp(48)
+                isEnabled = choice.route != null
+                setOnClickListener {
+                    if (liveShortcutsSession === session && liveShortcutsDialog?.isShowing == true) {
+                        closeLiveShortcuts()
+                        host.openLiveShortcut(this@ExtractionFragment, session, choice)
+                    }
+                }
+            }, LinearLayout.LayoutParams(-1, -2))
+        }
+        val scroll = android.widget.ScrollView(host).apply { addView(rows) }
+        liveShortcutsDialog = AppDialog.show(AlertDialog.Builder(host)
+            .setTitle(R.string.extraction_shortcuts)
+            .setView(scroll)
+            .setNegativeButton(R.string.machine_settings_cancel, null).create().apply {
+                setOnDismissListener {
+                    if (liveShortcutsSession === session) {
+                        liveShortcutsDialog = null
+                        liveShortcutsSession = null
+                    }
+                }
+            })
+    }
+
+    internal fun confirmLiveShortcutPreheat(expected: CurveProfile, stillValid: () -> Boolean) =
+        confirmPrepare(expected, stillValid)
+
     private fun startSelectedCurve() {
         host.revokeShortcutStart()
         val owner = service ?: run { toast(getString(R.string.service_unavailable)); return }
@@ -532,7 +615,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         owner.startShot(profile.id,profile.scaleMode,presetSlot)?.let(::toast)
         render()
     }
-    private fun confirmPrepare(expected:CurveProfile?=null) {
+    private fun confirmPrepare(expected:CurveProfile?=null, stillValid: () -> Boolean = { true }) {
         host.revokeShortcutStart()
         val owner = service ?: return
         val profile = selected()?.let {
@@ -548,6 +631,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 else getString(R.string.extraction_real_prepare_effect))
             .setPositiveButton(if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_prepare_start) else getString(R.string.extraction_real_prepare_start)) { _, _ ->
                 if(service!==owner || !visible) {toast(getString(R.string.service_unavailable));return@setPositiveButton}
+                if (!stillValid()) { toast(getString(R.string.shortcut_start_cancelled)); return@setPositiveButton }
                 val current=selected()?.let { (application as MobileApplication).curves.resolve(it.id,
                     owner.snapshot.scaleState==DeviceState.READY,presetSlot) }
                 if(current!=profile)toast(getString(R.string.extraction_choose_startable))
@@ -570,6 +654,12 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val state = owner?.shotState ?: ExtractionState.IDLE
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
+        val shortcutBlock = host.liveShortcutBlock(this)
+        if (shortcutBlock != null ||
+            (liveShortcutsSession?.let { host.liveShortcutBlock(this, it) } != null)) closeLiveShortcuts()
+        if (liveShortcutsButton.isEnabled != (shortcutBlock == null)) liveShortcutsButton.isEnabled = shortcutBlock == null
+        val shortcutDescription = listOfNotNull(getString(R.string.extraction_shortcuts), shortcutBlock).joinToString(". ")
+        if (liveShortcutsButton.contentDescription != shortcutDescription) liveShortcutsButton.contentDescription = shortcutDescription
         chart.compactRunningExplanation = active
         pageHeader.visibility = View.VISIBLE
         val edge = dp(4)

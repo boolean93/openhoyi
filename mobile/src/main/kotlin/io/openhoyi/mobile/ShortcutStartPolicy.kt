@@ -22,6 +22,10 @@ internal class ShortcutStartPermit(
     private var claimed = false
 
     fun revoke() { revoked = true }
+    fun pending(): Boolean {
+        val age = clock() - createdAt
+        return claimed && !revoked && age in 0L until ShortcutStartPolicy.REQUEST_LIFETIME_MS
+    }
     fun allows(): Boolean {
         if (revoked) return false
         val now = clock()
