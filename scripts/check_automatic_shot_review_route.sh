@@ -9,6 +9,11 @@ mkdir -p "$proof"
 adb install mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 adb shell am force-stop io.openhoyi.mobile.mock
+# 640 pixels at density 320 = a 320dp portrait viewport.
+adb shell wm size 640x1120
+adb shell wm density 320
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 0
 # Defense in depth: the fixture itself injects no outbound transport.
 adb shell cmd connectivity airplane-mode enable
 adb shell svc wifi disable
@@ -24,7 +29,9 @@ import json, pathlib, sys
 proof = json.loads(pathlib.Path(sys.argv[2]).read_text())
 assert proof["sourceSha"] == sys.argv[1]
 assert proof["actualMockServiceCompletions"] == 3
+assert proof["viewportWidthDp"] == 320 and proof["appFont"] == "large"
 assert proof["fakeRequests"] == 2 and proof["realOutboundRequests"] == 0
 assert all(proof[key] is True for key in ("actualMainActivityExtractionFragment",
-    "distinctFirstVerdict", "noReuseOnNextCup", "missingKeySilent", "pendingAndFailureNonblocking"))
+    "distinctFirstVerdict", "noReuseOnNextCup", "missingKeySilent", "pendingAndFailureNonblocking",
+    "onlyOpenedOnTap", "allThreeSlotsReadableWithoutTruncation"))
 PY

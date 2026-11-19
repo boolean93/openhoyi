@@ -3073,21 +3073,43 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val calls = java.util.concurrent.atomic.AtomicInteger()
         val fail = kotlinx.coroutines.CompletableDeferred<Unit>()
         var removeFake: (() -> Unit)? = null
+        val originalFontOwner = field(app, "fontSizePreferences") as AppFontSizePreference
+        val good = "QA_FIRST_CUP_VERDICT · 1–2 秒压力稳定。" + "窄屏换行测试。".repeat(8)
+        val deviation = "变化：2–3 秒压力快速下降。" + "仅用于验证换行。".repeat(10)
+        val suggestion = "下杯：只补测出液重量。" + "确保完整的第三项。".repeat(9)
+        var widthDp = 0
         try {
             scope.prepare()
             scope.install(false)
+            main { write(app, "fontSizePreferences", AppFontSizePreference(object : AppFontSizePreference.Storage {
+                override fun read() = "large"
+                override fun write(key: String) = false
+            })) }
             removeFake = app.shotReviews.installMockFixture(permitted::get) { payload ->
                 check(payload.contains("machineFlowMlPerSecond") && !payload.contains("qa-review-") &&
                     !payload.contains("\"tools\""))
                 when (calls.incrementAndGet()) {
-                    1 -> """{"choices":[{"finish_reason":"stop","message":{"content":"QA_FIRST_CUP_VERDICT"}}]}"""
+                    1 -> JSONObject().put("choices", JSONArray().put(JSONObject().put("finish_reason", "stop")
+                        .put("message", JSONObject().put("content", JSONObject().put("good", good)
+                            .put("deviation", deviation).put("nextCup", suggestion).toString())))).toString()
                     2 -> { fail.await(); throw AiFailure(AiProblem.AUTH) }
                     else -> error("Unexpected synthetic request")
                 }
             }
             val owner = scope.beginScenarioService("STARTING")
             val host = start(ExtractionActivity::class.java) as MainActivity
+            main {
+                widthDp = host.resources.configuration.screenWidthDp
+                check(widthDp == 320 && app.fontSizePreferences.current == AppFontSize.LARGE &&
+                    host.resources.configuration.fontScale == AppFontSize.LARGE.scale) {
+                    "Expected 320dp with app-large font; widthDp=$widthDp, font=${host.resources.configuration.fontScale}"
+                }
+            }
             fun label() = requireNotNull(root(host).findViewWithTag<TextView>("product/extraction/automatic-shot-review"))
+            fun reviewDialog(): AlertDialog? {
+                val fragment = host.supportFragmentManager.findFragmentByTag("extraction") as ExtractionFragment
+                return field(fragment, "automaticReviewDialog") as? AlertDialog
+            }
             await("real MainActivity embedded ExtractionFragment starts with no review") {
                 host.supportFragmentManager.findFragmentByTag("extraction") is ExtractionFragment &&
                     root(host).findViewWithTag<TextView>("product/extraction/automatic-shot-review")?.visibility == View.GONE
@@ -3104,15 +3126,33 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 }
             }
             brew("qa-review-first", 0)
-            await("completed first cup verdict on real embedded fragment") {
-                calls.get() == 1 && label().isShown && label().text.contains("QA_FIRST_CUP_VERDICT")
+            await("completed first cup details action is reachable without a popup") {
+                calls.get() == 1 && label().isShown && label().isClickable &&
+                    label().height >= HoyiUi.dp(host, 48) &&
+                    label().text == host.getString(R.string.shot_review_open) && reviewDialog() == null
+            }
+            main { check(label().performClick()) }
+            await("all three exact slots rendered without truncation; final line can be read at 320dp large font") {
+                val window = reviewDialog()?.takeIf { it.isShowing }?.window ?: return@await false
+                val reportView = window.decorView.findViewWithTag<TextView>("product/extraction/ai-feedback-details")
+                    ?: return@await false
+                val scroll = window.decorView.findViewWithTag<ScrollView>("app-dialog-body") ?: return@await false
+                val layout = reportView.layout ?: return@await false
+                check(reportView.text.toString() == listOf(good, deviation, suggestion).joinToString("\n"))
+                check(layout.lineCount > 3 && (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 })
+                scroll.fullScroll(View.FOCUS_DOWN)
+                val visible = Rect()
+                val origin = IntArray(2)
+                reportView.getLocationOnScreen(origin)
+                val bottom = origin[1] + reportView.totalPaddingTop + layout.getLineBottom(layout.lineCount - 1)
+                scroll.getGlobalVisibleRect(visible) && bottom in (visible.top + 1)..visible.bottom
             }
 
             permitted.set(false)
             brew("qa-review-no-key", 5500, end = false)
             await("next running cup never inherits the previous cup verdict") {
                 owner.chartTraceIdentity == "qa-review-no-key" && owner.shotState == ExtractionState.RUNNING &&
-                    label().visibility == View.GONE && label().text.isEmpty()
+                    label().visibility == View.GONE && label().text.isEmpty() && reviewDialog()?.isShowing != true
             }
             scope.finishReviewFixtureShot(owner, 11_000)
             scope.awaitReviewSamples("qa-review-no-key")
@@ -3133,10 +3173,15 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             File(directory, "proof.json").writeText(JSONObject().put("sourceSha", sha)
                 .put("actualMainActivityExtractionFragment", true).put("actualMockServiceCompletions", 3)
                 .put("distinctFirstVerdict", true).put("noReuseOnNextCup", true)
+                .put("viewportWidthDp", widthDp).put("appFont", "large").put("onlyOpenedOnTap", true)
+                .put("allThreeSlotsReadableWithoutTruncation", true)
                 .put("missingKeySilent", true).put("pendingAndFailureNonblocking", true)
                 .put("fakeRequests", calls.get()).put("realOutboundRequests", 0).toString(2))
         } finally {
-            try { scope.cleanup() } finally { removeFake?.invoke() }
+            try { scope.cleanup() } finally {
+                removeFake?.invoke()
+                main { write(app, "fontSizePreferences", originalFontOwner) }
+            }
         }
     }
 
