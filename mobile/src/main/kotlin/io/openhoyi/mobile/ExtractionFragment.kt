@@ -152,6 +152,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         compactGuidance = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/inline-guidance", true)
         val portraitHeader=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT
         val portraitIdentityRow=if(portraitHeader) style.row().apply {gravity=android.view.Gravity.CENTER_VERTICAL} else null
+        val portraitMetadataRow = if (portraitHeader) style.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL } else null
         headerWords = if(portraitHeader) style.column().apply {
             portraitIdentityRow!!.addView(compactIdentity,LinearLayout.LayoutParams(0,-2,1f))
             addView(portraitIdentityRow,LinearLayout.LayoutParams(-1,-2))
@@ -160,7 +161,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             listOf(compactClock,compactElapsed,compactMode).forEachIndexed {i,field ->
                 metadata.addView(field,LinearLayout.LayoutParams(-2,-2).apply {if(i>0) marginStart=dp(8)})
             }
-            addView(metadata,LinearLayout.LayoutParams(-1,-2))
+            portraitMetadataRow!!.addView(metadata, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(portraitMetadataRow,LinearLayout.LayoutParams(-1,-2))
             addView(compactGuidance,LinearLayout.LayoutParams(-1,-2))
         } else object : LinearLayout(host) {
             init { gravity = android.view.Gravity.CENTER_VERTICAL; isBaselineAligned = false }
@@ -302,10 +304,25 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             setOnClickListener { showLiveShortcuts() }
         }
         chartControlsRow.addView(liveShortcutsButton, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
-        // Keep the portrait identity/action row and plot inset; compact low-frequency chrome first.
+        // On a narrow window give the recipe + Quick Slots the full first row. Put the
+        // two display-only controls next to elapsed metadata; STOP remains in its own footer.
+        val seriesButton = requireNotNull(seriesSelector).button
+        var controlsInMetadata = false
         fun compactChartControls(width: Int) {
             val available = width / resources.configuration.fontScale.coerceAtLeast(1f)
             val compact = available < dp(420)
+            if (portraitMetadataRow != null && compact != controlsInMetadata) {
+                controlsInMetadata = compact
+                val target = if (compact) portraitMetadataRow else chartControlsRow
+                listOf(seriesButton, chartTools).forEachIndexed { index, button ->
+                    (button.parent as? LinearLayout)?.removeView(button)
+                    val params = LinearLayout.LayoutParams(if (compact) dp(48) else -2, -2).apply {
+                        marginStart = dp(if (index == 0) 4 else 8)
+                    }
+                    if (compact) target.addView(button, params)
+                    else target.addView(button, target.indexOfChild(liveShortcutsButton), params)
+                }
+            }
             seriesSelector?.setCompactButton(compact)
             val toolLabel = if (compact) "" else getString(R.string.task_tools)
             if (chartTools.text.toString() != toolLabel) {
