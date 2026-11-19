@@ -335,7 +335,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val scroll = settings.scroll
         val section = main { settings.findViewWithTag<View>("settings/section/devices") }
         main {
-            check(host.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG).navigation.background !is PageBackdrop)
+            val nav = host.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG).navigation
+            val paper = nav.background as PageBackdrop
+            check(paper.snapshot.image != null && paper.photoScrim != null)
+            check(paper.photoBounds?.invoke()?.contains(0, 0) == true)
             scroll.scrollTo(0, HoyiUi.dp(host, 120))
         }
         await("settings backing matches the section's scrolled visible bounds") {
@@ -367,7 +370,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             }
         }
         val home = go(TaskDestination.BREW)
-        captureApplied(host, home, "$mode-home.png", base = style.homePage, backing = style.surface,
+        captureApplied(host, home, "$mode-home.png", base = style.homePage, backing = style.surface, translucentCover = true,
             requiredWallpaper = { sampleGap ->
                 check(home === originalHome.root && homeBounds(home) == originalHome.bounds) {
                     "Applying the backdrop must not move Home labels or hit targets"
@@ -579,14 +582,14 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             use.isShown && use.isEnabled && localRect(root, use) != null &&
                 (root.background as PageBackdrop).roundedAreas.any { it.clip.contains(visible) }
         }
-        captureApplied(host, root, outputName, backing = style.surface,
+        captureApplied(host, root, outputName, backing = style.surface, translucentCover = true, blendGapProbes = true,
             foregroundSurfaces = { listOf(SolidSurface(use, style.primary)) },
             requiredWallpaper = {
                 val bounds = checkNotNull(localRect(root, use))
                 val inset = HoyiUi.dp(host, 1).coerceAtLeast(1)
                 val x = listOf(bounds.left + inset, bounds.right - 1 - inset)
                 val y = listOf(bounds.top + inset, bounds.bottom - 1 - inset)
-                shieldCorners(root, toolbar) + y.flatMap { row -> x.map { Point(it, row) } }
+                y.flatMap { row -> x.map { Point(it, row) } }
             },
         ) { toolbar }
     }
@@ -647,6 +650,20 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 main { host.select(page) }
                 return visiblePage(host, "root:${page.name}")
             }
+            val home = go(TaskDestination.BREW)
+            await("short landscape home shows both native boiler switches above targets") {
+                listOf("brew", "steam").all { boiler ->
+                    val key = "product/home/$boiler-boiler"
+                    val power = home.findViewWithTag<HoyiSwitch>("$key/toggle") ?: return@all false
+                    val target = home.findViewWithTag<View>("$key/target") ?: return@all false
+                    val touch = HoyiUi.dp(host, 48)
+                    val hit = localRect(home, power) ?: return@all false
+                    val goal = localRect(home, target) ?: return@all false
+                    hit.width() >= touch && hit.height() >= touch && hit.bottom <= goal.top
+                }
+            }
+            val homeFrame = captureCommittedFrame(home)
+            try { writeScreenshot("landscape-home.png", homeFrame) } finally { homeFrame.recycle() }
             captureScalePage(host, go(TaskDestination.SCALE), "landscape-scale.png")
             captureCurvePage(host, go(TaskDestination.CURVES), "landscape-curve.png")
             val settings = go(TaskDestination.SETTINGS)
@@ -706,8 +723,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 visible.all(panel.bounds::contains)
             }) { "Expected one local rounded shield for $visible, got ${paper.roundedAreas}" }.bounds
         }
-        val brew = roundPanel(home("brew-boiler/pressure"), home("brew-boiler/toggle"))
-        val steam = roundPanel(home("steam-boiler/pressure"), home("steam-boiler/toggle"))
+        val brew = roundPanel(home("brew-boiler/pressure"))
+        val steam = roundPanel(home("steam-boiler/pressure"))
         val heading = roundPanel(home("quick-title"), home("preview-legend"))
         check(brew.right < steam.left && maxOf(brew.bottom, steam.bottom) <= heading.top) {
             "Boiler footers must not span both columns or the shortcut heading"
@@ -715,6 +732,12 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         fun dial(key: String): Rect {
             val column = home(key) as ViewGroup
             val dial = (0 until column.childCount).map(column::getChildAt).filterIsInstance<BoilerTemperatureDial>().single()
+            val power = home("$key/toggle") as HoyiSwitch
+            check(power.parent === dial)
+            val goal = dial.findViewWithTag<View>("product/home/$key/target")
+            check(goal != null && power.bottom <= goal.top) { "Boiler switch must remain above its target" }
+            val touch = (48 * root.resources.displayMetrics.density).toInt()
+            check(power.width >= touch && power.height >= touch && !power.contentDescription.isNullOrEmpty())
             return checkNotNull(localRect(root, dial))
         }
         val left = dial("brew-boiler")
@@ -793,6 +816,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         foregroundSurfaces: () -> List<SolidSurface> = { emptyList() },
         decorativeGuttersOf: (() -> View)? = null,
         nativeCoverFill: Int? = null,
+        translucentCover: Boolean = false,
+        blendGapProbes: Boolean = false,
         inventoryForeground: (() -> InventoryForeground)? = null,
         protectedView: () -> View,
     ) {
@@ -878,18 +903,27 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                             displayY in gutterNeighbor.top until gutterNeighbor.bottom && !gutterNeighbor.contains(displayX, displayY)
                         if (inDecorativeArea && againstFills(expected, backdropFills) && !cover.contains(displayX, displayY) &&
                             surfaces.none { (bounds, _) -> bounds.contains(displayX, displayY) }) photo += Pixel(displayX, displayY, expected)
-                        if (expected == backing && cover.contains(displayX, displayY)) protected += Pixel(displayX, displayY, expected)
+                        if (cover.contains(displayX, displayY) &&
+                            (expected == backing || translucentCover && paper.roundedAreas.any { area ->
+                                Color.alpha(area.fill) < 255 && area.bounds.contains(x, y) && area.clip.contains(x, y) &&
+                                    x >= area.bounds.left + area.radius && x < area.bounds.right - area.radius
+                            })) protected += Pixel(displayX, displayY, expected)
                     }
                     // Recreate the bare wallpaper. Any pixel already close to a permitted solid
                     // fill is ineligible, including for a separate native bubble, chart or card.
                     PageBackdrop(base, HoyiUi.dark(page)).apply {
                         snapshot = paper.snapshot
+                        photoBounds = paper.photoBounds
                         protectedAreas = emptyList()
                         setBounds(0, 0, root.width, root.height)
                         draw(Canvas(bitmap))
                     }
                     fun contrast(x: Int, y: Int) = againstFills(bitmap.getPixel(x, y), solidColors)
-                    val verifiedProtection = protected.filter { pixel -> contrast(pixel.x - start[0], pixel.y - start[1]) }
+                    val verifiedProtection = protected.filter { pixel ->
+                        val x = pixel.x - start[0]
+                        val y = pixel.y - start[1]
+                        contrast(x, y) && (!translucentCover || distance(bitmap.getPixel(x, y), pixel.color) >= matchTolerance)
+                    }
                     // Each native view has an explicit fill; a nearby swatch from another
                     // plane must not make this own surface look protected.
                     val nativeProtection = surfaces.map { (bounds, fill) ->
@@ -904,16 +938,26 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         }
                         Protection(points, expectedFills)
                     }
-                    val gaps = requiredWallpaper { band ->
+                    val gapPositions = requiredWallpaper { band ->
                         stableGapSample(band, bitmap, contrastThreshold, backdropFills, ::distance)
-                    }.map { point ->
+                    }
+                    if (blendGapProbes) {
+                        val bare = gapPositions.map { bitmap.getPixel(it.x, it.y) }
+                        paper.draw(Canvas(bitmap))
+                        requirePixelEvidence(gapPositions.indices.any { index ->
+                            val point = gapPositions[index]
+                            val blend = bitmap.getPixel(point.x, point.y)
+                            distance(blend, bare[index]) >= matchTolerance && againstFills(blend, solidColors)
+                        }) { "$name action corners should still carry a non-solid photo blend" }
+                    }
+                    val gaps = gapPositions.map { point ->
                         Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
                     }
                     requirePixelEvidence(gaps.isEmpty() || gaps.count { againstFills(it.color, backdropFills) } >= minOf(2, (gaps.size + 1) / 2)) {
                         "$name needs contrast-sensitive wallpaper samples outside the rounded surfaces: " +
                             "gaps=$gaps fills=$backdropFills"
                     }
-                    val protection = (if (nativeCoverFill != null) emptyList() else listOf(Protection(verifiedProtection, solidColors))) +
+                    val protection = (if (nativeCoverFill != null) emptyList() else listOf(Protection(verifiedProtection, if (translucentCover) emptySet() else solidColors))) +
                         nativeProtection
                     requirePixelEvidence(photo.size >= 5 && protection.all { it.points.size >= 5 }) {
                         "$name needs at least five decorative and five contrast-sensitive probes per protected surface " +
@@ -944,7 +988,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 val artVisible = exposed.count { probe -> sample(probe)?.let { matches(it, probe.color) } == true }
                 val solidCounts = protection.map { region ->
                     region.points.count { probe ->
-                        sample(probe)?.let { ink -> region.expectedFills.any { matches(ink, it) } } == true
+                        sample(probe)?.let { ink -> if (region.expectedFills.isEmpty()) matches(ink, probe.color) else region.expectedFills.any { matches(ink, it) } } == true
                     }
                 }
                 val unmatchedGaps = wallpaperGaps.mapNotNull { probe ->

@@ -19,7 +19,7 @@ import android.widget.AbsListView
 import android.widget.TextView
 import kotlin.math.roundToInt
 
-/** A drawable on the page's own root. Shell, system bars and controls keep their own surfaces. */
+/** Renders a page or app navigation surface; system bars remain independent. */
 internal class PageBackdrop(private val base: Int, private val dark: Boolean) : Drawable() {
     var snapshot = BackgroundSnapshot(AppBackgroundConfig())
         set(value) { field = value; invalidateSelf() }
@@ -28,6 +28,8 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
     var roundedAreas: List<RoundedBackdropArea> = emptyList()
         set(value) { if (field != value) { field = value; invalidateSelf() } }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    var photoBounds: (() -> Rect?)? = null
+    var photoScrim: Int? = null
     private val crop = Rect()
     private var gradient: Shader? = null
     private var gradientChoice: AppBackground? = null
@@ -43,13 +45,21 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
         paint.alpha = (snapshot.config.strength * 255f / 100f).roundToInt()
         if (choice is AppBackground.Photo && !bounds.isEmpty) {
             snapshot.image?.let { image ->
-                val scale = maxOf(bounds.width().toFloat() / image.width, bounds.height().toFloat() / image.height)
-                val width = (bounds.width() / scale).roundToInt().coerceIn(1, image.width)
-                val height = (bounds.height() / scale).roundToInt().coerceIn(1, image.height)
+                val destination = photoBounds?.invoke()?.takeUnless { it.isEmpty } ?: bounds
+                val scale = maxOf(destination.width().toFloat() / image.width, destination.height().toFloat() / image.height)
+                val width = (destination.width() / scale).roundToInt().coerceIn(1, image.width)
+                val height = (destination.height() / scale).roundToInt().coerceIn(1, image.height)
                 val left = (image.width - width) / 2
                 val top = (image.height - height) / 2
                 crop.set(left, top, left + width, top + height)
-                canvas.drawBitmap(image, crop, bounds, paint)
+                val save = canvas.save()
+                canvas.clipRect(bounds)
+                canvas.drawBitmap(image, crop, destination, paint)
+                canvas.restoreToCount(save)
+                photoScrim?.let {
+                    paint.color = it
+                    canvas.drawRect(bounds, paint)
+                }
             }
         } else if (choice == AppBackground.Mist || choice == AppBackground.Slate) {
             if (gradient == null || gradientChoice != choice) {
@@ -93,6 +103,7 @@ private object OwnBackdropTreatment
 private data class RoundedBackdropMark(
     val fill: Int, val radius: Float, val group: Any?, val horizontalOutset: Int,
     val horizontalBounds: View?, val leaveBottomPaddingVisible: Boolean, val clipContent: Boolean,
+    val photoFill: Int?, val photoOnly: Boolean,
 )
 
 private data class BackdropProtection(
@@ -114,10 +125,11 @@ internal fun View.protectBackdropContent(
 internal fun View.protectRoundedBackdropContent(
     fill: Int, radius: Int, group: Any? = null, horizontalOutset: Int = 0,
     horizontalBounds: View? = null, leaveBottomPaddingVisible: Boolean = false, clipContent: Boolean = false,
+    photoFill: Int? = null, photoOnly: Boolean = false,
 ) {
     require(!clipContent || group == null && horizontalBounds == null && horizontalOutset == 0 && !leaveBottomPaddingVisible)
     setTag(R.id.page_backdrop_content, RoundedBackdropMark(fill, radius.toFloat(), group, horizontalOutset,
-        horizontalBounds, leaveBottomPaddingVisible, clipContent))
+        horizontalBounds, leaveBottomPaddingVisible, clipContent, photoFill, photoOnly))
 }
 
 /** A native surface or translucent overlay supplies its own contrast treatment, including its labels. */
@@ -125,9 +137,13 @@ internal fun View.keepOwnBackdropTreatment() {
     setTag(R.id.page_backdrop_content, OwnBackdropTreatment)
 }
 
-internal fun ThemedActivity.installPageBackdrop(view: View, base: Int) {
-    PageBackdropBinding(view, base, HoyiUi.dark(this), (application as MobileApplication).pageBackgrounds)
+internal fun ThemedActivity.installPageBackdrop(view: View, base: Int, navigation: Boolean = false) {
+    PageBackdropBinding(view, base, HoyiUi.dark(this), (application as MobileApplication).pageBackgrounds,
+        navigation = navigation)
 }
+
+internal fun wallpaperTint(color: Int, alpha: Int = 96): Int =
+    (color and 0x00ffffff) or (alpha shl 24)
 
 /** A page-local geometry layer only: never changes child padding, backgrounds, input or navigation.
  * Explicit content panes and existing opaque surfaces take precedence. Bare labels are protected
@@ -139,10 +155,23 @@ internal class PageBackdropBinding(
     dark: Boolean,
     private val store: AppBackgroundStore? = null,
     private val preview: (() -> BackgroundSnapshot?)? = null,
+    private val navigation: Boolean = false,
 ) : View.OnAttachStateChangeListener, ViewTreeObserver.OnGlobalLayoutListener,
     ViewTreeObserver.OnScrollChangedListener {
     private val original = root.background
-    private val paper = PageBackdrop(base, dark)
+    private val paper = PageBackdrop(base, dark).apply {
+        if (navigation) photoScrim = wallpaperTint(base)
+        if (preview == null) photoBounds = photoBounds@{
+            var ancestor = root.parent
+            while (ancestor is View && ancestor !is TaskPageFrame) ancestor = ancestor.parent
+            val frame = ancestor as? TaskPageFrame ?: return@photoBounds null
+            val origin = IntArray(2).also(root::getLocationInWindow)
+            val parentOrigin = IntArray(2).also(frame::getLocationInWindow)
+            val left = parentOrigin[0] - origin[0]
+            val top = parentOrigin[1] - origin[1]
+            Rect(left, top, left + frame.width, top + frame.height)
+        }
+    }
     private val solid = BackgroundSnapshot(AppBackgroundConfig())
     private var stop: (() -> Unit)? = null
     private var regionsIn: ViewTreeObserver? = null
@@ -169,7 +198,8 @@ internal class PageBackdropBinding(
     }
 
     fun show(snapshot: BackgroundSnapshot) {
-        val active = snapshot.config.choice != AppBackground.Solid &&
+        val active = (!navigation || snapshot.config.choice is AppBackground.Photo) &&
+            snapshot.config.choice != AppBackground.Solid &&
             (snapshot.config.choice !is AppBackground.Photo || snapshot.image != null)
         if (!active) {
             unbindRegions()
@@ -212,6 +242,11 @@ internal class PageBackdropBinding(
 
     private fun updateRegions() {
         if (root.background !== paper) return
+        if (navigation) {
+            paper.protectedAreas = emptyList()
+            paper.invalidateSelf()
+            return
+        }
         val position = Point()
         if (!root.getGlobalVisibleRect(Rect(), position)) return
         // View.getGlobalVisibleRect includes the root's own scroll, whereas View draws
@@ -274,7 +309,7 @@ internal class PageBackdropBinding(
                 }
                 view.clipToOutline = true
             }
-            val area = RoundedBackdropArea(bounds, clip, mark.radius, mark.fill)
+            val area = RoundedBackdropArea(bounds, clip, mark.radius, if (paper.snapshot.config.choice is AppBackground.Photo) mark.photoFill ?: mark.fill else mark.fill)
             val group = mark.group
             if (group == null) rounded += area else roundedGroups[group]?.let {
                 it.bounds.union(bounds)
@@ -290,7 +325,9 @@ internal class PageBackdropBinding(
                 when (val mark = view.getTag(R.id.page_backdrop_content)) {
                     OwnBackdropTreatment -> return
                     is BackdropProtection -> { protect(view, mark); return }
-                    is RoundedBackdropMark -> { protectRounded(view, mark); return }
+                    is RoundedBackdropMark -> if (!mark.photoOnly || paper.snapshot.config.choice is AppBackground.Photo) {
+                        protectRounded(view, mark); return
+                    }
                 }
                 if (view is AbsListView ||
                     view is BoilerTemperatureDial || view is CurveStageView || view is CurveLibrarySparklineView ||
@@ -326,4 +363,22 @@ internal class PageBackdropBinding(
         paper.protectedAreas = exact + groups.values + continuous
         paper.roundedAreas = rounded + roundedGroups.values
     }
+}
+
+/** Preserve an outlined panel's shape, padding and default-theme drawable when no photo is used. */
+internal fun View.tintPanelForWallpaper(store: AppBackgroundStore, tinted: Drawable) {
+    val original = background
+    var stop: (() -> Unit)? = null
+    addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(v: View) {
+            stop = store.observe { snapshot ->
+                val next = if (snapshot.config.choice is AppBackground.Photo && snapshot.image != null) tinted else original
+                if (background !== next) background = next
+            }
+        }
+        override fun onViewDetachedFromWindow(v: View) {
+            stop?.invoke()
+            stop = null
+        }
+    })
 }
