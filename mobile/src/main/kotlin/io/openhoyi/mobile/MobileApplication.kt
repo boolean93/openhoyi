@@ -128,6 +128,9 @@ class MobileApplication : Application() {
 
     private val shotReviewOwner = lazy { AppShotReview(this) }
     internal val shotReviews get() = shotReviewOwner.value
+    internal fun updateShotReviewRetention(ids: Set<String>) {
+        if (shotReviewOwner.isInitialized() && !BuildConfig.MOCK_MODE) shotReviews.updateRetained(ids)
+    }
     internal fun shotReviewConfig(): ShotReviewConfig? =
         if (shotReviewOwner.isInitialized()) shotReviews.config(languagePreferences.current) else null
 

@@ -6,4 +6,5 @@
     <string name="shot_review_ready">AI 萃取评价：%1$s</string>
     <string name="shot_review_failed">未获得 AI 萃取评价。</string>
     <string name="shot_review_unknown">AI 评价结果未确认，不会自动重试。</string>
+    <string name="shot_review_revoke_failed">未能保存关闭设置。当前已暂停评价；为避免重启后继续发送，请重试关闭，或删除保存的 API 密钥。</string>
 </resources>

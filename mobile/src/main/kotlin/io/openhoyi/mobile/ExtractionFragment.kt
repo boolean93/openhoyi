@@ -53,6 +53,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var deviceSummary: TextView
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
+    private lateinit var automaticReview: TextView
+    private var automaticReviewId: String? = null
+    private var unbindAutomaticReview: (() -> Unit)? = null
     private lateinit var chooseCurve: Button
     private lateinit var connectDevices: Button
     private lateinit var chooseBeans: Button
@@ -197,6 +200,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         readiness = text(content, getString(R.string.extraction_waiting_service), 14, true).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
+        automaticReview = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/automatic-shot-review").apply {
+            visibility = View.GONE
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        style.add(content, automaticReview)
         val workspace = TaskExtractionWorkspace(host, visual)
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 0 })
         val plotColumn = workspace.primaryBody
@@ -562,6 +572,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         outState.putInt(PresetSlots.EXTRA_SLOT,presetSlot)
         super.onSaveInstanceState(outState)
     }
+    override fun onDestroyView() {
+        unbindAutomaticReview?.invoke()
+        unbindAutomaticReview = null
+        automaticReviewId = null
+        super.onDestroyView()
+    }
+
     private fun render() {
         if (!::readiness.isInitialized) return
         feedbackUi.update(service, visible)
@@ -637,6 +654,12 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             state == ExtractionState.OUTCOME_UNKNOWN -> getString(R.string.extraction_unknown_guidance)
             state == ExtractionState.ENDED_OBSERVED -> getString(R.string.extraction_ended_guidance)
             else -> owner?.machineControlSafetyMessage ?: blocked ?: studioBlocked ?: getString(R.string.extraction_ready_guidance)
+        }
+        val reviewId = owner?.chartTraceIdentity?.takeIf { observedCup && !active && owner.manualShotActive != true }
+        if (reviewId != automaticReviewId) {
+            unbindAutomaticReview?.invoke()
+            unbindAutomaticReview = reviewId?.let { (application as MobileApplication).shotReviews.bind(automaticReview, it) }
+            automaticReviewId = reviewId
         }
         readiness.show(guidance + unknownAdvice)
         // Only ordinary, complete guidance shares the compact chrome. Every warning keeps its full row.

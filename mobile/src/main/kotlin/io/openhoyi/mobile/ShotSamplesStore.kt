@@ -238,7 +238,11 @@ class ShotSamplesRepository(directory: File, private val onError: (Throwable) ->
                 onError(error)
                 return@execute
             }
-            if (pending.remove(id, latest)) onPersisted?.invoke(latest.points)
+            if (pending.remove(id, latest) && onPersisted != null) {
+                // The original snapshot may include optional beverage evidence whose foreign
+                // sidecar prevented replacement. Only offer what the store can actually decode.
+                try { onPersisted(store.load(id)) } catch (error: Exception) { onError(error) }
+            }
         }
     }
     fun load(id: String): List<ShotPoint> = pending[id]?.points ?: store.load(id)
