@@ -75,7 +75,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private var lastCurveDirty = true
     private var previousCupActive = false
     private lateinit var quickRow: LinearLayout
-    private var compactQuickHeading: View? = null
     private lateinit var brewPressure: TextView
     private lateinit var steamTemperature: TextView
     private lateinit var steamPressure: TextView
@@ -139,7 +138,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
         boilerDials.clear()
         boilerExceptions.clear()
-        compactQuickHeading = null
         feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
@@ -251,8 +249,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             visibility = View.GONE
         }
         machineModes = MachineModeControls(host, ::changeMachineMode).apply { preserveHomeBackdrop() }
-        // Landscape modes share the quick-heading row instead of reserving another
-        // 48dp row for a machine title already present in the navigation rail.
+        // Landscape mode controls live immediately above the shortcut cards.
         val machineRow = if (!phoneHome) machineHeading.apply {
             tag = "product/home/machine-status"
         } else MachineModeHeader(host, machineHeading, machineModes)
@@ -342,62 +339,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply {
             marginStart = -shortcutOutset; marginEnd = -shortcutOutset
         })
-        val previewLegend=productStyle.text("",TaskProductVisualStyle.Type(12,400,20),"product/home/preview-legend").apply {
-            val pressure="━ " + getString(R.string.home_shortcut_pressure_key)
-            val flow="━ " + getString(R.string.home_shortcut_flow_key)
-            fun inks(pressureColor: Int, flowColor: Int) = android.text.SpannableString("$pressure    $flow").apply {
-                setSpan(android.text.style.ForegroundColorSpan(pressureColor), 0, pressure.length, 0)
-                setSpan(android.text.style.ForegroundColorSpan(flowColor), pressure.length + 4, length, 0)
-            }
-            val standard = inks(productStyle.pressure, productStyle.flowMetric)
-            // Keep legend blue/teal readable over the entire permitted photo strength
-            // without changing chart colors or putting a full row behind the text.
-            val onWallpaper = if (HoyiUi.dark(host)) inks(0xffd3e5ff.toInt(), 0xffc4f2ec.toInt())
-                else inks(0xff0a3d84.toInt(), 0xff004542.toInt())
-            text = standard
-            observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { enabled ->
-                val next = if (enabled) onWallpaper else standard
-                if (text !== next) text = next
-            }
-            contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
-        }
-        val quickTitle = productStyle.text(getString(R.string.home_quick_curves),
-            TaskProductVisualStyle.Type(if (shortHome || phoneHome) 18 else 22, 700, if (shortHome || phoneHome) 25 else 30), "product/home/quick-title")
-        val titleGroup = productStyle.row("product/home/shortcut-heading").apply {
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            if (!phoneHome && !shortHome) setPaddingRelative(dp(5), 0, 0, 0)
-            addView(quickTitle, LinearLayout.LayoutParams(-2, -2))
-        }
-        val previewHeading = object : LinearLayout(host) {
-            init {
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                addView(titleGroup)
-                addView(previewLegend)
-            }
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                quickTitle.measure(natural, natural); previewLegend.measure(natural, natural)
-                val titleNaturalWidth = quickTitle.measuredWidth + titleGroup.paddingStart
-                val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
-                    titleNaturalWidth + previewLegend.measuredWidth + dp(16) > View.MeasureSpec.getSize(widthMeasureSpec)
-                orientation = if (stacked) VERTICAL else HORIZONTAL
-                val titleWidth = if (stacked) -1 else 0
-                val titleWeight = if (stacked) 0f else 1f
-                val titleParams = titleGroup.layoutParams as LayoutParams
-                if (titleParams.width != titleWidth || titleParams.weight != titleWeight)
-                    titleGroup.layoutParams = LayoutParams(titleWidth, -2, titleWeight)
-                val legendWidth = if (stacked) -1 else -2
-                if (previewLegend.layoutParams.width != legendWidth) previewLegend.layoutParams = LayoutParams(legendWidth, -2)
-                previewLegend.gravity = if (stacked) android.view.Gravity.START else android.view.Gravity.END
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-            }
-        }
-        previewHeading.protectRoundedBackdropContent(productStyle.surface, dp(10), horizontalOutset = dp(5), omitForPhoto = true)
         if (!phoneHome) {
-            // Modes remain visible (and safety-gated) while quick actions hide for an
-            // active cup. Reusing this row avoids adding a 48dp header to a 284dp viewport.
-            previewHeading.tag = "product/home/compact-quick-heading"
-            compactQuickHeading = previewHeading
             val modeGroup = productStyle.row("product/home/compact-mode-group").apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 addView(productStyle.text(getString(R.string.machine_mode_title), TaskProductVisualStyle.auxiliary).apply {
@@ -405,36 +347,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
                 addView(machineModes, LinearLayout.LayoutParams(-2, -2))
             }
-            val sharedHeading = object : LinearLayout(host) {
-                init {
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    isBaselineAligned = false
-                    addView(previewHeading, LayoutParams(0, -2, 1f))
-                    addView(modeGroup, LayoutParams(-2, -2))
-                }
-                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                    val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                    previewHeading.measure(natural, natural); modeGroup.measure(natural, natural)
-                    val previewWidth = if (previewHeading.visibility == View.GONE) 0 else previewHeading.measuredWidth
-                    val gap = if (previewHeading.visibility == View.GONE) 0 else dp(16)
-                    val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
-                        previewWidth + modeGroup.measuredWidth + gap > View.MeasureSpec.getSize(widthMeasureSpec)
-                    orientation = if (stacked) VERTICAL else HORIZONTAL
-                    (previewHeading.layoutParams as LayoutParams).apply {
-                        width = if (stacked) -1 else 0; weight = if (stacked) 0f else 1f
-                    }
-                    (modeGroup.layoutParams as LayoutParams).apply {
-                        width = if (stacked) -1 else -2; marginStart = if (stacked) 0 else gap
-                        resolveLayoutDirection(layoutDirection)
-                    }
-                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-                }
-            }
-            content.addView(sharedHeading, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-1, -2).apply {
+            content.addView(modeGroup, content.indexOfChild(quickRow), LinearLayout.LayoutParams(-2, -2).apply {
+                gravity = android.view.Gravity.END
                 marginStart = -shortcutOutset; marginEnd = -shortcutOutset
             })
-        } else {
-            quickRow.addView(previewHeading, LinearLayout.LayoutParams(-1, -2))
         }
         directPresets = HomePresetGrid(host, productStyle, phoneHome, shortHome, onSlotClick = { slot ->
             if (slot == 0) MachineLeverRecipeUi.details(host) else host.openShortcut(slot)
@@ -1009,7 +925,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
-        compactQuickHeading?.visibility = quickRow.visibility
         if (!cupActive && (lastCurveDirty || previousCupActive)) {
             showLastCurve(resolveLastCurve())
             lastCurveDirty = false

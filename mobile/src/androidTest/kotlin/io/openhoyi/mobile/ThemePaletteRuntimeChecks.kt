@@ -13,8 +13,6 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.os.SystemClock
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.View
 import android.view.ContextThemeWrapper
@@ -322,14 +320,11 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
             main { darkPreview.getButton(AlertDialog.BUTTON_NEGATIVE).performClick() }
             waitFor("dark preview dismissed") { Unit.takeUnless { darkPreview.isShowing } }
             main { screen.select(TaskDestination.BREW) }
-            waitFor("live Home flow legend") {
+            waitFor("live Home shortcuts without redundant legend") {
                 val group = screen.supportFragmentManager.findFragmentByTag("root:BREW")?.view
-                val label = group?.findViewWithTag<TextView>("product/home/preview-legend")
-                val text = label?.text as? Spanned
-                if (text != null) {
-                    val colors = text.getSpans(0, text.length, ForegroundColorSpan::class.java).map { it.foregroundColor }
-                    val style = TaskProductVisualStyle(screen)
-                    check(colors.size == 2 && colors.toSet() == setOf(style.pressure, style.flowMetric))
+                val shortcuts = group?.findViewWithTag<View>("product/home/direct-presets")
+                if (shortcuts?.isShown == true) {
+                    check(group?.findViewWithTag<View>("product/home/preview-legend") == null)
                     Unit
                 } else null
             }

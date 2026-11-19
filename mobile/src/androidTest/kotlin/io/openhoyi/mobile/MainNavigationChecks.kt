@@ -102,14 +102,11 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             check(!Rect.intersects(bounds.getValue("machine-mode/control"), bounds.getValue("machine-mode/logic"))) {
                 "Machine mode switches overlap"
             }
-            if (!activeCup) {
-                val quickHeading = requireNotNull(root.findViewWithTag<View>("product/home/compact-quick-heading"))
-                val modes = requireNotNull(root.findViewWithTag<View>("product/home/compact-mode-group"))
-                val quickRect = Rect(); val modeRect = Rect()
-                check(quickHeading.getGlobalVisibleRect(quickRect) && modes.getGlobalVisibleRect(modeRect))
-                if (quickRect.top < modeRect.bottom && modeRect.top < quickRect.bottom)
-                    check(modeRect.left - quickRect.right >= 16 * density - 1) { "Compact heading groups lost their 16dp gap: $quickRect / $modeRect" }
-            }
+            check(root.findViewWithTag<View>("product/home/quick-title") == null)
+            check(root.findViewWithTag<View>("product/home/preview-legend") == null)
+            val modeGroup = requireNotNull(root.findViewWithTag<View>("product/home/compact-mode-group"))
+            val quickRow = requireNotNull(root.findViewWithTag<View>("product/home/quick-extraction"))
+            check(modeGroup.isShown && quickRow.isShown == !activeCup)
             val isolatedModes = MachineModeControls(activity) { error("No writes in label stability check") }
             isolatedModes.render(null)
             isolatedModes.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.AT_MOST),

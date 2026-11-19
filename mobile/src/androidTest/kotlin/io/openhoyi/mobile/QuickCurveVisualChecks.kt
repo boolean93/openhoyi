@@ -122,6 +122,8 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
             SystemClock.sleep(300)
             val proof = main {
                 val root = page.active("root:BREW").requireView()
+                check(root.findViewWithTag<View>("product/home/quick-title") == null &&
+                    root.findViewWithTag<View>("product/home/preview-legend") == null)
                 val density = host.resources.displayMetrics.density
                 val portrait = host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                 if (!portrait) {
