@@ -50,7 +50,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             field.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
             addView(field)
         }
-        heading.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        heading.typeface = Typeface.create("sans-serif", Typeface.BOLD)
         value.typeface = Typeface.create("sans-serif", Typeface.BOLD)
         target.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         pressure.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
@@ -73,13 +73,17 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             if (field.textSize != px) field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px)
             field.measure(exact((diameter * width).roundToInt()), exact((diameter * height).roundToInt()))
         }
-        set(heading, .70f, .10f, .066f)
-        set(value, .77f, .20f, .162f)
-        set(target, .64f, .10f, .057f)
-        set(pressure, .62f, .10f, .057f)
+        set(heading, .70f, .11f, .074f)
+        set(value, .78f, .20f, .167f)
+        set(target, .64f, .105f, .067f)
+        set(pressure, .58f, .108f, .071f)
         power.setDialDiameter(diameter)
         val bottomPadding = (diameter * .013f).roundToInt()
-        if (power.paddingBottom != bottomPadding) power.setPaddingRelative(0, 0, 0, bottomPadding)
+        // Native Switch lays its ink against END even without a label. Center the smaller
+        // track inside the full-size touch target without translating the control itself.
+        val endPadding = (touch - power.switchMinWidth).coerceAtLeast(0) / 2
+        if (power.paddingBottom != bottomPadding || power.paddingEnd != endPadding)
+            power.setPaddingRelative(0, 0, endPadding, bottomPadding)
         power.measure(exact(touch), exact(touch))
     }
 
@@ -90,12 +94,12 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             val t = (height * y - view.measuredHeight / 2f).roundToInt()
             view.layout(x, t, x + view.measuredWidth, t + view.measuredHeight)
         }
-        at(heading, .29f)
+        at(heading, .295f)
         at(value, .442f)
-        at(target, .721f)
+        at(target, .736f)
         val x = (width - power.measuredWidth) / 2
         power.layout(x, target.top - touch, x + power.measuredWidth, target.top)
-        at(pressure, .855f)
+        at(pressure, .864f)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -122,7 +126,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         }
         for (step in -12..12) {
             val angle = Math.toRadians(270.0 + step * 10)
-            val major = step % 4 == 0
+            val major = step == 0 || kotlin.math.abs(step) == 9
             val outer = d * .409f
             val inner = outer - d * (if (major) .026f else .017f)
             paint.color = if (major) ink else marks
@@ -130,11 +134,17 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             val x = cos(angle).toFloat(); val y = sin(angle).toFloat()
             canvas.drawLine(c + x * inner, c + y * inner, c + x * outer, c + y * outer, paint)
         }
+        paint.color = ink; paint.strokeWidth = d * .0055f
+        for (step in listOf(-45, 45)) {
+            val angle = Math.toRadians(270.0 + step)
+            val x = cos(angle).toFloat(); val y = sin(angle).toFloat()
+            canvas.drawLine(c + x * d * .383f, c + y * d * .383f, c + x * d * .409f, c + y * d * .409f, paint)
+        }
         paint.color = marks; paint.strokeWidth = d * .004f
-        canvas.drawLine(d * .255f, d * .782f, d * .745f, d * .782f, paint)
+        canvas.drawLine(d * .255f, d * .799f, d * .745f, d * .799f, paint)
         canvas.save()
-        canvas.translate(c - d * .055f, d * .148f)
-        canvas.scale(d * .11f / 100f, d * .11f / 100f)
+        canvas.translate(c - d * .061f, d * (if (steam) .138f else .147f))
+        canvas.scale(d * .122f / 100f, d * .122f / 100f)
         paint.color = if (dark) style.homeDialProgress else 0xff08602b.toInt()
         paint.strokeWidth = 8f; paint.strokeJoin = Paint.Join.ROUND
         if (steam) {
