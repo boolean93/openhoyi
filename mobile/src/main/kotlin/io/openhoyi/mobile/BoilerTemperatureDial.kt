@@ -25,7 +25,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private val style = TaskProductVisualStyle(context)
     private val dark = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
     private val ink = if (dark) style.homeDialInk else Color.rgb(10, 30, 19)
-    private val marks = if (dark) Color.rgb(129, 155, 143) else Color.rgb(159, 179, 150)
+    private val marks = if (dark) Color.rgb(129, 155, 143) else Color.rgb(160, 182, 149)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bounds = RectF()
     private val icon = Path()
@@ -53,7 +53,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         value.typeface = Typeface.create("sans-serif", Typeface.BOLD)
         target.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         pressure.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-        power.gravity = Gravity.CENTER
+        power.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         power.setPaddingRelative(0, 0, 0, 0)
         addView(power)
     }
@@ -76,6 +76,9 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         set(value, .77f, .17f, .162f)
         set(target, .64f, .10f, .057f)
         set(pressure, .62f, .10f, .057f)
+        power.setDialDiameter(diameter)
+        val bottomPadding = (diameter * .013f).roundToInt()
+        if (power.paddingBottom != bottomPadding) power.setPaddingRelative(0, 0, 0, bottomPadding)
         power.measure(exact(touch), exact(touch))
     }
 
@@ -88,8 +91,9 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         }
         at(heading, .29f)
         at(value, .442f)
-        at(power, .608f)
         at(target, .721f)
+        val x = (width - power.measuredWidth) / 2
+        power.layout(x, target.top - touch, x + power.measuredWidth, target.top)
         at(pressure, .855f)
     }
 
@@ -100,7 +104,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         // Face, rim and arc: reference face is ~96%, arc center radius ~44%.
         paint.style = Paint.Style.FILL
         paint.shader = LinearGradient(0f, 0f, 0f, d,
-            if (dark) intArrayOf(style.surface, style.homePage) else intArrayOf(0xfffdfcf9.toInt(), 0xfffbf9f5.toInt()),
+            if (dark) intArrayOf(style.surface, style.homePage) else intArrayOf(0xfffdfbf8.toInt(), 0xfffcfaf7.toInt()),
             null, Shader.TileMode.CLAMP)
         canvas.drawCircle(c, c, d * .481f, paint)
         paint.shader = null

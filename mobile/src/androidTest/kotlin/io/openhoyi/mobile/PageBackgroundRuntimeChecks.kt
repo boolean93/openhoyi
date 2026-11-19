@@ -723,26 +723,27 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 visible.all(panel.bounds::contains)
             }) { "Expected one local rounded shield for $visible, got ${paper.roundedAreas}" }.bounds
         }
-        val brew = roundPanel(home("brew-boiler/pressure"))
-        val steam = roundPanel(home("steam-boiler/pressure"))
         val heading = roundPanel(home("quick-title"), home("preview-legend"))
-        check(brew.right < steam.left && maxOf(brew.bottom, steam.bottom) <= heading.top) {
-            "Boiler footers must not span both columns or the shortcut heading"
-        }
         fun dial(key: String): Rect {
             val column = home(key) as ViewGroup
             val dial = (0 until column.childCount).map(column::getChildAt).filterIsInstance<BoilerTemperatureDial>().single()
             val power = home("$key/toggle") as HoyiSwitch
             check(power.parent === dial)
+            val pressure = home("$key/pressure")
+            check(pressure.parent === dial && pressure.bottom <= dial.height) {
+                "Pressure must remain inside the boiler face"
+            }
             val goal = dial.findViewWithTag<View>("product/home/$key/target")
-            check(goal != null && power.bottom <= goal.top) { "Boiler switch must remain above its target" }
+            check(goal != null && power.bottom <= goal.top && goal.bottom < pressure.top) {
+                "Switch, target and pressure must remain distinct within the dial"
+            }
             val touch = (48 * root.resources.displayMetrics.density).toInt()
             check(power.width >= touch && power.height >= touch && !power.contentDescription.isNullOrEmpty())
             return checkNotNull(localRect(root, dial))
         }
         val left = dial("brew-boiler")
         val right = dial("steam-boiler")
-        check(left.right < right.left)
+        check(left.right < right.left && maxOf(left.bottom, right.bottom) <= heading.top)
         fun corner(dial: Rect, fromLeft: Boolean) = Point(
             if (fromLeft) dial.left + dial.width() / 11 else dial.right - dial.width() / 11,
             dial.top + dial.height() / 11,
@@ -758,7 +759,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         }
         return buildList {
             addAll(listOf(corner(left, true), corner(left, false), corner(right, true), corner(right, false),
-                sampleGap(intercolumn(left, right)), sampleGap(intercolumn(brew, steam))))
+                sampleGap(intercolumn(left, right))))
             val control = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/control")))
             val logic = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/logic")))
             if (control.right < logic.left && control.centerY() in logic.top until logic.bottom) {
