@@ -25,6 +25,13 @@ class AiChatPendingDraftTest {
         assertEquals("retry me", state.restore())
     }
 
+    @Test fun failedCompactionRestoresQuestionWithoutDiscardingNewComposerText() {
+        val state = AiChatPendingDraft()
+        assertTrue(state.begin("first question"))
+        assertEquals("first question\n\nnext draft", state.restore("next draft"))
+        assertNull(state.pending)
+    }
+
     @Test fun conversationSwitchDiscardsPendingAndBlankOrRepeatedSendCannotStart() {
         val state = AiChatPendingDraft()
         assertFalse(state.begin(" \n "))

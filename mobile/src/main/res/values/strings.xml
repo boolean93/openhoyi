@@ -1112,4 +1112,6 @@
     <string name="curve_editor_compensation_short">重量补偿</string>
     <string name="home_preset_full_name">曲线完整名称</string>
     <string name="machine_settings_schedule_every_day">每天</string>
+    <string name="ai_compaction_running">正在压缩对话，可继续输入，暂不能发送</string>
+    <string name="ai_compaction_saved">对话压缩完成</string>
 </resources>

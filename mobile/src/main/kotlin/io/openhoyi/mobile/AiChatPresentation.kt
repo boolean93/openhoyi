@@ -819,7 +819,7 @@ internal class AiChatPresentation(
         renderDraftImages(if (busy) emptyList() else attachments, draftImagesEnabled)
     }
 
-    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null) {
+    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null, allowDraftWhileBusy: Boolean = false) {
         currentModelId = AiModelPolicy.known(modelId).id
         this.busy = busy
         val cardActions = lines.filterNot { it.user }.flatMap { line ->
@@ -853,7 +853,7 @@ internal class AiChatPresentation(
         attachmentButton?.isEnabled = !busy && !attachmentBusy
         streamBaseStatus = statusText
         updateStreamPreview(streamSnapshot)
-        input.isEnabled = !busy && !attachmentBusy
+        input.isEnabled = (!busy || allowDraftWhileBusy) && !attachmentBusy
         send.isEnabled = !attachmentBusy
         send.contentDescription = context.getString(if (busy) R.string.ai_stop else R.string.ai_send)
         send.invalidate()

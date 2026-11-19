@@ -15,7 +15,12 @@ internal class AiChatPendingDraft {
 
     fun committed() { pending = null }
 
-    fun restore(): String? = pending?.also { draft = it; pending = null }
+    fun restore(nextDraft: String = ""): String? {
+        val question = pending ?: return null
+        draft = if (nextDraft.isEmpty()) question else "$question\n\n$nextDraft"
+        pending = null
+        return draft
+    }
 
     fun clear() { draft = ""; pending = null }
 }

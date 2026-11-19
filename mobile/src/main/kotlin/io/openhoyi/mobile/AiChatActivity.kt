@@ -85,6 +85,8 @@ class AiChatActivity : ThemedActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val requestDiagnostics by lazy { AiDiagnosticRecorder(record = { kind, fields -> (application as MobileApplication).logs.record(kind, fields) }) }
     private var diagnosticAttempt: AiDiagnosticRecorder.Attempt? = null
+    private enum class CompactionStatus { IDLE, RUNNING, SAVED, FAILED }
+    private var compactionStatus = CompactionStatus.IDLE
     private var retryProgress: AiRetryProgress? = null
     private var streamPreview = AiStreamPreview()
     private var request: Job? = null
@@ -620,6 +622,7 @@ class AiChatActivity : ThemedActivity() {
         }
     }
     private fun sendOrConfirm() {
+        if (busy || attachmentBusy) return
         val text = input.text.toString().ifBlank { if (memory.attachments.isNotEmpty()) getString(R.string.ai_attachment_question) else "" }
         if (!AiChatPolicy.accepts(memory.lines, text)) { memory.notice = if (text.length > AiChatPolicy.INPUT_CHARS || text.isBlank()) R.string.ai_input_limit else R.string.ai_storage_limit; render(); return }
         if (AiKeyStore(this).status() != AiKeyStatus.SAVED) {
@@ -660,6 +663,7 @@ class AiChatActivity : ThemedActivity() {
         if (busy || attachmentBusy || !AiChatPolicy.accepts(memory.lines, text) || !memory.submission.begin(text)) return
         cancelCurveProposal()
         busy = true
+        compactionStatus = CompactionStatus.IDLE
         streamPreview = AiStreamPreview()
         presentation.resetStreamPreview()
         val preview = streamPreview
@@ -718,9 +722,24 @@ class AiChatActivity : ThemedActivity() {
                             render()
                         }
                     }
+                }, onCompactionStarted = {
+                    if (token == generation) { compactionStatus = CompactionStatus.RUNNING; render() }
                 }) { compacted ->
                     if (token != generation || AiKeyStore(this@AiChatActivity).credentialEpoch() != memory.credentialEpoch) false
-                    else { cancelCurveProposal(); memory.contextGeneration++; memory.protocol = compacted; persistSession() }
+                    else {
+                        val previous = memory.protocol
+                        memory.protocol = compacted
+                        if (persistSession()) {
+                            cancelCurveProposal()
+                            memory.contextGeneration++
+                            compactionStatus = CompactionStatus.SAVED
+                            render()
+                            true
+                        } else {
+                            memory.protocol = previous
+                            false
+                        }
+                    }
                 }
                 if (token != generation) return@launch
                 memory.lines += AiChatLine(true, text, attachments)
@@ -728,6 +747,7 @@ class AiChatActivity : ThemedActivity() {
                 val proposalCard = coordinator?.pending(curveEpoch())?.let { runCatching { AiCurveCard.proposal(it) }.getOrNull() }
                 memory.lines += AiChatLine(false, result.text, curveCards = result.curveCards + listOfNotNull(proposalCard))
                 memory.submission.committed()
+                rememberInput()
                 preview.finish()
                 memory.attachments.clear(); memory.attachmentGeneration++
                 requestDiagnostics.succeeded(attempt)
@@ -783,6 +803,7 @@ class AiChatActivity : ThemedActivity() {
             } finally {
                 if (diagnosticAttempt === attempt) diagnosticAttempt = null
                 if (token == generation) {
+                    if (compactionStatus == CompactionStatus.RUNNING) compactionStatus = CompactionStatus.FAILED
                     restorePendingDraft()
                     busy = false; request = null; retryProgress = null
                     // Partial/safety/error results may keep display evidence, never a live save action.
@@ -811,6 +832,7 @@ class AiChatActivity : ThemedActivity() {
         // conversation changes clear it so another session never inherits partial content.
         if (preservePartial && busy) streamPreview.interrupt() else clearStreamPreview()
         retryProgress = null
+        compactionStatus = CompactionStatus.IDLE
         cancelCurveProposal()
         if (!busy) return
         diagnosticAttempt?.let(requestDiagnostics::cancelled); diagnosticAttempt = null
@@ -903,15 +925,22 @@ class AiChatActivity : ThemedActivity() {
             } else ""
             else -> ""
         }
+        val compactionMessage = when (compactionStatus) {
+            CompactionStatus.RUNNING -> getString(R.string.ai_compaction_running)
+            CompactionStatus.SAVED -> getString(R.string.ai_compaction_saved)
+            CompactionStatus.FAILED -> if (memory.notice == R.string.ai_compact_failed) "" else getString(R.string.ai_compact_failed)
+            CompactionStatus.IDLE -> ""
+        }
         val contextStatus = if (memory.protocol.coveredLines > 0) getString(R.string.ai_compacted, memory.protocol.coveredLines / 2) else ""
         val ocrStatus = memory.ocr.filter { record -> memory.attachments.any { it.id == record.original.id } }.joinToString("\n") {
             it.original.name + ": " + getString(ocrNotice(it.status)) + (it.pages?.let { count -> "\n" + getString(R.string.ai_ocr_reference, count, it.referenceInput ?: 0, it.referenceOutput ?: 0) } ?: "")
         }
-        presentation.render(memory.lines, memory.submission.pending ?: memory.draft, busy, listOf(statusText, contextStatus, ocrStatus).filter { it.isNotBlank() }.joinToString("\n"), memory.attachments, attachmentBusy, memory.protocol.modelId, memory.credentialEpoch, "${memory.credentialEpoch}:${memory.protocol.modelId}:${memory.contextGeneration}")
+        presentation.render(memory.lines, memory.submission.pending ?: memory.draft, busy, listOf(compactionMessage, statusText.takeUnless { compactionStatus == CompactionStatus.RUNNING && retryProgress == null }.orEmpty(), contextStatus, ocrStatus).filter { it.isNotBlank() }.joinToString("\n"), memory.attachments, attachmentBusy, memory.protocol.modelId, memory.credentialEpoch, "${memory.credentialEpoch}:${memory.protocol.modelId}:${memory.contextGeneration}",
+            allowDraftWhileBusy = compactionStatus == CompactionStatus.RUNNING || compactionStatus == CompactionStatus.SAVED)
         presentation.updateStreamPreview(streamPreview.snapshot())
     }
     private fun restorePendingDraft() {
-        val draft = memory.submission.restore() ?: return
+        val draft = memory.submission.restore(if (::input.isInitialized) input.text.toString() else "") ?: return
         if (::input.isInitialized) {
             input.setText(draft)
             input.setSelection(memory.selectionStart.coerceIn(0, draft.length), memory.selectionEnd.coerceIn(0, draft.length))
