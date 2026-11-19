@@ -27,6 +27,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var pageBackgroundChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
+    private var liveShortcutChecks = false
     private var shortcutTheme: Boolean? = null
     private var machineLeverRecipeChecks = false
     private var customShortcutChecks = false
@@ -128,6 +129,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         machineLeverRecipeChecks = arguments?.getString("machineLeverRecipeChecks") == "true"
         liveScaleReadoutChecks = arguments?.getString("liveScaleReadoutChecks") == "true"
         shortcutDirectStartChecks = arguments?.getString("shortcutDirectStartChecks") == "true"
+        liveShortcutChecks = arguments?.getString("liveShortcutChecks") == "true"
         shortcutTheme = arguments?.getString("shortcutTheme")?.let {
             require(it in setOf("light", "dark")); it == "dark"
         }
@@ -194,6 +196,11 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (unifiedSwitchChecks) {
                 UnifiedSwitchChecks(this).run()
                 report.putString("stream", "UNIFIED_SWITCH_PASSED lightDark=true states=true rtl=true rejectedSave=true restoration=true repeated=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (liveShortcutChecks) {
+                LiveShortcutWindowChecks(this).run()
+                report.putString("stream", "LIVE_SHORTCUT_WINDOW_PASSED exactSlot=true staleSelectionDenied=true disabledRows=true preferenceOff=true explicitPreheatNoReplay=true stopPreserved=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (shortcutDirectStartChecks) {
