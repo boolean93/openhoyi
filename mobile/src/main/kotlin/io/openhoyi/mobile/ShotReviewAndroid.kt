@@ -88,7 +88,7 @@ internal class AppShotReview(private val context: Context) {
         if (!runCatching(grant::exists).getOrDefault(false)) throw AiFailure(AiProblem.KEY)
         val transport = AiSafeTransport(key = { key.readForRequest(cfg.keyRevision) },
             keyStillCurrent = { current(cfg) }, budget = AiRequestBudget(), maxResponseBytes = 32_768,
-            beforeWrite = { withAuthorization(cfg) {} })
+            sendPermit = { withAuthorization(cfg) {} })
         transports[transport] = cfg
         try {
             // No retryState, model tools, or web search. Same allow-listed endpoint as manual chat.

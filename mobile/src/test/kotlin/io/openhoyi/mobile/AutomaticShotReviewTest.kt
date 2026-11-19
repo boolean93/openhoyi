@@ -196,13 +196,18 @@ class AutomaticShotReviewTest {
         assertNull(fresh().revision("key2")) // Replacing/deleting the old key invalidates its saved grant.
     }
 
-    @Test fun `revocation at the write permit blocks even a connected fake provider`() = runBlocking {
-        val fake = FakeAiConnection()
+    @Test fun `revocation at the send permit blocks credentials and provider connection`() = runBlocking {
+        var connects = 0
+        val fake = object : FakeAiConnection() {
+            override fun connect() { connects++ }
+        }
         val transport = AiSafeTransport({ "fake-shot-token-never-real" }, { true }, AiRequestBudget(), { fake },
-            beforeWrite = { false })
+            sendPermit = { false })
         val error = runCatching { ShotReviewWire.send(transport, requireNotNull(
             ShotReviewWire.request(points, 4, AppLanguage.CHINESE))) }.exceptionOrNull()
         assertEquals(AiProblem.KEY, (error as AiFailure).problem)
+        assertEquals(0, connects)
+        assertFalse("Authorization" in fake.requestHeaders)
         assertEquals(0, fake.sent.size())
         assertTrue(fake.disconnected.get())
     }
