@@ -314,9 +314,30 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         failure?.let { throw it }
     }
 
+    private fun unsettledTextDiagnostic(activity: Activity, fixture: String): String {
+        val content = root(activity)
+        fun describe(view: View): String {
+            val id = if (view.id == View.NO_ID) "-" else
+                runCatching { view.resources.getResourceEntryName(view.id) }.getOrElse { view.id.toString() }
+            return "${view.javaClass.simpleName}[tag=${view.tag},id=$id,visibility=${view.visibility},shown=${view.isShown}," +
+                "laidOut=${view.isLaidOut},requested=${view.isLayoutRequested},attached=${view.isAttachedToWindow}," +
+                "actual=${view.width}x${view.height},measured=${view.measuredWidth}x${view.measuredHeight}]"
+        }
+        val bad = descendants(content).filterIsInstance<TextView>().filter {
+            it.isShown && !it.text.isNullOrEmpty() && (!it.isLaidOut || it.layout == null || it.isLayoutRequested)
+        }
+        val samples = bad.take(10).joinToString(" | ") { child ->
+            val hierarchy = generateSequence(child.parent as? View) { it.parent as? View }
+                .take(5).joinToString(" > ", transform = ::describe)
+            "${describe(child)}[len=${child.text.length},layout=${child.layout?.width}x${child.layout?.height}," +
+                "text=${child.text.toString().replace('\n', ' ').take(64)}] parents=$hierarchy"
+        }
+        return "$fixture root=${describe(content)} decor=${describe(activity.window.decorView)} bad=${bad.size}: $samples"
+    }
+
     private fun checkPage(activity: Activity, fixture: String) {
         // Idle callbacks can precede VSYNC: a newly visible settings section needs real layout.
-        awaitMain {
+        awaitMain(diagnostic = { unsettledTextDiagnostic(activity, fixture) }) {
             !root(activity).isLayoutRequested && descendants(root(activity)).filterIsInstance<TextView>()
                 .filter { it.isShown && !it.text.isNullOrEmpty() }.all { it.isLaidOut && it.layout != null && !it.isLayoutRequested }
         }
