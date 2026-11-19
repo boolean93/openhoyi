@@ -499,6 +499,11 @@ class MainActivity : ThemedActivity() {
 
     internal fun openLiveShortcut(fragment: ExtractionFragment, session: LiveShortcutSession<MobileService>, shown: LiveShortcutChoice) {
         if (!isLiveShortcutContext(fragment)) return
+        // A chooser race during an active shot is inert. Do not cover the now-primary STOP
+        // with a queued toast about starting; the button itself is already disabled.
+        service?.let { owner ->
+            if (ShotGate.active(owner.shotState) || owner.manualShotActive || owner.scalePreflight) return
+        }
         liveShortcutBlock(fragment, session)?.let {
             Toast.makeText(this, it, Toast.LENGTH_LONG).show(); return
         }
