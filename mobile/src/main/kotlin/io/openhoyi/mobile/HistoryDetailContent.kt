@@ -275,6 +275,12 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
     style.add(summary, metrics)
     val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
     style.add(summary, chartStatus, 4)
+    val review = style.text("", TaskProductVisualStyle.auxiliary, "product/history/automatic-shot-review").apply {
+        visibility = android.view.View.GONE
+        accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
+    }
+    style.add(plot, review, 4)
+    app.shotReviews.bind(review, entry.id)
     val actions = style.column("product/history/actions").apply { if (!standalone) orientation = LinearLayout.HORIZONTAL }
     val footer = HistoryToolbarRow(this, style.dp(16), style.dp(4)) {
         plot.metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (plot.metricCells.size - 1)

@@ -59,6 +59,9 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var deviceSummary: TextView
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
+    private lateinit var automaticReview: TextView
+    private var automaticReviewId: String? = null
+    private var unbindAutomaticReview: (() -> Unit)? = null
     private lateinit var chooseCurve: Button
     private lateinit var connectDevices: Button
     private lateinit var detailsButton: Button
@@ -185,6 +188,13 @@ class ExtractionActivity : ThemedActivity() {
         readiness = text(content, getString(R.string.extraction_waiting_service), 14, true).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
+        automaticReview = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/automatic-shot-review").apply {
+            visibility = View.GONE
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        style.add(content, automaticReview)
         val workspace = TaskExtractionWorkspace(this, visual)
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 0 })
         val plotColumn = workspace.primaryBody
@@ -489,6 +499,12 @@ class ExtractionActivity : ThemedActivity() {
             state == ExtractionState.OUTCOME_UNKNOWN -> getString(R.string.extraction_unknown_guidance)
             state == ExtractionState.ENDED_OBSERVED -> getString(R.string.extraction_ended_guidance)
             else -> owner?.machineControlSafetyMessage ?: blocked ?: studioBlocked ?: getString(R.string.extraction_ready_guidance)
+        }
+        val reviewId = owner?.chartTraceIdentity?.takeIf { observedCup && !active && owner.manualShotActive != true }
+        if (reviewId != automaticReviewId) {
+            unbindAutomaticReview?.invoke()
+            unbindAutomaticReview = reviewId?.let { (application as MobileApplication).shotReviews.bind(automaticReview, it) }
+            automaticReviewId = reviewId
         }
         readiness.show(guidance + unknownAdvice)
         // Only ordinary, complete guidance shares the compact chrome. Every warning keeps its full row.

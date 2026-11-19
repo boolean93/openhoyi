@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shot_review_setting">Automatically review completed extractions with AI</string>
+    <string name="shot_review_disclosure">When enabled, each confirmed extraction sends its pressure, flow, temperature, water and available weight samples to DeepSeek using the current API key. Charges may apply. Notes and chat history are not shared.</string>
+    <string name="shot_review_pending">AI is reviewing this extraction…</string>
+    <string name="shot_review_ready">AI extraction review: %1$s</string>
+    <string name="shot_review_failed">No AI review was received.</string>
+    <string name="shot_review_unknown">AI review outcome is unconfirmed and will not be retried automatically.</string>
+</resources>
