@@ -1084,6 +1084,4 @@
     <string name="update_title">"Develop test builds"</string>
     <string name="update_verifying">"Verifying the installation package…"</string>
     <string name="update_view_release">"View release page"</string>
-    <string name="ai_compaction_running">Compacting conversation. You can type, but sending is paused.</string>
-    <string name="ai_compaction_saved">Conversation compacted</string>
 </resources>
