@@ -154,7 +154,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val content = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4))
-            clipToPadding = false // The shortcut strip extends into the inset, including its contact shadow.
+            clipToPadding = false
+            // The landscape strip ends at the row boundary. Let its last card
+            // paint the contact shadow into the existing bottom inset without
+            // reserving new height or changing what the viewport can scroll.
+            if (!phoneHome) clipChildren = false
         }
         val shortcutOutset = dp(if (phoneHome) 3 else if (shortHome) 0 else 6)
         root.addView(ScrollView(host).apply {

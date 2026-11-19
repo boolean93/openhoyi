@@ -5,11 +5,14 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.view.View
+import android.widget.ScrollView
 import android.widget.TextView
+import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
@@ -121,7 +124,12 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 val root = page.active("root:BREW").requireView()
                 val density = host.resources.displayMetrics.density
                 val portrait = host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-                if (!portrait) HomePresetRowChecks.verifyWideReparent(host)
+                if (!portrait) {
+                    HomePresetRowChecks.verifyWideReparent(host)
+                    check(root.findViewWithTag<ScrollView>("product/home/page-scroll")?.scrollY == 0) {
+                        "Tablet shortcut proof must not scroll to reveal its cards"
+                    }
+                }
                 val bounds = tags.map { tag -> Rect().apply {
                     val view = checkNotNull(root.findViewWithTag<View>(tag))
                     check(view.getGlobalVisibleRect(this) && width() == view.width && height() == view.height) {
@@ -185,6 +193,27 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
             }
             val bitmap = checkNotNull(test.uiAutomation.takeScreenshot())
             try {
+                if (!proof.getBoolean("portrait") && !wallpaperEnabled) {
+                    val first = proof.getJSONArray("items").getJSONObject(0).getJSONArray("rect")
+                    val density = proof.getDouble("density")
+                    val center = (first.getInt(0) + first.getInt(2)) / 2
+                    val outer = first.getInt(0) - (8 * density).roundToInt()
+                    val bottom = first.getInt(3)
+                    fun luminance(x: Int, y: Int): Double {
+                        val color = bitmap.getPixel(x, y)
+                        return .2126 * Color.red(color) + .7152 * Color.green(color) + .0722 * Color.blue(color)
+                    }
+                    val offsetsDp = listOf(1.0, 2.5)
+                    val deltas = offsetsDp.map { offset ->
+                        val y = bottom + (offset * density).roundToInt()
+                        // The solid fixture is uniform across this scan line outside the card.
+                        luminance(outer, y) - luminance(center, y)
+                    }
+                    check(deltas.first() >= 2.0 && deltas.last() > .5) {
+                        "Tablet contact shadow missing just outside the card: ${deltas}"
+                    }
+                    proof.put("tabletSolidShadowSamples", JSONArray(deltas))
+                }
                 File(out, "home.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
             } finally { bitmap.recycle() }
             File(out, "geometry.json").writeText(proof.toString(2))
