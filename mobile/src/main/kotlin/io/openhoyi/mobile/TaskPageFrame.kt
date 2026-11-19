@@ -14,7 +14,9 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
         else TaskNavigationView(activity, productVisualStyle, destinationProvider, onDestination)
     private val railScroll = ScrollView(activity).apply {
         tag = "task-rail-scroll"; isFillViewport = true
-        setBackgroundColor(activity.getColor(R.color.task_shell_surface))
+        val surface = activity.getColor(R.color.task_shell_surface)
+        setBackgroundColor(surface)
+        (activity as? ThemedActivity)?.installPageBackdrop(this, surface, navigation = true)
     }
     private val railColumn = LinearLayout(activity).apply { tag = "task-rail-column"; orientation = VERTICAL }
     private var shellStatus: View? = null

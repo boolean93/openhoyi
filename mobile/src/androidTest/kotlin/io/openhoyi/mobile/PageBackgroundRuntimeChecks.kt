@@ -706,8 +706,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 visible.all(panel.bounds::contains)
             }) { "Expected one local rounded shield for $visible, got ${paper.roundedAreas}" }.bounds
         }
-        val brew = roundPanel(home("brew-boiler/pressure"), home("brew-boiler/toggle"))
-        val steam = roundPanel(home("steam-boiler/pressure"), home("steam-boiler/toggle"))
+        val brew = roundPanel(home("brew-boiler/pressure"))
+        val steam = roundPanel(home("steam-boiler/pressure"))
         val heading = roundPanel(home("quick-title"), home("preview-legend"))
         check(brew.right < steam.left && maxOf(brew.bottom, steam.bottom) <= heading.top) {
             "Boiler footers must not span both columns or the shortcut heading"
@@ -715,6 +715,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         fun dial(key: String): Rect {
             val column = home(key) as ViewGroup
             val dial = (0 until column.childCount).map(column::getChildAt).filterIsInstance<BoilerTemperatureDial>().single()
+            val power = home("$key/toggle") as HoyiSwitch
+            check(power.parent?.parent === dial)
+            val touch = HoyiUi.dp(root.context, 48)
+            check(power.width >= touch && power.height >= touch && !power.contentDescription.isNullOrEmpty())
             return checkNotNull(localRect(root, dial))
         }
         val left = dial("brew-boiler")

@@ -14,7 +14,7 @@ import kotlin.math.sin
 
 /** Fresh telemetry and its real target share one bounded temperature scale. */
 internal class BoilerTemperatureDial(context: Context, private val heading: TextView,
-    private val value: TextView, target: TextView) : FrameLayout(context) {
+    private val value: TextView, target: TextView, private val power: HoyiSwitch) : FrameLayout(context) {
     private val density = resources.displayMetrics.density
     private val style = TaskProductVisualStyle(context)
     private val ink = style.homeDialInk
@@ -27,7 +27,6 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private val targetSize=target.textSize
     private val targetLine=target.lineHeight
     private val words=LinearLayout(context).apply {orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
-    private val spacer=android.widget.Space(context)
     private lateinit var targetBand:TextView
     private var smallLabels:Boolean?=null
     private var lastSmallDiameter=0
@@ -55,19 +54,15 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             field.gravity = Gravity.CENTER; field.setTextColor(ink)
             words.addView(field, LinearLayout.LayoutParams(-1,-2))
         }
-        // Preserve the title/current baselines while the target moves to the scale band.
-        words.addView(spacer,LinearLayout.LayoutParams(1,target.lineHeight))
-        addView(words, LayoutParams(-1,-1).apply {
-            val inset=(25*density).toInt(); setMargins(inset,inset,inset,inset)
-        })
+        val touch = (48 * density).toInt()
+        words.addView(power, LinearLayout.LayoutParams(touch,touch))
+        addView(words, LayoutParams(-1,-1))
         targetBand=TextView(context).apply {
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,target.textSize)
             typeface=target.typeface; includeFontPadding=false; gravity=Gravity.CENTER
             setTextColor(ink); setCompatibleLineHeight(target.lineHeight)
         }
-        addView(targetBand,LayoutParams(-1,-2,Gravity.BOTTOM).apply {
-            leftMargin=(24*density).toInt(); rightMargin=leftMargin; bottomMargin=(30*density).toInt()
-        })
+        words.addView(targetBand, LinearLayout.LayoutParams(-1,-2))
         fun projectTarget() {
             targetBand.text=target.text
             target.visibility=GONE
@@ -99,14 +94,15 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             value.minHeight=if(small) 0 else valueMin
             if(small) value.setLineSpacing(0f,1f) else value.setCompatibleLineHeight(valueLine)
             val diameter=MeasureSpec.getSize(widthMeasureSpec)
-            heading.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*.145f).toInt() else -2)
-            value.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*.26f).toInt() else -2)
-            words.gravity=if(small) Gravity.TOP or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
-            words.layoutParams=LayoutParams(-1,if(small) (diameter*.405f).toInt() else -1).apply {
+            val touch = (48 * density).toInt()
+            val textBudget = (diameter - touch - (14 * density).toInt()).coerceAtLeast(1)
+            heading.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.28f).toInt() else -2)
+            value.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.45f).toInt() else -2)
+            words.gravity=Gravity.CENTER
+            words.layoutParams=LayoutParams(-1,-1).apply {
                 val inset=((if(small) 12 else 25)*density).toInt()
-                setMargins(inset,if(small) (diameter*.17f).toInt() else (25*density).toInt(),inset,if(small) 0 else inset)
+                setMargins(inset,0,inset,0)
             }
-            spacer.layoutParams=LinearLayout.LayoutParams(1,if(small) 0 else targetLine)
             targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) compactHeadingPx else targetSize)
             if(small) {
                 targetBand.setSingleLine(true);targetBand.setLineSpacing(0f,1f)
@@ -116,10 +112,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
                 targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,targetSize)
                 targetBand.setCompatibleLineHeight(targetLine)
             }
-            targetBand.layoutParams=LayoutParams(-1,if(small) (diameter*.16f).toInt() else -2,Gravity.BOTTOM).apply {
-                leftMargin=((if(small) 12 else 24)*density).toInt();rightMargin=leftMargin
-                bottomMargin=if(small) (diameter*.246f).toInt() else (30*density).toInt()
-            }
+            targetBand.layoutParams=LinearLayout.LayoutParams(-1,if(small) (textBudget*.27f).toInt() else -2)
         }
         super.onMeasure(widthMeasureSpec,heightMeasureSpec)
     }

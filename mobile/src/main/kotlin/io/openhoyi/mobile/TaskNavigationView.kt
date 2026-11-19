@@ -11,6 +11,10 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
     private val destinationProvider: () -> TaskDestination? = { TaskNavigationModel.forPage(activity.javaClass.simpleName) },
     private val onDestination: (TaskDestination) -> Unit = { open(activity, it) }) : LinearLayout(activity) {
     private val chrome = TaskShellVisualStyle(activity)
+    init {
+        setBackgroundColor(chrome.surface)
+        (activity as? ThemedActivity)?.installPageBackdrop(this, chrome.surface, navigation = true)
+    }
     private var rendered: Triple<TaskNavigationMode, Boolean, Boolean>? = null
     /** Keep translated labels intact at the selected app text size, without shrinking text. */
     fun requiredRailWidth(): Int {
@@ -33,7 +37,6 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
         removeAllViews()
         orientation = if (mode == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER
-        setBackgroundColor(chrome.surface)
         val styledRail = productVisualStyle != null && mode == TaskNavigationMode.RAIL
         val shellRail = styledRail && activity is MainActivity
         val shortRail = shellRail && compactRail

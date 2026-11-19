@@ -138,6 +138,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }
         val browser = browserPane
         val detailPane = detailPanel
+        detailPane.protectRoundedBackdropContent(productStyle.surface, shieldRadius,
+            photoFill = wallpaperTint(productStyle.surface), photoOnly = true)
         // All actions remain discoverable: wrap whole 48dp targets, never hide icons.
         detailToolbar = object : LinearLayout(host) {
             private val positions = mutableMapOf<View, android.graphics.Rect>()
