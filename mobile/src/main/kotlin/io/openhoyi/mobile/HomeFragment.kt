@@ -336,7 +336,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
         HomeViewportBudget.install(root, content, boilerRow, boilerDials, phoneHome, compactType, spaciousHome)
-        quickRow = productStyle.column("product/home/quick-extraction")
+        quickRow = productStyle.column("product/home/quick-extraction").apply { clipChildren = false; clipToPadding = false }
         content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply {
             marginStart = -shortcutOutset; marginEnd = -shortcutOutset
         })
@@ -1135,7 +1135,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         lastCurveState = state
         lastCurveReference = host.lastCurveReference()
         val ready = state as? HomeLastCurve.Ready
-        val label = when (state) {
+        val nameText = when (state) {
             HomeLastCurve.Empty -> getString(R.string.task_brew_usage_empty)
             HomeLastCurve.DataUnavailable -> getString(R.string.task_brew_usage_unavailable)
             is HomeLastCurve.Unavailable -> getString(if (state.reason == HomeLastCurve.Reason.MUTABLE_DRAFT)
@@ -1144,7 +1144,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         directPresets.last.apply {
             this.label.show(getString(if (ready == null) R.string.home_shortcut_last else R.string.home_shortcut_previous))
-            name.show(label)
+            name.show(nameText)
             name.setTextColor(if (ready == null) productStyle.muted else productStyle.ink)
             val preview = ready?.preview
             sparkline.visibility = if (preview == null) View.GONE else View.VISIBLE
@@ -1153,7 +1153,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 sparkline.scale = CurveStageParameters.SharedScale.from((application as MobileApplication).curves.items)
             }
             val action = getString(if (ready == null) R.string.home_curve_select else R.string.home_last_reuse)
-            button.contentDescription = "${this.label.text} · $label · $action"
+            button.contentDescription = "${this.label.text} · $nameText · $action"
         }
     }
     private fun useLastCurve() {

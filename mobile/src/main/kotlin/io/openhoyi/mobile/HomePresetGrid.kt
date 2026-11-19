@@ -43,11 +43,11 @@ internal class HomePresetGrid(
         val title = if (slot == 0) context.getString(R.string.lever_title)
             else context.getString(if (slot == 5) R.string.home_shortcut_legacy
                 else R.string.home_shortcut_preset, ('A' + slot - 1).toString())
-        makeTile("product/home/direct-preset/$slot", title, if (slot == 0) Glyph.LEVER else Glyph.BOOKMARK) {
+        Tile("product/home/direct-preset/$slot", title, if (slot == 0) Glyph.LEVER else Glyph.BOOKMARK) {
             onSlotClick(slot)
         }
     }
-    private val previous = makeTile("product/home/last-curve", context.getString(R.string.home_shortcut_previous),
+    private val previous = Tile("product/home/last-curve", context.getString(R.string.home_shortcut_previous),
         Glyph.CLOCK, "product/home/quick-launch", "product/home/quick-recipe", onLastClick)
     val visuals = slots.map(Tile::visual)
     val last = previous.visual
@@ -139,7 +139,7 @@ internal class HomePresetGrid(
     }
 
     private inner class Tile(
-        id: String, title: String, glyph: Glyph, actionId: String, nameId: String, click: () -> Unit,
+        id: String, title: String, glyph: Glyph, actionId: String = id, nameId: String = "$id/name", click: () -> Unit,
     ) : FrameLayout(context) {
         private val mask = style.shape(Color.WHITE, radius = 0)
         private val ripple = ColorStateList.valueOf(wallpaperTint(style.ink, if (dark) 40 else 24))
@@ -199,6 +199,8 @@ internal class HomePresetGrid(
                 background = StateListDrawable().apply {
                     addState(intArrayOf(android.R.attr.state_focused),
                         RippleDrawable(ripple, style.shape(wallpaperTint(style.accent, 44), radius = 0), style.shape(Color.WHITE, radius = 0)))
+                    addState(intArrayOf(android.R.attr.state_selected),
+                        RippleDrawable(ripple, style.shape(wallpaperTint(style.accent, 18), radius = 0), style.shape(Color.WHITE, radius = 0)))
                     addState(intArrayOf(), RippleDrawable(ripple, null, mask))
                 }
             }
