@@ -16,7 +16,7 @@ on:
         options: [both, phone, tablet]
 
       quick_curve_boiler_view:
-        description: Also verify offscreen production boiler controls on the phone emulator (no BLE)
+        description: Also verify offscreen boiler controls and detached fake GATT (phone emulator only)
         type: boolean
         default: false
 

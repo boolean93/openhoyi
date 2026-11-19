@@ -1,6 +1,9 @@
 package io.openhoyi.mobile
 
 import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Color
+import androidx.core.graphics.ColorUtils
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
@@ -16,6 +19,11 @@ internal class CurveLibrarySparklineView(
     var scale = CurveStageParameters.SharedScale(12f, 6f)
         set(value) { field = value; invalidate() }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    // Home's translucent light tiles may be over a dark picture. Keep the unit
+    // hues while increasing their contrast there; never alter library-chart ink.
+    private val lightCompact = compact && resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK !=
+        Configuration.UI_MODE_NIGHT_YES
+    private fun compactInk(color: Int) = if (lightCompact) ColorUtils.blendARGB(color, Color.BLACK, .14f) else color
     private fun dp(value: Float) = value * resources.displayMetrics.density
 
     override fun onDraw(canvas: Canvas) {
@@ -47,7 +55,7 @@ internal class CurveLibrarySparklineView(
             val x2 = x1 + step
             val center = (x1 + x2) / 2f
             val level = y(stage)
-            paint.color = color(stage)
+            paint.color = compactInk(color(stage))
             canvas.drawLine(if (index > 0 && stages[index - 1].unit != stage.unit) x1 + horizontal else x1,
                 level, if (index < stages.lastIndex && stages[index + 1].unit != stage.unit) x2 - horizontal else x2,
                 level, paint)

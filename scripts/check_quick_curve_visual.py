@@ -129,11 +129,12 @@ def main():
             require(adb("install", source, timeout=120).splitlines()[-1] == "Success", "Mock fixture install failed")
         if os.environ.get("QUICK_CURVE_BOILER_VIEW") == "true" and profile == "phone":
             name = f"{profile}-boiler-view"
-            report = adb("shell", "am", "instrument", "-w", "-r", "-e", "unifiedSwitchChecks", "true", RUNNER, timeout=100)
+            report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
+                         "-e", "homeBoilerVisualChecks", "true", RUNNER, timeout=180)
             (output / f"{name}-instrumentation.txt").write_text(report + "\n")
-            require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "UNIFIED_SWITCH_PASSED" in report,
-                    "Offscreen boiler view checks failed")
-            receipt["offscreenBoilerViewPassed"] = True
+            require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "HOME_BOILER_LAYER_PROOF_PASSED" in report,
+                    "Detached boiler layer checks failed")
+            receipt["detachedBoilerViewAndFakeGattPassed"] = True
         for background, theme in ((background, theme) for background in ("wallpaper", "solid")
                                   for theme in ("light", "dark")):
             name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "")
