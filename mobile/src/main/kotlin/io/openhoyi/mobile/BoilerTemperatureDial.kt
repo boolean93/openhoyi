@@ -102,7 +102,15 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         fun set(field: TextView, width: Float, height: Float, fraction: Float) {
             val px = diameter * fraction * factor
             if (field.textSize != px) field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px)
-            field.measure(exact((diameter * width).roundToInt()), exact((diameter * height).roundToInt()))
+            val widthSpec = exact((diameter * width).roundToInt())
+            val referenceHeight = (diameter * height).roundToInt()
+            field.measure(widthSpec, exact(referenceHeight))
+            // The reference slot is an anchor, not a cap: Android's actual layout may
+            // require taller font metrics for this face or a larger app font setting.
+            // Keep the center anchor while giving the complete line its native height.
+            val lineHeight = (field.layout?.height ?: 0) +
+                field.compoundPaddingTop + field.compoundPaddingBottom
+            if (lineHeight > referenceHeight) field.measure(widthSpec, exact(lineHeight))
         }
         set(heading, .70f, .11f, .070f)
         set(value, .78f, .20f, .167f)
