@@ -106,11 +106,44 @@ class ShotSamplesStoreTest {
         try {
             val failure = CountDownLatch(1)
             val repository = ShotSamplesRepository(parent) { failure.countDown() }
-            repository.save("shot-1", listOf(ShotPoint(0, 90, 20, 0, 9200, null)))
+            val persisted = CountDownLatch(1)
+            repository.save("shot-1", listOf(ShotPoint(0, 90, 20, 0, 9200, null))) { persisted.countDown() }
             assertTrue(failure.await(3, TimeUnit.SECONDS))
             assertTrue(repository.load("shot-1").isEmpty())
+            assertEquals(1L, persisted.count)
         } finally { parent.delete() }
     }
+    @Test fun completionOnlyExposesTheCommittedSampleCopy() {
+        val dir = Files.createTempDirectory("openhoyi-committed-samples").toFile()
+        try {
+            val points = listOf(ShotPoint(100, 80, 20, 0, 9200, null, brewing = true))
+            val persisted = java.util.concurrent.CompletableFuture<Pair<List<ShotPoint>, List<ShotPoint>>>()
+            val repository = ShotSamplesRepository(dir)
+            repository.save("shot-1", points) { snapshot ->
+                persisted.complete(snapshot to ShotSamplesStore(dir).load("shot-1"))
+            }
+            assertEquals(points to points, persisted.get(3, TimeUnit.SECONDS))
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun completionRedecodesForeignBeverageSidecarInsteadOfSendingUnpersistedEvidence() {
+        val dir = Files.createTempDirectory("openhoyi-foreign-beverage-sidecar").toFile()
+        try {
+            val sidecar = dir.resolve("beverage-samples-shot-1.tsv")
+            sidecar.writeText("# unknown owner")
+            val point = ShotPoint(100, 90, 20, 3, 9300, 10, brewing = true,
+                beverageHundredthsGram = 5, beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0)
+            val persisted = java.util.concurrent.CompletableFuture<ShotPoint>()
+            val repository = ShotSamplesRepository(dir)
+            repository.save("shot-1", listOf(point)) { persisted.complete(it.single()) }
+            val decoded = persisted.get(3, TimeUnit.SECONDS)
+            assertNull(decoded.beverageHundredthsGram)
+            assertNull(decoded.beverageSource)
+            assertEquals(point.weightHundredthsGram, decoded.weightHundredthsGram)
+            assertEquals("# unknown owner", sidecar.readText())
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun v3RoundTripsKnownPhaseAndLegacyVersionsKeepUnknownPhase() {
         val dir=Files.createTempDirectory("phase-samples").toFile()
         try {

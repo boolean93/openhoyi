@@ -227,16 +227,21 @@ class ShotSamplesRepository(directory: File, private val onError: (Throwable) ->
     private val writer = Executors.newSingleThreadExecutor { task ->
         Thread(task, "shot-samples").apply { isDaemon = true }
     }
-    fun save(id: String, points: List<ShotPoint>) {
+    fun save(id: String, points: List<ShotPoint>, onPersisted: ((List<ShotPoint>) -> Unit)? = null) {
         val latest = Pending(points.toList())
         pending[id] = latest
         writer.execute {
             try {
                 store.save(id, latest.points)
-                pending.remove(id, latest)
             } catch (error: Throwable) {
                 pending.remove(id, latest)
                 onError(error)
+                return@execute
+            }
+            if (pending.remove(id, latest) && onPersisted != null) {
+                // The original snapshot may include optional beverage evidence whose foreign
+                // sidecar prevented replacement. Only offer what the store can actually decode.
+                try { onPersisted(store.load(id)) } catch (error: Exception) { onError(error) }
             }
         }
     }

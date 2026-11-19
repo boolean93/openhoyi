@@ -806,7 +806,7 @@ class MobileService : Service() {
                                 .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                         }
                         passiveHistoryId = null
-                        finishSeries(true)
+                        finishSeries(true, passiveConfirmed = true)
                         if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
                         event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
                     } else {
@@ -2298,17 +2298,24 @@ class MobileService : Service() {
     internal fun discardBrewFeedback() = feedbackDelivery.clear()
     private fun currentTimingEvidence() = series.timingEvidence(appElapsedOutcomeWasUnknown)
 
-    private fun finishSeries(observedEnd: Boolean, countsAsCup: Boolean = true) {
+    private fun finishSeries(observedEnd: Boolean, countsAsCup: Boolean = true, passiveConfirmed: Boolean = false) {
         val completedCup = observedEnd && countsAsCup
         finishBrewFeedback(completedCup)
         extractionScaleReadout.finish(observedEnd)
         val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
         val app = application as MobileApplication
-        if (completedCup && finished.second.isNotEmpty() &&
-            history?.entries?.any { it.id == finished.first } == true) {
-            app.samples.save(finished.first, finished.second)
+        val historyEntries = history?.entries
+        val retainedIds = historyEntries?.map(ShotHistory.Entry::id)?.toSet()
+        retainedIds?.let(app::updateShotReviewRetention)
+        val entry = historyEntries?.firstOrNull { it.id == finished.first }
+        if (completedCup && finished.second.isNotEmpty() && entry != null) {
+            val reviewConfig = if (ShotReviewWire.eligible(entry, passiveConfirmed, appElapsedOutcomeWasUnknown))
+                app.shotReviewConfig() else null
+            app.samples.save(finished.first, finished.second, if (reviewConfig == null) null else { points ->
+                app.shotReviews.afterPersisted(entry, points, reviewConfig)
+            })
         }
-        history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
+        retainedIds?.let(app.samples::prune)
     }
     private fun recordMachinePoint(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
         // The controller handles the frame before this callback. Freeze before accepting

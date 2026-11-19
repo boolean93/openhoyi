@@ -17,6 +17,9 @@ import android.widget.TextView
 class AiKeyActivity : ThemedActivity() {
     private lateinit var input: EditText
     private lateinit var status: TextView
+    private lateinit var shotReviewSwitch: android.widget.Switch
+    private var syncShotReviewSwitch = false
+    private val reviews get() = (application as MobileApplication).shotReviews
     private val store by lazy { AiKeyStore(this) }
     override fun onCreate(savedInstanceState: Bundle?) {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -25,6 +28,23 @@ class AiKeyActivity : ThemedActivity() {
         val style = visual.palette
         val body = visual.page(this, R.string.ai_key_title, R.string.ai_key_help, 640, "ai-key")
         status = style.text("", TaskProductVisualStyle.body).also { style.add(body, it, 24) }
+        if (!BuildConfig.MOCK_MODE) {
+            shotReviewSwitch = android.widget.Switch(this).apply {
+                text = getString(R.string.shot_review_setting)
+                style.apply(this, TaskProductVisualStyle.body)
+                minimumHeight = style.dp(48)
+                tag = "ai/key/automatic-shot-review"
+                setOnCheckedChangeListener { _, checked ->
+                    if (!syncShotReviewSwitch) {
+                        if (!reviews.setEnabled(checked)) status.setText(if (checked) R.string.ai_key_failed
+                            else R.string.shot_review_revoke_failed)
+                        updateShotReviewSwitch()
+                    }
+                }
+            }
+            style.add(body, shotReviewSwitch, 16)
+            style.add(body, style.text(getString(R.string.shot_review_disclosure), TaskProductVisualStyle.auxiliary), 4)
+        }
         input = EditText(this).apply {
             hint = getString(R.string.ai_key_input)
             contentDescription = hint
@@ -66,18 +86,31 @@ class AiKeyActivity : ThemedActivity() {
             val saved = store.save(value)
             input.text.clear()
             status.setText(if (saved) R.string.ai_key_saved else R.string.ai_key_failed)
+            updateShotReviewSwitch()
         }.also { visual.action(it); it.setSingleLine(false); it.maxLines = Int.MAX_VALUE; it.ellipsize = null }
         HoyiUi.button(this, body, getString(R.string.ai_key_delete)) {
             input.text.clear()
             status.setText(if (store.delete()) R.string.ai_key_missing else R.string.ai_key_failed)
+            updateShotReviewSwitch()
         }.also { visual.action(it, outline = true); it.setSingleLine(false); it.maxLines = Int.MAX_VALUE; it.ellipsize = null }
         refresh()
     }
-    private fun refresh() { status.setText(when (store.status()) {
+    private fun updateShotReviewSwitch() {
+        if (!::shotReviewSwitch.isInitialized) return
+        syncShotReviewSwitch = true
+        shotReviewSwitch.isEnabled = store.status() == AiKeyStatus.SAVED
+        shotReviewSwitch.isChecked = shotReviewSwitch.isEnabled && (reviews.enabled() || reviews.revocationUnconfirmed)
+        syncShotReviewSwitch = false
+    }
+    private fun refresh() { updateShotReviewSwitch(); status.setText(when {
+        shotReviewSwitchOrNullChecked() && reviews.revocationUnconfirmed -> R.string.shot_review_revoke_failed
+        else -> when (store.status()) {
         AiKeyStatus.MISSING -> R.string.ai_key_missing
         AiKeyStatus.SAVED -> R.string.ai_key_saved
         AiKeyStatus.UNAVAILABLE -> R.string.ai_key_unavailable
+        }
     }) }
+    private fun shotReviewSwitchOrNullChecked() = ::shotReviewSwitch.isInitialized && shotReviewSwitch.isChecked
     override fun onPause() {
         if (::input.isInitialized) input.text.clear()
         super.onPause()

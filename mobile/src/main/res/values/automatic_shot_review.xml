@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shot_review_setting">萃取结束后自动进行 AI 评价</string>
+    <string name="shot_review_disclosure">开启后，每次确认完成的萃取会将该杯的压力、流量、温度、用水和可用的称重采样发送至 DeepSeek，使用当前 API 密钥，可能产生费用。不会发送笔记或聊天内容。</string>
+    <string name="shot_review_pending">AI 正在评价这杯萃取…</string>
+    <string name="shot_review_ready">AI 萃取评价：%1$s</string>
+    <string name="shot_review_failed">未获得 AI 萃取评价。</string>
+    <string name="shot_review_unknown">AI 评价结果未确认，不会自动重试。</string>
+    <string name="shot_review_revoke_failed">未能保存关闭设置。当前已暂停评价；为避免重启后继续发送，请重试关闭，或删除保存的 API 密钥。</string>
+    <string name="shot_review_title">AI 萃取评价</string>
+    <string name="shot_review_open">查看萃取评价</string>
+</resources>

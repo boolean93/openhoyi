@@ -56,6 +56,10 @@ class MobileApplication : Application() {
         autoConnect=DeviceAutoConnectOwner(this)
         registerActivityLifecycleCallbacks(AppVisibilityCallbacks(visibility))
         releaseUpdates = ReleaseUpdateOwner(this)
+        if (!BuildConfig.MOCK_MODE) Thread({
+            // Load preferences before a terminal BLE event; a cold startup never waits on review.
+            runCatching { shotReviews.warmup() }
+        }, "automatic-shot-review-init").apply { isDaemon = true; start() }
     }
 
     override fun onTerminate(){
@@ -121,6 +125,14 @@ class MobileApplication : Application() {
     }
     internal fun historicalCurveName(id: String): String? =
         runCatching { curves.find(id)?.name }.getOrNull() ?: customCurvesResult.getOrNull()?.historicalName(id)
+
+    private val shotReviewOwner = lazy { AppShotReview(this) }
+    internal val shotReviews get() = shotReviewOwner.value
+    internal fun updateShotReviewRetention(ids: Set<String>) {
+        if (shotReviewOwner.isInitialized() && !BuildConfig.MOCK_MODE) shotReviews.updateRetained(ids)
+    }
+    internal fun shotReviewConfig(): ShotReviewConfig? =
+        if (shotReviewOwner.isInitialized()) shotReviews.config(languagePreferences.current) else null
 
     val samples: ShotSamplesRepository by lazy {
         ShotSamplesRepository(File(filesDir, "shot_samples")) { error ->

@@ -90,6 +90,7 @@ internal class AiSafeTransport(
     private val retryState: AiRetryState? = null,
     private val onRetry: (AiRetryProgress?) -> Unit = {},
     private val onProgress: (AiStreamDelta) -> Unit = {},
+    private val sendPermit: () -> Boolean = { true },
 ) : KoogHttpClient {
     init { require(errorReadTimeoutMillis in 1..2000) }
     override val clientName = "OpenHOYI-DeepSeek"
@@ -159,6 +160,10 @@ internal class AiSafeTransport(
                     // A fresh short-lived value is obtained only at the final send boundary.
                     val credential = key()
                     if (!AiKeyCodec.valid(credential)) throw AiFailure(AiProblem.KEY)
+                    checkAvailable { pending.isActive && !cancelled.get() }
+                    // Linearize optional background consent before adding credentials or
+                    // contacting the provider. Do not hold any caller lock across socket I/O.
+                    if (!sendPermit()) throw AiFailure(AiProblem.KEY)
                     checkAvailable { pending.isActive && !cancelled.get() }
                     socket.setRequestProperty("Authorization", "Bearer $credential")
                     stage(AiStage.CONNECT)

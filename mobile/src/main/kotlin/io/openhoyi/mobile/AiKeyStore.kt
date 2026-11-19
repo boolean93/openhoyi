@@ -79,6 +79,13 @@ internal class AiKeyStore internal constructor(
         runCatching { storage.credentialEpoch() }.getOrElse { failedWrite.set(true); null }
     }
     fun revision(): Long = generation.get()
+    internal fun hasSavedValue(): Boolean = !failedWrite.get() && runCatching(storage::contains).getOrDefault(false)
+    /** Serialize a local result commit with key rotations; no network work under the lock. */
+    internal fun publishForRevision(expected: Long, publish: (String) -> Boolean): Boolean =
+        synchronized(mutationLock) {
+            if (expected != revision() || !hasSavedValue()) false
+            else credentialEpoch()?.let(publish) ?: false
+        }
     fun observeMutation(observer: () -> Unit): () -> Unit {
         synchronized(observers) { observers += observer }
         return { synchronized(observers) { observers -= observer } }
