@@ -117,6 +117,7 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 val root = page.active("root:BREW").requireView()
                 val density = host.resources.displayMetrics.density
                 val portrait = host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                if (!portrait) HomePresetRowChecks.verifyWideReparent(host)
                 val bounds = tags.map { tag -> Rect().apply {
                     val view = checkNotNull(root.findViewWithTag<View>(tag))
                     check(view.getGlobalVisibleRect(this) && width() == view.width && height() == view.height) {

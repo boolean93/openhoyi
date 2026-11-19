@@ -145,6 +145,8 @@ internal class HomePresetGrid(
 
     private fun arrange(visible: List<Int>, fit: Int) {
         (slots + previous).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        // Removing the old strip from this grid does not detach its children from the strip.
+        (group.parent as? android.view.ViewGroup)?.removeView(group)
         group.removeAllViews()
         removeAllViews()
         if (!portrait && fit == visible.size) {
