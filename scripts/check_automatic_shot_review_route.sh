@@ -18,8 +18,8 @@ timeout 120 adb shell am instrument -w -r \
   -e sourceSha "$source_sha" \
   io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation | tee "$proof/instrumentation.log"
 grep -F 'AUTOMATIC_SHOT_REVIEW_ROUTE_SUCCESS' "$proof/instrumentation.log"
-adb pull "/sdcard/Android/data/io.openhoyi.mobile.mock/files/automatic-shot-review/$source_sha/" "$proof/capture"
-python3 - "$source_sha" "$proof/capture/proof.json" <<'PY'
+adb pull "/sdcard/Android/data/io.openhoyi.mobile.mock/files/automatic-shot-review/$source_sha/proof.json" "$proof/proof.json"
+python3 - "$source_sha" "$proof/proof.json" <<'PY'
 import json, pathlib, sys
 proof = json.loads(pathlib.Path(sys.argv[2]).read_text())
 assert proof["sourceSha"] == sys.argv[1]
