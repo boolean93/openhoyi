@@ -581,6 +581,30 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             return id
         }
+        fun startReviewFixtureShot(owner: MobileService, id: String) {
+            main {
+                nextId = id
+                val profile = requireNotNull(curves.resolve(curveId, owner.snapshot.scaleState == DeviceState.READY, 7))
+                check(owner.startShot(curveId, profile.scaleMode, 7) == null)
+                check(owner.chartTraceIdentity == id && owner.shotState == ExtractionState.STARTING)
+            }
+            completeScenarioStart(owner)
+        }
+        fun finishReviewFixtureShot(owner: MobileService, at: Long) {
+            advanceTo(at)
+            main {
+                owner.offerMockExtractionFrame(clockOwner,
+                    io.openhoyi.protocol.IdleTelemetry(9300, 13000, 0, 0, 0, 0, 8, 0, ByteFrame(byteArrayOf())))
+                check(owner.shotState == ExtractionState.ENDED_OBSERVED)
+            }
+        }
+        fun awaitReviewSamples(id: String) {
+            await("persisted completed review fixture sample $id") {
+                history.entries.any { it.id == id && it.status == ShotHistory.Status.ENDED && it.observedRunning }
+            }
+            (field(samples, "writer") as ExecutorService).submit {}.get(10, TimeUnit.SECONDS)
+            check(samples.load(id).count { it.brewing == true } >= 2)
+        }
         fun completeScenarioStart(owner: MobileService) {
             main {
                 val request=requireNotNull(owner.mockExtractionPendingStartId)
@@ -3031,6 +3055,85 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         failure?.let {throw it}
     }
+    fun runAutomaticShotReview(arguments: Bundle) {
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        check(arguments.getString("disposableCiEmulator") == "true" && arguments.getString("freshProcessVerified") == "true")
+        check(Build.HARDWARE in setOf("ranchu", "goldfish") && Build.VERSION.SDK_INT >= 34)
+        val sha = requireNotNull(arguments.getString("sourceSha"))
+        check(sha.matches(Regex("[0-9a-f]{40}")))
+        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "automatic-shot-review/$sha")
+        check(directory.isDirectory || directory.mkdirs())
+        val scope = Scope(directory, "extraction")
+        val permitted = java.util.concurrent.atomic.AtomicBoolean(true)
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val fail = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var removeFake: (() -> Unit)? = null
+        try {
+            scope.prepare()
+            scope.install(false)
+            removeFake = app.shotReviews.installMockFixture(permitted::get) { payload ->
+                check(payload.contains("machineFlowMlPerSecond") && !payload.contains("qa-review-") &&
+                    !payload.contains("\"tools\""))
+                when (calls.incrementAndGet()) {
+                    1 -> """{"choices":[{"finish_reason":"stop","message":{"content":"QA_FIRST_CUP_VERDICT"}}]}"""
+                    2 -> { fail.await(); throw AiFailure(AiProblem.AUTH) }
+                    else -> error("Unexpected synthetic request")
+                }
+            }
+            val owner = scope.beginScenarioService("STARTING")
+            val host = start(ExtractionActivity::class.java) as MainActivity
+            fun label() = requireNotNull(root(host).findViewWithTag<TextView>("product/extraction/automatic-shot-review"))
+            await("real MainActivity embedded ExtractionFragment starts with no review") {
+                host.supportFragmentManager.findFragmentByTag("extraction") is ExtractionFragment &&
+                    root(host).findViewWithTag<TextView>("product/extraction/automatic-shot-review")?.visibility == View.GONE
+            }
+
+            fun brew(id: String, start: Long, end: Boolean = true) {
+                scope.startReviewFixtureShot(owner, id)
+                scope.offerScenarioFrame(owner, start + 1000, 10)
+                scope.offerScenarioFrame(owner, start + 2000, 20)
+                if (end) {
+                    scope.finishReviewFixtureShot(owner, start + 3000)
+                    scope.awaitReviewSamples(id)
+                }
+            }
+            brew("qa-review-first", 0)
+            await("completed first cup verdict on real embedded fragment") {
+                calls.get() == 1 && label().isShown && label().text.contains("QA_FIRST_CUP_VERDICT")
+            }
+
+            permitted.set(false)
+            brew("qa-review-no-key", 3000, end = false)
+            await("next running cup never inherits the previous cup verdict") {
+                owner.chartTraceIdentity == "qa-review-no-key" && owner.shotState == ExtractionState.RUNNING &&
+                    label().visibility == View.GONE && label().text.isEmpty()
+            }
+            scope.finishReviewFixtureShot(owner, 6000)
+            scope.awaitReviewSamples("qa-review-no-key")
+            main { check(calls.get() == 1 && label().visibility == View.GONE) }
+
+            permitted.set(true)
+            brew("qa-review-failed", 6000)
+            await("pending synthetic evaluation does not block completed extraction UI") {
+                calls.get() == 2 && owner.shotState == ExtractionState.ENDED_OBSERVED &&
+                    label().text == host.getString(R.string.shot_review_pending) &&
+                    root(host).findViewWithTag<View>("product/extraction/start")?.isShown == true
+            }
+            fail.complete(Unit)
+            await("failed synthetic response remains on the correct completed cup") {
+                owner.chartTraceIdentity == "qa-review-failed" &&
+                    label().text == host.getString(R.string.shot_review_failed) && calls.get() == 2
+            }
+            File(directory, "proof.json").writeText(JSONObject().put("sourceSha", sha)
+                .put("actualMainActivityExtractionFragment", true).put("actualMockServiceCompletions", 3)
+                .put("distinctFirstVerdict", true).put("noReuseOnNextCup", true)
+                .put("missingKeySilent", true).put("pendingAndFailureNonblocking", true)
+                .put("fakeRequests", calls.get()).put("realOutboundRequests", 0).toString(2))
+        } finally {
+            try { scope.cleanup() } finally { removeFake?.invoke() }
+        }
+    }
+
     fun run(arguments: Bundle): Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")
         check(arguments.getString("disposableCiEmulator")=="true" && arguments.getString("freshProcessVerified")=="true")
