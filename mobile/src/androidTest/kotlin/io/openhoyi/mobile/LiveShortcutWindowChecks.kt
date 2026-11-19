@@ -24,10 +24,11 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
         }
     }
 
-    fun run() {
+    fun run(appFont: AppFontSize) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
+        val originalFont = app.fontSizePreferences.current
         val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
         val selection = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val options = context.getSharedPreferences(ShortcutStartPolicy.PREFERENCES, Context.MODE_PRIVATE)
@@ -75,6 +76,7 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
         try {
             main {
                 check(app.beanPreparationResult.getOrThrow().current() == null)
+                check(app.fontSizePreferences.select(appFont) != AppFontSizePreference.Selection.SAVE_FAILED)
                 check(selection.edit().putString("selected", "factory-v3-001").commit())
                 direct(false)
                 bind(1, "factory-v3-001")
@@ -97,6 +99,7 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
             java.io.File(evidence, "viewport.json").writeText(org.json.JSONObject()
                 .put("widthDp", configuration.screenWidthDp).put("heightDp", configuration.screenHeightDp)
                 .put("densityDpi", configuration.densityDpi).put("fontScale", configuration.fontScale.toDouble())
+                .put("appFont", app.fontSizePreferences.current.key)
                 .put("portrait", configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
                 .toString())
             fun shortcutButton() = fragment.requireView().findViewWithTag<Button>("product/extraction/shortcuts")
@@ -116,6 +119,23 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                     bounds.width() >= shortcut.width && bounds.height() >= shortcut.height
             }
             screenshot(java.io.File(evidence, "idle.png"))
+            // Collect the clean menu before deliberately triggering rejection toasts.
+            main {
+                bind(1, PresetSlots.bind(draft.id))
+                check(shortcutButton().performClick())
+                val long = row(1)
+                check(long.text.toString().endsWith(draft.name) && long.ellipsize == null)
+            }
+            screenshot(java.io.File(evidence, "expanded-long-name.png"))
+            main {
+                check(row(1).performClick())
+                check(selection.getString("selected", null) == draft.id)
+                check((ExtractionFragment::class.java.getDeclaredField("presetSlot").apply { isAccessible = true }
+                    .get(fragment) as Int) == 7)
+                noShot()
+
+                bind(1, "factory-v3-001")
+            }
             main {
                 noShot()
                 check(shortcutButton().performClick())
@@ -151,12 +171,7 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 check(identity() == unchanged)
                 noShot()
 
-                bind(1, PresetSlots.bind(draft.id))
-                check(shortcutButton().performClick())
-                val long = row(1)
-                check(long.text.toString().endsWith(draft.name) && long.ellipsize == null)
             }
-            screenshot(java.io.File(evidence, "expanded-long-name.png"))
             fun requestPreheat(): AlertDialog {
                 check(shortcutButton().performClick())
                 check(row(4).performClick())
@@ -166,12 +181,6 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
             var cancelledDialog: AlertDialog? = null
             var approvedDialog: AlertDialog? = null
             main {
-                check(row(1).performClick())
-                check(selection.getString("selected", null) == draft.id)
-                check((ExtractionFragment::class.java.getDeclaredField("presetSlot").apply { isAccessible = true }
-                    .get(fragment) as Int) == 7)
-                noShot()
-
                 // Synthetic manual detection on the Mock owner; no telemetry/device injected externally.
                 check(shortcutButton().performClick())
                 val passive = MobileService::class.java.getDeclaredField("passiveShot").apply { isAccessible = true }.get(owner)
@@ -234,19 +243,23 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 refreshMock.invoke(owner, runtime, MobileMonotonicClock.elapsedRealtime())
             }
             await("explicit selection available again") { shortcutButton().isEnabled }
+            var secondRow: LiveShortcutChoice? = null
+            var secondSession: LiveShortcutSession<MobileService>? = null
             main {
                 check(shortcutButton().performClick())
-                val alreadyDisplayed = host.liveShortcutChoices().first()
-                val session = checkNotNull(host.liveShortcutSession(fragment))
+                secondRow = host.liveShortcutChoices().first()
+                secondSession = checkNotNull(host.liveShortcutSession(fragment))
                 check(row(4).performClick())
                 ownedShot = owner.chartTraceIdentity
                 check(ownedShot != null && ownedShot !in existingShots) { "One explicit tap did not start a Mock shot" }
-                host.openLiveShortcut(fragment, session, alreadyDisplayed)
-                check(owner.chartTraceIdentity == ownedShot)
                 check(!shortcutButton().isEnabled)
             }
             screenshot(java.io.File(evidence, "running-stop-visible.png"))
             main {
+                // Preserve the explicit second-start rejection check without capturing its toast.
+                host.openLiveShortcut(fragment, checkNotNull(secondSession), checkNotNull(secondRow))
+                check(owner.chartTraceIdentity == ownedShot)
+                check(!shortcutButton().isEnabled)
                 val stop = fragment.requireView().findViewWithTag<Button>("product/extraction/stop")
                 val bounds = android.graphics.Rect()
                 check(stop.isShown && stop.isEnabled && stop.getGlobalVisibleRect(bounds) &&
@@ -271,6 +284,7 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                         owner.stopShot()
                 }
                 activity?.finish()
+                check(app.fontSizePreferences.select(originalFont) != AppFontSizePreference.Selection.SAVE_FAILED)
                 curveFixture.restore()
                 check(presets.edit().also { edit -> original.forEach { (slot, value) ->
                     edit.putString(PresetSlots.key(slot), value)

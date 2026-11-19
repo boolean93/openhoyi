@@ -13,6 +13,7 @@ from mock_ui_tap import validate_installed_runners
 from shared_mock_artifact import APP, TEST, DESTINATIONS, digest, inspect_apk, require, run
 
 PROFILES = {"phone": (720, 1280, 360, "1.3"), "tablet": (2560, 1600, 320, "1.0")}
+APP_FONTS = {"phone": ("large", 1.1), "tablet": ("medium", 1.0)}
 RUNNER = TEST + "/io.openhoyi.mobile.BrewAudioInstrumentation"
 MARKER = ("LIVE_SHORTCUT_WINDOW_PASSED exactSlot=true staleSelectionDenied=true disabledRows=true "
           "preferenceOff=true explicitPreheatNoReplay=true stopPreserved=true noBle=true")
@@ -33,12 +34,14 @@ def display_value(report, prop):
 
 
 def validate_viewport(viewport, profile):
-    width, height, density, font = PROFILES[profile]
+    width, height, density, _ = PROFILES[profile]
+    app_font, app_scale = APP_FONTS[profile]
     app_width, app_height = viewport["widthDp"], viewport["heightDp"]
     # Android Configuration may deduct system insets, especially from height. Prove
     # the narrow phone width exactly; allow bars only in the secondary dimensions.
     logical_width, logical_height = width * 160 / density, height * 160 / density
-    require(viewport["densityDpi"] == density and math.isclose(viewport["fontScale"], float(font), abs_tol=0.001)
+    require(viewport["densityDpi"] == density and viewport["appFont"] == app_font
+            and math.isclose(viewport["fontScale"], app_scale, abs_tol=0.001)
             and viewport["portrait"] == (profile == "phone"), "Instrumentation density / font / orientation mismatch")
     min_width = 320 if profile == "phone" else 1200
     require(min_width <= app_width <= math.ceil(logical_width) and
@@ -105,7 +108,8 @@ def main():
             require(adb("install", path, timeout=120).splitlines()[-1] == "Success", f"Cannot install isolated {kind}")
         validate_installed_runners(adb("shell", "pm", "list", "instrumentation"))
         raw = subprocess.run([adb_path, "-s", "emulator-5554", "shell", "am", "instrument", "-w", "-r",
-                              "-e", "disposableCiEmulator", "true", "-e", "liveShortcutChecks", "true", RUNNER],
+                              "-e", "disposableCiEmulator", "true", "-e", "liveShortcutChecks", "true",
+                              "-e", "liveShortcutAppFont", APP_FONTS[profile][0], RUNNER],
                              capture_output=True, text=True, timeout=150)
         (output / "instrumentation.txt").write_text(raw.stdout[-32000:] + raw.stderr[-6000:])
         require(raw.returncode == 0 and re.search(r"^INSTRUMENTATION_CODE: -1$", raw.stdout, re.M)
@@ -115,14 +119,20 @@ def main():
         def fixture(name):
             return adb("exec-out", "run-as", APP, "cat", "files/live-shortcut-checks/" + name, binary=True)
 
-        viewport = json.loads(fixture("viewport.json"))
-        validate_viewport(viewport, profile)
+        raw_viewport = fixture("viewport.json")
+        (output / "viewport.json").write_bytes(raw_viewport)
+        viewport = json.loads(raw_viewport)
         receipt["appViewport"] = viewport
+        receipt["finalSystemFont"] = adb("shell", "settings", "get", "system", "font_scale")
         for name in SCREENSHOTS:
             data = fixture(name)
-            require(png_size(data) == (width, height), f"Unexpected PNG dimensions: {name}")
             (output / name).write_bytes(data)
             receipt["screenshots"][name] = digest(output / name)
+        require(math.isclose(float(receipt["finalSystemFont"]), float(font), abs_tol=0.001),
+                "System font changed while checking app font")
+        validate_viewport(viewport, profile)
+        for name in SCREENSHOTS:
+            require(png_size((output / name).read_bytes()) == (width, height), f"Unexpected PNG dimensions: {name}")
         require(len(set(receipt["screenshots"].values())) == len(SCREENSHOTS), "Duplicate screenshots")
         receipt["passed"] = True
     except (ValueError, KeyError, subprocess.SubprocessError, OSError) as error:

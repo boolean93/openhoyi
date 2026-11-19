@@ -7,6 +7,11 @@ on:
         description: Run Live Extraction A–D checks on fresh phone and tablet AVDs
         type: boolean
         default: false
+      live_shortcut_profile:
+        description: Select fresh AVD viewport(s) for Live Extraction QA
+        type: choice
+        default: both
+        options: [both, phone, tablet]
 
 permissions:
   contents: read
@@ -16,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: ${{ fromJSON(inputs.live_shortcut_visual && '["phone","tablet"]' || '["legacy"]') }}
+        profile: ${{ fromJSON(inputs.live_shortcut_visual && (inputs.live_shortcut_profile == 'phone' && '["phone"]' || inputs.live_shortcut_profile == 'tablet' && '["tablet"]' || '["phone","tablet"]') || '["legacy"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
