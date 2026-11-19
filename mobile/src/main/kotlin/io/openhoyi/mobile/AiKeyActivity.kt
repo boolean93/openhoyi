@@ -31,11 +31,13 @@ class AiKeyActivity : ThemedActivity() {
         if (!BuildConfig.MOCK_MODE) {
             shotReviewSwitch = android.widget.Switch(this).apply {
                 text = getString(R.string.shot_review_setting)
-                setTextColor(style.ink)
+                style.apply(this, TaskProductVisualStyle.body)
+                minimumHeight = style.dp(48)
                 tag = "ai/key/automatic-shot-review"
                 setOnCheckedChangeListener { _, checked ->
                     if (!syncShotReviewSwitch) {
-                        if (!reviews.setEnabled(checked)) status.setText(R.string.ai_key_failed)
+                        if (!reviews.setEnabled(checked)) status.setText(if (checked) R.string.ai_key_failed
+                            else R.string.shot_review_revoke_failed)
                         updateShotReviewSwitch()
                     }
                 }
@@ -97,14 +99,18 @@ class AiKeyActivity : ThemedActivity() {
         if (!::shotReviewSwitch.isInitialized) return
         syncShotReviewSwitch = true
         shotReviewSwitch.isEnabled = store.status() == AiKeyStatus.SAVED
-        shotReviewSwitch.isChecked = reviews.enabled()
+        shotReviewSwitch.isChecked = shotReviewSwitch.isEnabled && (reviews.enabled() || reviews.revocationUnconfirmed)
         syncShotReviewSwitch = false
     }
-    private fun refresh() { updateShotReviewSwitch(); status.setText(when (store.status()) {
+    private fun refresh() { updateShotReviewSwitch(); status.setText(when {
+        shotReviewSwitchOrNullChecked() && reviews.revocationUnconfirmed -> R.string.shot_review_revoke_failed
+        else -> when (store.status()) {
         AiKeyStatus.MISSING -> R.string.ai_key_missing
         AiKeyStatus.SAVED -> R.string.ai_key_saved
         AiKeyStatus.UNAVAILABLE -> R.string.ai_key_unavailable
+        }
     }) }
+    private fun shotReviewSwitchOrNullChecked() = ::shotReviewSwitch.isInitialized && shotReviewSwitch.isChecked
     override fun onPause() {
         if (::input.isInitialized) input.text.clear()
         super.onPause()

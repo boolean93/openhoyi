@@ -1,7 +1,6 @@
 package io.openhoyi.mobile
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.view.View
 import android.widget.TextView
 import kotlinx.coroutines.CoroutineScope
@@ -15,19 +14,27 @@ import java.util.concurrent.ConcurrentHashMap
 internal class AppShotReview(private val context: Context) {
     private val key = AiKeyStore(context)
     private val settings = context.getSharedPreferences("ai_automatic_shot_review_setting_v1", Context.MODE_PRIVATE)
+    private val grant = AndroidShotReviewGrant()
     private val preferences = ShotReviewPreferences(
         loadEpoch = { settings.getString("authorized_deepseek_epoch", null) },
         persistEpoch = { epoch -> settings.edit().putString("authorized_deepseek_epoch", epoch).commit() },
+        grantExists = grant::exists,
+        revokeGrant = grant::revoke,
+        createGrant = grant::create,
     )
     private val transports = ConcurrentHashMap<AiSafeTransport, ShotReviewConfig>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val ledger by lazy { PreferenceShotReviewLedger(
-        context.getSharedPreferences("ai_automatic_shot_review_attempts_v1", Context.MODE_PRIVATE)) }
+    private val ledger by lazy {
+        val file = java.io.File(context.filesDir, "ai_automatic_shot_review_attempts_v1.json")
+        val document = AtomicDocumentStorage(file.toPath())
+        BoundedShotReviewLedger(readBytes = {
+            require(!file.exists() || file.length() <= BoundedShotReviewLedger.MAX_BYTES)
+            document.read()
+        }, writeBytes = document::write)
+    }
     private val controller by lazy {
         AutomaticShotReview(scope, ::current, ledger, ::send, publishIfCurrent = { cfg, publish ->
-            key.publishForRevision(cfg.keyRevision) { epoch ->
-                preferences.publishForRevision(epoch, cfg.consentRevision, publish)
-            }
+            withAuthorization(cfg, publish)
         })
     }
     init { key.observeMutation(::cancelTransport) }
@@ -40,10 +47,18 @@ internal class AppShotReview(private val context: Context) {
 
     fun enabled(): Boolean = preferences.revision(key.credentialEpoch()) != null && key.hasSavedValue()
 
+    val revocationUnconfirmed: Boolean get() = preferences.revocationUnconfirmed
+
+    private fun withAuthorization(cfg: ShotReviewConfig, action: () -> Unit): Boolean =
+        key.publishForRevision(cfg.keyRevision) { epoch ->
+            preferences.publishForRevision(epoch, cfg.consentRevision, action)
+        }
+
     fun setEnabled(enabled: Boolean): Boolean {
-        val epoch = if (enabled && key.status() == AiKeyStatus.SAVED) key.credentialEpoch() else null
-        if (enabled && epoch == null) return false
-        return preferences.set(epoch).also { if (!enabled) cancelTransport() }
+        if (!enabled) return preferences.set(null).also { cancelTransport() }
+        val snapshot = key.revision()
+        if (key.status() != AiKeyStatus.SAVED) return false
+        return key.publishForRevision(snapshot, preferences::set)
     }
 
     fun config(language: AppLanguage): ShotReviewConfig? {
@@ -59,14 +74,21 @@ internal class AppShotReview(private val context: Context) {
         key.revision() == cfg.keyRevision && key.hasSavedValue() &&
             preferences.revision(key.credentialEpoch()) == cfg.consentRevision
 
+    fun updateRetained(ids: Set<String>) {
+        if (!ready) return
+        ledger.publishRetained(ids)
+        scope.launch { ledger.prune() }
+    }
+
     fun afterPersisted(entry: ShotHistory.Entry, points: List<ShotPoint>, cfg: ShotReviewConfig) {
-        if (entry.status == ShotHistory.Status.ENDED && entry.machineTimingInterrupted != true)
-            controller.afterPersisted(entry.id, cfg, points, entry.observedMachineElapsedSeconds)
+        controller.afterPersisted(entry.id, cfg, points, entry.observedMachineElapsedSeconds)
     }
 
     private suspend fun send(cfg: ShotReviewConfig, request: String): String {
+        if (!runCatching(grant::exists).getOrDefault(false)) throw AiFailure(AiProblem.KEY)
         val transport = AiSafeTransport(key = { key.readForRequest(cfg.keyRevision) },
-            keyStillCurrent = { current(cfg) }, budget = AiRequestBudget(), maxResponseBytes = 32_768)
+            keyStillCurrent = { current(cfg) }, budget = AiRequestBudget(), maxResponseBytes = 32_768,
+            beforeWrite = { withAuthorization(cfg) {} })
         transports[transport] = cfg
         try {
             // No retryState, model tools, or web search. Same allow-listed endpoint as manual chat.
@@ -115,18 +137,24 @@ internal class AppShotReview(private val context: Context) {
     }
 }
 
-private class PreferenceShotReviewLedger(private val prefs: SharedPreferences) : ShotReviewLedger {
-    @Synchronized override fun reserve(id: String): Boolean =
-        !prefs.contains(id) && prefs.edit().putString(id, ShotReviewStatus.PENDING.name).commit()
-
-    override fun finish(id: String, result: ShotReviewResult) {
-        prefs.edit().putString(id, result.status.name + (result.text?.let { "\n$it" } ?: "")).commit()
+/** A separate durable gate: an inaccessible/missing alias is denial, never implicit consent. */
+private class AndroidShotReviewGrant {
+    private val alias = "io.openhoyi.mobile.auto_shot_review_grant.v1"
+    private fun store() = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    fun exists() = store().containsAlias(alias)
+    fun revoke() = store().let { keyStore ->
+        if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
+        !keyStore.containsAlias(alias)
     }
-
-    override fun read(id: String): ShotReviewResult? {
-        val value = prefs.getString(id, null) ?: return null
-        val status = ShotReviewStatus.entries.firstOrNull { it.name == value.substringBefore('\n') } ?: return null
-        val text = value.substringAfter('\n', "").take(ShotReviewWire.RESPONSE_CHARS).ifBlank { null }
-        return ShotReviewResult(status, text)
+    fun create(): Boolean {
+        if (exists()) return true
+        val spec = android.security.keystore.KeyGenParameterSpec.Builder(alias,
+            android.security.keystore.KeyProperties.PURPOSE_ENCRYPT)
+            .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256).build()
+        javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+            .apply { init(spec) }.generateKey()
+        return exists()
     }
 }
