@@ -47,7 +47,8 @@ internal class TaskShellVisualStyle(private val context: Context) {
         }
         return RippleDrawable(ColorStateList.valueOf(selected), states, shape(Color.WHITE))
     }
-    fun cardBackground() = shape(card)
+    fun cardBackground(withWallpaper: Boolean = false) =
+        if (withWallpaper) shape(wallpaperTint(card, 30), outlined = true) else shape(card)
     fun action(button: Button) {
         button.typeface = TaskTypography.face(context, 500)
         button.setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),

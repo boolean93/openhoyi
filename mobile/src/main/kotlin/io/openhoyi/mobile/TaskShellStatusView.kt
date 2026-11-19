@@ -43,12 +43,18 @@ internal class TaskShellStatusView(
         tag = id
         style.apply(this, TaskProductVisualStyle.Type(14, if (ink) 500 else 400, 20), !ink)
         setTextColor(if (ink) chrome.ink else chrome.muted)
+        if (!ink) observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { photo ->
+            // Only secondary status text needs a stronger ink over the darkest allowed light photo.
+            setTextColor(if (photo && !HoyiUi.dark(host)) 0xff455451.toInt() else chrome.muted)
+        }
         gravity = Gravity.CENTER; setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
     }
     private fun group(id: String) = LinearLayout(host).apply {
         tag = id; orientation = VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
         setPadding(0, style.dp(4), 0, style.dp(4))
         background = chrome.cardBackground()
+        tintPanelForWallpaper((host.application as MobileApplication).pageBackgrounds,
+            chrome.cardBackground(withWallpaper = true))
     }
     private val coffeeGroup = group("task-shell-coffee-group")
     private val scaleGroup = group("task-shell-scale-group")
@@ -101,7 +107,10 @@ internal class TaskShellStatusView(
     private var disconnectIcon = ""
 
     init {
+        tag = "task-shell-status"
         setBackgroundColor(chrome.surface)
+        // Same crop and surface strength as the navigation rail and bottom navigation.
+        host.installPageBackdrop(this, chrome.surface, navigation = true)
         coffeeGroup.addView(coffeeFacts, LayoutParams(-1, -2))
         coffeeFacts.addView(coffeeHint,LayoutParams(-1,-2))
         coffeeGroup.addView(coffeeRetry,actionParams())
