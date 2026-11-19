@@ -48,7 +48,9 @@ internal class TaskShellVisualStyle(private val context: Context) {
         return RippleDrawable(ColorStateList.valueOf(selected), states, shape(Color.WHITE))
     }
     fun cardBackground(withWallpaper: Boolean = false) =
-        if (withWallpaper) shape(wallpaperTint(card, 30), outlined = true) else shape(card)
+        // Use the selected Home chip's palette color to group device facts and action,
+        // but retain a hint of the photo under these cards and keep the outer rail unchanged.
+        if (withWallpaper) shape(wallpaperTint(selected, 216), outlined = true) else shape(card)
     fun action(button: Button) {
         button.typeface = TaskTypography.face(context, 500)
         button.setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
