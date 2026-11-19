@@ -720,7 +720,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             val dial = (0 until column.childCount).map(column::getChildAt).filterIsInstance<BoilerTemperatureDial>().single()
             val power = home("$key/toggle") as HoyiSwitch
             check(power.parent?.parent === dial)
-            val touch = HoyiUi.dp(root.context, 48)
+            val touch = (48 * root.resources.displayMetrics.density).toInt()
             check(power.width >= touch && power.height >= touch && !power.contentDescription.isNullOrEmpty())
             return checkNotNull(localRect(root, dial))
         }
