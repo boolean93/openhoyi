@@ -11,6 +11,7 @@ import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -237,6 +238,18 @@ internal class HomePresetGrid(
         if (hasLegacy) {
             slots[5].standalone(true)
             addView(slots[5], LayoutParams(-1, -2).apply { topMargin = dp(5) })
+        }
+        if (isAttachedToWindow) {
+            // Reattaching a reused subtree clears Android's isLaidOut flags.
+            // Force one real descendant traversal even if sizes/specs match before and after.
+            // This runs only when arrange changes the hierarchy, not during ordinary measures.
+            fun markReattached(view: View) {
+                view.forceLayout()
+                if (view is ViewGroup) {
+                    for (index in 0 until view.childCount) markReattached(view.getChildAt(index))
+                }
+            }
+            for (index in 0 until childCount) markReattached(getChildAt(index))
         }
     }
 
