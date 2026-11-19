@@ -3093,7 +3093,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 scope.offerScenarioFrame(owner, start + 1000, 10)
                 scope.offerScenarioFrame(owner, start + 2000, 20)
                 if (end) {
-                    scope.finishReviewFixtureShot(owner, start + 3000)
+                    // The real controller needs a fresh idle frame >2.8s after valve-open.
+                    scope.finishReviewFixtureShot(owner, start + 5500)
                     scope.awaitReviewSamples(id)
                 }
             }
@@ -3103,17 +3104,17 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
 
             permitted.set(false)
-            brew("qa-review-no-key", 3000, end = false)
+            brew("qa-review-no-key", 5500, end = false)
             await("next running cup never inherits the previous cup verdict") {
                 owner.chartTraceIdentity == "qa-review-no-key" && owner.shotState == ExtractionState.RUNNING &&
                     label().visibility == View.GONE && label().text.isEmpty()
             }
-            scope.finishReviewFixtureShot(owner, 6000)
+            scope.finishReviewFixtureShot(owner, 11_000)
             scope.awaitReviewSamples("qa-review-no-key")
             main { check(calls.get() == 1 && label().visibility == View.GONE) }
 
             permitted.set(true)
-            brew("qa-review-failed", 6000)
+            brew("qa-review-failed", 11_000)
             await("pending synthetic evaluation does not block completed extraction UI") {
                 calls.get() == 2 && owner.shotState == ExtractionState.ENDED_OBSERVED &&
                     label().text == host.getString(R.string.shot_review_pending) &&
