@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_compaction_running">Compacting conversation. You can type, but sending is paused.</string>
+    <string name="ai_compaction_saved">Conversation compacted</string>
+</resources>

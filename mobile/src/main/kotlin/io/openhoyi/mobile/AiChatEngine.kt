@@ -49,6 +49,7 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
         onRetry: (AiRetryProgress?) -> Unit = {},
         onProgress: (AiStreamDelta) -> Unit = {},
         onToolStarted: () -> Unit = {},
+        onCompactionStarted: () -> Unit = {},
         onCompacted: (AiProtocolHistory) -> Boolean = { false }): AiChatReply {
         val replyScope = AiReplyScope()
         return replyScope.run {
@@ -73,6 +74,7 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
             val stopObserving = credentials.observeMutation(transport::close)
             try {
                 val working = if (AiContextPolicy.needsCompact(history, input, extraTokens, imageBytes, schemaTokens)) {
+                    onCompactionStarted()
                     val summaryTransport = AiSafeTransport({ credentials.readForRequest(revision) },
                         { credentials.revision() == revision }, budget, diagnostics = diagnostics, usage = usage, retryState = retries, onRetry = onRetry)
                     val stopSummary = credentials.observeMutation(summaryTransport::close)
