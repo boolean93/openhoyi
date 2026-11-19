@@ -287,6 +287,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val pressure = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 48 else if (phoneHome) 36 else 19, 700,
                 if (spaciousHome) 58 else if (phoneHome) 44 else 25), "product/home/$tagName/pressure")
             val target = productStyle.text("—", TaskProductVisualStyle.Type(if (shortHome) 14 else 16, 400, if (shortHome) 20 else 24), "product/home/$tagName/target", true)
+            target.tag = "product/home/$tagName/target"
             val toggle = HoyiSwitch(host).apply {
                 tag = "product/home/$tagName/toggle"
                 contentDescription = heading.text

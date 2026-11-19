@@ -25,7 +25,7 @@ BACKGROUND_MARKER = ('PAGE_BACKGROUND_CHECKS_PASSED protectedInk=true noActivity
 BACKGROUNDS = tuple(f'{mode}-{page}.png' for mode in ('light', 'dark')
                     for page in ('photo', 'settings', 'home', 'curve', 'ai', 'home-mist', 'ai-fade', 'ai-composer',
                                  'ai-attachment-menu', 'scale', 'history', 'beans', 'extraction', 'ai-welcome')) + (
-                        'landscape-scale.png', 'landscape-curve.png', 'landscape-settings.png',
+                        'landscape-home.png', 'landscape-scale.png', 'landscape-curve.png', 'landscape-settings.png',
                         'dark-home-disabled-modes.png', 'dark-curve-detail.png',
                     )
 BACKGROUND_FAILURE_FRAMES = tuple(f'{name.removesuffix(".png")}.failed.png' for name in BACKGROUNDS)

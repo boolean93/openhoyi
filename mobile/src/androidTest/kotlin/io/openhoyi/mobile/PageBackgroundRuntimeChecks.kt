@@ -582,7 +582,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             use.isShown && use.isEnabled && localRect(root, use) != null &&
                 (root.background as PageBackdrop).roundedAreas.any { it.clip.contains(visible) }
         }
-        captureApplied(host, root, outputName, backing = style.surface, translucentCover = true,
+        captureApplied(host, root, outputName, backing = style.surface, translucentCover = true, blendGapProbes = true,
             foregroundSurfaces = { listOf(SolidSurface(use, style.primary)) },
             requiredWallpaper = {
                 val bounds = checkNotNull(localRect(root, use))
@@ -650,6 +650,20 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 main { host.select(page) }
                 return visiblePage(host, "root:${page.name}")
             }
+            val home = go(TaskDestination.BREW)
+            await("short landscape home shows both native boiler switches above targets") {
+                listOf("brew", "steam").all { boiler ->
+                    val key = "product/home/$boiler-boiler"
+                    val power = home.findViewWithTag<HoyiSwitch>("$key/toggle") ?: return@all false
+                    val target = home.findViewWithTag<View>("$key/target") ?: return@all false
+                    val touch = HoyiUi.dp(host, 48)
+                    val hit = localRect(home, power) ?: return@all false
+                    val goal = localRect(home, target) ?: return@all false
+                    hit.width() >= touch && hit.height() >= touch && hit.bottom <= goal.top
+                }
+            }
+            val homeFrame = captureCommittedFrame(home)
+            try { writeScreenshot("landscape-home.png", homeFrame) } finally { homeFrame.recycle() }
             captureScalePage(host, go(TaskDestination.SCALE), "landscape-scale.png")
             captureCurvePage(host, go(TaskDestination.CURVES), "landscape-curve.png")
             val settings = go(TaskDestination.SETTINGS)
@@ -801,6 +815,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         decorativeGuttersOf: (() -> View)? = null,
         nativeCoverFill: Int? = null,
         translucentCover: Boolean = false,
+        blendGapProbes: Boolean = false,
         inventoryForeground: (() -> InventoryForeground)? = null,
         protectedView: () -> View,
     ) {
@@ -921,9 +936,19 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         }
                         Protection(points, expectedFills)
                     }
-                    val gaps = requiredWallpaper { band ->
+                    val gapPositions = requiredWallpaper { band ->
                         stableGapSample(band, bitmap, contrastThreshold, backdropFills, ::distance)
-                    }.map { point ->
+                    }
+                    if (blendGapProbes) {
+                        val bare = gapPositions.map { bitmap.getPixel(it.x, it.y) }
+                        paper.draw(Canvas(bitmap))
+                        requirePixelEvidence(gapPositions.indices.any { index ->
+                            val point = gapPositions[index]
+                            val blend = bitmap.getPixel(point.x, point.y)
+                            distance(blend, bare[index]) >= matchTolerance && againstFills(blend, solidColors)
+                        }) { "$name action corners should still carry a non-solid photo blend" }
+                    }
+                    val gaps = gapPositions.map { point ->
                         Pixel(start[0] + point.x, start[1] + point.y, bitmap.getPixel(point.x, point.y))
                     }
                     requirePixelEvidence(gaps.isEmpty() || gaps.count { againstFills(it.color, backdropFills) } >= minOf(2, (gaps.size + 1) / 2)) {
