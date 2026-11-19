@@ -299,21 +299,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 }
             }
             if (shortHome) {
-                // Short landscape windows need the readings and actions on the first screen.
-                // Keep the dial presentation for portrait and taller landscape windows.
-                val controls = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-                controls.addView(heading, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
-                card.addView(controls)
-                val readings = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+                // Readings and controls run side-by-side so the new 48dp switch
+                // does not consume a full extra row in short landscape windows.
+                val compact = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+                val readings = productStyle.column()
                 productStyle.apply(pressure, TaskProductVisualStyle.Type(14, 400, 20))
-                // Units identify temperature; the live pressure field already includes its label.
-                readings.addView(value, LinearLayout.LayoutParams(0, -2, 1f))
-                readings.addView(pressure, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(4) })
-                card.addView(readings, LinearLayout.LayoutParams(-1, -2))
-                card.addView(toggle, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
-                    gravity = android.view.Gravity.CENTER_HORIZONTAL
-                })
-                productStyle.add(card, target)
+                productStyle.add(readings, heading)
+                productStyle.add(readings, value)
+                productStyle.add(readings, pressure)
+                compact.addView(readings, LinearLayout.LayoutParams(0, -2, 1f))
+                val controls = productStyle.column().apply { gravity = android.view.Gravity.CENTER_HORIZONTAL }
+                controls.addView(toggle, LinearLayout.LayoutParams(dp(48), dp(48)))
+                target.gravity = android.view.Gravity.CENTER
+                productStyle.add(controls, target)
+                compact.addView(controls, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6) })
+                productStyle.add(card, compact)
             } else {
                 val dial = BoilerTemperatureDial(host, heading, value, target, toggle).apply { keepOwnBackdropTreatment() }
                 val footer = Any()
