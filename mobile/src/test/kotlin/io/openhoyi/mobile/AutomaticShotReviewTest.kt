@@ -144,7 +144,7 @@ class AutomaticShotReviewTest {
             review.afterPersisted("cup", config, points, null)
             yield()
             valid = false
-            release.complete(response("must not publish"))
+            release.complete(response(reviewContent("must not publish")))
             yield()
             assertEquals(ShotReviewStatus.UNKNOWN, review.result("cup")?.status)
             valid = true
@@ -196,7 +196,23 @@ class AutomaticShotReviewTest {
         assertNull(ShotReviewWire.answer(response(reviewContent("well", "slowed", " "))))
         assertNull(ShotReviewWire.answer(response(reviewContent("well", "slowed", "before\nafter"))))
         assertNull(ShotReviewWire.answer(response(reviewContent("well", "slowed", "x".repeat(116)))))
-        assertEquals("well\nslowed\nmeasure", ShotReviewWire.answer(response(reviewContent("well", "slowed", "measure"))))
+        assertEquals("well\nslowed\nmeasure", ShotReviewWire.answer(response(
+            """{"nextCup":"measure","good":"well","deviation":"slowed"}""")))
+    }
+
+    @Test fun `incomplete advice fails once without a retry or a partial verdict`() = runBlocking {
+        var calls = 0
+        val review = AutomaticShotReview(this, { true }, Ledger(), { _, _ ->
+            calls++
+            response("""{"good":"well","deviation":"slowed"}""")
+        })
+        review.afterPersisted("cup-incomplete", config, points, 8)
+        yield()
+        assertEquals(ShotReviewStatus.FAILED, review.result("cup-incomplete")?.status)
+        assertNull(review.result("cup-incomplete")?.text)
+        review.afterPersisted("cup-incomplete", config, points, 8)
+        yield()
+        assertEquals(1, calls)
     }
 
     @Test fun `default denial and changing consent or credential changes the revision fence`() {
