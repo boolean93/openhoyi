@@ -31,6 +31,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
     private var liveShortcutChecks = false
+    private var liveShortcutAppFont = AppFontSize.MEDIUM
     private var shortcutTheme: Boolean? = null
     private var machineLeverRecipeChecks = false
     private var customShortcutChecks = false
@@ -136,6 +137,9 @@ class BrewAudioInstrumentation : Instrumentation() {
         liveScaleReadoutChecks = arguments?.getString("liveScaleReadoutChecks") == "true"
         shortcutDirectStartChecks = arguments?.getString("shortcutDirectStartChecks") == "true"
         liveShortcutChecks = arguments?.getString("liveShortcutChecks") == "true"
+        if (liveShortcutChecks) arguments?.getString("liveShortcutAppFont")?.let { requested ->
+            liveShortcutAppFont = AppFontSize.entries.single { it.key == requested }
+        }
         shortcutTheme = arguments?.getString("shortcutTheme")?.let {
             require(it in setOf("light", "dark")); it == "dark"
         }
@@ -227,7 +231,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report); return
             }
             if (liveShortcutChecks) {
-                LiveShortcutWindowChecks(this).run()
+                check(disposableCiEmulator) { "Live Shortcut checks require a disposable CI emulator" }
+                LiveShortcutWindowChecks(this).run(liveShortcutAppFont)
                 report.putString("stream", "LIVE_SHORTCUT_WINDOW_PASSED exactSlot=true staleSelectionDenied=true disabledRows=true preferenceOff=true explicitPreheatNoReplay=true stopPreserved=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }

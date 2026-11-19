@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.view.View
 import android.widget.Button
+import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.ExtractionState
 
 /** Disposable Mock app only; never connect, select or operate an appliance. */
@@ -13,7 +14,8 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
     private fun main(action: () -> Unit) = BoundedInstrumentationMain.run("live shortcuts", 5000, action)
 
     private fun screenshot(path: java.io.File) {
-        test.waitForIdleSync()
+        // A live chart may keep the main queue drawing indefinitely, even though the frame is ready.
+        SystemClock.sleep(300)
         val image = checkNotNull(test.uiAutomation.takeScreenshot())
         try {
             path.outputStream().use { check(image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) }
@@ -22,10 +24,11 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
         }
     }
 
-    fun run() {
+    fun run(appFont: AppFontSize) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
+        val originalFont = app.fontSizePreferences.current
         val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
         val selection = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val options = context.getSharedPreferences(ShortcutStartPolicy.PREFERENCES, Context.MODE_PRIVATE)
@@ -73,6 +76,7 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
         try {
             main {
                 check(app.beanPreparationResult.getOrThrow().current() == null)
+                check(app.fontSizePreferences.select(appFont) != AppFontSizePreference.Selection.SAVE_FAILED)
                 check(selection.edit().putString("selected", "factory-v3-001").commit())
                 direct(false)
                 bind(1, "factory-v3-001")
@@ -91,11 +95,16 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
             service = owner
             val fragment = page.active("extraction") as ExtractionFragment
             val configuration = host.resources.configuration
-            val evidence = java.io.File(context.getExternalFilesDir(null),
-                "live-shortcut-checks/${configuration.screenWidthDp}x${configuration.screenHeightDp}-font${configuration.fontScale}")
-                .apply { mkdirs() }
+            val evidence = java.io.File(context.filesDir, "live-shortcut-checks").apply { mkdirs() }
+            java.io.File(evidence, "viewport.json").writeText(org.json.JSONObject()
+                .put("widthDp", configuration.screenWidthDp).put("heightDp", configuration.screenHeightDp)
+                .put("densityDpi", configuration.densityDpi).put("fontScale", configuration.fontScale.toDouble())
+                .put("appFont", app.fontSizePreferences.current.key)
+                .put("portrait", configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                .toString())
             fun shortcutButton() = fragment.requireView().findViewWithTag<Button>("product/extraction/shortcuts")
-            fun identity() = fragment.requireView().findViewWithTag<android.widget.TextView>("product/extraction/identity").text.toString()
+            fun selectedSlot() = ExtractionFragment::class.java.getDeclaredField("presetSlot")
+                .apply { isAccessible = true }.getInt(fragment)
             fun open() = checkNotNull(dialogField.get(fragment)) as AlertDialog
             fun row(slot: Int) = checkNotNull(open().window?.decorView)
                 .findViewWithTag<Button>("product/extraction/shortcut/$slot")
@@ -110,42 +119,29 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 shortcut.isEnabled && shortcut.getGlobalVisibleRect(bounds) &&
                     bounds.width() >= shortcut.width && bounds.height() >= shortcut.height
             }
-            screenshot(java.io.File(evidence, "idle.png"))
             main {
-                noShot()
-                check(shortcutButton().performClick())
-                check(row(1).isEnabled && !row(2).isEnabled && !row(3).isEnabled && row(4).isEnabled)
-                val displayed = checkNotNull(app.curves.find("factory-v3-002")).name
-                check(row(4).text.toString().endsWith(displayed) && row(4).ellipsize == null)
-                val initial = identity()
-                // A row that was shown before the preset changed must never select the replacement.
-                val stale = row(4)
-                bind(4, "factory-v3-003")
-                check(stale.performClick())
-                check(identity() == initial)
-                noShot()
-                bind(4, "factory-v3-002")
-                check(shortcutButton().performClick())
-                open().dismiss()
-                noShot()
-                check(shortcutButton().performClick())
-                check(row(4).performClick())
-                check(identity().contains(displayed))
-                noShot()
-                val activeConnection = MainActivity::class.java.getDeclaredField("connection").apply { isAccessible = true }
-                    .get(host) as android.content.ServiceConnection
-                val component = android.content.ComponentName(host, MobileService::class.java)
-                check(shortcutButton().performClick())
-                val staleSession = checkNotNull(host.liveShortcutSession(fragment))
-                val unchanged = identity()
-                val oldChoice = host.liveShortcutChoices().first()
-                activeConnection.onServiceDisconnected(component)
-                check(dialogField.get(fragment) == null)
-                activeConnection.onServiceConnected(component, owner.LocalBinder())
-                host.openLiveShortcut(fragment, staleSession, oldChoice)
-                check(identity() == unchanged)
-                noShot()
-
+                val density = fragment.resources.displayMetrics.density
+                val minHit = (48 * density).toInt()
+                val root = fragment.requireView()
+                listOf("product/extraction/shortcuts", "product/extraction/series-selector",
+                    "product/extraction/chart-tools").forEach { tag ->
+                    val action = root.findViewWithTag<View>(tag)
+                    val rect = android.graphics.Rect()
+                    check(action.width >= minHit && action.height >= minHit && action.getGlobalVisibleRect(rect) &&
+                        rect.width() >= minHit && rect.height() >= minHit) { "Clipped 48dp action: $tag" }
+                }
+                if (configuration.screenWidthDp <= 360) {
+                    val title = root.findViewWithTag<android.widget.TextView>("product/extraction/identity")
+                    val layout = checkNotNull(title.layout)
+                    check(title.width >= (120 * density).toInt() &&
+                        (layout.getEllipsisCount(0) == 0 || layout.getEllipsisStart(0) >= 3)) {
+                        "Narrow recipe header no longer identifies the selected curve"
+                    }
+                }
+            }
+            screenshot(java.io.File(evidence, "idle.png"))
+            // Collect the clean menu before deliberately triggering rejection toasts.
+            main {
                 bind(1, PresetSlots.bind(draft.id))
                 check(shortcutButton().performClick())
                 val long = row(1)
@@ -155,10 +151,20 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
             main {
                 check(row(1).performClick())
                 check(selection.getString("selected", null) == draft.id)
-                check((ExtractionFragment::class.java.getDeclaredField("presetSlot").apply { isAccessible = true }
-                    .get(fragment) as Int) == 7)
+                check(selectedSlot() == 7)
                 noShot()
 
+                bind(1, "factory-v3-001")
+            }
+            fun requestPreheat(): AlertDialog {
+                check(shortcutButton().performClick())
+                check(row(4).performClick())
+                val dialog = (prepDialogs.get(fragment) as List<*>).lastOrNull() as? AlertDialog
+                return checkNotNull(dialog).also { check(it.isShowing) }
+            }
+            var cancelledDialog: AlertDialog? = null
+            var approvedDialog: AlertDialog? = null
+            main {
                 // Synthetic manual detection on the Mock owner; no telemetry/device injected externally.
                 check(shortcutButton().performClick())
                 val passive = MobileService::class.java.getDeclaredField("passiveShot").apply { isAccessible = true }.get(owner)
@@ -183,25 +189,33 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 settingsField.set(runtime, settings.copy(flags = settings.flags or 0x04))
                 tempField.setInt(runtime, 7500)
                 refreshMock.invoke(owner, runtime, MobileMonotonicClock.elapsedRealtime())
-                fun requestPreheat(): AlertDialog {
-                    check(shortcutButton().performClick())
-                    check(row(4).performClick())
-                    val dialog = (prepDialogs.get(fragment) as List<*>).lastOrNull() as? AlertDialog
-                    return checkNotNull(dialog).also { check(it.isShowing) }
+                val dialog = requestPreheat()
+                cancelledDialog = dialog
+                check(dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick())
+            }
+            // AlertController posts listener and dismissal messages to main. Return from the
+            // click block before checking the actual product response or opening another dialog.
+            await("cancel dialog dismissed") { cancelledDialog?.isShowing == false }
+            main {
+                check(owner.brewPreparationState == BrewPreparation.State.IDLE)
+                noShot()
+                val dialog = requestPreheat()
+                approvedDialog = dialog
+                check(dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick())
+            }
+            await("confirmed preheat while the shot remains idle") {
+                val state = owner.brewPreparationState
+                ownsPreparation = state != BrewPreparation.State.IDLE && owner.brewPreparationProfileId == "factory-v3-002"
+                noShot()
+                check(state !in setOf(BrewPreparation.State.FAILED, BrewPreparation.State.UNKNOWN)) {
+                    "Preheat transition failed: $state"
                 }
-                val cancel = requestPreheat().getButton(AlertDialog.BUTTON_NEGATIVE)
-                check(cancel.performClick())
-                check(owner.brewPreparationState == io.openhoyi.session.BrewPreparation.State.IDLE)
-                noShot()
-                val prepare = requestPreheat().getButton(AlertDialog.BUTTON_POSITIVE)
-                check(prepare.performClick())
-                ownsPreparation = owner.brewPreparationState != io.openhoyi.session.BrewPreparation.State.IDLE
-                check(ownsPreparation)
-                noShot()
-                check(!shortcutButton().isEnabled)
+                approvedDialog?.isShowing == false && ownsPreparation &&
+                    state in setOf(BrewPreparation.State.WRITING, BrewPreparation.State.WAITING_TEMP, BrewPreparation.State.READY) &&
+                    !shortcutButton().isEnabled
             }
             await("target reached without a deferred start") {
-                owner.brewPreparationState == io.openhoyi.session.BrewPreparation.State.READY
+                owner.brewPreparationState == BrewPreparation.State.READY
             }
             main {
                 noShot()
@@ -213,19 +227,29 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 refreshMock.invoke(owner, runtime, MobileMonotonicClock.elapsedRealtime())
             }
             await("explicit selection available again") { shortcutButton().isEnabled }
+            var secondRow: LiveShortcutChoice? = null
+            var secondSession: LiveShortcutSession<MobileService>? = null
             main {
                 check(shortcutButton().performClick())
-                val alreadyDisplayed = host.liveShortcutChoices().first()
-                val session = checkNotNull(host.liveShortcutSession(fragment))
+                secondRow = host.liveShortcutChoices().first()
+                secondSession = checkNotNull(host.liveShortcutSession(fragment))
                 check(row(4).performClick())
                 ownedShot = owner.chartTraceIdentity
                 check(ownedShot != null && ownedShot !in existingShots) { "One explicit tap did not start a Mock shot" }
-                host.openLiveShortcut(fragment, session, alreadyDisplayed)
-                check(owner.chartTraceIdentity == ownedShot)
                 check(!shortcutButton().isEnabled)
+            }
+            await("fully visible STOP before running screenshot") {
+                val stop = fragment.requireView().findViewWithTag<Button>("product/extraction/stop")
+                val rect = android.graphics.Rect()
+                stop.isShown && stop.isEnabled && stop.getGlobalVisibleRect(rect) &&
+                    rect.width() >= stop.width && rect.height() >= stop.height
             }
             screenshot(java.io.File(evidence, "running-stop-visible.png"))
             main {
+                // Preserve the explicit second-start rejection check without capturing its toast.
+                host.openLiveShortcut(fragment, checkNotNull(secondSession), checkNotNull(secondRow))
+                check(owner.chartTraceIdentity == ownedShot)
+                check(!shortcutButton().isEnabled)
                 val stop = fragment.requireView().findViewWithTag<Button>("product/extraction/stop")
                 val bounds = android.graphics.Rect()
                 check(stop.isShown && stop.isEnabled && stop.getGlobalVisibleRect(bounds) &&
@@ -237,6 +261,49 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                 noBle(owner)
                 val shot = app.history.entries.filter { it.id !in existingShots }.single()
                 check(shot.curveId == "factory-v3-002" && shot.slot == 4)
+            }
+            await("operation lease released after STOP") { shortcutButton().isEnabled }
+            fun noAdditionalShot() {
+                check(!ShotGate.active(owner.shotState))
+                check(app.history.entries.map { it.id }.toSet() == existingShots + checkNotNull(ownedShot))
+                noBle(owner)
+            }
+            main { direct(false) }
+            main {
+                noAdditionalShot()
+                check(shortcutButton().performClick())
+                check(row(1).isEnabled && !row(2).isEnabled && !row(3).isEnabled && row(4).isEnabled)
+                val displayed = checkNotNull(app.curves.find("factory-v3-002")).name
+                check(row(4).text.toString().endsWith(displayed) && row(4).ellipsize == null)
+                check(row(1).performClick() && selectedSlot() == 1)
+                check(shortcutButton().performClick())
+                // A row that was shown before the preset changed must never select the replacement.
+                val stale = row(4)
+                bind(4, "factory-v3-003")
+                check(stale.performClick())
+                check(selectedSlot() == 1)
+                noAdditionalShot()
+                bind(4, "factory-v3-002")
+                check(shortcutButton().performClick())
+                open().dismiss()
+                noAdditionalShot()
+                check(shortcutButton().performClick())
+                check(row(4).performClick())
+                check(selectedSlot() == 4)
+                noAdditionalShot()
+                val activeConnection = MainActivity::class.java.getDeclaredField("connection").apply { isAccessible = true }
+                    .get(host) as android.content.ServiceConnection
+                val component = android.content.ComponentName(host, MobileService::class.java)
+                check(shortcutButton().performClick())
+                val staleSession = checkNotNull(host.liveShortcutSession(fragment))
+                val unchanged = selectedSlot()
+                val oldChoice = host.liveShortcutChoices().first()
+                activeConnection.onServiceDisconnected(component)
+                check(dialogField.get(fragment) == null)
+                activeConnection.onServiceConnected(component, owner.LocalBinder())
+                host.openLiveShortcut(fragment, staleSession, oldChoice)
+                check(selectedSlot() == unchanged)
+                noAdditionalShot()
             }
         } finally {
             main {
@@ -250,6 +317,7 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
                         owner.stopShot()
                 }
                 activity?.finish()
+                check(app.fontSizePreferences.select(originalFont) != AppFontSizePreference.Selection.SAVE_FAILED)
                 curveFixture.restore()
                 check(presets.edit().also { edit -> original.forEach { (slot, value) ->
                     edit.putString(PresetSlots.key(slot), value)
