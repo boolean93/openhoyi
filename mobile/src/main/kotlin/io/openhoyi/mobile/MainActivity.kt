@@ -35,7 +35,12 @@ class MainActivity : ThemedActivity() {
     private var pendingAiCurveReference: String? = null
     private var aiCurveReturnToChat = false
     private var pageId = View.generateViewId()
+    private var liveServiceRevision = 0L
     private var service: MobileService? = null
+        set(value) {
+            if (field !== value) liveServiceRevision++
+            field = value
+        }
     private val bound: Boolean get() = serviceBinding.bound
     private val serviceBinding: VisibleServiceBinding by lazy {
         VisibleServiceBinding((application as MobileApplication).serviceAvailability,
@@ -75,7 +80,10 @@ class MainActivity : ThemedActivity() {
     private val shortcutPreferenceFiles by lazy {
         listOf("presets", "curves", "devices").map { getSharedPreferences(it, MODE_PRIVATE) }
     }
-    private val shortcutPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+    private var livePresetRevision = 0L
+    private val livePresetKeys = LiveShortcutChoice.slots.map(PresetSlots::key).toSet()
+    private val shortcutPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        if (prefs === shortcutPreferenceFiles[0] && (key == null || key in livePresetKeys)) livePresetRevision++
         revokeShortcutStart()
     }
     internal fun revokeShortcutStart() { shortcutStart?.revoke(); shortcutStart = null }
@@ -441,8 +449,77 @@ class MainActivity : ThemedActivity() {
         }
     }
 
-    /** Shared one-tap path: the source must remain the exact curve/history reference tapped. */
-    private fun launchHomeCurve(sourceSlot: Int, route: PresetSlots.Route.Ready, sourceValid: () -> Boolean) {
+    private sealed interface ShortcutEntry {
+        data class Home(val sourceSlot: Int) : ShortcutEntry
+        data class Live(val fragment: ExtractionFragment) : ShortcutEntry
+    }
+
+    internal fun liveShortcutChoices(): List<LiveShortcutChoice> =
+        LiveShortcutChoice.slots.map(::liveShortcutChoice)
+
+    private fun liveShortcutChoice(slot: Int): LiveShortcutChoice {
+        val library = (application as MobileApplication).curves
+        val presets = getSharedPreferences("presets", MODE_PRIVATE)
+        val stored = presets.getString(PresetSlots.key(slot), null)
+        val id = PresetSlots.curveId(slot, stored, library)
+        val item = library.find(id)
+        return LiveShortcutChoice(slot, stored, id, item,
+            (PresetSlots.route(slot, stored, library) as? PresetSlots.Route.Ready)
+                ?.takeIf { item != null && library.canStart(item) })
+    }
+
+    internal fun liveShortcutSession(fragment: ExtractionFragment): LiveShortcutSession<MobileService>? {
+        if (!isLiveShortcutContext(fragment)) return null
+        val owner = service ?: return null
+        val device = owner.shortcutDeviceIdentity ?: return null
+        return LiveShortcutSession(owner, device, liveServiceRevision, livePresetRevision, liveShortcutLibraryRevision())
+    }
+
+    private fun liveShortcutLibraryRevision() = (application as MobileApplication).customCurvesResult.getOrNull()?.revision
+
+    private fun matchesLiveShortcutSession(session: LiveShortcutSession<MobileService>): Boolean =
+        session.matches(service, service?.shortcutDeviceIdentity, liveServiceRevision, livePresetRevision, liveShortcutLibraryRevision())
+
+    internal fun liveShortcutBlock(fragment: ExtractionFragment, session: LiveShortcutSession<MobileService>? = null): String? {
+        if (!isLiveShortcutContext(fragment)) return getString(R.string.shortcut_start_cancelled)
+        val owner = service ?: return getString(R.string.service_unavailable)
+        if (!owner.running || owner.snapshot.coffeeState != DeviceState.READY || owner.shortcutDeviceIdentity == null)
+            return getString(R.string.service_unavailable)
+        if (session != null && !matchesLiveShortcutSession(session)) return getString(R.string.shortcut_start_cancelled)
+        return LiveShortcutChoice.operationBlock(getString(R.string.extraction_shortcuts_busy),
+            ShotGate.active(owner.shotState), owner.manualShotActive, owner.scalePreflight,
+            owner.brewPreparationState != io.openhoyi.session.BrewPreparation.State.IDLE,
+            shortcutStart?.pending() == true, owner.tareStartBlock, owner.machineControlSafetyMessage)
+    }
+
+    private fun isLiveShortcutContext(fragment: ExtractionFragment): Boolean =
+        foreground && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+            !supportFragmentManager.isStateSaved && extractionVisible &&
+            supportFragmentManager.primaryNavigationFragment === fragment && fragment.shortcutStartVisible
+
+    internal fun openLiveShortcut(fragment: ExtractionFragment, session: LiveShortcutSession<MobileService>, shown: LiveShortcutChoice) {
+        if (!isLiveShortcutContext(fragment)) return
+        // A chooser race during an active shot is inert. Do not cover the now-primary STOP
+        // with a queued toast about starting; the button itself is already disabled.
+        service?.let { owner ->
+            if (ShotGate.active(owner.shotState) || owner.manualShotActive || owner.scalePreflight) return
+        }
+        liveShortcutBlock(fragment, session)?.let {
+            Toast.makeText(this, it, Toast.LENGTH_LONG).show(); return
+        }
+        if (shown.slot !in LiveShortcutChoice.slots) return
+        val route = shown.route?.takeIf { liveShortcutChoice(shown.slot) == shown }
+            ?: run { Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show(); return }
+        launchShortcut(ShortcutEntry.Live(fragment), route) {
+            matchesLiveShortcutSession(session) && liveShortcutChoice(shown.slot) == shown
+        }
+    }
+
+    private fun launchHomeCurve(sourceSlot: Int, route: PresetSlots.Route.Ready, sourceValid: () -> Boolean) =
+        launchShortcut(ShortcutEntry.Home(sourceSlot), route, sourceValid)
+
+    /** Only explicit entry taps reach dispatch. Restoring a selection never restores a permit. */
+    private fun launchShortcut(entry: ShortcutEntry, route: PresetSlots.Route.Ready, sourceValid: () -> Boolean) {
         val requestedAt = MobileMonotonicClock.elapsedRealtime()
         val owner = service
         val library = (application as MobileApplication).curves
@@ -455,18 +532,54 @@ class MainActivity : ThemedActivity() {
         val device = owner?.shortcutDeviceIdentity
         val preference = shortcutPreferences.read()
         val preferenceRevision = shortcutPreferences.revision
-        showExtraction(sourceSlot)
-        if (owner != null && expected != null) {
-            owner.useCurveForPreheat(expected.id, expected.scaleMode, route.wireSlot)?.let { PreheatToast.show(this, it) }
-            // A temperature wait never becomes a deferred one-tap extraction.
-            if (owner.brewPreparationState != io.openhoyi.session.BrewPreparation.State.IDLE ||
-                owner.studioStartBlock(expected) != null) return
+        val fragment = when (entry) {
+            is ShortcutEntry.Home -> {
+                showExtraction(entry.sourceSlot)
+                if (owner != null && expected != null) {
+                    owner.useCurveForPreheat(expected.id, expected.scaleMode, route.wireSlot)
+                        ?.let { PreheatToast.show(this, it) }
+                    if (owner.brewPreparationState != io.openhoyi.session.BrewPreparation.State.IDLE ||
+                        owner.studioStartBlock(expected) != null) return
+                }
+                if (!preference.startsOnTap) return
+                supportFragmentManager.primaryNavigationFragment as? ExtractionFragment ?: return
+            }
+            is ShortcutEntry.Live -> {
+                // Do not re-route via Home/navigation. The displayed choice was revalidated.
+                revokeShortcutStart()
+                if (route.selectCurve && !getSharedPreferences("curves", MODE_PRIVATE).edit()
+                        .putString("selected", route.curveId).commit()) {
+                    Toast.makeText(this, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show()
+                    return
+                }
+                extractionSlot = route.wireSlot
+                entry.fragment.setPresetSlot(extractionSlot, refresh = true)
+                if (!preference.startsOnTap) return
+                entry.fragment
+            }
         }
-        if (!preference.startsOnTap) return
-        val fragment = supportFragmentManager.primaryNavigationFragment as? ExtractionFragment ?: return
         if (owner == null || expected == null) {
             Toast.makeText(this, if (owner == null) R.string.service_unavailable else R.string.extraction_choose_startable, Toast.LENGTH_LONG).show()
             return
+        }
+        if (entry is ShortcutEntry.Live) {
+            owner.extractionStartBlock(expected)?.let {
+                Toast.makeText(this, it, Toast.LENGTH_LONG).show(); return
+            }
+            owner.studioStartBlock(expected)?.let { message ->
+                if (DirectExtractionStart.offerPreheat(owner.studioStartReason(expected),
+                        owner.currentCorrectedBrewTemperature(), expected.temperatureC)) {
+                    fragment.confirmLiveShortcutPreheat(expected) {
+                        liveShortcutBlock(fragment) == null && service === owner && device != null &&
+                            owner.shortcutDeviceIdentity == device && sourceValid() &&
+                            app.customCurvesResult.getOrNull()?.revision == curveRevision &&
+                            owner.shortcutConfigurationRevision == configurationRevision &&
+                            shortcutPreferences.revision == preferenceRevision &&
+                            shortcutPreferences.read() == preference
+                    }
+                } else Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                return
+            }
         }
         val permit = ShortcutStartPermit(requestedAt, MobileMonotonicClock::elapsedRealtime) {
             foreground && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&

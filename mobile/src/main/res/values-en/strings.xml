@@ -235,6 +235,11 @@
     <string name="extraction_scale_flow">"Scale flow rate"</string>
     <string name="extraction_scale_stop_advice">"Scale data unavailable; safety stop sent. Confirm water flow has stopped"</string>
     <string name="extraction_shortcut_slot">"Quick slot %1$s"</string>
+    <string name="extraction_shortcuts">"Quick slots"</string>
+    <string name="extraction_shortcuts_busy">"Finish the active extraction or preparation before switching quick slots."</string>
+    <string name="extraction_shortcuts_choice">"%1$s · %2$s"</string>
+    <string name="extraction_shortcuts_empty">"Not configured"</string>
+    <string name="extraction_shortcuts_unavailable_name">"%1$s (unavailable)"</string>
     <string name="extraction_shot_initial">"Extraction state: standby"</string>
     <string name="extraction_shot_summary">"Extraction state: %1$s%2$s"</string>
     <string name="extraction_slot_suffix">" · Quick slot %1$s"</string>

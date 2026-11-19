@@ -33,8 +33,21 @@ internal class ChartSeriesSelector(private val chart: ExtractionOverlayView, pri
         compoundDrawablePadding = dp(6)
         setOnClickListener { show() }
     }
+    private var compactButton = false
     init { refresh() }
-    private fun refresh() { button.text = context.getString(R.string.chart_series_count, chart.visibleMetrics.size) }
+
+    fun setCompactButton(compact: Boolean) {
+        if (compactButton == compact) return
+        compactButton = compact
+        button.compoundDrawablePadding = dp(if (compact) 0 else 6)
+        refresh()
+    }
+
+    private fun refresh() {
+        val label = context.getString(R.string.chart_series_count, chart.visibleMetrics.size)
+        button.text = if (compactButton) "" else label
+        button.contentDescription = label
+    }
     fun refreshReadings() { readings.forEach { (metric, view) ->
         val value = chart.metricReadout(metric)
         view.text = value
