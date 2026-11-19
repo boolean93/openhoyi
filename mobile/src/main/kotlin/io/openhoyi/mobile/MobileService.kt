@@ -2304,9 +2304,13 @@ class MobileService : Service() {
         extractionScaleReadout.finish(observedEnd)
         val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
         val app = application as MobileApplication
-        if (completedCup && finished.second.isNotEmpty() &&
-            history?.entries?.any { it.id == finished.first } == true) {
-            app.samples.save(finished.first, finished.second)
+        val entry = history?.entries?.firstOrNull { it.id == finished.first }
+        if (completedCup && finished.second.isNotEmpty() && entry != null) {
+            val reviewConfig = if (entry.status == ShotHistory.Status.ENDED && !appElapsedOutcomeWasUnknown &&
+                entry.machineTimingInterrupted != true) app.shotReviewConfig() else null
+            app.samples.save(finished.first, finished.second, if (reviewConfig == null) null else { points ->
+                app.shotReviews.afterPersisted(entry, points, reviewConfig)
+            })
         }
         history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
     }

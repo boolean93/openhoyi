@@ -1,0 +1,179 @@
+package io.openhoyi.mobile
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.*
+import java.util.concurrent.ConcurrentHashMap
+
+/** A closed, one-shot workflow. No chat context, tools, uploads, retries, or machine controls. */
+internal object ShotReviewWire {
+    const val RESPONSE_CHARS = 360
+    private const val MAX_POINTS = 96
+
+    fun request(points: List<ShotPoint>, machineSeconds: Int?, language: AppLanguage): String? {
+        val brewing = points.filter { it.brewing == true }
+        if (brewing.size < 2 || brewing.last().elapsedMs <= brewing.first().elapsedMs) return null
+        val count = minOf(brewing.size, MAX_POINTS)
+        val selected = (0 until count).map { index -> brewing[index * brewing.lastIndex / (count - 1)] }
+        val measurements = buildJsonObject {
+            put("machineDurationSeconds", machineSeconds?.let(::JsonPrimitive) ?: JsonNull)
+            put("savedBrewingObservationCount", brewing.size)
+            put("observedBrewSampleSpanMs", brewing.last().elapsedMs - brewing.first().elapsedMs)
+            put("peakObservedPressureBar", brewing.maxOf { it.pressureTenthsBar } / 10.0)
+            put("observations", buildJsonArray {
+                selected.forEach { p -> add(buildJsonObject {
+                    put("elapsedMs", p.elapsedMs)
+                    put("pressureBar", p.pressureTenthsBar / 10.0)
+                    put("machineFlowMlPerSecond", p.machineFlowTenthsMlPerSecond / 10.0)
+                    put("machineWaterMl", p.waterTenthsMl / 10.0)
+                    put("machineTemperatureC", p.temperatureHundredthsC / 100.0)
+                    put("estimatedScaleFlowGramsPerSecond", p.scaleFlowHundredths?.let { JsonPrimitive(it / 100.0) } ?: JsonNull)
+                    put("beverageGrams", p.beverageHundredthsGram?.let { JsonPrimitive(it / 100.0) } ?: JsonNull)
+                    put("beverageSource", p.beverageSource?.name?.let(::JsonPrimitive) ?: JsonNull)
+                    put("beverageSegment", p.beverageSegmentId?.let(::JsonPrimitive) ?: JsonNull)
+                }) }
+            })
+        }
+        return buildJsonObject {
+            put("model", AiModelPolicy.FLASH)
+            put("max_tokens", 350)
+            put("thinking", buildJsonObject { put("type", "disabled") })
+            put("messages", buildJsonArray {
+                add(buildJsonObject {
+                    put("role", "system")
+                    put("content", "Review this espresso extraction in ${language.nativeName} (${language.tag}). " +
+                        "Write 2–3 short plain text lines: observed pressure/flow development and the most useful caveat or check. " +
+                        "Use only given observations. Null means unavailable. The series is thinned without interpolation; elapsedMs " +
+                        "is from series start, not the machine extraction timer. Only observed brewing samples are included. " +
+                        "Machine water and flow are millilitres and millilitres/second, not beverage grams. Scale flow is an estimate; " +
+                        "beverage sources can be estimated and segments cannot be joined as one continuous net weight. " +
+                        "No recipe targets or tasting evidence are provided: do not claim target adherence, diagnose cause or flavour, " +
+                        "or give machine-control commands. Do not echo raw data, output links, or use markdown.")
+                })
+                add(buildJsonObject {
+                    put("role", "user")
+                    put("content", measurements.toString())
+                })
+            })
+        }.toString()
+    }
+
+    suspend fun send(transport: AiSafeTransport, request: String): String =
+        transport.post("chat/completions", request, String::class, String::class, emptyMap(), emptyMap())
+
+    fun answer(raw: String): String? = runCatching {
+        val choice = Json.parseToJsonElement(raw).jsonObject["choices"]?.jsonArray?.singleOrNull()?.jsonObject
+            ?: return null
+        if (choice["finish_reason"] != JsonPrimitive("stop")) return null
+        val message = choice["message"]?.jsonObject ?: return null
+        if ((message["tool_calls"] as? JsonArray)?.isNotEmpty() == true) return null
+        val text = (message["content"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        text.lineSequence().map { line ->
+            line.filterNot { it.isISOControl() || Character.getType(it) == Character.FORMAT.toInt() }.trim()
+        }.filter { it.isNotEmpty() }.take(3).joinToString("\n").take(RESPONSE_CHARS).takeIf { it.isNotBlank() }
+    }.getOrNull()
+}
+
+internal enum class ShotReviewStatus { PENDING, READY, FAILED, UNKNOWN }
+internal data class ShotReviewResult(val status: ShotReviewStatus, val text: String? = null)
+internal data class ShotReviewConfig(val consentRevision: Long, val keyRevision: Long, val language: AppLanguage)
+
+internal interface ShotReviewLedger {
+    /** Synchronously persists the attempt fence before the HTTP boundary. */
+    fun reserve(id: String): Boolean
+    fun finish(id: String, result: ShotReviewResult)
+    fun read(id: String): ShotReviewResult?
+}
+
+internal class AutomaticShotReview(
+    private val scope: CoroutineScope,
+    private val current: (ShotReviewConfig) -> Boolean,
+    private val ledger: ShotReviewLedger,
+    private val send: suspend (ShotReviewConfig, String) -> String,
+    private val timeoutMs: Long = 45_000,
+    private val publishIfCurrent: (ShotReviewConfig, () -> Unit) -> Boolean = { cfg, publish ->
+        if (!current(cfg)) false else { publish(); true }
+    },
+) {
+    private val active = ConcurrentHashMap.newKeySet<String>()
+    private val revision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    val changes: kotlinx.coroutines.flow.StateFlow<Long> = revision
+
+    fun result(id: String): ShotReviewResult? = runCatching { ledger.read(id) }.getOrNull()?.let {
+        // Process died or the response could not be stored after dispatch. Never replay.
+        if (it.status == ShotReviewStatus.PENDING && id !in active) ShotReviewResult(ShotReviewStatus.UNKNOWN) else it
+    }
+
+    fun afterPersisted(id: String, config: ShotReviewConfig, points: List<ShotPoint>, machineSeconds: Int?) {
+        if (!AiExtractionSamples.validId(id) || !current(config) || !active.add(id)) return
+        scope.launch {
+            var reserved = false
+            var outcome = ShotReviewResult(ShotReviewStatus.UNKNOWN)
+            try {
+                val request = ShotReviewWire.request(points, machineSeconds, config.language) ?: return@launch
+                if (!current(config) || !ledger.reserve(id)) return@launch
+                reserved = true
+                signal()
+                if (!current(config)) { outcome = ShotReviewResult(ShotReviewStatus.FAILED); return@launch }
+                val response = withTimeoutOrNull(timeoutMs) { send(config, request) } ?: return@launch
+                val text = ShotReviewWire.answer(response)
+                outcome = if (text != null) ShotReviewResult(ShotReviewStatus.READY, text)
+                    else ShotReviewResult(ShotReviewStatus.FAILED)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: AiFailure) {
+                val diag = failure.diagnostic
+                val ambiguous = diag?.stage in setOf(AiStage.WRITE, AiStage.RESPONSE_HEADERS, AiStage.RESPONSE_BODY) &&
+                    (diag?.httpStatus == null || diag.httpStatus >= 500 ||
+                        diag.kind in setOf(AiFailureKind.IO, AiFailureKind.IO_TIMEOUT, AiFailureKind.READ_TIMEOUT))
+                outcome = ShotReviewResult(if (ambiguous) ShotReviewStatus.UNKNOWN else ShotReviewStatus.FAILED)
+            } catch (_: Exception) {
+                // Unknown write boundary: safest to surface uncertainty rather than replay.
+            } finally {
+                try {
+                    if (reserved) runCatching {
+                        if (!publishIfCurrent(config) { ledger.finish(id, outcome) })
+                            ledger.finish(id, ShotReviewResult(ShotReviewStatus.UNKNOWN))
+                    }
+                } finally {
+                    active.remove(id)
+                    if (reserved) signal()
+                }
+            }
+        }
+    }
+
+    private fun signal() {
+        while (true) {
+            val old = revision.value
+            if (revision.compareAndSet(old, old + 1)) return
+        }
+    }
+}
+
+internal class ShotReviewPreferences(
+    private val loadEpoch: () -> String?,
+    private val persistEpoch: (String?) -> Boolean,
+) {
+    private data class State(val epoch: String?, val revision: Long)
+    @Volatile private var state = State(runCatching(loadEpoch).getOrNull(), 0)
+    fun enabledRevision() = state.let { if (it.epoch != null) it.revision else null }
+    fun revision(epoch: String?): Long? = state.let { if (epoch != null && epoch == it.epoch) it.revision else null }
+
+    @Synchronized fun publishForRevision(epoch: String, expected: Long, publish: () -> Unit): Boolean {
+        if (revision(epoch) != expected) return false
+        publish()
+        return true
+    }
+
+    @Synchronized fun set(epoch: String?): Boolean {
+        // Opt-out fence applies immediately, even when disk is failing.
+        val next = State(null, state.revision + 1)
+        state = next
+        val saved = runCatching { persistEpoch(epoch) }.getOrDefault(false)
+        if (saved && epoch != null) state = next.copy(epoch = epoch)
+        return saved
+    }
+}

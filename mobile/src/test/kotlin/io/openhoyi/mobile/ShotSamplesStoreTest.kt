@@ -106,11 +106,26 @@ class ShotSamplesStoreTest {
         try {
             val failure = CountDownLatch(1)
             val repository = ShotSamplesRepository(parent) { failure.countDown() }
-            repository.save("shot-1", listOf(ShotPoint(0, 90, 20, 0, 9200, null)))
+            val persisted = CountDownLatch(1)
+            repository.save("shot-1", listOf(ShotPoint(0, 90, 20, 0, 9200, null))) { persisted.countDown() }
             assertTrue(failure.await(3, TimeUnit.SECONDS))
             assertTrue(repository.load("shot-1").isEmpty())
+            assertEquals(1L, persisted.count)
         } finally { parent.delete() }
     }
+    @Test fun completionOnlyExposesTheCommittedSampleCopy() {
+        val dir = Files.createTempDirectory("openhoyi-committed-samples").toFile()
+        try {
+            val points = listOf(ShotPoint(100, 80, 20, 0, 9200, null, brewing = true))
+            val persisted = java.util.concurrent.CompletableFuture<Pair<List<ShotPoint>, List<ShotPoint>>>()
+            val repository = ShotSamplesRepository(dir)
+            repository.save("shot-1", points) { snapshot ->
+                persisted.complete(snapshot to ShotSamplesStore(dir).load("shot-1"))
+            }
+            assertEquals(points to points, persisted.get(3, TimeUnit.SECONDS))
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun v3RoundTripsKnownPhaseAndLegacyVersionsKeepUnknownPhase() {
         val dir=Files.createTempDirectory("phase-samples").toFile()
         try {
