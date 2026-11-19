@@ -54,6 +54,12 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         value.typeface = Typeface.create("sans-serif", Typeface.BOLD)
         target.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         pressure.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        // CJK fallback and Roboto have different natural advances from the reference.
+        // Tune these native text runs independently without baking glyphs into a bitmap.
+        heading.textScaleX = 1.05f
+        value.textScaleX = 1.03f
+        target.textScaleX = 1.07f
+        pressure.textScaleX = 1.16f
         power.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         power.setPaddingRelative(0, 0, 0, 0)
         addView(power)
@@ -73,10 +79,10 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             if (field.textSize != px) field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px)
             field.measure(exact((diameter * width).roundToInt()), exact((diameter * height).roundToInt()))
         }
-        set(heading, .70f, .11f, .074f)
+        set(heading, .70f, .11f, .070f)
         set(value, .78f, .20f, .167f)
-        set(target, .64f, .105f, .067f)
-        set(pressure, .58f, .108f, .071f)
+        set(target, .64f, .105f, .064f)
+        set(pressure, .58f, .108f, .066f)
         power.setDialDiameter(diameter)
         val bottomPadding = (diameter * .013f).roundToInt()
         // Native Switch lays its ink against END even without a label. Center the smaller
@@ -94,9 +100,9 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             val t = (height * y - view.measuredHeight / 2f).roundToInt()
             view.layout(x, t, x + view.measuredWidth, t + view.measuredHeight)
         }
-        at(heading, .295f)
-        at(value, .442f)
-        at(target, .736f)
+        at(heading, .300f)
+        at(value, .455f)
+        at(target, .728f)
         val x = (width - power.measuredWidth) / 2
         power.layout(x, target.top - touch, x + power.measuredWidth, target.top)
         at(pressure, .864f)
@@ -143,8 +149,8 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         paint.color = marks; paint.strokeWidth = d * .004f
         canvas.drawLine(d * .255f, d * .799f, d * .745f, d * .799f, paint)
         canvas.save()
-        canvas.translate(c - d * .061f, d * (if (steam) .138f else .147f))
-        canvas.scale(d * .122f / 100f, d * .122f / 100f)
+        canvas.translate(c - d * .061f, d * (if (steam) .142f else .150f))
+        canvas.scale(d * .122f / 100f, d * (if (steam) .110f else .104f) / 100f)
         paint.color = if (dark) style.homeDialProgress else 0xff08602b.toInt()
         paint.strokeWidth = 8f; paint.strokeJoin = Paint.Join.ROUND
         if (steam) {
