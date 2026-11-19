@@ -8,7 +8,7 @@ import android.view.ViewGroup
 /** Detached production component checks; no preferences, service, library or real actions. */
 internal object HomePresetRowChecks {
     /** Run in the hosted tablet screenshot lane on the same Android View implementation. */
-    fun verifyWideReparent(base: Context) {
+    fun verifyWideReparent(base: Context, windowContent: ViewGroup) {
         val density = base.resources.displayMetrics.density
         val grid = HomePresetGrid(base, TaskProductVisualStyle(base), portrait = false, short = false,
             onSlotClick = { error("No shortcut action during reflow") },
@@ -20,29 +20,44 @@ internal object HomePresetRowChecks {
                 View.MeasureSpec.makeMeasureSpec((640 * density).toInt(), View.MeasureSpec.AT_MOST))
             grid.layout(0, 0, width, grid.measuredHeight)
         }
-        val groupTag = "product/home/preset-group"
-        layout(980)
-        val group = checkNotNull(grid.findViewWithTag<ViewGroup>(groupTag))
-        fun checkWide(lever: Boolean, legacy: Boolean = false) {
-            val oldStrip = group.parent
-            grid.showSlots(lever, legacy)
+        // Attach the fixture briefly so real Window attach/detach resets View flags.
+        // It is removed before leaving the main-thread call, so no frame includes it.
+        windowContent.addView(grid, ViewGroup.LayoutParams(1, 1))
+        try {
+            check(grid.isAttachedToWindow)
+            val groupTag = "product/home/preset-group"
             layout(980)
-            check(grid.findViewWithTag<ViewGroup>(groupTag) === group) { "Preset group identity changed" }
-            val strip = checkNotNull(group.parent as? ViewGroup)
-            check(strip !== oldStrip && strip.parent === grid) { "Preset group remained attached to a retired strip" }
-            check((oldStrip as? View)?.parent == null) { "Retired strip still active" }
-            check((grid.findViewWithTag<View>("product/home/direct-preset/0") != null) == lever)
-            check((grid.findViewWithTag<View>("product/home/direct-preset/5") != null) == legacy)
-            check(group.height == (66 * density).toInt())
+            val group = checkNotNull(grid.findViewWithTag<ViewGroup>(groupTag))
+            fun checkWide(lever: Boolean, legacy: Boolean = false) {
+                val oldStrip = group.parent
+                grid.showSlots(lever, legacy)
+                layout(980)
+                check(grid.findViewWithTag<ViewGroup>(groupTag) === group) { "Preset group identity changed" }
+                val strip = checkNotNull(group.parent as? ViewGroup)
+                check(strip !== oldStrip && strip.parent === grid) { "Preset group remained attached to a retired strip" }
+                check((oldStrip as? View)?.parent == null) { "Retired strip still active" }
+                check((grid.findViewWithTag<View>("product/home/direct-preset/0") != null) == lever)
+                check((grid.findViewWithTag<View>("product/home/direct-preset/5") != null) == legacy)
+                check(group.height == (66 * density).toInt())
+                for (visual in grid.visuals + grid.last) {
+                    if (visual.label.isAttachedToWindow) {
+                        check(visual.label.isLaidOut && visual.label.layout != null && !visual.label.isLayoutRequested) {
+                            "Reattached label did not settle after layout: ${visual.label.tag}"
+                        }
+                    }
+                }
+            }
+            checkWide(lever = true)
+            checkWide(lever = false)
+            val retiredStrip = checkNotNull(group.parent as? ViewGroup)
+            layout(276)
+            check(group.parent == null && retiredStrip.parent == null && grid.findViewWithTag<View>(groupTag) == null)
+            checkWide(lever = false)
+            checkWide(lever = true, legacy = true)
+            checkWide(lever = false)
+        } finally {
+            windowContent.removeView(grid)
         }
-        checkWide(lever = true)
-        checkWide(lever = false)
-        val retiredStrip = checkNotNull(group.parent as? ViewGroup)
-        layout(276)
-        check(group.parent == null && retiredStrip.parent == null && grid.findViewWithTag<View>(groupTag) == null)
-        checkWide(lever = false)
-        checkWide(lever = true, legacy = true)
-        checkWide(lever = false)
     }
 
     fun verify(base: Context) {

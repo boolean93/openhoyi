@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import kotlin.math.roundToInt
@@ -127,7 +128,7 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 val density = host.resources.displayMetrics.density
                 val portrait = host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                 if (!portrait) {
-                    HomePresetRowChecks.verifyWideReparent(host)
+                    HomePresetRowChecks.verifyWideReparent(host, host.findViewById<ViewGroup>(android.R.id.content))
                     check(root.findViewWithTag<ScrollView>("product/home/page-scroll")?.scrollY == 0) {
                         "Tablet shortcut proof must not scroll to reveal its cards"
                     }
