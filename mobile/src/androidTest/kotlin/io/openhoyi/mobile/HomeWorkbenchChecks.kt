@@ -123,7 +123,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 capture("devices-inline")
                 main {activity.onBackPressedDispatcher.onBackPressed()};test.waitForIdleSync()
                 await {activity.supportFragmentManager.primaryNavigationFragment is HomeFragment && activity.hasWindowFocus()}
-                main {check(page.active("root:BREW")===home);complete(requireNotNull(root.findViewWithTag<View>("product/home/quick-launch")));invariant()}
+                main {check(page.active("root:BREW")===home);complete(requireNotNull(home.requireView().findViewWithTag<View>("product/home/quick-launch")));invariant()}
                 capture("home-restored")
                 main {ScaleTrendPanelChecks.verify(activity,directory);invariant()}
                 File(directory,"route.txt").writeText("actualConnect=true devicesAnchor=true returnedHome=true sameService=true dataUnchanged=true noCommands=true\n")
