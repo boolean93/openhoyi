@@ -339,6 +339,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             val paper = nav.background as PageBackdrop
             check(paper.snapshot.image != null && paper.photoScrim != null)
             check(paper.photoBounds?.invoke()?.contains(0, 0) == true)
+            verifyShellBackdrop(host, photo = true)
             scroll.scrollTo(0, HoyiUi.dp(host, 120))
         }
         await("settings backing matches the section's scrolled visible bounds") {
@@ -665,6 +666,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     hit.width() >= touch && hit.height() >= touch && hit.bottom <= goal.top
                 }
             }
+            main { verifyShellBackdrop(host, photo = true) }
             val homeFrame = captureCommittedFrame(home)
             try { writeScreenshot("landscape-home.png", homeFrame) } finally { homeFrame.recycle() }
             captureScalePage(host, go(TaskDestination.SCALE), "landscape-scale.png")
@@ -712,21 +714,44 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
 
     private fun checkSolidHomeRestored(host: MainActivity, before: SolidHome) {
         val after = solidHome(host)
+        main { verifyShellBackdrop(host, photo = false) }
         check(before.root === after.root && before.original === after.original && before.bounds == after.bounds) {
             "Returning to Solid must restore the exact Home surface and control bounds"
+        }
+    }
+
+    private fun verifyShellBackdrop(host: MainActivity, photo: Boolean) {
+        val frame = checkNotNull(host.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG))
+        val shell = checkNotNull(frame.findViewWithTag<TaskShellStatusView>("task-shell-status"))
+        if (photo) {
+            val paper = shell.background as PageBackdrop
+            val nav = frame.navigation.background as PageBackdrop
+            check(paper.snapshot.image === nav.snapshot.image && paper.photoScrim == nav.photoScrim)
+            val position = IntArray(2).also(shell::getLocationInWindow)
+            val navPosition = IntArray(2).also(frame.navigation::getLocationInWindow)
+            val shellCrop = checkNotNull(paper.photoBounds?.invoke()).apply { offset(position[0], position[1]) }
+            val navCrop = checkNotNull(nav.photoBounds?.invoke()).apply { offset(navPosition[0], navPosition[1]) }
+            check(shellCrop == navCrop) { "Status and navigation must share one window-space crop" }
+        } else {
+            check((shell.background as ColorDrawable).color == host.getColor(R.color.task_shell_surface))
+        }
+        for (device in listOf("coffee", "scale")) {
+            val panel = checkNotNull(shell.findViewWithTag<View>("task-shell-$device-group"))
+            val fill = (panel.background as android.graphics.drawable.GradientDrawable).color?.defaultColor
+            check(fill != null && (if (photo) Color.alpha(fill) < 64 else fill == host.getColor(R.color.task_shell_card)))
         }
     }
 
     private fun homeWallpaperGaps(root: View, sampleGap: (Rect) -> Point): List<Point> {
         val paper = root.background as PageBackdrop
         fun home(key: String): View = checkNotNull(root.findViewWithTag<View>("product/home/$key"))
-        fun roundPanel(vararg views: View): Rect {
-            val visible = views.map { checkNotNull(localRect(root, it)) }
-            return checkNotNull(paper.roundedAreas.singleOrNull { panel ->
-                visible.all(panel.bounds::contains)
-            }) { "Expected one local rounded shield for $visible, got ${paper.roundedAreas}" }.bounds
+        val title = checkNotNull(localRect(root, home("quick-title")))
+        val legend = checkNotNull(localRect(root, home("preview-legend")))
+        val heading = Rect(title).apply { union(legend) }
+        check(paper.roundedAreas.none { it.bounds.contains(title) || it.bounds.contains(legend) } &&
+            paper.protectedAreas.orEmpty().none { it.contains(title) || it.contains(legend) }) {
+            "Quick curve title and legend must not bring back a row backing over a photo"
         }
-        val heading = roundPanel(home("quick-title"), home("preview-legend"))
         fun dial(key: String): Rect {
             val column = home(key) as ViewGroup
             val dial = (0 until column.childCount).map(column::getChildAt).filterIsInstance<BoilerTemperatureDial>().single()
@@ -763,6 +788,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         return buildList {
             addAll(listOf(corner(left, true), corner(left, false), corner(right, true), corner(right, false),
                 sampleGap(intercolumn(left, right))))
+            if (legend.left - title.right > 16 && title.centerY() in legend.top until legend.bottom) {
+                add(sampleGap(intercolumn(title, legend)))
+            }
             val control = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/control")))
             val logic = checkNotNull(localRect(root, root.findViewWithTag("machine-mode/logic")))
             if (control.right < logic.left && control.centerY() in logic.top until logic.bottom) {

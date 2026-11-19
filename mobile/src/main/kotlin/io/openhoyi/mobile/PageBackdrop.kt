@@ -103,7 +103,7 @@ private object OwnBackdropTreatment
 private data class RoundedBackdropMark(
     val fill: Int, val radius: Float, val group: Any?, val horizontalOutset: Int,
     val horizontalBounds: View?, val leaveBottomPaddingVisible: Boolean, val clipContent: Boolean,
-    val photoFill: Int?, val photoOnly: Boolean,
+    val photoFill: Int?, val photoOnly: Boolean, val omitForPhoto: Boolean,
 )
 
 private data class BackdropProtection(
@@ -125,11 +125,11 @@ internal fun View.protectBackdropContent(
 internal fun View.protectRoundedBackdropContent(
     fill: Int, radius: Int, group: Any? = null, horizontalOutset: Int = 0,
     horizontalBounds: View? = null, leaveBottomPaddingVisible: Boolean = false, clipContent: Boolean = false,
-    photoFill: Int? = null, photoOnly: Boolean = false,
+    photoFill: Int? = null, photoOnly: Boolean = false, omitForPhoto: Boolean = false,
 ) {
     require(!clipContent || group == null && horizontalBounds == null && horizontalOutset == 0 && !leaveBottomPaddingVisible)
     setTag(R.id.page_backdrop_content, RoundedBackdropMark(fill, radius.toFloat(), group, horizontalOutset,
-        horizontalBounds, leaveBottomPaddingVisible, clipContent, photoFill, photoOnly))
+        horizontalBounds, leaveBottomPaddingVisible, clipContent, photoFill, photoOnly, omitForPhoto))
 }
 
 /** A native surface or translucent overlay supplies its own contrast treatment, including its labels. */
@@ -325,8 +325,12 @@ internal class PageBackdropBinding(
                 when (val mark = view.getTag(R.id.page_backdrop_content)) {
                     OwnBackdropTreatment -> return
                     is BackdropProtection -> { protect(view, mark); return }
-                    is RoundedBackdropMark -> if (!mark.photoOnly || paper.snapshot.config.choice is AppBackground.Photo) {
-                        protectRounded(view, mark); return
+                    is RoundedBackdropMark -> {
+                        val showingPhoto = paper.snapshot.config.choice is AppBackground.Photo
+                        // The whole group handles contrast itself; don't fall through to
+                        // automatic full-width backing behind its individual labels.
+                        if (showingPhoto && mark.omitForPhoto) return
+                        if (!mark.photoOnly || showingPhoto) { protectRounded(view, mark); return }
                     }
                 }
                 if (view is AbsListView ||
@@ -365,20 +369,29 @@ internal class PageBackdropBinding(
     }
 }
 
-/** Preserve an outlined panel's shape, padding and default-theme drawable when no photo is used. */
-internal fun View.tintPanelForWallpaper(store: AppBackgroundStore, tinted: Drawable) {
-    val original = background
+/** Observe a decoded custom photo only while the affected view is attached. */
+internal fun View.observeActiveWallpaper(store: AppBackgroundStore, render: (Boolean) -> Unit) {
     var stop: (() -> Unit)? = null
-    addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-        override fun onViewAttachedToWindow(v: View) {
-            stop = store.observe { snapshot ->
-                val next = if (snapshot.config.choice is AppBackground.Photo && snapshot.image != null) tinted else original
-                if (background !== next) background = next
-            }
+    fun subscribe() {
+        if (stop == null) stop = store.observe { snapshot ->
+            render(snapshot.config.choice is AppBackground.Photo && snapshot.image != null)
         }
+    }
+    addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(v: View) = subscribe()
         override fun onViewDetachedFromWindow(v: View) {
             stop?.invoke()
             stop = null
         }
     })
+    if (isAttachedToWindow) subscribe()
+}
+
+/** Preserve an outlined panel's shape, padding and default-theme drawable when no photo is used. */
+internal fun View.tintPanelForWallpaper(store: AppBackgroundStore, tinted: Drawable) {
+    val original = background
+    observeActiveWallpaper(store) { photo ->
+        val next = if (photo) tinted else original
+        if (background !== next) background = next
+    }
 }

@@ -342,9 +342,19 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val previewLegend=productStyle.text("",TaskProductVisualStyle.Type(12,400,20),"product/home/preview-legend").apply {
             val pressure="━ " + getString(R.string.curve_control_mode_pressure)
             val flow="━ " + getString(R.string.curve_control_mode_flow)
-            text=android.text.SpannableString("$pressure    $flow").apply {
-                setSpan(android.text.style.ForegroundColorSpan(productStyle.pressure),0,pressure.length,0)
-                setSpan(android.text.style.ForegroundColorSpan(productStyle.flowMetric),pressure.length+4,length,0)
+            fun inks(pressureColor: Int, flowColor: Int) = android.text.SpannableString("$pressure    $flow").apply {
+                setSpan(android.text.style.ForegroundColorSpan(pressureColor), 0, pressure.length, 0)
+                setSpan(android.text.style.ForegroundColorSpan(flowColor), pressure.length + 4, length, 0)
+            }
+            val standard = inks(productStyle.pressure, productStyle.flowMetric)
+            // Keep legend blue/teal readable over the entire permitted photo strength
+            // without changing chart colors or putting a full row behind the text.
+            val onWallpaper = if (HoyiUi.dark(host)) inks(0xffd3e5ff.toInt(), 0xffc4f2ec.toInt())
+                else inks(0xff0a3d84.toInt(), 0xff004c49.toInt())
+            text = standard
+            observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { enabled ->
+                val next = if (enabled) onWallpaper else standard
+                if (text !== next) text = next
             }
             contentDescription=getString(R.string.curve_control_mode_mixed) + " · " + getString(R.string.curve_stage_caption)
         }
@@ -378,7 +388,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        previewHeading.protectRoundedBackdropContent(productStyle.surface, dp(10), horizontalOutset = dp(5), photoFill = wallpaperTint(productStyle.surface))
+        previewHeading.protectRoundedBackdropContent(productStyle.surface, dp(10), horizontalOutset = dp(5), omitForPhoto = true)
         if (!phoneHome) {
             // Modes remain visible (and safety-gated) while quick actions hide for an
             // active cup. Reusing this row avoids adding a 48dp header to a 284dp viewport.
@@ -387,7 +397,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             val modeGroup = productStyle.row("product/home/compact-mode-group").apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 addView(productStyle.text(getString(R.string.machine_mode_title), TaskProductVisualStyle.auxiliary).apply {
-                    protectRoundedBackdropContent(productStyle.surface, dp(8), horizontalOutset = dp(4), photoFill = wallpaperTint(productStyle.surface))
+                    protectRoundedBackdropContent(productStyle.surface, dp(8), horizontalOutset = dp(4), omitForPhoto = true)
                 }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
                 addView(machineModes, LinearLayout.LayoutParams(-2, -2))
             }
