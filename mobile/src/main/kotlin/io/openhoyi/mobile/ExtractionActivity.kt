@@ -62,6 +62,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var automaticReview: TextView
     private var automaticReviewId: String? = null
     private var unbindAutomaticReview: (() -> Unit)? = null
+    private var automaticReviewDialog: AlertDialog? = null
     private lateinit var chooseCurve: Button
     private lateinit var connectDevices: Button
     private lateinit var detailsButton: Button
@@ -190,8 +191,7 @@ class ExtractionActivity : ThemedActivity() {
         }
         automaticReview = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/automatic-shot-review").apply {
             visibility = View.GONE
-            maxLines = 3
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = android.view.Gravity.CENTER_VERTICAL
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         style.add(content, automaticReview)
@@ -343,6 +343,7 @@ class ExtractionActivity : ThemedActivity() {
         if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
     }
     override fun onStop() {
+        automaticReviewDialog?.dismiss(); automaticReviewDialog = null
         if (redirectedRoot) { super.onStop(); return }
         if (!isChangingConfigurations) service?.leaveAutoPreheat()?.let { PreheatToast.show(this, it) }
         feedbackUi.leave(isChangingConfigurations)
@@ -502,8 +503,17 @@ class ExtractionActivity : ThemedActivity() {
         }
         val reviewId = owner?.chartTraceIdentity?.takeIf { observedCup && !active && owner.manualShotActive != true }
         if (reviewId != automaticReviewId) {
+            automaticReviewDialog?.dismiss()
+            automaticReviewDialog = null
             unbindAutomaticReview?.invoke()
-            unbindAutomaticReview = reviewId?.let { (application as MobileApplication).shotReviews.bind(automaticReview, it) }
+            unbindAutomaticReview = reviewId?.let { id ->
+                (application as MobileApplication).shotReviews.bind(automaticReview, id) { review ->
+                    if (service?.chartTraceIdentity == id && automaticReviewId == id) {
+                        automaticReviewDialog?.dismiss()
+                        automaticReviewDialog = showShotReviewDetails(this, review)
+                    }
+                }
+            }
             automaticReviewId = reviewId
         }
         readiness.show(guidance + unknownAdvice)

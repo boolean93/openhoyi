@@ -104,17 +104,34 @@ internal class AppShotReview(private val context: Context) {
         scope.launch { transports.forEach { (transport, cfg) -> if (!current(cfg)) transport.close() } }
     }
 
-    fun bind(label: TextView, shotId: String): () -> Unit {
+    fun bind(label: TextView, shotId: String, openDetails: ((String) -> Unit)? = null): () -> Unit {
         var observer: Job? = null
+        fun action(report: String?) {
+            val click = if (openDetails != null && report != null) View.OnClickListener {
+                if (label.isAttachedToWindow) openDetails(report)
+            } else null
+            label.setOnClickListener(click)
+            label.isClickable = click != null
+            label.isFocusable = click != null
+            if (openDetails != null) {
+                val style = TaskProductVisualStyle(label.context)
+                label.minimumHeight = if (click != null) style.dp(48) else 0
+                label.setTextColor(if (click != null) style.accent else style.ink)
+                label.paint.isUnderlineText = click != null
+            }
+        }
         fun start() {
             observer?.cancel()
             observer = scope.launch(Dispatchers.Main.immediate) {
                 controller.changes.collect {
                     val result = kotlinx.coroutines.withContext(Dispatchers.IO) { controller.result(shotId) }
                     if (!label.isAttachedToWindow) return@collect
+                    val readyText = result?.takeIf { it.status == ShotReviewStatus.READY }?.text
+                    action(readyText)
                     label.text = when (result?.status) {
                         ShotReviewStatus.PENDING -> label.context.getString(R.string.shot_review_pending)
-                        ShotReviewStatus.READY -> label.context.getString(R.string.shot_review_ready, result.text.orEmpty())
+                        ShotReviewStatus.READY -> if (openDetails != null) label.context.getString(R.string.shot_review_open)
+                            else label.context.getString(R.string.shot_review_ready, readyText.orEmpty())
                         ShotReviewStatus.FAILED -> label.context.getString(R.string.shot_review_failed)
                         ShotReviewStatus.UNKNOWN -> label.context.getString(R.string.shot_review_unknown)
                         null -> ""
@@ -125,13 +142,14 @@ internal class AppShotReview(private val context: Context) {
         }
         val listener = object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) = start()
-            override fun onViewDetachedFromWindow(v: View) { observer?.cancel(); observer = null }
+            override fun onViewDetachedFromWindow(v: View) { observer?.cancel(); observer = null; action(null) }
         }
         label.addOnAttachStateChangeListener(listener)
         if (label.isAttachedToWindow) start()
         return {
             label.removeOnAttachStateChangeListener(listener)
             observer?.cancel(); observer = null
+            action(null)
             label.text = ""; label.visibility = View.GONE
         }
     }
@@ -158,3 +176,14 @@ private class AndroidShotReviewGrant {
         return exists()
     }
 }
+
+internal fun showShotReviewDetails(context: Context, review: String): android.app.AlertDialog = AppDialog.show(
+    context, context.getString(R.string.shot_review_title),
+    TextView(context).apply {
+        tag = "product/extraction/ai-feedback-details"
+        text = review
+        maxLines = Int.MAX_VALUE
+        ellipsize = null
+    },
+    AppDialog.Action(context.getString(android.R.string.ok), onClick = {}),
+)
