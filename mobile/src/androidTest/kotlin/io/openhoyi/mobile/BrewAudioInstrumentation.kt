@@ -37,6 +37,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var scaleVisualArguments: Bundle? = null
     private var historyCArguments: Bundle? = null
     private var extractionHistoryVisualArguments: Bundle? = null
+    private var automaticShotReviewArguments: Bundle? = null
     private var beanWorkflowVisualArguments: Bundle? = null
     private var curveVisualArguments: Bundle? = null
     private var formVisualArguments: Bundle? = null
@@ -88,6 +89,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         legacyVisualArguments = arguments?.takeIf { it.getString("legacyVisualMigration") == "true" }?.let { Bundle(it) }
         scaleVisualArguments = arguments?.takeIf { it.getString("scaleVisualMigration") == "true" }?.let { Bundle(it) }
         historyCArguments = arguments?.takeIf { it.getString("historyDetailC") == "true" }?.let { Bundle(it) }
+        automaticShotReviewArguments = arguments?.takeIf { it.getString("automaticShotReviewRoute") == "true" }?.let { Bundle(it) }
         extractionHistoryVisualArguments = arguments?.takeIf { it.getString("extractionHistoryVisualMigration") == "true" }?.let { Bundle(it) }
         beanWorkflowVisualArguments = arguments?.takeIf { it.getString("beanWorkflowVisualMigration") == "true" }?.let { Bundle(it) }
         curveVisualArguments = arguments?.takeIf { it.getString("curveVisualMigration") == "true" }?.let { Bundle(it) }
@@ -243,6 +245,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             historyCArguments?.let { arguments ->
                 ExtractionHistoryVisualMigrationChecks(this).runHistoryC(arguments)
                 report.putString("stream", "HISTORY_DETAIL_C_CAPTURED mechanicalOnly=true visualAcceptance=ASTRA_PENDING noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            automaticShotReviewArguments?.let { arguments ->
+                ExtractionHistoryVisualMigrationChecks(this).runAutomaticShotReview(arguments)
+                report.putString("stream", "AUTOMATIC_SHOT_REVIEW_ROUTE_SUCCESS syntheticOutbound=true hardware=false\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

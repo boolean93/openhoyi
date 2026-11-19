@@ -32,10 +32,26 @@ internal class AppShotReview(private val context: Context) {
             document.read()
         }, writeBytes = document::write)
     }
-    private val controller by lazy {
+    private val liveController by lazy {
         AutomaticShotReview(scope, ::current, ledger, ::send, publishIfCurrent = { cfg, publish ->
             withAuthorization(cfg, publish)
         })
+    }
+    private data class MockFixture(val enabled: () -> Boolean, val ledger: BoundedShotReviewLedger, val controller: AutomaticShotReview)
+    @Volatile private var mockFixture: MockFixture? = null
+    private val controller get() = mockFixture?.controller ?: liveController
+    internal fun installMockFixture(enabled: () -> Boolean, send: suspend (String) -> String): () -> Unit {
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock" && mockFixture == null)
+        var bytes: ByteArray? = null
+        val store = BoundedShotReviewLedger({ bytes }, { bytes = it })
+        val owner = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+        val fake = MockFixture(enabled, store, AutomaticShotReview(owner, { enabled() }, store, { _, payload -> send(payload) }))
+        mockFixture = fake
+        return {
+            check(mockFixture === fake)
+            mockFixture = null
+            owner.coroutineContext[Job]?.cancel()
+        }
     }
     init { key.observeMutation(::cancelTransport) }
 
@@ -63,7 +79,10 @@ internal class AppShotReview(private val context: Context) {
 
     fun config(language: AppLanguage): ShotReviewConfig? {
         // The Mock never contacts a live provider, even with a key explicitly saved.
-        if (BuildConfig.MOCK_MODE || !ready) return null
+        if (BuildConfig.MOCK_MODE) return mockFixture?.takeIf { it.enabled() }?.let {
+            ShotReviewConfig(Long.MIN_VALUE, Long.MIN_VALUE, language)
+        }
+        if (!ready) return null
         val keyRevision = key.revision()
         if (!key.hasSavedValue()) return null
         val allowed = preferences.enabledRevision() ?: return null
@@ -75,9 +94,10 @@ internal class AppShotReview(private val context: Context) {
             preferences.revision(key.credentialEpoch()) == cfg.consentRevision
 
     fun updateRetained(ids: Set<String>) {
-        if (!ready) return
-        ledger.publishRetained(ids)
-        scope.launch { ledger.prune() }
+        val target = if (BuildConfig.MOCK_MODE) mockFixture?.ledger ?: return
+            else if (ready) ledger else return
+        target.publishRetained(ids)
+        scope.launch { target.prune() }
     }
 
     fun afterPersisted(entry: ShotHistory.Entry, points: List<ShotPoint>, cfg: ShotReviewConfig) {
