@@ -271,10 +271,11 @@ internal class HomePresetGrid(
                     setPaddingRelative(0, 0, dp(previewInset), 0)
                 }
                 override fun onMeasure(w: Int, h: Int) {
-                    val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-                    label.measure(natural, natural)
+                    // Read intrinsic text width without changing the real child's measure spec.
+                    // A speculative measure can clear isLaidOut even when the final bounds are cached.
+                    val labelWidth = kotlin.math.ceil(android.text.Layout.getDesiredWidth(label.text, label.paint)).toInt()
                     val total = MeasureSpec.getSize(w)
-                    val available = total - paddingStart - paddingEnd - label.measuredWidth - dp(21)
+                    val available = total - paddingStart - paddingEnd - labelWidth - dp(21)
                     // Decorative previews have lower priority than the full slot label.
                     val max = dp(if (portrait) 40 else 46)
                     val target = if (available >= dp(18)) (available - dp(4)).coerceIn(0, max) else 0
