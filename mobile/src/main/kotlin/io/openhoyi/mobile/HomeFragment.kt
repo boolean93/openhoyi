@@ -350,7 +350,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             // Keep legend blue/teal readable over the entire permitted photo strength
             // without changing chart colors or putting a full row behind the text.
             val onWallpaper = if (HoyiUi.dark(host)) inks(0xffd3e5ff.toInt(), 0xffc4f2ec.toInt())
-                else inks(0xff0a3d84.toInt(), 0xff004c49.toInt())
+                else inks(0xff0a3d84.toInt(), 0xff004542.toInt())
             text = standard
             observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { enabled ->
                 val next = if (enabled) onWallpaper else standard

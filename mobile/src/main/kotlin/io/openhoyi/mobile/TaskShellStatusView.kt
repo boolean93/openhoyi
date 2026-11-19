@@ -43,6 +43,10 @@ internal class TaskShellStatusView(
         tag = id
         style.apply(this, TaskProductVisualStyle.Type(14, if (ink) 500 else 400, 20), !ink)
         setTextColor(if (ink) chrome.ink else chrome.muted)
+        if (!ink) observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { photo ->
+            // Only secondary status text needs a stronger ink over the darkest allowed light photo.
+            setTextColor(if (photo && !HoyiUi.dark(host)) 0xff455451.toInt() else chrome.muted)
+        }
         gravity = Gravity.CENTER; setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
     }
     private fun group(id: String) = LinearLayout(host).apply {
