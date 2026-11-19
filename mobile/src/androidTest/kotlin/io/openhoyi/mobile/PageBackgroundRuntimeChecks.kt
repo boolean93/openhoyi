@@ -649,7 +649,12 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 shell("wm size $size")
                 val host = MainPageTestHost.launch(test, TaskDestination.BREW, timeoutMs = 10_000).activity
                 try {
-                    val home = visiblePage(host, "root:BREW")
+                    val home = solidHome(host).root
+                    val expected = size.split('x').map(String::toInt).sorted()
+                    val screen = main { host.resources.displayMetrics.let { listOf(it.widthPixels, it.heightPixels).sorted() } }
+                    check(screen.zip(expected).all { (actual, wanted) -> actual in (wanted - 96)..wanted }) {
+                        "Expected aspect viewport $size; app metrics are $screen"
+                    }
                     await("round boiler instruments fitted in $size") {
                         listOf("brew", "steam").all { boiler ->
                             val key = "product/home/$boiler-boiler"
