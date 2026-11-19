@@ -117,11 +117,24 @@ internal class HomePresetGrid(
         }
         val widths = HomeDirectPresetSlots.wideWidths(usable, weights, measured)
         var groupWidth = dividers
+        var rowHeight = dp(minHeightDp)
         visible.forEachIndexed { index, slot ->
-            (tile(slot).layoutParams as LayoutParams).width = widths[index]
-            if (slot in 1..4) groupWidth += widths[index]
+            val tile = tile(slot)
+            val width = widths[index]
+            (tile.layoutParams as LayoutParams).width = width
+            rowHeight = maxOf(rowHeight, tile.contentHeightForWidth(width))
+            if (slot in 1..4) groupWidth += width
         }
         (group.layoutParams as LayoutParams).width = groupWidth
+
+        // A plain separator View asked to MATCH_PARENT in a wrap-content row consumes
+        // all available AT_MOST height on Android. Establish one intrinsic height from the
+        // text first, then give every tile and divider that exact height; two-line titles
+        // can grow the strip, but a tall viewport cannot.
+        val strip = group.parent as LinearLayout
+        strip.layoutParams.height = rowHeight
+        for (index in 0 until strip.childCount) strip.getChildAt(index).layoutParams.height = rowHeight
+        for (index in 0 until group.childCount) group.getChildAt(index).layoutParams.height = rowHeight
     }
 
     private fun arrange(visible: List<Int>, fit: Int) {
@@ -170,12 +183,13 @@ internal class HomePresetGrid(
         private val mask = style.shape(Color.WHITE, radius = 0)
         private val ripple = ColorStateList.valueOf(wallpaperTint(style.ink, if (dark) 40 else 24))
         val visual: Visual
+        private val words: LinearLayout
         init {
             if (glyph == Glyph.CLOCK) tag = id
             minimumHeight = dp(minHeightDp)
             minimumWidth = dp(48)
             clipToOutline = true
-            val words = style.column().apply {
+            words = style.column().apply {
                 gravity = Gravity.CENTER_VERTICAL
                 val vertical = if (short) 3 else if (portrait) 7 else 9
                 setPadding(dp(inner), dp(vertical), dp(inner), dp(vertical))
@@ -234,6 +248,11 @@ internal class HomePresetGrid(
             addView(words, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
             addView(button, FrameLayout.LayoutParams(-1, -1))
             visual = Visual(button, name, spark, label)
+        }
+        fun contentHeightForWidth(width: Int): Int {
+            words.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            return words.measuredHeight
         }
         fun standalone(value: Boolean) {
             background = if (value) style.shape(surface, radius = radius).apply {

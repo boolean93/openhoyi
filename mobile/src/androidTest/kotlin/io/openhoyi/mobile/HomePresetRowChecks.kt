@@ -23,10 +23,13 @@ internal object HomePresetRowChecks {
             val grid = HomePresetGrid(context, TaskProductVisualStyle(context), portrait, short = false,
                 onSlotClick = { calls += it }, onLastClick = { calls += HomeDirectPresetSlots.LAST })
             val visuals = grid.visuals + grid.last
-            fun measure() {
+            // Match a real ScrollView's bounded viewport remeasure rather than only measuring
+            // the detached component with UNSPECIFIED height (which masks divider stretch).
+            fun measure(heightMode: Int = View.MeasureSpec.AT_MOST) {
                 grid.requestLayout()
                 grid.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                    View.MeasureSpec.makeMeasureSpec(if (heightMode == View.MeasureSpec.UNSPECIFIED) 0
+                        else (720 * density).toInt(), heightMode))
                 grid.layout(0, 0, width, grid.measuredHeight)
             }
             fun all(view: View): List<View> = listOf(view) + if (view is ViewGroup) {
@@ -58,6 +61,14 @@ internal object HomePresetRowChecks {
                     check(visuals[3].name.lineCount == 1 && grid.last.name.lineCount == 1) {
                         "Longest factory curve should fit the approved widths"
                     }
+                }
+                if (widthDp == 980 && !portrait && lever && !legacy) {
+                    val expected = (66 * density).toInt()
+                    check(grid.height == expected) { "Grouped shortcut strip must match 66dp, was ${grid.height / density}dp" }
+                    check((grid.last.button.parent as View).height == expected)
+                    measure(View.MeasureSpec.UNSPECIFIED)
+                    check(grid.height == expected) { "Grouped shortcut height depends on parent measure mode" }
+                    measure()
                 }
                 if (widthDp == 980 && !portrait && lever) {
                     grid.visuals[3].name.text = "Espresso"

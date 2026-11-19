@@ -137,6 +137,12 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                     val preview = requireNotNull(root.findViewWithTag<View>("$tag/preview"))
                     check(preview.isShown && preview.width > 0 && preview.height > 0)
                     val card = bounds[index]
+                    if (!portrait) {
+                        val heightDp = card.height() / density
+                        check(heightDp in 64f..68f) {
+                            "$tag height ${heightDp}dp, expected compact 66dp on the actual tablet viewport"
+                        }
+                    }
                     val tapTag = if (index == 5) "product/home/quick-launch" else tag
                     val control = requireNotNull(root.findViewWithTag<View>(tapTag))
                     check(control.isClickable && control.isEnabled && control.width >= 48 * density && control.height >= 48 * density) {
