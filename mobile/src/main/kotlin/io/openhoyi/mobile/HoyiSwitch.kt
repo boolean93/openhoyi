@@ -40,6 +40,20 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
         position = if (isChecked) 1f else 0f
         ready = true
     }
+    private var dialTrackWidth = 0
+    private var dialTrackHeight = 0
+    fun setDialDiameter(diameter: Int) {
+        val w = (diameter * .216f).toInt().coerceAtMost(dp(46f).toInt()).coerceAtLeast(3)
+        val h = (diameter * .100f).toInt().coerceAtLeast(2)
+        if (w == dialTrackWidth && h == dialTrackHeight) return
+        dialTrackWidth = w; dialTrackHeight = h
+        fun transparent(width: Int) = GradientDrawable().apply {
+            setColor(Color.TRANSPARENT); setSize(width, h)
+        }
+        thumbDrawable = transparent(h.coerceAtMost(w / 2))
+        trackDrawable = transparent(w)
+        switchMinWidth = w
+    }
     private fun spacer(width: Int, height: Int) = GradientDrawable().apply {
         setColor(Color.TRANSPARENT); setSize(dp(width.toFloat()).toInt(), dp(height.toFloat()).toInt())
     }
@@ -106,6 +120,22 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
             position = if (rtl) 1f - nativePosition else nativePosition
         }
         val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        if (dialTrackHeight > 0) {
+            val classicDay = !dark && palette.choice == AppThemePalette.CLASSIC
+            val fill = if (classicDay) blend(0xffcaceca.toInt(), 0xff00b35d.toInt(), position)
+                else blend(palette.switchOff, palette.switchOn, position)
+            val radius = capsule.height() / 2
+            paint.color = fill
+            paint.alpha = if (isEnabled) 255 else 140
+            canvas.drawRoundRect(capsule, radius, radius, paint)
+            val x = left + halfThumb + travel * if (rtl) 1f - position else position
+            paint.color = Color.BLACK; paint.alpha = 28
+            canvas.drawCircle(x, capsule.centerY() + dp(.5f), radius * .90f, paint)
+            paint.color = 0xfffafaf7.toInt(); paint.alpha = if (isEnabled) 255 else 215
+            canvas.drawCircle(x, capsule.centerY(), radius * .89f, paint)
+            paint.alpha = 255
+            return
+        }
         val fill = blend(palette.switchOff, palette.switchOn, position)
         paint.alpha = if (isEnabled) 255 else 100
         // A fine dark upper lip and lighter lower face suggest a shallow inset, not elevation.
