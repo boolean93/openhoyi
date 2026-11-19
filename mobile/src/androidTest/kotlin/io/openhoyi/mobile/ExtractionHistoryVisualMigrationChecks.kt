@@ -3141,11 +3141,14 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(reportView.text.toString() == listOf(good, deviation, suggestion).joinToString("\n"))
                 check(layout.lineCount > 3 && (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 })
                 scroll.fullScroll(View.FOCUS_DOWN)
-                val visible = Rect()
-                val origin = IntArray(2)
-                reportView.getLocationOnScreen(origin)
-                val bottom = origin[1] + reportView.totalPaddingTop + layout.getLineBottom(layout.lineCount - 1)
-                scroll.getGlobalVisibleRect(visible) && bottom in (visible.top + 1)..visible.bottom
+                val textOrigin = IntArray(2)
+                val viewportOrigin = IntArray(2)
+                reportView.getLocationOnScreen(textOrigin)
+                scroll.getLocationOnScreen(viewportOrigin)
+                val bottom = textOrigin[1] + reportView.totalPaddingTop + layout.getLineBottom(layout.lineCount - 1)
+                val visibleTop = viewportOrigin[1] + scroll.paddingTop
+                val visibleBottom = viewportOrigin[1] + scroll.height - scroll.paddingBottom
+                scroll.isShown && bottom in (visibleTop + 1)..visibleBottom
             }
 
             permitted.set(false)
