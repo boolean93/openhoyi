@@ -63,6 +63,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             verifyLightFlow(sample, invalid)
             verifyDarkFlow(sample)
             verifyShortLandscape(sample)
+            captureBoilerAspectRatios()
             check(rejectedEvidence.isEmpty()) {
                 rejectedEvidence.joinToString(separator = "\n", prefix = "Window evidence failed:\n")
             }
@@ -632,6 +633,47 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 home.viewTreeObserver.removeOnPreDrawListener(listener)
                 controls.zip(enabled).forEach { (control, wasEnabled) -> control.isEnabled = wasEnabled }
             }
+        }
+    }
+
+    private fun captureBoilerAspectRatios() {
+        // The entry point refuses all non-disposable-emulator builds.
+        fun shell(command: String) = test.uiAutomation.executeShellCommand(command).use {
+            java.io.FileInputStream(it.fileDescriptor).bufferedReader().readText().trim()
+        }
+        val oldSize = Regex("Override size: ([0-9]+x[0-9]+)").find(shell("wm size"))?.groupValues?.get(1)
+        val oldDensity = Regex("Override density: ([0-9]+)").find(shell("wm density"))?.groupValues?.get(1)
+        try {
+            shell("wm density 160")
+            for ((size, name) in listOf("1100x960" to "square-tablet-home.png", "1280x720" to "wide-tablet-home.png")) {
+                shell("wm size $size")
+                val host = MainPageTestHost.launch(test, TaskDestination.BREW, timeoutMs = 10_000).activity
+                try {
+                    val home = visiblePage(host, "root:BREW")
+                    await("round boiler instruments fitted in $size") {
+                        listOf("brew", "steam").all { boiler ->
+                            val key = "product/home/$boiler-boiler"
+                            val switch = home.findViewWithTag<HoyiSwitch>("$key/toggle")
+                            val dial = switch?.parent as? BoilerTemperatureDial
+                            val pressure = home.findViewWithTag<View>("$key/pressure")
+                            val visible = Rect()
+                            dial != null && pressure?.parent === dial && dial.getGlobalVisibleRect(visible) &&
+                                visible.width() == dial.width && visible.height() == dial.height
+                        }
+                    }
+                    val frame = captureCommittedFrame(home)
+                    try {
+                        if (frame.width > 0) writeScreenshot(name, frame)
+                    } finally {
+                        frame.recycle()
+                    }
+                } finally {
+                    main { host.finish() }
+                }
+            }
+        } finally {
+            shell("wm size ${oldSize ?: "reset"}")
+            shell("wm density ${oldDensity ?: "reset"}")
         }
     }
 
