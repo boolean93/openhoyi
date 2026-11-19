@@ -2,171 +2,151 @@ package io.openhoyi.mobile
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.widget.FrameLayout
-import android.widget.LinearLayout
 import android.widget.TextView
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/** Fresh telemetry and its real target share one bounded temperature scale. */
+/** The chosen instrument face, measured as fractions of its outside diameter. */
 internal class BoilerTemperatureDial(context: Context, private val heading: TextView,
-    private val value: TextView, target: TextView, private val power: HoyiSwitch) : FrameLayout(context) {
+    private val value: TextView, private val target: TextView, private val pressure: TextView,
+    private val power: HoyiSwitch, private val steam: Boolean) : FrameLayout(context) {
     private val density = resources.displayMetrics.density
     private val style = TaskProductVisualStyle(context)
-    private val ink = style.homeDialInk
+    private val dark = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    private val ink = if (dark) style.homeDialInk else Color.rgb(10, 30, 19)
+    private val marks = if (dark) Color.rgb(129, 155, 143) else Color.rgb(159, 179, 150)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val headingSize=heading.textSize
-    private val headingLine=heading.lineHeight
-    private val valueLine=value.lineHeight
-    private val valueMin=value.minimumHeight
-    private val valueMaxSp=kotlin.math.round(AppTextUnits.sp(resources, value.autoSizeMaxTextSize.toFloat())).toInt()
-    private val targetSize=target.textSize
-    private val targetLine=target.lineHeight
-    private val words=LinearLayout(context).apply {orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
-    private val spacer=android.widget.Space(context)
-    private lateinit var targetBand:TextView
-    private var smallLabels:Boolean?=null
-    private var lastSmallDiameter=0
+    private val bounds = RectF()
+    private val icon = Path()
     private var currentTemperature: Float? = null
     private var targetTemperature: Float? = null
-    private fun TextView.setCompatibleLineHeight(heightPx: Int) {
-        if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(heightPx)
-        else {
-            val metrics = this.paint.fontMetricsInt
-            setLineSpacing((heightPx - metrics.descent + metrics.ascent).coerceAtLeast(0).toFloat(), 1f)
+    private val touch = (48 * density).roundToInt()
+
+    init {
+        setWillNotDraw(false)
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            colors = if (dark) intArrayOf(style.homeDialBorder, style.surface, style.homeDialBorder)
+            else intArrayOf(Color.WHITE, 0xfff5f3ef.toInt(), Color.WHITE)
         }
+        elevation = 3 * density
+        for (field in listOf(heading, value, target, pressure)) {
+            field.gravity = Gravity.CENTER; field.setTextColor(ink)
+            field.includeFontPadding = false
+            field.setLineSpacing(0f, 1f)
+            field.minimumHeight = 0; field.minHeight = 0
+            field.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
+            addView(field)
+        }
+        heading.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        value.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        target.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        pressure.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        power.gravity = Gravity.CENTER
+        power.setPaddingRelative(0, 0, 0, 0)
+        addView(power)
     }
+
     fun present(current: Float?, goal: Float?) {
         if (currentTemperature == current && targetTemperature == goal) return
         currentTemperature = current; targetTemperature = goal; invalidate()
     }
-    init {
-        setWillNotDraw(false)
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL; setColor(style.surface)
-            setStroke(density.toInt().coerceAtLeast(1),style.homeDialBorder)
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val diameter = minOf(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
+        setMeasuredDimension(diameter, diameter)
+        val factor = AppTextUnits.pixels(resources, 16f) / (16f * density)
+        fun set(field: TextView, width: Float, height: Float, fraction: Float) {
+            val px = diameter * fraction * factor
+            if (field.textSize != px) field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px)
+            field.measure(exact((diameter * width).roundToInt()), exact((diameter * height).roundToInt()))
         }
-        elevation = 2 * density
-        for (field in listOf(heading, value)) {
-            field.gravity = Gravity.CENTER; field.setTextColor(ink)
-            words.addView(field, LinearLayout.LayoutParams(-1,-2))
-        }
-        // Preserve the title/current baselines while the target moves to the scale band.
-        words.addView(spacer,LinearLayout.LayoutParams(1,target.lineHeight))
-        addView(words, LayoutParams(-1,-1).apply {
-            val inset=(25*density).toInt(); setMargins(inset,inset,inset,inset)
-        })
-        val touch = (48 * density).toInt()
-        // Lower the native track within its 48dp target, keeping the title,
-        // temperature and target label geometry unchanged.
-        power.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-        power.setPaddingRelative(power.paddingStart, power.paddingTop, power.paddingEnd, (6 * density).toInt())
-        addView(power, LayoutParams(touch, touch, Gravity.CENTER_HORIZONTAL))
-        targetBand=TextView(context).apply {
-            tag = target.tag
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,target.textSize)
-            typeface=target.typeface; includeFontPadding=false; gravity=Gravity.CENTER
-            setTextColor(ink); setCompatibleLineHeight(target.lineHeight)
-        }
-        addView(targetBand,LayoutParams(-1,-2,Gravity.BOTTOM).apply {
-            leftMargin=(24*density).toInt(); rightMargin=leftMargin; bottomMargin=(30*density).toInt()
-        })
-        fun projectTarget() {
-            targetBand.text=target.text
-            target.visibility=GONE
-        }
-        target.addTextChangedListener(object:android.text.TextWatcher {
-            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
-            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {projectTarget()}
-            override fun afterTextChanged(s:android.text.Editable?) {}
-        })
-        projectTarget()
+        set(heading, .70f, .10f, .066f)
+        set(value, .77f, .17f, .162f)
+        set(target, .64f, .10f, .057f)
+        set(pressure, .62f, .10f, .057f)
+        power.measure(exact(touch), exact(touch))
     }
-    override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
-        val diameter=MeasureSpec.getSize(widthMeasureSpec)
-        val small=diameter<180*density || headingLine + valueLine + targetLine + 62*density > diameter
-        if(smallLabels!=small || small && lastSmallDiameter!=MeasureSpec.getSize(widthMeasureSpec)) {
-            lastSmallDiameter=MeasureSpec.getSize(widthMeasureSpec)
-            smallLabels=small
-            val compactHeadingPx=AppTextUnits.pixels(resources, 12f)
-            heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) compactHeadingPx else headingSize)
-            if(small) {
-                heading.setSingleLine(true);heading.setLineSpacing(0f,1f)
-                heading.setAutoSizeTextTypeUniformWithConfiguration(10,12,1,android.util.TypedValue.COMPLEX_UNIT_SP)
-            } else {
-                heading.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
-                heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,headingSize)
-                heading.setCompatibleLineHeight(headingLine)
-            }
-            value.setAutoSizeTextTypeUniformWithConfiguration(if(small) 14 else 16,if(small) 30 else valueMaxSp.coerceAtLeast(16),1,android.util.TypedValue.COMPLEX_UNIT_SP)
-            value.minimumHeight=if(small) 0 else valueMin
-            value.minHeight=if(small) 0 else valueMin
-            if(small) value.setLineSpacing(0f,1f) else value.setCompatibleLineHeight(valueLine)
-            val veryTight = diameter < 145 * density
-            heading.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*.145f).toInt() else -2)
-            value.layoutParams=LinearLayout.LayoutParams(-1,if(small) (diameter*(if(veryTight) .20f else .26f)).toInt() else -2)
-            words.gravity=if(small) Gravity.TOP or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
-            words.layoutParams=LayoutParams(-1,if(small) (diameter*.405f).toInt() else -1).apply {
-                val inset=((if(small) 12 else 25)*density).toInt()
-                setMargins(inset,if(small) (diameter*(if(veryTight) .12f else .17f)).toInt() else (25*density).toInt(),inset,if(small) 0 else inset)
-            }
-            spacer.layoutParams=LinearLayout.LayoutParams(1,if(small) 0 else targetLine)
-            targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,if(small) compactHeadingPx else targetSize)
-            if(small) {
-                targetBand.setSingleLine(true);targetBand.setLineSpacing(0f,1f)
-                targetBand.setAutoSizeTextTypeUniformWithConfiguration(10,12,1,android.util.TypedValue.COMPLEX_UNIT_SP)
-            } else {
-                targetBand.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
-                targetBand.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,targetSize)
-                targetBand.setCompatibleLineHeight(targetLine)
-            }
-            targetBand.layoutParams=LayoutParams(-1,if(small) (diameter*.16f).toInt() else -2,Gravity.BOTTOM).apply {
-                leftMargin=((if(small) 12 else 24)*density).toInt();rightMargin=leftMargin
-                bottomMargin=if(small) (diameter*.246f).toInt() else (30*density).toInt()
-            }
-        }
-        super.onMeasure(widthMeasureSpec,heightMeasureSpec)
-    }
+
+    private fun exact(size: Int) = MeasureSpec.makeMeasureSpec(size, MeasureSpec.EXACTLY)
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        super.onLayout(changed, left, top, right, bottom)
-        // Keep the original caption/current layout independent of the new control.
-        // Move the target down only as far as needed to keep the complete switch hit
-        // area above it; tighter gauges use the compact text rows measured above.
-        val valueBottom = words.top + value.bottom
-        val targetClearance = (6 * density).toInt()
-        val latestTarget = (height - targetBand.measuredHeight - targetClearance).coerceAtLeast(targetBand.top)
-        val targetTop = maxOf(targetBand.top, valueBottom + power.measuredHeight).coerceAtMost(latestTarget)
-        val switchTop = (targetTop - power.measuredHeight).coerceAtLeast(0)
-        power.layout(power.left, switchTop, power.right, switchTop + power.measuredHeight)
-        targetBand.layout(targetBand.left, targetTop, targetBand.right, targetTop + targetBand.measuredHeight)
+        fun at(view: android.view.View, y: Float) {
+            val x = (width - view.measuredWidth) / 2
+            val t = (height * y - view.measuredHeight / 2f).roundToInt()
+            view.layout(x, t, x + view.measuredWidth, t + view.measuredHeight)
+        }
+        at(heading, .29f)
+        at(value, .442f)
+        at(power, .608f)
+        at(target, .721f)
+        at(pressure, .855f)
     }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val cx=width/2f; val cy=height/2f; val radius=minOf(width,height)/2f-11*density
-        val bounds=RectF(cx-radius,cy-radius,cx+radius,cy+radius)
-        paint.style=Paint.Style.STROKE; paint.strokeWidth=8*density; paint.strokeCap=Paint.Cap.ROUND
-        paint.color=style.homeDialTrack; canvas.drawArc(bounds,135f,270f,false,paint)
-        val goal=targetTemperature; val current=currentTemperature
-        if(current!=null && goal!=null && goal>0) {
-            paint.color=style.homeDialProgress
-            canvas.drawArc(bounds,135f,270f*(current/goal).coerceIn(0f,1f),false,paint)
+        val d = width.toFloat()
+        val c = d / 2f
+        // Face, rim and arc: reference face is ~96%, arc center radius ~44%.
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(0f, 0f, 0f, d,
+            if (dark) intArrayOf(style.surface, style.homePage) else intArrayOf(0xfffdfcf9.toInt(), 0xfffbf9f5.toInt()),
+            null, Shader.TileMode.CLAMP)
+        canvas.drawCircle(c, c, d * .481f, paint)
+        paint.shader = null
+        val r = d * .442f
+        bounds.set(c-r, c-r, c+r, c+r)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = d * .034f; paint.strokeCap = Paint.Cap.ROUND
+        paint.color = style.homeDialTrack
+        canvas.drawArc(bounds, 140f, 260f, false, paint)
+        val goal = targetTemperature
+        val current = currentTemperature
+        if (current != null && goal != null && goal > 0) {
+            paint.color = style.homeDialProgress
+            canvas.drawArc(bounds, 140f, 260f * (current / goal).coerceIn(0f, 1f), false, paint)
         }
-        paint.color=ink; paint.strokeWidth=1.5f*density
-        for(degrees in listOf(180,225,270,315,360)) {
-            val angle=Math.toRadians(degrees.toDouble())
-            val outer=radius-7*density; val inner=outer-5*density
-            canvas.drawLine(cx+cos(angle).toFloat()*inner,cy+sin(angle).toFloat()*inner,
-                cx+cos(angle).toFloat()*outer,cy+sin(angle).toFloat()*outer,paint)
+        for (step in -12..12) {
+            val angle = Math.toRadians(270.0 + step * 10)
+            val major = step % 4 == 0
+            val outer = d * .409f
+            val inner = outer - d * (if (major) .026f else .017f)
+            paint.color = if (major) ink else marks
+            paint.strokeWidth = d * if (major) .0055f else .0035f
+            val x = cos(angle).toFloat(); val y = sin(angle).toFloat()
+            canvas.drawLine(c + x * inner, c + y * inner, c + x * outer, c + y * outer, paint)
         }
-        paint.style=Paint.Style.FILL; paint.textSize=AppTextUnits.pixels(resources, if(smallLabels==true) 9f else 10f)
-        val endpointX=if(smallLabels==true) .62f else .69f
-        val endpointY=if(smallLabels==true) .98f else .85f
-        paint.textAlign=Paint.Align.CENTER
-        canvas.drawText("0",cx-radius*endpointX,cy+radius*endpointY,paint)
-        canvas.drawText(goal?.toInt()?.toString() ?: "—",cx+radius*endpointX,cy+radius*endpointY,paint)
+        paint.color = marks; paint.strokeWidth = d * .004f
+        canvas.drawLine(d * .255f, d * .782f, d * .745f, d * .782f, paint)
+        canvas.save()
+        canvas.translate(c - d * .055f, d * .148f)
+        canvas.scale(d * .11f / 100f, d * .11f / 100f)
+        paint.color = if (dark) style.homeDialProgress else 0xff08602b.toInt()
+        paint.strokeWidth = 7f; paint.strokeJoin = Paint.Join.ROUND
+        if (steam) {
+            icon.reset()
+            icon.moveTo(20f,53f); icon.cubicTo(1f,48f,6f,26f,25f,25f)
+            icon.cubicTo(28f,-5f,70f,-3f,75f,25f); icon.cubicTo(94f,25f,101f,48f,81f,53f)
+            canvas.drawPath(icon,paint)
+            for (x in listOf(34f, 50f, 66f)) {
+                icon.reset(); icon.moveTo(x,48f); icon.cubicTo(x-11f,62f,x+7f,69f,x-2f,90f)
+                canvas.drawPath(icon,paint)
+            }
+        } else {
+            canvas.drawRoundRect(20f, 12f, 69f, 66f, 9f, 9f, paint)
+            icon.reset(); icon.moveTo(70f,22f); icon.cubicTo(100f,16f,99f,57f,70f,55f)
+            canvas.drawPath(icon,paint)
+            canvas.drawLine(11f, 83f, 87f, 83f, paint)
+        }
+        canvas.restore()
     }
 }

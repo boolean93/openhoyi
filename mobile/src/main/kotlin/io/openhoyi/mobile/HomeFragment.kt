@@ -315,16 +315,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 compact.addView(controls, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6) })
                 productStyle.add(card, compact)
             } else {
-                val dial = BoilerTemperatureDial(host, heading, value, target, toggle).apply { keepOwnBackdropTreatment() }
-                val footer = Any()
-                pressure.protectRoundedBackdropContent(productStyle.surface, dp(12), group = footer, photoFill = wallpaperTint(productStyle.surface))
+                val dial = BoilerTemperatureDial(host, heading, value, target, pressure, toggle,
+                    steam = tagName == "steam-boiler").apply { keepOwnBackdropTreatment() }
                 boilerDials += dial
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
-                card.addView(target, LinearLayout.LayoutParams(-1,-2))
-                productStyle.apply(pressure, TaskProductVisualStyle.Type(if (compactType) 14 else if (phoneHome) 16 else 18, 400, if (compactType) 20 else if (phoneHome) 24 else 26))
-                pressure.gravity = android.view.Gravity.CENTER
-                card.addView(pressure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
             }
             boilerExceptions[toggle] = button(card, "") { changeBoilerSetting(change()) }.apply {
                 tag = "product/home/$tagName/exception"
@@ -986,11 +981,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         brewTemperature.show(readings.brewTemperature)
         brewBoilerTemperature.showMetric(readings.brewTemperature.compactTemperature())
         brewPressure.show(readings.brewPressure)
-        brewBoilerPressure.show(getString(R.string.task_chart_pressure) + " " + readings.brewPressure)
+        brewBoilerPressure.showBoilerPressure(readings.brewPressure)
         steamTemperature.show(readings.steamTemperature)
         steamBoilerTemperature.showMetric(readings.steamTemperature.compactTemperature())
         steamPressure.show(readings.steamPressure)
-        steamBoilerPressure.show(getString(R.string.task_chart_pressure) + " " + readings.steamPressure)
+        steamBoilerPressure.showBoilerPressure(readings.steamPressure)
         brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.brewTemperatureC?.let { "${it} °C" } ?: "—"))
         steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.steamTemperatureC?.let { "${it} °C" } ?: "—"))
         val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
@@ -1244,6 +1239,15 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         host.openLastCurve(ready, reference)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+    private fun TextView.showBoilerPressure(reading: String) {
+        val label = getString(R.string.task_chart_pressure)
+        val rendered = "$label $reading"
+        if (text.toString() == rendered) return
+        text = if (parent is BoilerTemperatureDial) SpannableString(rendered).apply {
+            setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), label.length + 1, length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } else rendered
+    }
     private fun String.compactTemperature() = substringBefore(' ').toFloatOrNull()?.let { String.format(Locale.ROOT, "%.1f °C", it) } ?: this
     private fun TextView.showMetric(value: String) {
         if (text.toString() == value) return
