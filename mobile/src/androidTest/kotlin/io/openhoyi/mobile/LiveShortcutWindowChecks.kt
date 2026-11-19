@@ -13,7 +13,8 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
     private fun main(action: () -> Unit) = BoundedInstrumentationMain.run("live shortcuts", 5000, action)
 
     private fun screenshot(path: java.io.File) {
-        test.waitForIdleSync()
+        // A live chart may keep the main queue drawing indefinitely, even though the frame is ready.
+        SystemClock.sleep(300)
         val image = checkNotNull(test.uiAutomation.takeScreenshot())
         try {
             path.outputStream().use { check(image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) }
@@ -91,9 +92,12 @@ internal class LiveShortcutWindowChecks(private val test: Instrumentation) {
             service = owner
             val fragment = page.active("extraction") as ExtractionFragment
             val configuration = host.resources.configuration
-            val evidence = java.io.File(context.getExternalFilesDir(null),
-                "live-shortcut-checks/${configuration.screenWidthDp}x${configuration.screenHeightDp}-font${configuration.fontScale}")
-                .apply { mkdirs() }
+            val evidence = java.io.File(context.filesDir, "live-shortcut-checks").apply { mkdirs() }
+            java.io.File(evidence, "viewport.json").writeText(org.json.JSONObject()
+                .put("widthDp", configuration.screenWidthDp).put("heightDp", configuration.screenHeightDp)
+                .put("densityDpi", configuration.densityDpi).put("fontScale", configuration.fontScale.toDouble())
+                .put("portrait", configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                .toString())
             fun shortcutButton() = fragment.requireView().findViewWithTag<Button>("product/extraction/shortcuts")
             fun identity() = fragment.requireView().findViewWithTag<android.widget.TextView>("product/extraction/identity").text.toString()
             fun open() = checkNotNull(dialogField.get(fragment)) as AlertDialog

@@ -2,14 +2,27 @@ name: Capture Mock UI
 
 on:
   workflow_dispatch:
+    inputs:
+      live_shortcut_visual:
+        description: Run Live Extraction A–D checks on fresh phone and tablet AVDs
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJSON(inputs.live_shortcut_visual && '["phone","tablet"]' || '["legacy"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      LIVE_SHORTCUT_VISUAL: ${{ inputs.live_shortcut_visual && 'true' || 'false' }}
+      LIVE_SHORTCUT_PROFILE: ${{ matrix.profile }}
+      LIVE_SHORTCUT_AVD: openhoyi-live-slots-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.profile }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,17 +54,21 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
+          avd-name: ${{ inputs.live_shortcut_visual && env.LIVE_SHORTCUT_AVD || 'test' }}
+          emulator-port: 5554
           target: default
           arch: x86_64
-          profile: pixel_7_pro
+          profile: ${{ matrix.profile == 'tablet' && 'Nexus 10' || 'pixel_7_pro' }}
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/capture_mock_ui.sh
+          script: >-
+            if [ "$LIVE_SHORTCUT_VISUAL" = true ]; then python3 scripts/check_live_shortcut_visual.py;
+            else bash scripts/capture_mock_ui.sh; fi
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: mock-ui-screenshots
+          name: ${{ matrix.profile == 'legacy' && 'mock-ui-screenshots' || format('mock-live-shortcuts-{0}', matrix.profile) }}
           path: build/mock-ui-screenshots/
           if-no-files-found: warn
           retention-days: 7

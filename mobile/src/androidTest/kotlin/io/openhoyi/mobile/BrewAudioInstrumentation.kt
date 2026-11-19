@@ -199,6 +199,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report); return
             }
             if (liveShortcutChecks) {
+                check(disposableCiEmulator) { "Live Shortcut checks require a disposable CI emulator" }
                 LiveShortcutWindowChecks(this).run()
                 report.putString("stream", "LIVE_SHORTCUT_WINDOW_PASSED exactSlot=true staleSelectionDenied=true disabledRows=true preferenceOff=true explicitPreheatNoReplay=true stopPreserved=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
