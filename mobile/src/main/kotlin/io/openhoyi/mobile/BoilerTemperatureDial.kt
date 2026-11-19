@@ -61,6 +61,10 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             val inset=(25*density).toInt(); setMargins(inset,inset,inset,inset)
         })
         val touch = (48 * density).toInt()
+        // Lower the native track within its 48dp target, keeping the title,
+        // temperature and target label geometry unchanged.
+        power.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        power.setPaddingRelative(power.paddingStart, power.paddingTop, power.paddingEnd, (6 * density).toInt())
         addView(power, LayoutParams(touch, touch, Gravity.CENTER_HORIZONTAL))
         targetBand=TextView(context).apply {
             tag = target.tag
