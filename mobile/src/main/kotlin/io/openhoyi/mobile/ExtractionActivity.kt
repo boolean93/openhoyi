@@ -59,7 +59,8 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var deviceSummary: TextView
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
-    private lateinit var automaticReview: TextView
+    private lateinit var automaticReview: ShotReviewToolEntry
+    private lateinit var reviewToolsButton: View
     private var automaticReviewId: String? = null
     private var unbindAutomaticReview: (() -> Unit)? = null
     private var automaticReviewDialog: AlertDialog? = null
@@ -189,12 +190,6 @@ class ExtractionActivity : ThemedActivity() {
         readiness = text(content, getString(R.string.extraction_waiting_service), 14, true).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        automaticReview = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/automatic-shot-review").apply {
-            visibility = View.GONE
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
-        style.add(content, automaticReview)
         val workspace = TaskExtractionWorkspace(this, visual)
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 0 })
         val plotColumn = workspace.primaryBody
@@ -255,6 +250,8 @@ class ExtractionActivity : ThemedActivity() {
             minimumWidth = dp(48); minimumHeight = dp(48)
             setOnClickListener { showTools() }
         }
+        reviewToolsButton = chartTools
+        automaticReview = ShotReviewToolEntry(this, chartTools, style)
         pageHeader.addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
         plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f))
         workspace.onPrimarySpaceAvailable = { _, height ->
@@ -349,11 +346,21 @@ class ExtractionActivity : ThemedActivity() {
         feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         toolsDialog?.dismiss(); toolsDialog = null
+        unbindAutomaticReview?.invoke(); unbindAutomaticReview = null; automaticReviewId = null
+        if (::automaticReview.isInitialized) automaticReview.clearMenu()
         release(); super.onStop()
     }
     private fun showTools() {
         if (toolsDialog?.isShowing == true) return
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        automaticReview.addMenu(body) { review ->
+            val id = automaticReviewId
+            if (id != null && service?.chartTraceIdentity == id) {
+                toolsDialog?.dismiss()
+                automaticReviewDialog?.dismiss()
+                automaticReviewDialog = showShotReviewDetails(this, review)
+            }
+        }
         listOf(chooseCurve, connectDevices, chooseBeans, referenceChoice, detailsButton, prepare, cancelPrepare).forEach { original ->
             HoyiUi.button(this, body, original.text.toString()) { original.performClick() }.isEnabled = original.isEnabled
         }
@@ -507,12 +514,7 @@ class ExtractionActivity : ThemedActivity() {
             automaticReviewDialog = null
             unbindAutomaticReview?.invoke()
             unbindAutomaticReview = reviewId?.let { id ->
-                (application as MobileApplication).shotReviews.bind(automaticReview, id) { review ->
-                    if (service?.chartTraceIdentity == id && automaticReviewId == id) {
-                        automaticReviewDialog?.dismiss()
-                        automaticReviewDialog = showShotReviewDetails(this, review)
-                    }
-                }
+                (application as MobileApplication).shotReviews.observe(reviewToolsButton, id, automaticReview::present)
             }
             automaticReviewId = reviewId
         }
