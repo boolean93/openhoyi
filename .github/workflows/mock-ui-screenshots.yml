@@ -15,6 +15,11 @@ on:
         default: both
         options: [both, phone, tablet]
 
+      live_chart_cadence:
+        description: Capture the actual Extraction chart at 200 ms synthetic input cadence (tablet Mock only)
+        type: boolean
+        default: false
+
       quick_curve_boiler_view:
         description: Also verify offscreen boiler controls and detached fake GATT (phone emulator only)
         type: boolean
@@ -28,11 +33,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: ${{ fromJSON(inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || '["phone","tablet"]') || '["legacy"]') }}
+        profile: ${{ fromJSON(inputs.live_chart_cadence && '["tablet"]' || inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || '["phone","tablet"]') || '["legacy"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      QUICK_CURVE_VISUAL: ${{ inputs.quick_curve_visual == true && 'true' || 'false' }}
+      QUICK_CURVE_VISUAL: ${{ (inputs.quick_curve_visual == true || inputs.live_chart_cadence == true) && 'true' || 'false' }}
+      LIVE_CHART_CADENCE: ${{ inputs.live_chart_cadence == true && 'true' || 'false' }}
       QUICK_CURVE_BOILER_VIEW: ${{ inputs.quick_curve_boiler_view == true && 'true' || 'false' }}
       QUICK_CURVE_PROFILE: ${{ matrix.profile }}
       QUICK_CURVE_AVD: openhoyi-quick-curve-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.profile }}

@@ -522,11 +522,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("serviceOwnerId",serviceOwnerId).put("recoveryOriginalUninitialized",true)
             }
         }
-        fun beginScenarioService(case: String): MobileService {
+        fun beginScenarioService(case: String, noScale: Boolean = case == "no_scale"): MobileService {
             check(case in extractionPendingSpecialCases && case!="no_service_ready")
             beginService()
             val owner=requireNotNull(service)
-            if(case=="no_scale") {
+            if(noScale) {
                 main { (field(owner,"mock") as MockDeviceRuntime).scaleConnected=false }
                 await("original Mock scale-disconnected observation") { owner.snapshot.scaleState==DeviceState.DISCONNECTED }
             }
@@ -588,7 +588,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(owner.shotState==ExtractionState.RUNNING && owner.mockExtractionPendingStartId==null)
             }
         }
-        fun offerScenarioFrame(owner: MobileService, elapsed: Long, water: Int, slot: Int=8): JSONObject {
+        fun offerScenarioFrame(owner: MobileService, elapsed: Long, water: Int, slot: Int=8, pressure: Int=90, flow: Int=100): JSONObject {
             lateinit var record: JSONObject
             main {
                 val before=owner.chartPoints.size;val serial=owner.mockExtractionOfferedFrameSerial
@@ -596,7 +596,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(target>MobileMonotonicClock.elapsedRealtime())
                 MobileMonotonicClock.advanceForMock(clockOwner,target)
                 logicalInputTimes.add(target)
-                val frame=ExtractionTelemetry(slot,(elapsed/1000).toInt(),90,water,9300,100,64,0,ByteFrame(byteArrayOf()))
+                val frame=ExtractionTelemetry(slot,(elapsed/1000).toInt(),pressure,water,9300,flow,64,0,ByteFrame(byteArrayOf()))
+                val offeredAtRealMs=SystemClock.elapsedRealtime()
                 owner.offerMockExtractionFrame(clockOwner,frame)
                 check(owner.mockExtractionOfferedFrameSerial==serial+1)
                 val appended = owner.chartPoints.drop(before)
@@ -605,7 +606,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 }
                 record=JSONObject().put("serial",serial+1).put("ownedMonotonicMs",MobileMonotonicClock.elapsedRealtime())
                     .put("offeredStatusBits",64).put("appendedStatusBits",JSONArray(appended.map { it.statusBits }))
-                    .put("elapsedMs",elapsed).put("waterTenthsMl",water).put("pointsBefore",before)
+                    .put("elapsedMs",elapsed).put("offeredAtRealMs",offeredAtRealMs).put("waterTenthsMl",water).put("pointsBefore",before)
                     .put("pointsAfter",owner.chartPoints.size).put("actualNewPoints",owner.chartPoints.size-before)
             }
             return record
@@ -3030,6 +3031,133 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             WindowProofStreamingWriter.writeStrict(report,File(directory,"manifest.json"))
         }
         failure?.let {throw it}
+    }
+    /** 5 Hz is an input fixture, not a claim about hardware or Android display refresh. */
+    fun runLiveChartCadence(arguments: Bundle) {
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        check(arguments.getString("disposableCiEmulator") == "true" && Build.HARDWARE in setOf("ranchu", "goldfish"))
+        val source = requireNotNull(arguments.getString("sourceSha"))
+        check(source.matches(Regex("[0-9a-f]{40}")))
+        val folder = File(context.filesDir, "live-chart-cadence").apply { check(!exists() && mkdirs()) }
+        val inputs = JSONArray()
+        val draws = JSONArray()
+        val result = JSONObject().put("sourceSha", source).put("targetCadenceMs", 200)
+            .put("synthetic", true).put("nativeBle", false).put("inputs", inputs).put("draws", draws)
+        val scope = Scope(folder, "extraction")
+        val prefs = context.getSharedPreferences(FixedChartAxes.PREFERENCES, Context.MODE_PRIVATE)
+        val hadPreference = prefs.contains(FixedChartAxes.KEY)
+        val original = prefs.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
+        val handler = Handler(Looper.getMainLooper())
+        var observer: android.view.ViewTreeObserver? = null
+        var listener: android.view.ViewTreeObserver.OnDrawListener? = null
+        var enabled = true
+        var failure: Throwable? = null
+        try {
+            check(prefs.edit().putBoolean(FixedChartAxes.KEY, true).commit())
+            scope.prepare()
+            scope.install(false)
+            val owner = scope.beginScenarioService("sample_gap", noScale = true)
+            val trace = scope.startScenarioShot(owner, "sample_gap")
+            scope.completeScenarioStart(owner)
+            val activity = start(ExtractionActivity::class.java)
+            await("bound attached extraction chart with fixed axes") {
+                val chart = field(activity, "chart") as ExtractionOverlayView
+                field(activity, "service") === owner && field(owner, "hub") == null &&
+                    chart.traceIdentity == trace && chart.isAttachedToWindow && chart.isShown &&
+                    activity.hasWindowFocus() && field(chart, "fixedAxes") == true && chart.visualEvidence.length() > 0
+            }
+            main {
+                val chart = field(activity, "chart") as ExtractionOverlayView
+                val layer = requireNotNull(field(requireNotNull(field(chart, "plot")), "endpointLabels"))
+                fun JSONArray.rows() = (0 until length()).map(::getJSONObject)
+                val tree = chart.viewTreeObserver
+                observer = tree
+                listener = android.view.ViewTreeObserver.OnDrawListener {
+                    val before = chart.visualEvidence
+                    val target = chart.points.lastOrNull()
+                    if (target != null && enabled) {
+                        val drawNanos = SystemClock.elapsedRealtimeNanos()
+                        val edge = (field(chart, "revealThroughMs") as Long?) ?: target.elapsedMs
+                        // OnDraw is just before traversal. Read only fresh Canvas operations emitted
+                        // by the attached Plot; skip a traversal which did not redraw this child.
+                        handler.post {
+                            if (enabled && chart.isAttachedToWindow && chart.visualEvidence !== before) {
+                                try {
+                                    val rows = chart.visualEvidence.rows()
+                                    val plot = rows.single { it.getString("operation") == "plot" }
+                                    check(plot.getLong("observedThroughMs") == target.elapsedMs)
+                                    fun paths(metric: String) = rows.filter { it.optString("role") == "data" &&
+                                        it.optString("metric") == metric && it.optString("operation") == "path" &&
+                                        !it.getBoolean("reference") }.map { row ->
+                                        JSONObject().put("verticesPx", row.getJSONArray("verticesPx"))
+                                            .put("interpolation", row.getString("interpolation"))
+                                    }
+                                    val pressure = (field(layer, "visible") as List<*>)
+                                        .filterNotNull().firstOrNull { field(it, "metric") == ChartMetric.PRESSURE }
+                                    val anchor = pressure?.let { field(it, "anchor") as LiveEndpointLabelGeometry.Anchor }
+                                    draws.put(JSONObject().put("elapsedNanos", drawNanos)
+                                        .put("observedMs", target.elapsedMs).put("revealMs", edge)
+                                        .put("targetPressureTenthsBar", target.pressureTenthsBar)
+                                        .put("timeEndMs", plot.getLong("projectionTimeEndMs"))
+                                        .put("boundsPx", plot.getJSONArray("boundsPx"))
+                                        .put("pressurePaths", JSONArray(paths("PRESSURE")))
+                                        .put("flowPaths", JSONArray(paths("FLOW")))
+                                        .put("pressureAnchorX", anchor?.x ?: JSONObject.NULL)
+                                        .put("pressureAnchorY", anchor?.y ?: JSONObject.NULL)
+                                        .put("pressureCaption", pressure?.let { field(it, "caption") } ?: JSONObject.NULL))
+                                } catch (error: Throwable) { if (failure == null) failure = error }
+                            }
+                        }
+                    }
+                }
+                tree.addOnDrawListener(requireNotNull(listener))
+            }
+            // Absolute elapsed deadlines prevent the preceding injection or instrumentation from
+            // composing a fresh 200 ms delay each turn. Record main-thread service entry for audit.
+            val schedule = (200L..2800L step 200).toList() + listOf(4600L, 4800L, 5000L)
+            val base = SystemClock.elapsedRealtime() + 100
+            result.put("scheduleBaseMs", base)
+            for ((index, elapsed) in schedule.withIndex()) {
+                val due = base + elapsed
+                while (true) {
+                    val remaining = due - SystemClock.elapsedRealtime()
+                    if (remaining <= 0) break
+                    SystemClock.sleep(remaining)
+                }
+                // 6 bar for six observations, then pressure changes; water advances at 2 mL/s.
+                val pressure = if (index < 6) 60 else if (index < 14) 60 + 4 * (index - 5) else 70 + (index - 14) * 2
+                val record = scope.offerScenarioFrame(owner, elapsed, (elapsed / 50).toInt(), pressure = pressure, flow = 20)
+                inputs.put(record.put("plannedElapsedRealtimeMs", due).put("pressureTenthsBar", pressure))
+            }
+            await("post-gap input and attached chart draw") {
+                failure?.let { throw it }
+                val record = draws.optJSONObject(draws.length() - 1)
+                record != null && record.getLong("observedMs") == schedule.last() - schedule.first() &&
+                    record.getLong("revealMs") == schedule.last() - schedule.first()
+            }
+            main { check(field(owner, "hub") == null && owner.chartPoints.map { it.elapsedMs } == schedule) }
+            result.put("trace", trace).put("complete", true)
+        } catch (error: Throwable) {
+            failure = error
+        } finally {
+            try {
+                main {
+                    enabled = false
+                    val tree = observer
+                    if (tree?.isAlive == true) listener?.let { tree.removeOnDrawListener(it) }
+                }
+            } catch (error: Throwable) { if (failure == null) failure = error else failure?.addSuppressed(error) }
+            try { scope.cleanup() }
+            catch (error: Throwable) { if (failure == null) failure = error else failure?.addSuppressed(error) }
+            try {
+                val edit = prefs.edit()
+                if (hadPreference) edit.putBoolean(FixedChartAxes.KEY, original) else edit.remove(FixedChartAxes.KEY)
+                check(edit.commit())
+            } catch (error: Throwable) { if (failure == null) failure = error else failure?.addSuppressed(error) }
+            failure?.let { result.put("complete", false).put("failure", it.stackTraceToString()) }
+            File(folder, "cadence.json").writeText(result.toString(2))
+        }
+        failure?.let { throw it }
     }
     fun run(arguments: Bundle): Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")

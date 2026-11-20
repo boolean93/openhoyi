@@ -8,6 +8,7 @@ import struct
 import subprocess
 import time
 
+from live_chart_cadence_evidence import evaluate
 from shared_mock_artifact import APP, TEST, DESTINATIONS, digest, inspect_apk, require, run
 
 
@@ -135,34 +136,54 @@ def main():
             require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "HOME_BOILER_LAYER_PROOF_PASSED" in report,
                     "Detached boiler layer checks failed")
             receipt["detachedBoilerViewAndFakeGattPassed"] = True
-        for background, theme in ((background, theme) for background in ("wallpaper", "solid")
-                                  for theme in ("light", "dark")):
-            name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "")
-            # All data in this exact ephemeral install is synthetic and fixture-owned.
-            require(adb("shell", "pm", "clear", APP) == "Success", "Cannot reset isolated Mock fixture")
-            try:
-                report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
-                             "-e", "quickCurveVisualTheme", theme, "-e", "quickCurveVisualBackground",
-                             background, RUNNER, timeout=100)
-            except (subprocess.SubprocessError, OSError) as failure:
-                # am instrument can disappear with a nonzero exit or a killed process.
-                output_text = getattr(failure, "output", None)
-                if isinstance(output_text, bytes):
-                    output_text = output_text.decode("utf-8", errors="replace")
-                (output / f"{name}-instrumentation.txt").write_text(
-                    (output_text or "")[-32000:] + f"\nTransport error: {type(failure).__name__}\n")
-                raise
+        if os.environ.get("LIVE_CHART_CADENCE") == "true":
+            require(profile == "tablet", "Cadence scope requires its single landscape tablet configuration")
+            name = "live-chart-cadence"
+            report = adb("shell", "am", "instrument", "-w", "-r",
+                         "-e", "disposableCiEmulator", "true", "-e", "liveChartCadence", "true",
+                         "-e", "sourceSha", sha, RUNNER, timeout=100)
             (output / f"{name}-instrumentation.txt").write_text(report + "\n")
-            require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and MARKER in report,
-                    f"{name} instrumentation failed; see preserved log, diagnostics and failure frame")
-            image = adb("exec-out", "run-as", APP, "cat", "files/quick-curve-visual/home.png", binary=True)
-            geometry = json.loads(adb("exec-out", "run-as", APP, "cat", "files/quick-curve-visual/geometry.json"))
-            target = output / f"{name}.png"
-            target.write_bytes(image)
-            (output / f"{name}.json").write_text(json.dumps(geometry, ensure_ascii=False, indent=2) + "\n")
-            validate_capture(image, geometry, width, height, dpi, theme, background)
-            receipt["screenshots"][target.name] = digest(target)
-        require(len(set(receipt["screenshots"].values())) == 4, "Duplicate capture outputs")
+            artifact = output / f"{name}.json"
+            artifact.write_text(adb("exec-out", "run-as", APP, "cat", "files/live-chart-cadence/cadence.json"))
+            receipt["cadenceArtifactSha256"] = digest(artifact)
+            require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and
+                    "LIVE_CHART_CADENCE_CAPTURED mockOnly=true noBle=true" in report,
+                    "Instrumentation fixture failed; inspect cadence JSON and log")
+            evidence = json.loads(artifact.read_text())
+            require(evidence["sourceSha"] == sha, "Cadence source mismatched")
+            verdict = evaluate(evidence)
+            (output / f"{name}-verdict.json").write_text(json.dumps(verdict, indent=2) + "\n")
+            receipt["cadenceVerdict"] = verdict
+            require(verdict["status"] == "PASS", f"Cadence {verdict['status']}; read verdict JSON")
+        else:
+            for background, theme in ((background, theme) for background in ("wallpaper", "solid")
+                                      for theme in ("light", "dark")):
+                name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "")
+                # All data in this exact ephemeral install is synthetic and fixture-owned.
+                require(adb("shell", "pm", "clear", APP) == "Success", "Cannot reset isolated Mock fixture")
+                try:
+                    report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
+                                 "-e", "quickCurveVisualTheme", theme, "-e", "quickCurveVisualBackground",
+                                 background, RUNNER, timeout=100)
+                except (subprocess.SubprocessError, OSError) as failure:
+                    # am instrument can disappear with a nonzero exit or a killed process.
+                    output_text = getattr(failure, "output", None)
+                    if isinstance(output_text, bytes):
+                        output_text = output_text.decode("utf-8", errors="replace")
+                    (output / f"{name}-instrumentation.txt").write_text(
+                        (output_text or "")[-32000:] + f"\nTransport error: {type(failure).__name__}\n")
+                    raise
+                (output / f"{name}-instrumentation.txt").write_text(report + "\n")
+                require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and MARKER in report,
+                        f"{name} instrumentation failed; see preserved log, diagnostics and failure frame")
+                image = adb("exec-out", "run-as", APP, "cat", "files/quick-curve-visual/home.png", binary=True)
+                geometry = json.loads(adb("exec-out", "run-as", APP, "cat", "files/quick-curve-visual/geometry.json"))
+                target = output / f"{name}.png"
+                target.write_bytes(image)
+                (output / f"{name}.json").write_text(json.dumps(geometry, ensure_ascii=False, indent=2) + "\n")
+                validate_capture(image, geometry, width, height, dpi, theme, background)
+                receipt["screenshots"][target.name] = digest(target)
+            require(len(set(receipt["screenshots"].values())) == 4, "Duplicate capture outputs")
         receipt["passed"] = True
     except (ValueError, KeyError, subprocess.SubprocessError, OSError):
         save_failure(adb, output, name)
