@@ -1983,3 +1983,21 @@ body { background: var(--paper); color: var(--ink); }
 .viewer-scroll { background: #edf3eb; }
 .viewer-note { border-top-color: var(--line); color: var(--muted); }
 .viewer::backdrop { background: rgba(18, 29, 22, 0.82); }
+
+
+/* Match the light curve-editor capture */
+.editor-shell {
+  background: linear-gradient(160deg, #ffffff, #e9f2e7);
+  border-color: rgba(29, 42, 34, 0.14);
+  box-shadow: 0 34px 80px -52px rgba(29, 42, 34, 0.32);
+}
+.editor-shell .shot-link { box-shadow: 0 0 0 1px rgba(29, 42, 34, 0.08); }
+
+
+/* Give light screenshots a quiet mat so they do not disappear into white cards */
+.card-shot .shot-link {
+  background: #eaf2e8;
+  border-color: rgba(29, 42, 34, 0.14);
+  padding: 6px;
+  box-shadow: 0 20px 45px -32px rgba(29, 42, 34, 0.32);
+}

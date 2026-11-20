@@ -51,9 +51,9 @@
     "buildCommand": "ANDROID_USER_HOME=/Users/boolean93/workspace/hoyi_app/.android-home GRADLE_USER_HOME=/Users/boolean93/workspace/hoyi_app/.dsh-gradle GRADLE_RO_DEP_CACHE=/Users/boolean93/.gradle/caches ./gradlew :mobile:assembleMock -PhoyiVersionCode=164 -PhoyiVersionName=0.2.0-mock.164 --no-daemon"
   },
   "captureSession": {
-    "date": "2026-11-20",
+    "date": "2026-11-20/21",
     "timeZone": "Asia/Shanghai",
-    "themeSequence": "Dark screenshots were captured first; the theme was switched to light for the light screenshots, then restored to dark.",
+    "themeSequence": "Dark screenshots were captured first on 2026-11-20; the theme was switched to light for the light screenshots. After the site moved to a light palette, the editor page was re-captured in light theme on 2026-11-21, then the Mock theme was restored to dark.",
     "mockExtraction": "One simulated extraction was started and stopped in Mock to capture the live chart. Mock mode has no BLE connection and no real machine command was sent.",
     "cleanup": "Mock was force-stopped and the real app was brought back to the foreground. Mock data was not cleared."
   },
@@ -104,15 +104,15 @@
     },
     {
       "name": "editor",
-      "theme": "dark",
+      "theme": "light",
       "original": "originals/editor.png",
       "width": 2560,
       "height": 1600,
-      "captureDate": "2026-11-20",
+      "captureDate": "2026-11-21",
       "captureMethod": "adb exec-out screencap -p",
       "sourceProfile": "M2105K81AC / Android 13 / 2560x1600 / Mock",
-      "sourceCapture": "11-mock-curve-editor.png",
-      "sha256": "5959efc361f34543ae8dc73261d72bd27a49546c32e3f80834057fd0c0142243",
+      "sourceCapture": "22-mock-curve-editor-light.png",
+      "sha256": "06a0059b7aaf9077c9bb6c6d7715d5366fa10d75c99772da243c001f967f83cb",
       "display": "editor.png",
       "displayCropPx": [
         0,
@@ -121,8 +121,8 @@
         1564
       ],
       "displayTreatment": "Contiguous crop of the Android status bar (top 0-60 px) and gesture bar (bottom 1564-1600 px); no App content was redrawn or composited.",
-      "displaySha256": "a758e636742743c2f8914a8bad35914e186d1e7a94e54a5e7fe9b7b1aa83ec23",
-      "notes": "Mock curve editor; three pressure stages shown; no save was performed."
+      "displaySha256": "ee81ce465337ffad816169432ab13f3d8a8d38babe3698d022dd6ef83d079256",
+      "notes": "Mock curve editor; light theme; three pressure stages shown; no save was performed."
     },
     {
       "name": "history",

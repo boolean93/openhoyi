@@ -15,7 +15,7 @@ ISSUES = "https://github.com/boolean93/openhoyi/issues"
 REPO = "https://github.com/boolean93/openhoyi"
 PAGES = "https://boolean93.github.io/openhoyi/"
 APP_SOURCE_SHA = "e5cd67ac54a547706b8712675fcbacb4fe935ad7"
-SCREEN_REVISION = APP_SOURCE_SHA[:8]
+SCREEN_REVISION = "20261121"
 SCREENS = ("home", "extraction", "history", "editor")
 
 
@@ -380,7 +380,7 @@ class ProductPagesTest(unittest.TestCase):
             with self.subTest(screen=screen["name"]):
                 self.assertIn(screen["theme"], ("light", "dark"))
                 self.assertRegex(screen["sourceCapture"], r"^\d{2}-mock-.*\.png$")
-                self.assertEqual(screen["captureDate"], "2026-11-20")
+                self.assertIn(screen["captureDate"], ("2026-11-20", "2026-11-21"))
                 self.assertEqual(screen["sourceProfile"], "M2105K81AC / Android 13 / 2560x1600 / Mock")
                 self.assertIn("Contiguous crop", screen["displayTreatment"])
                 crop = screen["displayCropPx"]
