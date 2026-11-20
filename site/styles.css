@@ -345,7 +345,7 @@ h3 { font-weight: 600; letter-spacing: -0.015em; }
 .hero-inner { text-align: center; }
 .hero h1 {
   margin-top: 20px;
-  font-size: clamp(3rem, 7.4vw, 6.35rem);
+  font-size: clamp(2.9rem, 6.6vw, 5.5rem);
   line-height: 1.03;
   font-weight: 600;
   letter-spacing: -0.035em;
@@ -1680,7 +1680,7 @@ body:has(.viewer[open]) { overflow: hidden; }
 }
 
 @media (max-width: 480px) {
-  .hero h1 { font-size: clamp(2.65rem, 12.4vw, 3.4rem); }
+  .hero h1 { font-size: clamp(2.2rem, 10.4vw, 3.15rem); }
   .hero-actions .button { width: 100%; }
   .hero-actions { gap: 9px; }
   .support-cards { grid-template-columns: 1fr; }
@@ -1701,7 +1701,7 @@ body:has(.viewer[open]) { overflow: hidden; }
 @media (max-width: 359px) {
   .brand span { display: none; }
   .nav-actions { margin-left: auto; }
-  .hero h1 { font-size: 2.45rem; }
+  .hero h1 { font-size: 2.2rem; }
   .hero .eyebrow { letter-spacing: 0.1em; font-size: 10px; }
   .metric-switch button { font-size: 11px; padding: 6px 9px; }
   .chat-card { padding: 14px; }
