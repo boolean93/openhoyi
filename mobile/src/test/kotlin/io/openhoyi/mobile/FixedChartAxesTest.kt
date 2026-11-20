@@ -36,13 +36,13 @@ class FixedChartAxesTest {
         }
     }
     @Test fun overflowNeverClampsOrDiscardsSamplesAndSurvivesReturnInside() {
-        val points = listOf(point(0, 130, 1010, 7900, 0, 6100), point(1000, weight = 500), point(41000))
+        val points = listOf(point(0, 160, 1010, 7900, 0, 6100), point(1000, weight = 550), point(41000))
         val data = project(points)
         val overflow = FixedChartAxes.overflow(data, selectableLiveMetrics.toSet())
         assertTrue(overflow.time)
         assertEquals(setOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.FLOW, ChartMetric.TEMPERATURE,
             ChartMetric.YIELD), overflow.metrics)
-        assertEquals(13f, data.series.first { it.metric == ChartMetric.PRESSURE }.current.first().first().value, 0f)
+        assertEquals(16f, data.series.first { it.metric == ChartMetric.PRESSURE }.current.first().first().value, 0f)
         assertEquals(61f, data.series.first { it.metric == ChartMetric.YIELD }.current.first().first().value, 0f)
         assertEquals(41000L, data.observedThroughMs)
         assertEquals(3, data.series.first { it.metric == ChartMetric.WATER }.current.flatten().size)
@@ -51,15 +51,31 @@ class FixedChartAxesTest {
         val data = project(listOf(point(1000)), listOf(point(41000, temperature = 7900)))
         assertFalse(FixedChartAxes.overflow(data, selectableLiveMetrics.toSet()).any)
         assertTrue(FixedChartAxes.overflow(data, selectableLiveMetrics.toSet(), reference = true).any)
-        val excursion = project(listOf(point(1000, pressure = 130)))
+        val excursion = project(listOf(point(1000, pressure = 151)))
         assertFalse(FixedChartAxes.overflow(excursion, setOf(ChartMetric.WATER)).any)
         assertEquals(setOf(ChartMetric.PRESSURE), FixedChartAxes.overflow(excursion, setOf(ChartMetric.PRESSURE)).metrics)
     }
     @Test fun boundaryValuesAreInsideAndNegativeYieldIsRetained() {
-        assertFalse(FixedChartAxes.overflow(project(listOf(point(40000, 120, 1000, 10000, yield = 6000))),
+        assertFalse(FixedChartAxes.overflow(project(listOf(point(40000, 150, 1000, 10000, yield = 6000))),
             selectableLiveMetrics.toSet()).any)
         val negative = project(listOf(point(1000, yield = -100)))
         assertEquals(setOf(ChartMetric.YIELD), FixedChartAxes.overflow(negative, setOf(ChartMetric.YIELD)).metrics)
+    }
+    @Test fun pressureAndScaleFlowUseNewTicksWithoutChangingObservedValues() {
+        val atLimit = project(listOf(point(0, weight = 0), point(1000, pressure = 150, weight = 500)))
+        val pressure = atLimit.series.first { it.metric == ChartMetric.PRESSURE }
+        val flow = atLimit.series.first { it.metric == ChartMetric.FLOW }
+        assertEquals(ChartRange(0f, 15f), pressure.range)
+        assertEquals(3f, pressure.step, 0f)
+        assertEquals(ChartRange(0f, 5f), flow.range)
+        assertEquals(1f, flow.step, 0f)
+        val visible = setOf(ChartMetric.PRESSURE, ChartMetric.FLOW)
+        assertFalse(FixedChartAxes.overflow(atLimit, visible).any)
+
+        val beyond = project(listOf(point(0, weight = 0), point(1000, pressure = 151, weight = 501)))
+        assertEquals(visible, FixedChartAxes.overflow(beyond, visible).metrics)
+        assertEquals(15.1f, beyond.series.first { it.metric == ChartMetric.PRESSURE }.current.flatten().last().value, 0f)
+        assertEquals(5.01f, beyond.series.first { it.metric == ChartMetric.FLOW }.current.flatten().last().value, 0f)
     }
     @Test fun historyIgnoresFixedLiveFlagAndMissingYieldIsNotInvented() {
         val points = listOf(point(72000, yield = null))
