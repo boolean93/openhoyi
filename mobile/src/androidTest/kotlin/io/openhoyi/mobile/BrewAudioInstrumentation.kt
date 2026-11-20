@@ -40,6 +40,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var legacyVisualArguments: Bundle? = null
     private var scaleVisualArguments: Bundle? = null
     private var historyCArguments: Bundle? = null
+    private var shotReviewLayoutArguments: Bundle? = null
     private var extractionHistoryVisualArguments: Bundle? = null
     private var beanWorkflowVisualArguments: Bundle? = null
     private var curveVisualArguments: Bundle? = null
@@ -93,6 +94,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         legacyVisualArguments = arguments?.takeIf { it.getString("legacyVisualMigration") == "true" }?.let { Bundle(it) }
         scaleVisualArguments = arguments?.takeIf { it.getString("scaleVisualMigration") == "true" }?.let { Bundle(it) }
         historyCArguments = arguments?.takeIf { it.getString("historyDetailC") == "true" }?.let { Bundle(it) }
+        shotReviewLayoutArguments = arguments?.takeIf { it.getString("shotReviewLayout") == "true" }?.let(::Bundle)
         extractionHistoryVisualArguments = arguments?.takeIf { it.getString("extractionHistoryVisualMigration") == "true" }?.let { Bundle(it) }
         beanWorkflowVisualArguments = arguments?.takeIf { it.getString("beanWorkflowVisualMigration") == "true" }?.let { Bundle(it) }
         curveVisualArguments = arguments?.takeIf { it.getString("curveVisualMigration") == "true" }?.let { Bundle(it) }
@@ -278,6 +280,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             historyCArguments?.let { arguments ->
                 ExtractionHistoryVisualMigrationChecks(this).runHistoryC(arguments)
                 report.putString("stream", "HISTORY_DETAIL_C_CAPTURED mechanicalOnly=true visualAcceptance=ASTRA_PENDING noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            shotReviewLayoutArguments?.let { arguments ->
+                ExtractionHistoryVisualMigrationChecks(this).runShotReviewLayout(arguments)
+                report.putString("stream", "SHOT_REVIEW_LAYOUT_SUCCESS noProvider=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

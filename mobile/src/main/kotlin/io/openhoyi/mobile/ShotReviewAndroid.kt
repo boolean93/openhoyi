@@ -104,55 +104,37 @@ internal class AppShotReview(private val context: Context) {
         scope.launch { transports.forEach { (transport, cfg) -> if (!current(cfg)) transport.close() } }
     }
 
-    fun bind(label: TextView, shotId: String, openDetails: ((String) -> Unit)? = null): () -> Unit {
+    fun observe(anchor: View, shotId: String, present: (ShotReviewResult?) -> Unit): () -> Unit {
         var observer: Job? = null
-        fun action(report: String?) {
-            val click = if (openDetails != null && report != null) View.OnClickListener {
-                if (label.isAttachedToWindow) openDetails(report)
-            } else null
-            label.setOnClickListener(click)
-            label.isClickable = click != null
-            label.isFocusable = click != null
-            if (openDetails != null) {
-                val style = TaskProductVisualStyle(label.context)
-                label.minimumHeight = if (click != null) style.dp(48) else 0
-                label.setTextColor(if (click != null) style.accent else style.ink)
-                label.paint.isUnderlineText = click != null
-            }
-        }
         fun start() {
             observer?.cancel()
             observer = scope.launch(Dispatchers.Main.immediate) {
                 controller.changes.collect {
                     val result = kotlinx.coroutines.withContext(Dispatchers.IO) { controller.result(shotId) }
-                    if (!label.isAttachedToWindow) return@collect
-                    val readyText = result?.takeIf { it.status == ShotReviewStatus.READY }?.text
-                    action(readyText)
-                    label.text = when (result?.status) {
-                        ShotReviewStatus.PENDING -> label.context.getString(R.string.shot_review_pending)
-                        ShotReviewStatus.READY -> if (openDetails != null) label.context.getString(R.string.shot_review_open)
-                            else label.context.getString(R.string.shot_review_ready, readyText.orEmpty())
-                        ShotReviewStatus.FAILED -> label.context.getString(R.string.shot_review_failed)
-                        ShotReviewStatus.UNKNOWN -> label.context.getString(R.string.shot_review_unknown)
-                        null -> ""
-                    }
-                    label.visibility = if (result == null) View.GONE else View.VISIBLE
+                    if (anchor.isAttachedToWindow) present(result)
                 }
             }
         }
         val listener = object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) = start()
-            override fun onViewDetachedFromWindow(v: View) { observer?.cancel(); observer = null; action(null) }
+            override fun onViewDetachedFromWindow(v: View) { observer?.cancel(); observer = null }
         }
-        label.addOnAttachStateChangeListener(listener)
-        if (label.isAttachedToWindow) start()
+        anchor.addOnAttachStateChangeListener(listener)
+        if (anchor.isAttachedToWindow) start()
         return {
-            label.removeOnAttachStateChangeListener(listener)
+            anchor.removeOnAttachStateChangeListener(listener)
             observer?.cancel(); observer = null
-            action(null)
-            label.text = ""; label.visibility = View.GONE
+            present(null)
         }
     }
+
+    fun bindDetails(label: TextView, shotId: String): () -> Unit = observe(label, shotId) { result ->
+        label.text = if (result?.status == ShotReviewStatus.READY)
+            label.context.getString(R.string.shot_review_ready, result.text.orEmpty())
+        else result?.let { label.context.getString(it.status.message()) }.orEmpty()
+        label.visibility = if (result == null) View.GONE else View.VISIBLE
+    }
+
 }
 
 /** A separate durable gate: an inaccessible/missing alias is denial, never implicit consent. */
@@ -187,3 +169,62 @@ internal fun showShotReviewDetails(context: Context, review: String): android.ap
     },
     AppDialog.Action(context.getString(android.R.string.ok), onClick = {}),
 )
+
+
+internal fun ShotReviewStatus.message(): Int = when (this) {
+    ShotReviewStatus.PENDING -> R.string.shot_review_pending
+    ShotReviewStatus.READY -> R.string.shot_review_open
+    ShotReviewStatus.FAILED -> R.string.shot_review_failed
+    ShotReviewStatus.UNKNOWN -> R.string.shot_review_unknown
+}
+
+/** Draws into the existing tools button; result state never participates in layout. */
+internal class ShotReviewToolEntry(private val activity: android.app.Activity, private val button: View, private val style: TaskProductVisualStyle) {
+    private var result: ShotReviewResult? = null
+    private var menu: TextView? = null
+    private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val badge = object : android.graphics.drawable.Drawable() {
+        override fun draw(canvas: android.graphics.Canvas) {
+            val status = result?.status ?: return
+            val d = button.resources.displayMetrics.density
+            // Safety notices use the physical top-right corner in both layout directions.
+            val left = 3*d
+            paint.color = if (status == ShotReviewStatus.READY) style.accent else style.ink
+            canvas.drawRoundRect(left, 2*d, left+16*d, 14*d, 4*d, 4*d, paint)
+            paint.color = style.surface
+            paint.textAlign = android.graphics.Paint.Align.CENTER
+            paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            paint.textSize = 8*d
+            canvas.drawText("AI",left+8*d,11*d,paint)
+        }
+        override fun setAlpha(alpha: Int) = Unit
+        override fun setColorFilter(filter: android.graphics.ColorFilter?) = Unit
+        @Deprecated("Deprecated in Java") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+    }
+    init {
+        button.overlay.add(badge)
+        button.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ -> badge.setBounds(0, 0, r-l, b-t) }
+    }
+    fun present(next: ShotReviewResult?) {
+        if (result == next) return
+        result = next
+        androidx.core.view.ViewCompat.setStateDescription(button, next?.let { button.context.getString(it.status.message()) })
+        badge.invalidateSelf()
+        updateMenu()
+    }
+    fun addMenu(parent: android.widget.LinearLayout, open: (String) -> Unit) {
+        menu = HoyiUi.button(activity, parent, "") {
+            result?.takeIf { it.status == ShotReviewStatus.READY }?.text?.let(open)
+        }.apply { tag = "product/extraction/automatic-shot-review"; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
+        updateMenu()
+    }
+    fun clearMenu() { menu = null }
+    private fun updateMenu() {
+        val status = result?.status
+        menu?.apply {
+            text = status?.let { context.getString(it.message()) }.orEmpty()
+            isEnabled = status == ShotReviewStatus.READY
+            visibility = if (status == null) View.GONE else View.VISIBLE
+        }
+    }
+}

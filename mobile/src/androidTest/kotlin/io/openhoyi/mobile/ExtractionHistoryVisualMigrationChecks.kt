@@ -3031,6 +3031,133 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         failure?.let {throw it}
     }
+    /** Finished-shot geometry proof: inject presentation changes only, never call a provider. */
+    fun runShotReviewLayout(arguments: Bundle) {
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        check(arguments.getString("disposableCiEmulator") == "true" &&
+            Build.HARDWARE in setOf("ranchu", "goldfish") && Build.VERSION.SDK_INT >= 34)
+        val sha = requireNotNull(arguments.getString("sourceSha"))
+        check(sha.matches(Regex("[0-9a-f]{40}")))
+        val directory = File(requireNotNull(context.getExternalFilesDir(null)),
+            "shot-review-layout/$sha").apply { check(isDirectory || mkdirs()) }
+        val scope = Scope(directory, "extraction")
+        try {
+            scope.prepare()
+            scope.install(arguments.getString("sampleTheme") == "dark")
+            val owner = scope.beginScenarioService("STARTING")
+            val activity = start(ExtractionActivity::class.java) as MainActivity
+            scope.startScenarioShot(owner, "STARTING")
+            scope.completeScenarioStart(owner)
+            await("observed running before finished geometry") { field(owner, "lastShotState") == ExtractionState.RUNNING }
+            scope.offerScenarioFrame(owner, 1000, 10)
+            scope.offerScenarioFrame(owner, 2000, 20)
+            scope.advanceTo(5500)
+            main {
+                owner.offerMockExtractionFrame(scope.scenarioOwner(),
+                    io.openhoyi.protocol.IdleTelemetry(9300, 13000, 0, 0, 0, 0, 8, 0, ByteFrame(byteArrayOf())))
+            }
+            val fragment = activity.supportFragmentManager.findFragmentByTag("extraction") as ExtractionFragment
+            val liveTags = listOf("product/extraction/header", "product/extraction/chart-host",
+                "product/extraction/chart", "product/extraction/scale-readout",
+                "product/extraction/start", "product/extraction/chart-tools", "product/extraction/shortcuts")
+            await("same real shown ended Mock shot") {
+                owner.shotState == ExtractionState.ENDED_OBSERVED &&
+                    field(owner, "lastShotState") == ExtractionState.ENDED_OBSERVED &&
+                    root(activity).findViewWithTag<View>("product/extraction/start")?.isShown == true &&
+                    !root(activity).isLayoutRequested
+            }
+            val control = field(fragment, "automaticReview") as ShotReviewToolEntry
+            val shot = requireNotNull(owner.chartTraceIdentity)
+            fun geometry(): Map<String, List<Int>> = liveTags.associateWith { tag ->
+                val view = requireNotNull(root(activity).findViewWithTag<View>(tag)) { tag }
+                val origin = IntArray(2)
+                view.getLocationOnScreen(origin)
+                check(view.isShown && view.width > 0 && view.height > 0) { tag }
+                listOf(origin[0], origin[1], view.width, view.height)
+            }
+            lateinit var baseline: Map<String, List<Int>>
+            main { baseline = geometry() }
+            val sample = listOf("Stable phase: " + "pressure tracking was steady. ".repeat(4),
+                "Trend: " + "only localized deviations can be inferred. ".repeat(4),
+                "Next cup: measure beverage weight once, keeping all other inputs unchanged.").joinToString("\n")
+            val states = listOf(null, ShotReviewResult(ShotReviewStatus.PENDING),
+                ShotReviewResult(ShotReviewStatus.READY, sample), ShotReviewResult(ShotReviewStatus.FAILED),
+                ShotReviewResult(ShotReviewStatus.UNKNOWN), null)
+            fun screenshot(name: String) {
+                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    File(directory, "$name.png").outputStream().use {
+                        check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                } finally { bitmap.recycle() }
+            }
+            val frames = NativeWindowFrameEvidence(test)
+            states.forEachIndexed { index, state ->
+                main { control.present(state) }
+                frames.committedFrame(root(activity))
+                when (index) {
+                    0 -> screenshot("none")
+                    1 -> screenshot("pending")
+                    2 -> screenshot("ready")
+                }
+                main {
+                    check(owner.chartTraceIdentity == shot && owner.shotState == ExtractionState.ENDED_OBSERVED)
+                    check(geometry() == baseline) { "Review ${state?.status} shifted the same finished shot" }
+                    val tool = root(activity).findViewWithTag<View>("product/extraction/chart-tools")
+                    check(androidx.core.view.ViewCompat.getStateDescription(tool)?.toString() ==
+                        state?.let { activity.getString(it.status.message()) })
+                    check(field(fragment, "automaticReviewDialog") == null)
+                }
+            }
+            val alarmText = field(fragment, "alarmStatus") as TextView
+            // A render commit uses real time; the frozen Mock clock needs a new telemetry timestamp.
+            scope.advanceTo(5600)
+            main {
+                control.present(ShotReviewResult(ShotReviewStatus.READY, sample))
+                owner.offerMockExtractionFrame(scope.scenarioOwner(),
+                    io.openhoyi.protocol.IdleTelemetry(9300, 13000, 0, 0, 0, 1, 8, 0, ByteFrame(byteArrayOf())))
+            }
+            await("blocking alarm retains its existing priority beside the ready review") {
+                val tool = root(activity).findViewWithTag<View>("product/extraction/chart-tools")
+                val alarm = alarmText.text.toString().lineSequence().first()
+                owner.chartTraceIdentity == shot && alarm.isNotBlank() &&
+                    tool.contentDescription?.toString()?.endsWith(alarm) == true &&
+                    androidx.core.view.ViewCompat.getStateDescription(tool)?.toString() == activity.getString(R.string.shot_review_open)
+            }
+            frames.committedFrame(root(activity))
+            screenshot("ready-with-critical-alarm")
+            main {
+                check(root(activity).findViewWithTag<View>("product/extraction/chart-tools").performClick())
+            }
+            await("review action reachable through unchanged Tools") {
+                val tools = field(fragment, "toolsDialog") as? AlertDialog
+                tools?.window?.decorView?.findViewWithTag<TextView>("product/extraction/automatic-shot-review")
+                    ?.let { it.isShown && it.isEnabled && it.text == activity.getString(R.string.shot_review_open) } == true
+            }
+            main {
+                val tools = requireNotNull(field(fragment, "toolsDialog") as? AlertDialog)
+                val content = requireNotNull(tools.window).decorView
+                val menuReview = requireNotNull(content.findViewWithTag<View>("product/extraction/automatic-shot-review"))
+                val status = requireNotNull(content.findViewWithTag<View>("product/extraction/tool/status"))
+                val body = menuReview.parent as ViewGroup
+                check(status.parent === body && body.indexOfChild(status) < body.indexOfChild(menuReview))
+                check(menuReview.performClick())
+            }
+            await("explicitly opened all review text") {
+                val dialog = field(fragment, "automaticReviewDialog") as? AlertDialog
+                dialog?.window?.decorView?.findViewWithTag<TextView>("product/extraction/ai-feedback-details")
+                    ?.text?.toString() == sample
+            }
+            screenshot("details")
+            File(directory, "proof.json").writeText(JSONObject().put("sourceSha",sha)
+                .put("widthDp",activity.resources.configuration.screenWidthDp)
+                .put("heightDp",activity.resources.configuration.screenHeightDp)
+                .put("fontScale",activity.resources.configuration.fontScale)
+                .put("stateVariants",5).put("sameFinishedShot",true).put("identicalScreenBounds", JSONObject(baseline))
+                .put("reviewExplicitlyOpened",true).put("statusBeforeReview",true).put("realProviderCalls",0).toString(2))
+        } finally { scope.cleanup() }
+    }
+
     fun run(arguments: Bundle): Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")
         check(arguments.getString("disposableCiEmulator")=="true" && arguments.getString("freshProcessVerified")=="true")

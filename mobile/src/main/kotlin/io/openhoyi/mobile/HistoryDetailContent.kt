@@ -275,12 +275,6 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
     style.add(summary, metrics)
     val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
     style.add(summary, chartStatus, 4)
-    val review = style.text("", TaskProductVisualStyle.auxiliary, "product/history/automatic-shot-review").apply {
-        visibility = android.view.View.GONE
-        accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
-    }
-    style.add(plot, review, 4)
-    app.shotReviews.bind(review, entry.id)
     val actions = style.column("product/history/actions").apply { if (!standalone) orientation = LinearLayout.HORIZONTAL }
     val footer = HistoryToolbarRow(this, style.dp(16), style.dp(4)) {
         plot.metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (plot.metricCells.size - 1)
@@ -853,6 +847,16 @@ private fun ThemedActivity.showDetails(original: ShotHistory.Entry, curve: Strin
         setPadding(dp(20), dp(12), dp(20), dp(12))
     }
     HoyiUi.label(this, content, (if ((entry.timingEvidenceVersion > 0 || entry.observedSampleCoverageMs != null)) shotRecordElapsed(entry) + "\n" else "") + getString(R.string.history_timing_explanation), 13, muted = true)
+    val review = HoyiUi.label(this, content, "", 14).apply {
+        tag = "product/history/automatic-shot-review"
+        visibility = android.view.View.GONE
+        accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
+    }
+    val unbindReview = app.shotReviews.bindDetails(review, entry.id)
+    review.addOnAttachStateChangeListener(object : android.view.View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(v: android.view.View) = Unit
+        override fun onViewDetachedFromWindow(v: android.view.View) { unbindReview(); v.removeOnAttachStateChangeListener(this) }
+    })
     HoyiUi.label(this, content, curve, 18, true)
     HoyiUi.label(this, content, status(entry.status), 17, true)
     HoyiUi.label(this, content, getString(R.string.history_started_at, date(entry.startedAtMs)), 14)
