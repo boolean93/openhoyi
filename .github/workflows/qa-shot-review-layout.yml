@@ -1,0 +1,64 @@
+name: QA shot review layout
+on:
+  push:
+    branches: ['chore/qa-shot-review-layout']
+permissions:
+  contents: read
+jobs:
+  mock-layout:
+    timeout-minutes: 28
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: narrow-phone-light
+            size: 640x1120
+            density: 320
+            theme: light
+          - profile: tablet-landscape-dark
+            size: 2560x1600
+            density: 360
+            theme: dark
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Build isolated Mock
+        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Prove same-shot geometry and review action
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          PROFILE: ${{ matrix.profile }}
+          SIZE: ${{ matrix.size }}
+          DENSITY: ${{ matrix.density }}
+          THEME: ${{ matrix.theme }}
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_7_pro
+          ram-size: 2048M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/check_shot_review_layout.sh
+      - name: Retain real Mock evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: shot-review-${{ matrix.profile }}
+          path: build/task-first-evidence/shot-review-layout/
+          if-no-files-found: warn
+          retention-days: 7

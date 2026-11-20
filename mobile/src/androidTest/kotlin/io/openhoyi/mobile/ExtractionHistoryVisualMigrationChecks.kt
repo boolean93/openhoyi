@@ -3083,10 +3083,23 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             val states = listOf(null, ShotReviewResult(ShotReviewStatus.PENDING),
                 ShotReviewResult(ShotReviewStatus.READY, sample), ShotReviewResult(ShotReviewStatus.FAILED),
                 ShotReviewResult(ShotReviewStatus.UNKNOWN), null)
+            fun screenshot(name: String) {
+                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    File(directory, "$name.png").outputStream().use {
+                        check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                } finally { bitmap.recycle() }
+            }
             val frames = NativeWindowFrameEvidence(test)
-            states.forEach { state ->
+            states.forEachIndexed { index, state ->
                 main { control.present(state) }
                 frames.committedFrame(root(activity))
+                when (index) {
+                    0 -> screenshot("none")
+                    1 -> screenshot("pending")
+                    2 -> screenshot("ready")
+                }
                 main {
                     check(owner.chartTraceIdentity == shot && owner.shotState == ExtractionState.ENDED_OBSERVED)
                     check(geometry() == baseline) { "Review ${state?.status} shifted the same finished shot" }
@@ -3114,6 +3127,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 dialog?.window?.decorView?.findViewWithTag<TextView>("product/extraction/ai-feedback-details")
                     ?.text?.toString() == sample
             }
+            screenshot("details")
             File(directory, "proof.json").writeText(JSONObject().put("sourceSha",sha)
                 .put("widthDp",activity.resources.configuration.screenWidthDp)
                 .put("heightDp",activity.resources.configuration.screenHeightDp)
