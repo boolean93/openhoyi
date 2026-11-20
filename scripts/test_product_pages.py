@@ -119,7 +119,7 @@ class ProductPagesTest(unittest.TestCase):
         self.assertIn("data-view-image", hero)
         h1 = re.search(r"<h1[^>]*>(.*?)</h1>", self.html, re.S).group(1)
         self.assertIn("连上 HOYI", h1)
-        self.assertIn("把这杯调明白", h1)
+        self.assertIn("冲好这一杯", h1)
         for text in ("开源 · ANDROID · 非官方 ALPHA",
                      "机器、电子秤、曲线和历史都在一个 App 里", "不用来回切",
                      "下载测试版", "看看界面",
