@@ -122,3 +122,25 @@
   .guide h2 { font-size: 1.22rem; }
   .guide-note { padding: 20px; }
 }
+
+
+/* Light porcelain guide */
+.guide-hero {
+  background:
+    radial-gradient(70% 80% at 82% 0%, rgba(160, 196, 162, 0.3), transparent 60%),
+    linear-gradient(180deg, #f8faf5, #edf4ec);
+  color: var(--ink);
+}
+.guide-hero::after {
+  background-image:
+    linear-gradient(rgba(29, 42, 34, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 42, 34, 0.045) 1px, transparent 1px);
+}
+.guide-hero .eyebrow { color: var(--crema-strong); }
+.guide-hero .guide-muted { color: var(--muted); }
+.guide-lede { color: var(--muted); }
+.guide-note {
+  border-color: var(--line);
+  border-left-color: var(--crema-strong);
+  background: var(--mist);
+}
