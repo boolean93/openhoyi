@@ -3058,7 +3058,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             val fragment = activity.supportFragmentManager.findFragmentByTag("extraction") as ExtractionFragment
             val liveTags = listOf("product/extraction/header", "product/extraction/chart-host",
-                "product/extraction/chart", "product/extraction/metric/PRESSURE/number",
+                "product/extraction/chart", "product/extraction/scale-readout",
                 "product/extraction/start", "product/extraction/chart-tools", "product/extraction/shortcuts")
             await("same real shown ended Mock shot") {
                 owner.shotState == ExtractionState.ENDED_OBSERVED &&
@@ -3109,8 +3109,22 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     check(field(fragment, "automaticReviewDialog") == null)
                 }
             }
+            val alarmText = field(fragment, "alarmStatus") as TextView
             main {
                 control.present(ShotReviewResult(ShotReviewStatus.READY, sample))
+                owner.offerMockExtractionFrame(scope.scenarioOwner(),
+                    io.openhoyi.protocol.IdleTelemetry(9300, 13000, 0, 0, 0, 1, 8, 0, ByteFrame(byteArrayOf())))
+            }
+            await("blocking alarm retains its existing priority beside the ready review") {
+                val tool = root(activity).findViewWithTag<View>("product/extraction/chart-tools")
+                val alarm = alarmText.text.toString().lineSequence().first()
+                owner.chartTraceIdentity == shot && alarm.isNotBlank() &&
+                    tool.contentDescription?.toString()?.endsWith(alarm) == true &&
+                    androidx.core.view.ViewCompat.getStateDescription(tool)?.toString() == activity.getString(R.string.shot_review_open)
+            }
+            frames.committedFrame(root(activity))
+            screenshot("ready-with-critical-alarm")
+            main {
                 check(root(activity).findViewWithTag<View>("product/extraction/chart-tools").performClick())
             }
             await("review action reachable through unchanged Tools") {
@@ -3120,7 +3134,12 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             main {
                 val tools = requireNotNull(field(fragment, "toolsDialog") as? AlertDialog)
-                check(tools.window?.decorView?.findViewWithTag<View>("product/extraction/automatic-shot-review")?.performClick() == true)
+                val content = requireNotNull(tools.window).decorView
+                val menuReview = requireNotNull(content.findViewWithTag<View>("product/extraction/automatic-shot-review"))
+                val status = requireNotNull(content.findViewWithTag<View>("product/extraction/tool/status"))
+                val body = menuReview.parent as ViewGroup
+                check(status.parent === body && body.indexOfChild(status) < body.indexOfChild(menuReview))
+                check(menuReview.performClick())
             }
             await("explicitly opened all review text") {
                 val dialog = field(fragment, "automaticReviewDialog") as? AlertDialog
@@ -3133,7 +3152,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 .put("heightDp",activity.resources.configuration.screenHeightDp)
                 .put("fontScale",activity.resources.configuration.fontScale)
                 .put("stateVariants",5).put("sameFinishedShot",true).put("identicalScreenBounds", JSONObject(baseline))
-                .put("reviewExplicitlyOpened",true).put("realProviderCalls",0).toString(2))
+                .put("reviewExplicitlyOpened",true).put("statusBeforeReview",true).put("realProviderCalls",0).toString(2))
         } finally { scope.cleanup() }
     }
 

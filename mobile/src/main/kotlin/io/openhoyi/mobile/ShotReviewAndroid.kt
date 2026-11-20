@@ -187,7 +187,8 @@ internal class ShotReviewToolEntry(private val activity: android.app.Activity, p
         override fun draw(canvas: android.graphics.Canvas) {
             val status = result?.status ?: return
             val d = button.resources.displayMetrics.density
-            val left = if (button.layoutDirection == View.LAYOUT_DIRECTION_RTL) bounds.width() - 19*d else 3*d
+            // Safety notices use the physical top-right corner in both layout directions.
+            val left = 3*d
             paint.color = if (status == ShotReviewStatus.READY) style.accent else style.ink
             canvas.drawRoundRect(left, 2*d, left+16*d, 14*d, 4*d, 4*d, paint)
             paint.color = style.surface

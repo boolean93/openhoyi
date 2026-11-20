@@ -26,7 +26,7 @@ timeout 150 adb shell am instrument -w -r \
   -e shotReviewLayout true -e disposableCiEmulator true -e sourceSha "$sha" \
   -e sampleTheme "$THEME" "$test_package" | tee "$dir/instrumentation.log"
 grep -F 'SHOT_REVIEW_LAYOUT_SUCCESS noProvider=true' "$dir/instrumentation.log"
-for file in proof.json none.png pending.png ready.png details.png; do
+for file in proof.json none.png pending.png ready.png ready-with-critical-alarm.png details.png; do
   adb pull "$remote/$file" "$dir/$file"
 done
 python3 - "$dir" "$sha" "$PROFILE" <<'PY'
@@ -35,10 +35,10 @@ from pathlib import Path
 directory, sha, profile = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 proof=json.loads((directory/'proof.json').read_text())
 assert proof['sourceSha']==sha and proof['sameFinishedShot'] and proof['stateVariants']==5, proof
-assert proof['reviewExplicitlyOpened'] and proof['realProviderCalls']==0 and len(proof['identicalScreenBounds'])==7, proof
+assert proof['reviewExplicitlyOpened'] and proof['statusBeforeReview'] and proof['realProviderCalls']==0 and len(proof['identicalScreenBounds'])==7, proof
 w,h = proof['widthDp'],proof['heightDp']
 assert ((w==320 and h>w) if profile=='narrow-phone-light' else (w>=1000 and w>h)), proof
-for name in ('none','pending','ready','details'):
+for name in ('none','pending','ready','ready-with-critical-alarm','details'):
     assert (directory/f'{name}.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n'), name
 print(json.dumps(proof,ensure_ascii=False))
 PY
