@@ -192,30 +192,62 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 check(host.currentService?.shotState == io.openhoyi.session.ExtractionState.IDLE && app.history.entries.isEmpty()) {
                     "Visual fixture must not initiate or record an extraction"
                 }
-                JSONObject().put("portrait", portrait).put("dark", dark).put("wallpaper", wallpaperEnabled).put("density", density.toDouble()).put("items", items)
+                val viewport = Rect().also {
+                    check(root.findViewWithTag<ScrollView>("product/home/page-scroll").getGlobalVisibleRect(it))
+                }
+                val bottomGap = (viewport.bottom - bounds.maxOf { it.bottom }) / density
+                check(bottomGap >= 10f) { "Expected breathing room inside the Home viewport, got ${bottomGap}dp" }
+                JSONObject().put("portrait", portrait).put("dark", dark).put("wallpaper", wallpaperEnabled)
+                    .put("viewport", JSONArray(listOf(viewport.left, viewport.top, viewport.right, viewport.bottom)))
+                    .put("bottomGapDp", bottomGap.toDouble()).put("density", density.toDouble()).put("items", items)
             }
             val bitmap = checkNotNull(test.uiAutomation.takeScreenshot())
             try {
-                if (!proof.getBoolean("portrait") && !wallpaperEnabled) {
-                    val first = proof.getJSONArray("items").getJSONObject(0).getJSONArray("rect")
+                if (!wallpaperEnabled && (!proof.getBoolean("dark") || !proof.getBoolean("portrait"))) {
+                    val items = proof.getJSONArray("items")
                     val density = proof.getDouble("density")
-                    val center = (first.getInt(0) + first.getInt(2)) / 2
+                    val viewport = proof.getJSONArray("viewport")
+                    val dark = proof.getBoolean("dark")
+                    val first = items.getJSONObject(0).getJSONArray("rect")
+                    val lastBottom = (0 until items.length()).maxOf {
+                        items.getJSONObject(it).getJSONArray("rect").getInt(3)
+                    }
                     val outer = first.getInt(0) - (8 * density).roundToInt()
-                    val bottom = first.getInt(3)
                     fun luminance(x: Int, y: Int): Double {
                         val color = bitmap.getPixel(x, y)
                         return .2126 * Color.red(color) + .7152 * Color.green(color) + .0722 * Color.blue(color)
                     }
-                    val offsetsDp = listOf(1.0, 2.5)
-                    val deltas = offsetsDp.map { offset ->
-                        val y = bottom + (offset * density).roundToInt()
-                        // The solid fixture is uniform across this scan line outside the card.
-                        luminance(outer, y) - luminance(center, y)
+                    fun profile(card: JSONArray, offsetsDp: List<Double>): List<Double> {
+                        val center = (card.getInt(0) + card.getInt(2)) / 2
+                        return offsetsDp.map { offset ->
+                            val y = card.getInt(3) + (offset * density).roundToInt()
+                            check(outer >= viewport.getInt(0) && center < viewport.getInt(2) &&
+                                y in viewport.getInt(1) until viewport.getInt(3)) {
+                                "Shortcut shadow probe left the app viewport"
+                            }
+                            // Solid Home is uniform outside the card at this scan line.
+                            luminance(outer, y) - luminance(center, y)
+                        }
                     }
-                    check(deltas.first() >= 2.0 && deltas.last() > .5) {
-                        "Tablet contact shadow missing just outside the card: ${deltas}"
+                    if (dark) {
+                        val deltas = profile(first, listOf(1.0, 2.5))
+                        check(deltas.first() >= 2.0 && deltas.last() > .5) {
+                            "Dark tablet contact shadow missing just outside the card: $deltas"
+                        }
+                        proof.put("tabletSolidShadowSamples", JSONArray(deltas))
+                    } else {
+                        val profiles = JSONArray()
+                        for (index in 0 until items.length()) {
+                            val card = items.getJSONObject(index).getJSONArray("rect")
+                            if (card.getInt(3) != lastBottom) continue
+                            val deltas = profile(card, listOf(.75, 1.75, 3.0, 5.5))
+                            check(deltas.first() > .5 && deltas.last() < deltas.first() - .25) {
+                                "Light shortcut native shadow missing or not fading in the viewport: $deltas"
+                            }
+                            profiles.put(JSONArray(deltas))
+                        }
+                        proof.put("lightNativeShadowProfiles", profiles)
                     }
-                    proof.put("tabletSolidShadowSamples", JSONArray(deltas))
                 }
                 File(out, "home.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
             } finally { bitmap.recycle() }

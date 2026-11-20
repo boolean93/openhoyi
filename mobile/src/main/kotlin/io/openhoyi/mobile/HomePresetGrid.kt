@@ -88,6 +88,11 @@ internal class HomePresetGrid(
     // Draw the contact shadow in the parent so the card's rounded ripple clipping
     // cannot cut it off. Tablet A–D has a single contact shadow around the group.
     override fun dispatchDraw(canvas: Canvas) {
+        // Light uses its native elevation alone; keep the dark contact ink.
+        if (!dark) {
+            super.dispatchDraw(canvas)
+            return
+        }
         for (rowIndex in 0 until childCount) {
             val child = getChildAt(rowIndex)
             if (child is Tile) {
@@ -117,8 +122,7 @@ internal class HomePresetGrid(
         for (layer in 3 downTo 1) {
             val spread = layer * density
             val offset = 1.25f * density
-            contactPaint.color = if (dark) Color.argb(when (layer) { 1 -> 56; 2 -> 32; else -> 18 }, 0, 0, 0)
-                else Color.argb(if (layer == 1) 9 else 6, 29, 38, 59)
+            contactPaint.color = Color.argb(when (layer) { 1 -> 56; 2 -> 32; else -> 18 }, 0, 0, 0)
             val corner = radiusPx + spread
             canvas.drawRoundRect(left - spread, top - spread + offset, right + spread,
                 bottom + spread + offset, corner, corner, contactPaint)
