@@ -3110,6 +3110,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 }
             }
             val alarmText = field(fragment, "alarmStatus") as TextView
+            // A render commit uses real time; the frozen Mock clock needs a new telemetry timestamp.
+            scope.advanceTo(5600)
             main {
                 control.present(ShotReviewResult(ShotReviewStatus.READY, sample))
                 owner.offerMockExtractionFrame(scope.scenarioOwner(),

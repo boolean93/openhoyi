@@ -10,7 +10,15 @@ base=build/task-first-evidence/shot-review-layout/"$sha"
 dir="$base/$PROFILE"
 mkdir -p "$dir"
 remote="/sdcard/Android/data/$package/files/shot-review-layout/$sha"
-collect() { adb shell logcat -d -s AndroidRuntime:E > "$dir/runtime-errors.txt" || true; }
+evidence=(proof.json none.png pending.png ready.png ready-with-critical-alarm.png details.png)
+collect() {
+  adb shell logcat -d -s AndroidRuntime:E > "$dir/runtime-errors.txt" || true
+  for file in "${evidence[@]}"; do
+    if [[ ! -s "$dir/$file" ]] && adb shell test -f "$remote/$file" >/dev/null 2>&1; then
+      adb pull "$remote/$file" "$dir/$file" || true
+    fi
+  done
+}
 trap collect EXIT
 adb shell wm size "$SIZE"
 adb shell wm density "$DENSITY"
@@ -26,7 +34,7 @@ timeout 150 adb shell am instrument -w -r \
   -e shotReviewLayout true -e disposableCiEmulator true -e sourceSha "$sha" \
   -e sampleTheme "$THEME" "$test_package" | tee "$dir/instrumentation.log"
 grep -F 'SHOT_REVIEW_LAYOUT_SUCCESS noProvider=true' "$dir/instrumentation.log"
-for file in proof.json none.png pending.png ready.png ready-with-critical-alarm.png details.png; do
+for file in "${evidence[@]}"; do
   adb pull "$remote/$file" "$dir/$file"
 done
 python3 - "$dir" "$sha" "$PROFILE" <<'PY'
