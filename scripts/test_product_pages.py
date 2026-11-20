@@ -14,7 +14,7 @@ RELEASES = "https://github.com/boolean93/openhoyi/releases"
 ISSUES = "https://github.com/boolean93/openhoyi/issues"
 REPO = "https://github.com/boolean93/openhoyi"
 PAGES = "https://boolean93.github.io/openhoyi/"
-APP_SOURCE_SHA = "7a22e6cbee30322c066ff76a19cde08e7e96cbf4"
+APP_SOURCE_SHA = "e5cd67ac54a547706b8712675fcbacb4fe935ad7"
 SCREEN_REVISION = APP_SOURCE_SHA[:8]
 SCREENS = ("home", "extraction", "history", "editor")
 
@@ -123,8 +123,8 @@ class ProductPagesTest(unittest.TestCase):
         for text in ("OPEN SOURCE · ANDROID · ALPHA",
                      "把两杯萃取叠在同一张图上",
                      "下载 Android 版", "看它能做什么",
-                     "Android 8.0+ · 低功耗蓝牙 · GPL v2 开源 · 独立开发、非官方 Alpha",
-                     "云端 Android 14 模拟器截图", "非真机验收"):
+                     "Android 8.0+ · 低功耗蓝牙 · GPL v2 开源 · 非官方 Alpha",
+                     "本机 Xiaomi Pad 5 安装的模拟演示版截图", "不是真机萃取或硬件验收"):
             self.assertIn(text, self.html)
         features = self.section("features")
         for title in ("从首段，写到收尾。", "两杯之间，差在哪？", "设备记得你。",
@@ -335,58 +335,66 @@ class ProductPagesTest(unittest.TestCase):
                 self.assertIn(f'./assets/screens/{name}.png?v={SCREEN_REVISION}', self.html)
         self.assertNotIn("<picture>", self.html)
         self.assertNotIn("-detail.png", self.html)
-        self.assertIn("展示图按固定比例连续裁去系统栏", self.html)
-        self.assertIn("这不代表可重现构建", self.html)
+        self.assertIn("展示图连续裁去系统栏", self.html)
+        self.assertIn("不是 CI 流水线或可重现构建", self.html)
 
-    def test_original_screenshot_provenance_and_readable_detail(self):
-        self.assertEqual(self.provenance["schema"], 4)
-        self.assertEqual(self.provenance["kind"], "actual-emulator-screenshots")
+    def test_local_tablet_screenshot_provenance(self):
+        self.assertEqual(self.provenance["schema"], 5)
+        self.assertEqual(self.provenance["kind"], "local-tablet-mock-screenshots")
         self.assertEqual(self.provenance["sourceSha"], APP_SOURCE_SHA)
         self.assertIs(self.provenance["sourceCommitVerified"], True)
         verification = self.provenance["sourceVerification"]
-        self.assertIn("GitHub Actions", verification["method"])
-        self.assertIn("not a reproducible-build claim", verification["scope"])
-        baseline = verification["applicationSourceObjects"]
-        self.assertEqual(set(baseline), {"app", "mobile", "bean-core", "bluetooth-android", "device-session",
-                                        "protocol-core", "trace-core", "localization", "build.gradle.kts",
-                                        "settings.gradle.kts", "gradle.properties", "gradle", "gradlew", "gradlew.bat"})
-        for identity in baseline.values():
-            self.assertRegex(identity, r"^[0-9a-f]{40}$")
-        self.assertTrue(verification["runs"])
-        for run in verification["runs"]:
-            self.assertRegex(run["headSha"], r"^[0-9a-f]{40}$")
-            self.assertIs(run["applicationSourceMatchesBaseline"], True)
-            self.assertRegex(run["url"], r"^https://github.com/boolean93/openhoyi/actions/runs/[0-9]+$")
-        self.assertEqual(self.provenance["captureMethod"], "Android UiAutomation.takeScreenshot()")
-        self.assertEqual(self.provenance["device"]["androidRelease"], "14")
-        self.assertEqual(self.provenance["appBuild"]["package"], "io.openhoyi.mobile.mock")
-        self.assertIs(self.provenance["appBuild"]["binaryIdentityVerified"], False)
-        for text in ("云端 Android 14（API 34）模拟器", "非真实平板截图", "源码 7a22e6cb",
-                     "CI 源码提交与截图来源已记录",
-                     "连接、配方与两杯对比区的流程和图表为功能示意",
-                     "不保证与下载版本一致", "模拟数据"):
+        self.assertIn("Local git worktree", verification["method"])
+        self.assertIn("not a reproducible build", verification["scope"])
+        self.assertEqual(verification["baseCommit"], APP_SOURCE_SHA)
+        self.assertEqual(verification["worktreeHead"], "05053987ea5dc9b3314852595c318e10a50f87cd")
+        self.assertIs(verification["appSourceDiffEmpty"], True)
+        self.assertEqual(set(verification["appSourcePaths"]), {
+            "app", "mobile", "bean-core", "bluetooth-android", "device-session",
+            "protocol-core", "trace-core", "localization", "build.gradle.kts",
+            "settings.gradle.kts", "gradle.properties", "gradle", "gradlew", "gradlew.bat"})
+        self.assertIn("assembleMock", verification["buildCommand"])
+        self.assertEqual(self.provenance["captureMethod"], "adb exec-out screencap -p")
+        device = self.provenance["device"]
+        self.assertEqual(device["model"], "M2105K81AC")
+        self.assertEqual(device["androidRelease"], "13")
+        self.assertEqual(device["display"], "2560x1600 landscape")
+        self.assertEqual(device["densityDpi"], 360)
+        app = self.provenance["appBuild"]
+        self.assertEqual(app["package"], "io.openhoyi.mobile.mock")
+        self.assertEqual(app["versionName"], "0.2.0-mock.164")
+        self.assertEqual(app["versionCode"], 164)
+        self.assertEqual(app["apkSha256"], "c3fed7072a9f0a1401461ccd8ccab43bad866697a6214cd1cd1635dc246ee254")
+        self.assertEqual(app["signerSha256"], "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54")
+        self.assertIs(app["binaryIdentityVerified"], True)
+        for text in ("本机 Xiaomi Pad 5（Android 13）", "versionCode 164",
+                     "源码基线 e5cd67ac", "APK SHA-256 c3fed707",
+                     "本地模拟采集", "不是 CI 流水线或可重现构建",
+                     "不是真机萃取或硬件验收", "模拟数据"):
             self.assertIn(text, self.html)
-        self.assertNotIn("0.2.0-preview.76", self.html)
+        self.assertNotIn("7a22e6cb", self.html)
+        self.assertNotIn("云端", self.html)
+        self.assertNotIn("模拟器", self.html)
+        self.assertIn("模拟演示版", self.html)
         for screen in self.provenance["screens"]:
-            runs = {run["url"]: run for run in verification["runs"]}
-            self.assertIn(screen["sourceRunUrl"], runs)
-            self.assertEqual(screen["captureSourceSha"], runs[screen["sourceRunUrl"]]["headSha"])
-            self.assertTrue(screen["sourceArtifactPath"])
-            crop = screen["displayCropPx"]
-            self.assertEqual(len(crop), 4)
-            self.assertEqual(crop[0], 0)
-            self.assertEqual(crop[2], screen["width"])
-            self.assertTrue(0 <= crop[1] < crop[3] <= screen["height"])
-            for file_key, hash_key, size in (
-                ("original", "sha256", (screen["width"], screen["height"])),
-                ("display", "displaySha256", (crop[2] - crop[0], crop[3] - crop[1])),
-            ):
-                asset = (SITE / "assets/screens" / screen[file_key]).resolve()
-                self.assertTrue(asset.is_relative_to((SITE / "assets/screens").resolve()))
-                data = asset.read_bytes()
-                self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
-                self.assertEqual(struct.unpack(">II", data[16:24]), size)
-                self.assertEqual(hashlib.sha256(data).hexdigest(), screen[hash_key])
+            with self.subTest(screen=screen["name"]):
+                self.assertIn(screen["theme"], ("light", "dark"))
+                self.assertRegex(screen["sourceCapture"], r"^\d{2}-mock-.*\.png$")
+                self.assertEqual(screen["captureDate"], "2026-11-20")
+                self.assertEqual(screen["sourceProfile"], "M2105K81AC / Android 13 / 2560x1600 / Mock")
+                self.assertIn("Contiguous crop", screen["displayTreatment"])
+                crop = screen["displayCropPx"]
+                self.assertEqual(crop, [0, 60, 2560, 1564])
+                for file_key, hash_key, size in (
+                    ("original", "sha256", (screen["width"], screen["height"])),
+                    ("display", "displaySha256", (crop[2] - crop[0], crop[3] - crop[1])),
+                ):
+                    asset = (SITE / "assets/screens" / screen[file_key]).resolve()
+                    self.assertTrue(asset.is_relative_to((SITE / "assets/screens").resolve()))
+                    data = asset.read_bytes()
+                    self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+                    self.assertEqual(struct.unpack(">II", data[16:24]), size)
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), screen[hash_key])
 
     def test_every_page_image_matches_its_png_bytes(self):
         for tag, attrs in self.page.tags:
