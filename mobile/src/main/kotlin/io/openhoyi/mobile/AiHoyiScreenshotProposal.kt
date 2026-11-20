@@ -12,9 +12,14 @@ internal object AiHoyiScreenshotProposal {
     fun forTool(raw: String, availableImageIds: Set<String>): String {
         val root = Json.parseToJsonElement(raw).jsonObject
         val operation = (root["operation"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        // The element parser normalizes duplicate names, so check the raw envelope
+        // before trusting the selected operation or converting its transcription.
+        checkPhotoKeys(raw, required = operation == "transcribe_screenshot")
         if (operation == "transcribe_screenshot") {
             require(root.keys == setOf("operation", "transcription"))
-            return proposal(root.getValue("transcription").toString(), availableImageIds)
+            val transcription = root.getValue("transcription").jsonObject
+            require(transcription.toString().toByteArray(Charsets.UTF_8).size <= AiCurveWriteCoordinator.MAX_ARGUMENT_BYTES)
+            return proposal(transcription, availableImageIds)
         }
         return raw
     }
@@ -22,6 +27,11 @@ internal object AiHoyiScreenshotProposal {
     fun proposal(raw: String, trustedImageIds: Set<String>): String {
         require(raw.toByteArray(Charsets.UTF_8).size <= AiCurveWriteCoordinator.MAX_ARGUMENT_BYTES)
         val root = Json.parseToJsonElement(raw).jsonObject
+        checkPhotoKeys(raw, required = true)
+        return proposal(root, trustedImageIds)
+    }
+
+    private fun proposal(root: JsonObject, trustedImageIds: Set<String>): String {
         require(root.keys == setOf("sourceAttachmentId", "name", "mode", "logic", "firstStageUnit", "temperatureC",
             "totalWaterMl", "targetWeightG", "compensationG", "preinfusionSeconds", "firstDurationSeconds", "stages"))
         fun text(o: JsonObject, k: String): String = (o[k] as? JsonPrimitive)?.also { require(it.isString) }?.content
@@ -55,5 +65,54 @@ internal object AiHoyiScreenshotProposal {
         require(document.targetHundredthsGram % 10 == 0 && document.configuration!!.compensationHundredthsGram % 10 == 0)
         require(listOf(false, true).all { scale -> CustomCurveAdapter.profile(document, scale)?.let { CustomCurveStartPolicy.permits(it.parameters) } == true })
         return JSONObject().put("operation", "create").put("curve", JSONObject(document.encode()).also { it.remove("id") }).toString()
+    }
+
+    /** Json has already checked syntax. Strings followed by ':' are object member
+     * names; check equality in the owning object, decoding escaped names with Json. */
+    private fun checkPhotoKeys(raw: String, required: Boolean) {
+        val scopes = ArrayDeque<MutableSet<String>>()
+        var photo = required
+        var duplicate = false
+        var index = 0
+        fun stringEnd(start: Int): Int {
+            var end = start + 1
+            while (raw[end] != '"') {
+                if (raw[end] == '\\') end++
+                end++
+            }
+            return end + 1
+        }
+        fun decoded(start: Int, end: Int): String {
+            val quoted = raw.substring(start, end)
+            return if ('\\' in quoted) Json.parseToJsonElement(quoted).jsonPrimitive.content
+                else quoted.substring(1, quoted.length - 1)
+        }
+        fun afterWhitespace(start: Int): Int {
+            var i = start
+            while (i < raw.length && raw[i] in " \t\r\n") i++
+            return i
+        }
+        while (index < raw.length) when (raw[index++]) {
+            '{' -> scopes.addLast(hashSetOf())
+            '}' -> scopes.removeLast()
+            '"' -> {
+                val start = index - 1
+                index = stringEnd(start)
+                val colon = afterWhitespace(index)
+                if (raw.getOrNull(colon) == ':') {
+                    val key = decoded(start, index)
+                    if (!scopes.last().add(key)) duplicate = true
+                    // A repeated top-level operation may otherwise disguise a photo
+                    // proposal as an ordinary create/replace after normalization.
+                    if (!photo && scopes.size == 1 && key == "operation") {
+                        val value = afterWhitespace(colon + 1)
+                        if (raw.getOrNull(value) == '"') {
+                            photo = decoded(value, stringEnd(value)) == "transcribe_screenshot"
+                        }
+                    }
+                }
+            }
+        }
+        require(!photo || !duplicate) { "Duplicate screenshot field" }
     }
 }
