@@ -62,4 +62,39 @@ class AiHoyiScreenshotProposalTest {
             assertEquals(firstUnit == "ml_per_second", c.firstSegmentFlowMode)
         }
     }
+
+    @Test fun duplicatePhotoFieldsAreRejectedEvenWhenEscapedOrIdentical() {
+        val variants = listOf(
+            raw.replace("\"logic\":\"follow\"", "\"logic\":\"constant\",\"logic\":\"follow\""),
+            raw.replace("\"temperatureC\":92", "\"temperatureC\":92,\"temperatureC\":92"),
+            raw.replace("\"target\":2.0", "\"target\":2.0,\"targ\\u0065t\":2.0"),
+        )
+        for (variant in variants) {
+            assertNotEquals(raw, variant)
+            assertTrue(runCatching { document(variant) }.isFailure)
+            val envelope = """{"operation":"transcribe_screenshot","transcription":$variant}"""
+            assertTrue(runCatching { AiHoyiScreenshotProposal.forTool(envelope, setOf(id)) }.isFailure)
+        }
+    }
+
+    @Test fun envelopeRejectsDuplicateFieldsEvenIfOperationWouldNormalizeToCreate() {
+        val duplicateTranscription = """{"operation":"transcribe_screenshot","transcription":$raw,"transcription":$raw}"""
+        val duplicateOperation = """{"operation":"transcribe\u005fscreenshot","operat\u0069on":"create","curve":{}}"""
+        for (variant in listOf(duplicateTranscription, duplicateOperation)) {
+            assertTrue(runCatching { AiHoyiScreenshotProposal.forTool(variant, setOf(id)) }.isFailure)
+        }
+    }
+
+    @Test fun quotedBracesAndSameKeysInDifferentStagesDoNotCountAsDuplicates() {
+        val name = """named { "logic": "follow" } [path\file]"""
+        val value = changed("name", JsonPrimitive(name))
+        assertEquals(name, document(value).name)
+        val envelope = """{"operation":"transcribe_screenshot","transcription":$value}"""
+        assertEquals("create", JSONObject(AiHoyiScreenshotProposal.forTool(envelope, setOf(id))).getString("operation"))
+    }
+
+    @Test fun unrelatedProposalsKeepOriginalRouting() {
+        val ordinary = """{"operation":"create","curve":{"name":"transcribe_screenshot","logic":false,"logic":true}}"""
+        assertEquals(ordinary, AiHoyiScreenshotProposal.forTool(ordinary, setOf(id)))
+    }
 }
