@@ -123,7 +123,7 @@ class ProductPagesTest(unittest.TestCase):
         for text in ("OPEN SOURCE · ANDROID · ALPHA",
                      "把两杯萃取叠在同一张图上",
                      "下载 Android 版", "看它能做什么",
-                     "Android 8.0+ · 低功耗蓝牙 · GPL v2 开源 · 非官方 Alpha",
+                     "Android 8.0+ · 低功耗蓝牙 · GPL v2 开源", "非官方 Alpha",
                      "本机 Xiaomi Pad 5 安装的模拟演示版截图", "不是真机萃取或硬件验收"):
             self.assertIn(text, self.html)
         features = self.section("features")

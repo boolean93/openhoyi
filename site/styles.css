@@ -382,6 +382,7 @@ h3 { font-weight: 600; letter-spacing: -0.015em; }
   font-size: 11px;
   letter-spacing: 0.06em;
 }
+.meta-keep { white-space: nowrap; }
 
 .hero-stage {
   position: relative;
