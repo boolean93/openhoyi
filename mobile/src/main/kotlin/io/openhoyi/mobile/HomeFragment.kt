@@ -364,7 +364,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 .setMessage(fullName).setPositiveButton(android.R.string.ok, null).let(::showTransient)
         }, onLastClick = ::useLastCurve)
         quickRow.addView(directPresets, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(if (shortHome) 0 else if (phoneHome) 6 else 10 - shortcutBottomBreathingRoom)
+            topMargin = dp(if (shortHome) 0 else if (phoneHome) 2 else 10 - shortcutBottomBreathingRoom)
         })
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }

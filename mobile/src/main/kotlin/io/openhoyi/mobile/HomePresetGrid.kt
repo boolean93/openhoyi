@@ -2,6 +2,8 @@ package io.openhoyi.mobile
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -65,7 +67,7 @@ internal class HomePresetGrid(
         tag = "product/home/preset-group"
         background = cardSurface()
         clipToOutline = true
-        elevation = dp(3).toFloat()
+        elevation = if (dark) dp(3).toFloat() else 0f
     }
 
     init {
@@ -85,14 +87,53 @@ internal class HomePresetGrid(
 
     private val contactPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val contactCutout = Path()
+    private data class ShadowSize(val width: Int, val height: Int)
+    private val lightShadowCache = mutableListOf<Pair<ShadowSize, Bitmap>>()
+    private val lightShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xff1d263b.toInt() }
+    private val shadowDensity = resources.displayMetrics.density
+    private val lightShadowMargin = dp(8).coerceAtLeast(1)
+    private val lightMaskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(36, 255, 255, 255)
+        maskFilter = BlurMaskFilter(3f * shadowDensity, BlurMaskFilter.Blur.NORMAL)
+    }
+
+    private fun drawLightShadow(canvas: Canvas, left: Float, top: Float, card: View, radiusPx: Float) {
+        val width = card.width + 2 * lightShadowMargin
+        val height = card.height + 2 * lightShadowMargin
+        if (card.width <= 0 || card.height <= 0 || width > 4096 || height > 768) return
+        val byteEstimate = ((width + 3) and 3.inv()) * height
+        if (byteEstimate > 1536 * 1024) return
+        var hit: Bitmap? = null
+        for (index in lightShadowCache.indices) {
+            val entry = lightShadowCache[index]
+            if (entry.first.width == width && entry.first.height == height) {
+                hit = entry.second
+                break
+            }
+        }
+        val bitmap = hit ?: run {
+            // Software rasterizes one smooth alpha mask per card size. The hardware
+            // pass only composites it, and masked Bitmap bounds cap cache memory.
+            val byteBudget = 3 * 1024 * 1024
+            while (lightShadowCache.size >= 8 ||
+                lightShadowCache.sumOf { it.second.allocationByteCount } + byteEstimate > byteBudget) {
+                lightShadowCache.removeAt(0)
+            }
+            Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8).also { mask ->
+                // Width/height and translation are already exact device pixels.
+                mask.density = Bitmap.DENSITY_NONE
+                val inset = lightShadowMargin.toFloat()
+                val drop = 1f * shadowDensity
+                Canvas(mask).drawRoundRect(inset, inset + drop, width - inset, height - inset + drop,
+                    radiusPx, radiusPx, lightMaskPaint)
+                lightShadowCache += ShadowSize(width, height) to mask
+            }
+        }
+        canvas.drawBitmap(bitmap, left - lightShadowMargin, top - lightShadowMargin, lightShadowPaint)
+    }
     // Draw the contact shadow in the parent so the card's rounded ripple clipping
     // cannot cut it off. Tablet A–D has a single contact shadow around the group.
     override fun dispatchDraw(canvas: Canvas) {
-        // Light uses its native elevation alone; keep the dark contact ink.
-        if (!dark) {
-            super.dispatchDraw(canvas)
-            return
-        }
         for (rowIndex in 0 until childCount) {
             val child = getChildAt(rowIndex)
             if (child is Tile) {
@@ -119,6 +160,11 @@ internal class HomePresetGrid(
         contactCutout.rewind()
         contactCutout.addRoundRect(left, top, right, bottom, radiusPx, radiusPx, Path.Direction.CW)
         canvas.clipOutPath(contactCutout)
+        if (!dark) {
+            drawLightShadow(canvas, left, top, card, radiusPx)
+            canvas.restoreToCount(saved)
+            return
+        }
         for (layer in 3 downTo 1) {
             val spread = layer * density
             val offset = 1.25f * density
@@ -344,7 +390,7 @@ internal class HomePresetGrid(
         }
         fun standalone(value: Boolean) {
             background = if (value) cardSurface() else null
-            elevation = if (value) dp(3).toFloat() else 0f
+            elevation = if (value && dark) dp(3).toFloat() else 0f
         }
     }
 
