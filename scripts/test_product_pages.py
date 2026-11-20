@@ -119,62 +119,62 @@ class ProductPagesTest(unittest.TestCase):
         self.assertIn("data-view-image", hero)
         h1 = re.search(r"<h1[^>]*>(.*?)</h1>", self.html, re.S).group(1)
         self.assertIn("连上 HOYI", h1)
-        self.assertIn("看清这一杯", h1)
-        for text in ("OPEN SOURCE · ANDROID · ALPHA",
-                     "把两杯萃取叠在同一张图上",
-                     "下载 Android 版", "看它能做什么",
+        self.assertIn("把这杯调明白", h1)
+        for text in ("开源 · ANDROID · 非官方 ALPHA",
+                     "机器、电子秤、曲线和历史都在一个 App 里", "不用来回切",
+                     "下载测试版", "看看界面",
                      "Android 8.0+ · 低功耗蓝牙 · GPL v2 开源", "非官方 Alpha",
-                     "本机 Xiaomi Pad 5 安装的模拟演示版截图", "不是真机萃取或硬件验收"):
+                     "平板上的模拟演示版截图", "不是真机萃取或硬件验收"):
             self.assertIn(text, self.html)
         features = self.section("features")
-        for title in ("从首段，写到收尾。", "两杯之间，差在哪？", "设备记得你。",
-                      "五种品牌，各取所长。", "这一杯，留下判断。"):
+        for title in ("曲线可以自己改。", "两杯放在一起看。", "机器和秤，分开连。",
+                      "几款常见电子秤。", "把这一杯记下来。"):
             self.assertIn(title, features)
-        for stat in ("100", "5 个快捷槽位", "30", "500"):
+        for stat in ("100", "5 个首页快捷槽位", "30", "500"):
             self.assertIn(stat, features)
 
     def test_connection_copy_keeps_limits_visible(self):
-        for text in ("密码按设备加密记忆", "App 在前台时尝试重新连接",
-                     "手动断开后，暂停本次使用中的自动重连",
-                     "秤晚一点开机也会继续寻找上次的设备",
-                     "恢复连接不代表自动恢复未确认的机器操作"):
+        for text in ("密码按设备记住", "App 在前台时会尝试重连",
+                     "手动断开后，这一次不再自动连",
+                     "秤晚一点开机，也会继续找上次的设备",
+                     "重连成功，不代表刚才没确认的操作会自动恢复"):
             self.assertIn(text, self.html)
         self.assertNotIn("自动重连开关", self.html)
 
     def test_recipe_copy_does_not_conflate_formats(self):
         html = self.html
-        for text in ("本机压力／流量配方支持首段模式、各段参数、目标重量、温度与控制逻辑",
+        for text in ("本机压力／流量配方可以改首段模式、各段参数、目标重量、温度和控制逻辑",
                      "后续段跟随全局模式",
-                     "保存为本机配方，复制文本或通过 JSON 分享",
-                     "导入时先看参数再确认保存",
-                     "执行资格仍取决于模式、校验和设备状态",
+                     "保存为本机配方，复制文本或用 JSON 分享",
+                     "导入时先看参数再保存",
+                     "能不能执行，还要看模式、校验和设备状态",
                      "旧版曲线库导入仍为只读",
-                     "并非所有导入文件都能执行"):
+                     "也不是所有导入文件都能执行"):
             self.assertIn(text, html)
         self.assertIn("./import-official-curves.html", html)
         self.assertIn("查看导入指南", html)
 
     def test_ai_and_machine_features_keep_boundaries(self):
         ai = self.section("ai")
-        for text in ("DeepSeek API Key", "保存的采样", "原生界面核对确认",
-                     "不会自动连接、启动或控制机器", "不能修改工厂曲线",
-                     "每个回复最多联网搜索 4 次", "费用由你的 API 账户承担",
-                     "本机统计不是账户账单", "会话不参与云备份",
-                     "自动评价默认关闭", "只发送当杯测量数据", "非真实 API 输出"):
+        for text in ("DeepSeek API Key", "你保存的采样", "回原生界面确认",
+                     "不会自动连接、启动或控制机器", "不能改工厂曲线",
+                     "每次回复最多联网搜索 4 次", "费用从你的 API 账户扣",
+                     "本机统计不是账单", "会话不进云备份",
+                     "自动评价默认关闭", "发当杯测量数据", "非真实 API 输出"):
             self.assertIn(text, ai)
         faq = self.section("faq")
-        for text in ("每日睡眠计划（可逐日微调）", "累计杯数未知或过期时显示 —",
-                     "应用内检查更新", "不等于稳定发布"):
+        for text in ("每天的睡眠计划（可以逐日微调）", "杯数未知或过期会显示 —",
+                     "应用内检查更新", "不等于硬件验收"):
             self.assertIn(text, faq)
 
     def test_comparison_demo_is_two_cups_and_labeled_example(self):
         compare = self.section("compare")
-        for text in ("选出 A、B 两杯", "同一坐标轴上只比一个指标",
-                     "压力、累计注水、秤重或温度", "把过程看完整",
-                     "功能示意，非 App 截图", "示例数据",
+        for text in ("选 A、B 两杯", "一次只看一个指标",
+                     "压力、注水、秤重或温度", "曲线看完",
+                     "功能示意，不是 App 截图", "示例数据",
                      "A · 实线", "B · 虚线", "同豆", "同曲线", "示例笔记",
                      "结束时秤读数不一定等于最终出杯量",
-                     "不提供稳定性评分或口感判断"):
+                     "不给稳定性评分，也不判断好不好喝"):
             self.assertIn(text, compare)
         metrics = [a.get("data-metric") for tag, a in self.page.tags
                    if tag == "button" and "data-metric" in a]
@@ -193,7 +193,7 @@ class ProductPagesTest(unittest.TestCase):
     def test_scale_copy_names_models_and_verification(self):
         compatibility = self.section("compatibility")
         for text in ("BOOKOO", "Felicita", "TIMEMORE", "Acaia", "DiFluid",
-                     "指定型号与协议", "不代表品牌全系列", "仍待对应实机验证",
+                     "指定型号和协议", "不是品牌全系列", "还待实机验证",
                      "除 BOOKOO 外", "独立秤工具"):
             self.assertIn(text, compatibility)
         self.assertNotIn("全品牌兼容", self.html)
@@ -201,13 +201,13 @@ class ProductPagesTest(unittest.TestCase):
 
     def test_compatibility_table_keeps_all_rows_and_statuses(self):
         compatibility = self.section("compatibility")
-        self.assertIn("目前没有 iPhone 或 iPad 版本", compatibility)
-        for text in ("1.1.3 有有限实机连接与启停记录",
-                     "1.1.4、1.1.5、1.1.6 依据协议证据开放控制，启停与设置仍待实机验收",
-                     "其他固件只读，不开放控制",
-                     "当前开发分支的接入范围",
-                     "不同发布版本包含的型号可能不同",
-                     "请以下载版本的发布说明为准"):
+        self.assertIn("没有 iPhone 或 iPad 版", compatibility)
+        for text in ("1.1.3 有实机连接和启停记录",
+                     "1.1.4、1.1.5、1.1.6 根据协议证据开放控制，启停和设置还没做完实机验收",
+                     "其他固件只读，不能控制",
+                     "当前开发分支接入了什么",
+                     "不同版本可能不一样",
+                     "请以下载版本的说明为准"):
             self.assertIn(text, compatibility)
         self.assertEqual(compatibility.count('<th scope="row">'), 8)
         rows = {
@@ -234,16 +234,16 @@ class ProductPagesTest(unittest.TestCase):
 
     def test_data_and_version_boundaries(self):
         boundaries = self.section("boundaries")
-        for text in ("不要无人看守", "目标重量自动停水", "记录不是永久备份",
-                     "近期历史保留最近 30 天、最多 500 条",
-                     "长期复盘的元数据与笔记独立保存", "原始采样仍受缓存范围影响",
-                     "历史 ZIP 只有导出，没有回导入口", "旧版数据不会自动迁移",
-                     "版本决定能力", "1.1.4–1.1.6 的控制许可来自静态协议证据",
-                     "未知固件不开放控制", "不要用卸载或清数据绕过"):
+        for text in ("不要无人看守", "目标重量自动停水", "记录不会一直留着",
+                     "近期历史只留最近 30 天、最多 500 条",
+                     "长期复盘的元数据和笔记单独存", "原始采样仍按缓存范围清理",
+                     "ZIP 只能导出，没有回导", "旧版数据也不会自动搬过来",
+                     "不是每个固件都能控制", "1.1.4–1.1.6 的控制许可是根据协议证据开的",
+                     "不认识的固件不给控制", "别卸载、别清数据"):
             self.assertIn(text, boundaries)
         faq = self.section("faq")
-        for text in ("近期历史可导出 ZIP", "长期复盘可导出 JSON",
-                     "应用不会自动读取旧 App 的私有数据"):
+        for text in ("近期历史可以导出 ZIP", "长期复盘可以导出 JSON",
+                     "App 不会去读旧 App 的私有数据"):
             self.assertIn(text, faq)
         for forbidden in ("一键备份恢复", "云同步", "在线配方社区", "扫码导入",
                           "自动扣豆", "iOS 版", "秒连", "永不掉线",
@@ -260,11 +260,11 @@ class ProductPagesTest(unittest.TestCase):
         self.assertNotIn("<details", before_button)
         self.assertIn("Alpha 阶段，不是稳定版", before_button)
         self.assertGreater(download.index('class="risk"'), download.index(f'href="{RELEASES}"'))
-        for text in ("无人看守", "不要依赖目标重量自动停水", "结果不明时先核对机器状态",
-                     "不要反复发送指令", "不要通过卸载、清数据绕过问题",
-                     "旧版数据不会自动迁移", "io.openhoyi.mobile", "SHA-256",
-                     "核对版本", "连接设备", "留在机器旁",
-                     "咖啡机和电子秤分别连接", "保留机器自身的停水方式"):
+        for text in ("无人看守", "不要靠目标重量自动停水", "结果不对时先看机器",
+                     "别连续发指令", "别卸载旧版，也别清数据",
+                     "旧版数据不会自动搬过来", "io.openhoyi.mobile", "SHA-256",
+                     "先看版本", "连设备", "第一次用，留在机器旁",
+                     "咖啡机和秤分开连", "机器自己的停水方式先留着"):
             self.assertIn(text, download)
 
     def test_support_channels_are_linked(self):
@@ -335,7 +335,7 @@ class ProductPagesTest(unittest.TestCase):
                 self.assertIn(f'./assets/screens/{name}.png?v={SCREEN_REVISION}', self.html)
         self.assertNotIn("<picture>", self.html)
         self.assertNotIn("-detail.png", self.html)
-        self.assertIn("展示图连续裁去系统栏", self.html)
+        self.assertIn("系统栏已裁掉", self.html)
         self.assertIn("不是 CI 流水线或可重现构建", self.html)
 
     def test_local_tablet_screenshot_provenance(self):
