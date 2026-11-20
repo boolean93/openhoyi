@@ -149,14 +149,19 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
         val shortHome = TaskLayoutPolicy.compactHome(resources.configuration.screenHeightDp, phoneHome)
         val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
+        // Redistribute the roomy landscape lead-in; keep the compact row budget
+        // and portrait header unchanged. Portrait can scroll into its trailing inset.
+        // Very short landscapes keep the existing one-dp inset so the entire
+        // 48dp shortcut target remains reachable without compulsory scrolling.
+        val shortcutBottomBreathingRoom = if (!shortHome) 8 else 0
         val content = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(if (shortHome) 1 else 4), dp(22), dp(if (shortHome) 1 else 4))
+            val inset = if (shortHome) 1 else 4
+            setPadding(dp(22), dp(inset), dp(22), dp(inset + shortcutBottomBreathingRoom))
             clipToPadding = false
-            // The landscape strip ends at the row boundary. Let its last card
-            // paint the contact shadow into the existing bottom inset without
-            // reserving new height or changing what the viewport can scroll.
-            if (!phoneHome) clipChildren = false
+            // A light card's native elevation can extend outside the final row,
+            // but the ScrollView still clips to the actual app viewport.
+            if (!phoneHome || !HoyiUi.dark(host)) clipChildren = false
         }
         val shortcutOutset = dp(if (phoneHome) 3 else if (shortHome) 0 else 6)
         root.addView(ScrollView(host).apply {
@@ -359,7 +364,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 .setMessage(fullName).setPositiveButton(android.R.string.ok, null).let(::showTransient)
         }, onLastClick = ::useLastCurve)
         quickRow.addView(directPresets, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(if (shortHome) 0 else if (phoneHome) 6 else 10)
+            topMargin = dp(if (shortHome) 0 else if (phoneHome) 2 else 10 - shortcutBottomBreathingRoom)
         })
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
