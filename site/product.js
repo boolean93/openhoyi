@@ -1,6 +1,34 @@
 (() => {
   'use strict';
 
+  const nav = document.querySelector('[data-nav]');
+  if (nav) {
+    let ticking = false;
+    const update = () => {
+      nav.classList.toggle('is-scrolled', window.scrollY > 24);
+      ticking = false;
+    };
+    update();
+    window.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }, { passive: true });
+  }
+
+  const revealTargets = document.querySelectorAll('.section [data-reveal]');
+  if (revealTargets.length && 'IntersectionObserver' in window &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('reveal-in');
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -8% 0px' });
+    revealTargets.forEach((target) => observer.observe(target));
+  }
+
   const revealDetails = (hash) => {
     if (!hash || hash[0] !== '#') return;
     const target = document.getElementById(hash.slice(1));
@@ -22,7 +50,17 @@
         button.setAttribute('aria-pressed', String(button.dataset.metric === metric));
       });
     };
-    buttons.forEach((button) => button.addEventListener('click', () => select(button.dataset.metric)));
+    buttons.forEach((button, index) => {
+      button.addEventListener('click', () => select(button.dataset.metric));
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+        event.preventDefault();
+        const step = event.key === 'ArrowRight' ? 1 : -1;
+        const next = buttons[(index + step + buttons.length) % buttons.length];
+        next.focus();
+        select(next.dataset.metric);
+      });
+    });
   }
 
   const viewer = document.querySelector('#image-viewer');
