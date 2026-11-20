@@ -590,7 +590,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         fun offerScenarioFrame(owner: MobileService, elapsed: Long, water: Int, slot: Int=8, pressure: Int=90, flow: Int=100): JSONObject {
             lateinit var record: JSONObject
-            main {
+            val offer: () -> Unit = {
                 val before=owner.chartPoints.size;val serial=owner.mockExtractionOfferedFrameSerial
                 val target=initialMonotonicMs+elapsed
                 check(target>MobileMonotonicClock.elapsedRealtime())
@@ -609,6 +609,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("elapsedMs",elapsed).put("offeredAtRealMs",offeredAtRealMs).put("waterTenthsMl",water).put("pointsBefore",before)
                     .put("pointsAfter",owner.chartPoints.size).put("actualNewPoints",owner.chartPoints.size-before)
             }
+            if (Looper.myLooper() === Looper.getMainLooper()) offer() else main(offer)
             return record
         }
         fun verifyExtraction(activity: Activity, captureStartedAtRealMs: Long,captureFinishedAtRealMs: Long) {
@@ -3048,11 +3049,17 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val hadPreference = prefs.contains(FixedChartAxes.KEY)
         val original = prefs.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
         val handler = Handler(Looper.getMainLooper())
+        val replayToken = Any()
         var observer: android.view.ViewTreeObserver? = null
         var listener: android.view.ViewTreeObserver.OnDrawListener? = null
         var enabled = true
         var failure: Throwable? = null
         try {
+            val animatorScale = android.animation.ValueAnimator.getDurationScale()
+            result.put("animatorDurationScale", animatorScale)
+            check(animatorScale == 1f && android.animation.ValueAnimator.areAnimatorsEnabled()) {
+                "Cadence requires normal Android animator scale"
+            }
             check(prefs.edit().putBoolean(FixedChartAxes.KEY, true).commit())
             scope.prepare()
             scope.install(false)
@@ -3115,20 +3122,28 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             // Absolute elapsed deadlines prevent the preceding injection or instrumentation from
             // composing a fresh 200 ms delay each turn. Record main-thread service entry for audit.
             val schedule = (200L..2800L step 200).toList() + listOf(4600L, 4800L, 5000L)
-            val base = SystemClock.elapsedRealtime() + 100
-            result.put("scheduleBaseMs", base)
+            val done = java.util.concurrent.CountDownLatch(schedule.size)
+            val elapsedBase = SystemClock.elapsedRealtime() + 250
+            val uptimeBase = SystemClock.uptimeMillis() + 250
+            result.put("scheduleBaseMs", elapsedBase)
             for ((index, elapsed) in schedule.withIndex()) {
-                val due = base + elapsed
-                while (true) {
-                    val remaining = due - SystemClock.elapsedRealtime()
-                    if (remaining <= 0) break
-                    SystemClock.sleep(remaining)
-                }
-                // 6 bar for six observations, then pressure changes; water advances at 2 mL/s.
-                val pressure = if (index < 6) 60 else if (index < 14) 60 + 4 * (index - 5) else 70 + (index - 14) * 2
-                val record = scope.offerScenarioFrame(owner, elapsed, (elapsed / 50).toInt(), pressure = pressure, flow = 20)
-                inputs.put(record.put("plannedElapsedRealtimeMs", due).put("pressureTenthsBar", pressure))
+                check(handler.postAtTime(Runnable {
+                    try {
+                        if (enabled && failure == null) {
+                            // 6 bar for six observations, then pressure changes; water advances at 2 mL/s.
+                            val pressure = if (index < 6) 60 else if (index < 14) 60 + 4 * (index - 5) else 70 + (index - 14) * 2
+                            val record = scope.offerScenarioFrame(owner, elapsed, (elapsed / 50).toInt(), pressure = pressure, flow = 20)
+                            inputs.put(record.put("plannedElapsedRealtimeMs", elapsedBase + elapsed).put("pressureTenthsBar", pressure))
+                        }
+                    } catch (error: Throwable) {
+                        if (failure == null) failure = error
+                    } finally {
+                        done.countDown()
+                    }
+                }, replayToken, uptimeBase + elapsed))
             }
+            check(done.await(10, TimeUnit.SECONDS)) { "Cadence wall-clock frame dispatch timed out" }
+            failure?.let { throw it }
             await("post-gap input and attached chart draw") {
                 failure?.let { throw it }
                 val record = draws.optJSONObject(draws.length() - 1)
@@ -3143,6 +3158,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             try {
                 main {
                     enabled = false
+                    handler.removeCallbacksAndMessages(replayToken)
                     val tree = observer
                     if (tree?.isAlive == true) listener?.let { tree.removeOnDrawListener(it) }
                 }

@@ -80,6 +80,7 @@ jobs:
           profile: ${{ matrix.profile == 'tablet' && 'Nexus 10' || 'pixel_7_pro' }}
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: ${{ inputs.live_chart_cadence != true }}
           script: >-
             if [ "$QUICK_CURVE_VISUAL" = true ]; then python3 scripts/check_quick_curve_visual.py;
             else bash scripts/capture_mock_ui.sh; fi
