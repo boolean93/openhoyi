@@ -44,8 +44,8 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             SystemClock.sleep(40)
         }
     }
-    fun run(pickerOnly: Boolean = false, standalone: Boolean = false) {
-        check(!standalone || pickerOnly)
+    fun run(pickerOnly: Boolean = false, legacyRoute: Boolean = false) {
+        check(!legacyRoute || pickerOnly)
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -102,7 +102,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                     "Curve picker adapter must contain exactly A–D in order"
                 }
             }
-            capture(if (standalone) "standalone-assignment-ad" else "assignment-ad")
+            capture(if (legacyRoute) "legacy-route-assignment-ad" else "assignment-ad")
             clickWindowText(choices.last())
             await("assignment") { slotPrefs.getString(PresetSlots.key(4), null)?.substringBefore("#") == document.id }
             check(slotPrefs.getString(fifthKey, null) == fifthBinding)
@@ -131,28 +131,23 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             check(shortcutPrefs.edit().putBoolean("direct_start", false).commit())
             check(slotPrefs.edit().putString(fifthKey, fifthBinding).commit())
             main { put(document) }
-            if (standalone) {
-                val host = test.startActivitySync(Intent(context, CurveActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                activity = host
-                val root = host.findViewById<View>(android.R.id.content)
-                await("standalone curve library") { host.hasWindowFocus() && root.isLaidOut }
-                main { views(root).filterIsInstance<EditText>().single().setText(document.name) }
-                await("isolated standalone curve") {
-                    views(root).filterIsInstance<ListView>().single().let { it.adapter.count == 1 && it.childCount == 1 }
-                }
-                main {
-                    val list = views(root).filterIsInstance<ListView>().single()
-                    check(list.performItemClick(list.getChildAt(0), 0, list.adapter.getItemId(0)))
-                }
-                await("standalone actions") { root.findViewWithTag<View>("curve-detail-actions")?.isShown == true }
-                main { check(root.findViewWithTag<View>("curve-detail-actions").performClick()) }
-                clickWindowText(host.getString(R.string.curve_assign_slot))
-                verifyPicker(host)
-                check(curvePrefs.getString("selected", null) == selected && app.history.entries == oldHistory)
-                return
-            }
-            val page = MainPageTestHost.launch(test, timeoutMs = 15000)
+            val page = if (legacyRoute) {
+                val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
+                try {
+                    val legacy = test.startActivitySync(Intent(context, CurveActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    val target = checkNotNull(monitor.waitForActivityWithTimeout(10000) as? MainActivity) {
+                        "Legacy curve route did not launch MainActivity"
+                    }
+                    activity = target
+                    val redirected = MainPageTestHost(test, target)
+                    await("legacy route uses the actual main curve renderer") {
+                        (legacy.isFinishing || legacy.isDestroyed) && target.hasWindowFocus() &&
+                            runCatching { redirected.active("root:CURVES") is CurveFragment }.getOrDefault(false)
+                    }
+                    redirected
+                } finally { test.removeMonitor(monitor) }
+            } else MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
             await("service") { host.currentService?.running == true }
             val service = requireNotNull(host.currentService)
@@ -161,7 +156,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                 check(service.shotState == oldShotState && app.history.entries == oldHistory)
                 check(MobileService::class.java.getDeclaredField("hub").apply { isAccessible = true }.get(service) == null)
             }
-            page.select(TaskDestination.CURVES)
+            if (!legacyRoute) page.select(TaskDestination.CURVES)
             main {
                 val root = page.active("root:CURVES").requireView()
                 views(root).filterIsInstance<EditText>().single().setText(document.name)

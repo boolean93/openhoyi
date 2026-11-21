@@ -88,8 +88,8 @@ adb shell settings put system user_rotation 0
 # APKs were built by the workflow. Installation is confined to this guarded emulator.
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
-# Exercise both actual app surfaces before the independent M3 screenshot matrix.
-for picker_surface in main standalone; do
+# Exercise the actual main picker from both supported routes before the M3 screenshot matrix.
+for picker_surface in main legacy-redirect; do
   adb shell am force-stop "$package"
   python3 - "$output_dir/$picker_surface-curve-shortcut.txt" "$picker_surface" <<'PICKER_SHORTCUT_PY'
 from pathlib import Path
@@ -98,7 +98,7 @@ path, surface = Path(sys.argv[1]), sys.argv[2]
 with path.open('w') as receipt:
     result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-e',
         'customShortcutChecks', 'true', '-e', 'customShortcutPickerOnly', 'true',
-        '-e', 'customShortcutStandalone', str(surface == 'standalone').lower(),
+        '-e', 'customShortcutLegacyRoute', str(surface == 'legacy-redirect').lower(),
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=receipt, stderr=subprocess.STDOUT, timeout=120)
 if result.returncode != 0 or f'CURVE_SHORTCUT_PICKER_PASSED surface={surface} ' not in path.read_text():

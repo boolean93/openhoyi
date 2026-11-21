@@ -36,7 +36,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var machineLeverRecipeChecks = false
     private var customShortcutChecks = false
     private var customShortcutPickerOnly = false
-    private var customShortcutStandalone = false
+    private var customShortcutLegacyRoute = false
     private var darkThemeWindow: Boolean? = null
     private var connectionSleepChecks=false
     private var settingsVisualArguments: Bundle? = null
@@ -138,7 +138,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         upgradeChecks = arguments?.getString("upgradeChecks")
         customShortcutChecks = arguments?.getString("customShortcutChecks") == "true"
         customShortcutPickerOnly = arguments?.getString("customShortcutPickerOnly") == "true"
-        customShortcutStandalone = arguments?.getString("customShortcutStandalone") == "true"
+        customShortcutLegacyRoute = arguments?.getString("customShortcutLegacyRoute") == "true"
         machineLeverRecipeChecks = arguments?.getString("machineLeverRecipeChecks") == "true"
         liveScaleReadoutChecks = arguments?.getString("liveScaleReadoutChecks") == "true"
         shortcutDirectStartChecks = arguments?.getString("shortcutDirectStartChecks") == "true"
@@ -252,9 +252,9 @@ class BrewAudioInstrumentation : Instrumentation() {
                 if (customShortcutPickerOnly) check(
                     Build.HARDWARE in setOf("ranchu", "goldfish") && Build.VERSION.SDK_INT >= 34
                 )
-                CustomShortcutWindowChecks(this).run(pickerOnly = customShortcutPickerOnly, standalone = customShortcutStandalone)
+                CustomShortcutWindowChecks(this).run(pickerOnly = customShortcutPickerOnly, legacyRoute = customShortcutLegacyRoute)
                 report.putString("stream", if (customShortcutPickerOnly)
-                    "CURVE_SHORTCUT_PICKER_PASSED surface=${if (customShortcutStandalone) "standalone" else "main"} labels=AD assigned=D fifthPreserved=true noBle=true noShot=true\n"
+                    "CURVE_SHORTCUT_PICKER_PASSED surface=${if (customShortcutLegacyRoute) "legacy-redirect" else "main"} labels=AD assigned=D fifthPreserved=true noBle=true noShot=true\n"
                     else "CUSTOM_SHORTCUT_WINDOW_PASSED assignment=true navigation=true recreate=true edited=true missing=true noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
