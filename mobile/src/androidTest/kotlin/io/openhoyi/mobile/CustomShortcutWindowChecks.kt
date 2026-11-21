@@ -1,7 +1,9 @@
 package io.openhoyi.mobile
 
+import android.app.Activity
 import android.app.Instrumentation
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.os.SystemClock
 import android.view.View
@@ -42,7 +44,8 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             SystemClock.sleep(40)
         }
     }
-    fun run(pickerOnly: Boolean = false) {
+    fun run(pickerOnly: Boolean = false, standalone: Boolean = false) {
+        check(!standalone || pickerOnly)
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -60,7 +63,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
         val oldHistory = app.history.entries
         val file = File(context.filesDir, "custom_curves_v1.json")
         val originalBytes = if (file.exists()) file.readBytes() else null
-        var activity: MainActivity? = null
+        var activity: Activity? = null
         val document = CustomCurveDocument(CustomCurveDocument.newId(), "Shortcut QA", 92, 3600,
             CustomCurveDocument.ControlMode.PRESSURE,
             listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
@@ -74,10 +77,81 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             try { File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
             finally { bitmap.recycle() }
         }
+        fun verifyPicker(owner: Activity) {
+            val choices = listOf("A", "B", "C", "D").map { owner.getString(R.string.home_slot, it) }
+            val until = SystemClock.elapsedRealtime() + 10000
+            while (true) {
+                val window = test.uiAutomation.rootInActiveWindow
+                if (window?.packageName?.toString() == context.packageName && choices.all { label ->
+                    window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
+                }) {
+                    check(listOf("E", "5").none { suffix ->
+                        val label = owner.getString(R.string.home_slot, suffix)
+                        window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
+                    })
+                    break
+                }
+                check(SystemClock.elapsedRealtime() < until) { "Curve picker did not show A–D" }
+                SystemClock.sleep(40)
+            }
+            main {
+                val dialog = android.view.inspector.WindowInspector.getGlobalWindowViews()
+                    .single { it !== owner.window.decorView && it.hasWindowFocus() }
+                val list = views(dialog).filterIsInstance<ListView>().single()
+                check((0 until list.adapter.count).map { list.adapter.getItem(it).toString() } == choices) {
+                    "Curve picker adapter must contain exactly A–D in order"
+                }
+            }
+            capture(if (standalone) "standalone-assignment-ad" else "assignment-ad")
+            clickWindowText(choices.last())
+            await("assignment") { slotPrefs.getString(PresetSlots.key(4), null)?.substringBefore("#") == document.id }
+            check(slotPrefs.getString(fifthKey, null) == fifthBinding)
+            val file = File(context.applicationInfo.dataDir, "shared_prefs/presets.xml")
+            fun diskBindings(): Map<String, String> {
+                val parser = android.util.Xml.newPullParser()
+                return buildMap {
+                    file.inputStream().use {
+                        parser.setInput(it, "UTF-8")
+                        while (parser.eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                            if (parser.eventType == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "string") {
+                                val key = parser.getAttributeValue(null, "name")
+                                if (key == PresetSlots.key(4) || key == fifthKey) put(key, parser.nextText())
+                            }
+                            parser.next()
+                        }
+                    }
+                }
+            }
+            await("persisted D and unchanged fifth") {
+                val bindings = runCatching { diskBindings() }.getOrDefault(emptyMap())
+                bindings[PresetSlots.key(4)]?.substringBefore("#") == document.id && bindings[fifthKey] == fifthBinding
+            }
+        }
         try {
             check(shortcutPrefs.edit().putBoolean("direct_start", false).commit())
             check(slotPrefs.edit().putString(fifthKey, fifthBinding).commit())
             main { put(document) }
+            if (standalone) {
+                val host = test.startActivitySync(Intent(context, CurveActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                activity = host
+                val root = host.findViewById<View>(android.R.id.content)
+                await("standalone curve library") { host.hasWindowFocus() && root.isLaidOut }
+                main { views(root).filterIsInstance<EditText>().single().setText(document.name) }
+                await("isolated standalone curve") {
+                    views(root).filterIsInstance<ListView>().single().let { it.adapter.count == 1 && it.childCount == 1 }
+                }
+                main {
+                    val list = views(root).filterIsInstance<ListView>().single()
+                    check(list.performItemClick(list.getChildAt(0), 0, list.adapter.getItemId(0)))
+                }
+                await("standalone actions") { root.findViewWithTag<View>("curve-detail-actions")?.isShown == true }
+                main { check(root.findViewWithTag<View>("curve-detail-actions").performClick()) }
+                clickWindowText(host.getString(R.string.curve_assign_slot))
+                verifyPicker(host)
+                check(curvePrefs.getString("selected", null) == selected && app.history.entries == oldHistory)
+                return
+            }
             val page = MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
             await("service") { host.currentService?.running == true }
@@ -97,26 +171,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             }
             await("direct slot action") { page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot")?.isShown == true }
             main { check(page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot").performClick()) }
-            val choices = listOf("A", "B", "C", "D").map { host.getString(R.string.home_slot, it) }
-            val until = SystemClock.elapsedRealtime() + 10000
-            while (true) {
-                val window = test.uiAutomation.rootInActiveWindow
-                if (window?.packageName?.toString() == context.packageName && choices.all { label ->
-                    window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
-                }) {
-                    check(listOf("E", "5").none { suffix ->
-                        val label = host.getString(R.string.home_slot, suffix)
-                        window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
-                    })
-                    break
-                }
-                check(SystemClock.elapsedRealtime() < until) { "Main curve picker did not show A–D" }
-                SystemClock.sleep(40)
-            }
-            capture("assignment-ad")
-            clickWindowText(choices.last())
-            await("assignment") { slotPrefs.getString(PresetSlots.key(4), null)?.substringBefore("#") == document.id }
-            check(slotPrefs.getString(fifthKey, null) == fifthBinding)
+            verifyPicker(host)
             check(curvePrefs.getString("selected", null) == selected)
             noShot()
             if (pickerOnly) return

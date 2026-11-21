@@ -1005,18 +1005,26 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         }
         val expectedSource=if(item.customDocument!=null) activity.getString(R.string.profiles_category)
             else CurveCategoryFilter.display(activity,item.category)
-        val baseAvailability=if(item.customDocument!=null) activity.getString(if(scope.curves.canStart(item))
-            R.string.profiles_pressure_compatible else R.string.profiles_read_only)
-            else activity.getString(if(scope.curves.canStart(item)) R.string.curve_verified else R.string.curve_unavailable)
+        val draft = item.customDocument
+        val baseAvailability = when {
+            draft?.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW ->
+                activity.getString(R.string.flow_curve_missing_modes_short)
+            draft != null -> activity.profileExecutionSummary(draft)
+            else -> activity.getString(if(scope.curves.canStart(item)) R.string.curve_verified else R.string.curve_unavailable)
+        }
         val expectedAvailability=baseAvailability+(expectedAssignedSlot?.let {
             " · "+activity.getString(R.string.curve_slot_assigned_latest,PresetSlots.label(it)) } ?: "")
         val expectedDetails=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
             else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
-        check(title.text.toString()==item.name &&
-            source.text.toString()==expectedSource && availability.text.toString()==expectedAvailability &&
-            details.text.toString()==expectedDetails && (field(activity,"selected") as CurveLibraryItem)==item)
+        check(title.text.toString()==item.name) { "Wrong detail title for ${item.id}" }
+        check(source.text.toString()==expectedSource) { "Wrong detail source for ${item.id}" }
+        check(availability.text.toString()==expectedAvailability) {
+            "Wrong availability for ${item.id}: expected $expectedAvailability, observed ${availability.text}"
+        }
+        check(details.text.toString()==expectedDetails) { "Wrong detail parameters for ${item.id}" }
+        check((field(activity,"selected") as CurveLibraryItem)==item) { "Wrong selected detail for ${item.id}" }
         check((field(activity,"select") as Button).isEnabled==scope.curves.canStart(item))
-        check((field(activity,"assignPreset") as Button).isEnabled==(item.factoryCurve!=null && scope.curves.canStart(item)))
+        check((field(activity,"assignPreset") as Button).isEnabled==PresetSlots.canAssign(item, scope.curves))
         check(field(activity,"lastAssignedCurveId")==(
             if(expectedAssignedSlot==null) null else item.id))
         check(field(activity,"lastAssignedSlot")==expectedAssignedSlot)

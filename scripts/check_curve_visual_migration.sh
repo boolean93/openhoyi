@@ -88,23 +88,24 @@ adb shell settings put system user_rotation 0
 # APKs were built by the workflow. Installation is confined to this guarded emulator.
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
-# Run the separate main picker first: general library screenshots cannot mask it.
-# The M3 matrix below targets standalone CurveActivity. Exercise the actual
-# MainActivity CurveFragment assignment separately on the same disposable AVD.
-adb shell am force-stop "$package"
-python3 - "$output_dir/main-curve-shortcut.txt" <<'MAIN_SHORTCUT_PY'
+# Exercise both actual app surfaces before the independent M3 screenshot matrix.
+for picker_surface in main standalone; do
+  adb shell am force-stop "$package"
+  python3 - "$output_dir/$picker_surface-curve-shortcut.txt" "$picker_surface" <<'PICKER_SHORTCUT_PY'
 from pathlib import Path
 import subprocess, sys
-path = Path(sys.argv[1])
+path, surface = Path(sys.argv[1]), sys.argv[2]
 with path.open('w') as receipt:
     result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-e',
         'customShortcutChecks', 'true', '-e', 'customShortcutPickerOnly', 'true',
+        '-e', 'customShortcutStandalone', str(surface == 'standalone').lower(),
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=receipt, stderr=subprocess.STDOUT, timeout=120)
-if result.returncode != 0 or 'MAIN_CURVE_SHORTCUT_PICKER_PASSED' not in path.read_text():
-    raise SystemExit(f'Main curve shortcut check failed: {path}')
-MAIN_SHORTCUT_PY
-adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"
+if result.returncode != 0 or f'CURVE_SHORTCUT_PICKER_PASSED surface={surface} ' not in path.read_text():
+    raise SystemExit(f'Curve shortcut check failed: {path}')
+PICKER_SHORTCUT_PY
+  adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"
+done
 
 for product_theme in light dark; do
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
