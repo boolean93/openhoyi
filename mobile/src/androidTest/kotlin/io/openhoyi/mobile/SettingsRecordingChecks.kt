@@ -26,7 +26,13 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
             }
             fun point(view: View): Rect {
                 val rect = Rect()
-                check(view.getGlobalVisibleRect(rect) && view.isShown && rect.width() > 0 && rect.height() > 0)
+                check(view.getLocalVisibleRect(rect) && view.isShown && view.hasWindowFocus() &&
+                    rect.width() > 0 && rect.height() > 0)
+                // Global View coordinates are relative to this window's root. An
+                // AlertDialog lives in a separate centered window; injected touches
+                // always need display coordinates instead.
+                val location = IntArray(2).also(view::getLocationOnScreen)
+                rect.offset(location[0], location[1])
                 return rect
             }
             fun gesture(x: Float, fromY: Float, toY: Float, steps: Int) {
@@ -62,14 +68,14 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
                 gesture(r.left + 6f, from, from - direction * travel, 16)
             }
             waitFor("default Devices") { category(SettingsCategory.DEVICE).isSelected }
-            SystemClock.sleep(1300)
+            SystemClock.sleep(1000)
             val start = main { document.scroll.scrollY }
             swipe()
             waitFor("initial real swipe") { document.scroll.scrollY > start }
-            SystemClock.sleep(1000)
+            SystemClock.sleep(750)
             tap(main { category(SettingsCategory.MACHINE) })
             waitFor("Machines directory tap") { document.isAtSectionLanding("machine") }
-            SystemClock.sleep(1200)
+            SystemClock.sleep(950)
             // Measure the scroll target, but move toward it only with visible real gestures.
             // A phone has a longer machine section than the tablet's paired cards.
             repeat(14) {
@@ -84,18 +90,27 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
                 }
             }
             waitFor("Brewing highlight from scroll") { category(SettingsCategory.BREWING).isSelected }
-            SystemClock.sleep(1300)
+            SystemClock.sleep(950)
             tap(main { category(SettingsCategory.APPEARANCE) })
             waitFor("Appearance directory tap") { document.isAtSectionLanding("appearance") }
-            SystemClock.sleep(1350)
+            SystemClock.sleep(900)
             val prefs = (page.activity.application as MobileApplication).appearancePreferences
             val appearanceBefore = main { prefs.current }
             tap(main { document.findViewWithTag<View>("settings/appearance/palette/sea-salt") })
-            waitFor("original palette preview") { fragment.appearanceCard?.dialog?.isShowing == true }
-            SystemClock.sleep(1650)
-            tap(main { requireNotNull(fragment.appearanceCard?.dialog).getButton(android.content.DialogInterface.BUTTON_NEGATIVE) })
-            waitFor("palette preview cancelled without write") { fragment.appearanceCard?.dialog?.isShowing != true && prefs.current == appearanceBefore }
-            SystemClock.sleep(1600)
+            val cancelButton = android.content.DialogInterface.BUTTON_NEGATIVE
+            waitFor("focused original palette preview") {
+                val dialog = fragment.appearanceCard?.dialog
+                val cancel = dialog?.getButton(cancelButton)
+                dialog?.isShowing == true && cancel?.isShown == true && cancel.hasWindowFocus() &&
+                    cancel.isLaidOut && cancel.isEnabled
+            }
+            SystemClock.sleep(1400)
+            tap(main { requireNotNull(fragment.appearanceCard?.dialog).getButton(cancelButton) })
+            waitFor("palette preview cancelled without write") {
+                fragment.appearanceCard?.dialog?.isShowing != true && document.hasWindowFocus() &&
+                    prefs.current == appearanceBefore && category(SettingsCategory.APPEARANCE).isSelected
+            }
+            SystemClock.sleep(1300)
         } finally {
             main { page.activity.finish() }
         }
