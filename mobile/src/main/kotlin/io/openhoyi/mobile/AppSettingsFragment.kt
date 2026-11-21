@@ -236,8 +236,8 @@ class AppSettingsFragment : Fragment() {
         style.add(chartSection, style.text(getString(R.string.fixed_chart_axes_hint),
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val theme = sections.getValue("appearance")
-        appearanceCard = AppThemePreferencesCard(activity, theme, visual) { activity.recreate() }
-        addBackgroundSettingsRow(activity, theme, visual)
+        appearanceCard = AppThemePreferencesCard(activity, theme, visual, inlineSwatches = true) { activity.recreate() }
+        addBackgroundSettingsRow(activity, theme, visual, inlinePresets = true)
         settingsDivider(activity, theme, visual)
         val language = style.column()
         val type = style.column()

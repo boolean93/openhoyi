@@ -102,6 +102,55 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     main { (page.active("root:SETTINGS") as AppSettingsFragment).openSection(section) }
                     await("exact $section heading") { button(category).isSelected && heading(section).getGlobalVisibleRect(Rect()) && heading(section).hasFocus() }
                 }
+                if (!short) {
+                    val fragment = main { page.active("root:SETTINGS") as AppSettingsFragment }
+                    main { fragment.openSection("appearance") }
+                    await("appearance presets") { heading("appearance").isShown && heading("appearance").hasFocus() }
+                    val appliedAppearance = app.appearancePreferences.current
+                    val appliedWallpaper = app.pageBackgrounds.current.config
+                    val swatches = main { settings().findViewWithTag<android.view.ViewGroup>("settings/appearance/palette-swatches") }
+                    val previews = main { settings().findViewWithTag<android.view.ViewGroup>("settings/appearance/background-presets") }
+                    val swatch = main {
+                        check(swatches.childCount == 4 && previews.childCount == 3)
+                        val alternate = swatches.findViewWithTag<Button>("settings/appearance/palette/sea-salt")
+                        alternate.requestRectangleOnScreen(Rect(0, 0, alternate.width, alternate.height), true)
+                        alternate
+                    }
+                    await("actual swatch reachable") { swatch.getGlobalVisibleRect(Rect()) && swatch.isShown }
+                    val chooser = main {
+                        check(swatch.performClick())
+                        requireNotNull(fragment.appearanceCard?.dialog)
+                    }
+                    await("pre-selected color in original chooser") {
+                        val radio = chooser.window?.decorView?.findViewWithTag<android.widget.RadioButton>("product/settings/app/palette/sea-salt")
+                        chooser.isShowing && radio?.isChecked == true && app.appearancePreferences.current == appliedAppearance
+                    }
+                    main { chooser.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick() }
+                    val tile = main {
+                        val mist = previews.findViewWithTag<Button>("settings/appearance/background/mist")
+                        mist.requestRectangleOnScreen(Rect(0, 0, mist.width, mist.height), true)
+                        mist
+                    }
+                    await("actual preset reachable") { tile.isShown && tile.getGlobalVisibleRect(Rect()) }
+                    val previewMonitor = test.addMonitor(BackgroundSettingsActivity::class.java.name, null, false)
+                    var editor: BackgroundSettingsActivity? = null
+                    try {
+                        main { check(tile.performClick()) }
+                        val launched = test.waitForMonitorWithTimeout(previewMonitor, 10_000) as? BackgroundSettingsActivity
+                            ?: error("Background preset did not open the original editor")
+                        editor = launched
+                        await("pre-selected Mist without apply") {
+                            launched.hasWindowFocus() && launched.editor.currentPreview()?.config?.choice == AppBackground.Mist &&
+                                app.pageBackgrounds.current.config == appliedWallpaper
+                        }
+                        main { launched.findViewById<View>(android.R.id.content)
+                            .findViewWithTag<Button>("product/background/cancel").performClick() }
+                        await("returned to same Appearance") { activity.hasWindowFocus() && app.pageBackgrounds.current.config == appliedWallpaper }
+                    } finally {
+                        test.removeMonitor(previewMonitor)
+                        editor?.let { main { if (!it.isFinishing) it.finish() } }
+                    }
+                }
                 // Exact return route, not just a successful navigation to Settings.
                 main { activity.select(TaskDestination.BEANS); activity.openSettingsSection("scale") }
                 await("external scale link") { button(SettingsCategory.DEVICE).isSelected && heading("scale").getGlobalVisibleRect(Rect()) && heading("scale").hasFocus() }
@@ -170,7 +219,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     restored?.let { main { it.finish() } }
                 }
                 receipts.put("wide", wide).put("dark", dark).put("shortEnglishLarge", short).put("sixCategories", true).put("exactRoutes", 11)
-                    .put("categoryRailFixed", true).put("recreatedCategory", true).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
+                    .put("categoryRailFixed", true).put("recreatedCategory", true).put("appearancePreviewNoWrite", !short).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
                     .put("rects", JSONArray(originalIndex.map { JSONArray(listOf(it.left, it.top, it.right, it.bottom)) }))
                     .put("noBleOrDestructiveActions", true)
             } finally {

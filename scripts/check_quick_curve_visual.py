@@ -164,6 +164,7 @@ def capture_settings_categories(adb, output, receipt, profile, width, height):
     require(proof["wide"] == (profile == "tablet") and proof["dark"] == (profile == "phone") and
             proof["sixCategories"] and proof["exactRoutes"] == 11 and proof["returnedToCaller"] and
             proof["recreatedCategory"] and proof["scaleToolReturned"] and proof["shortEnglishLarge"] == (profile == "phone-short") and
+            proof["appearancePreviewNoWrite"] == (profile != "phone-short") and
             len(receipt["screenshots"]) == len(keys) and len(set(receipt["screenshots"].values())) == len(keys),
             "Incomplete Settings category evidence")
     (output / "settings-geometry.json").write_text(json.dumps(proof, indent=2) + "\n")

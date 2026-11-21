@@ -18,6 +18,7 @@ internal class AppThemePreferencesCard(
     private val activity: ThemedActivity,
     parent: LinearLayout,
     private val visual: SettingsVisualStyle,
+    private val inlineSwatches: Boolean = false,
     private val onApplied: () -> Unit,
 ) {
     private val preferences = (activity.application as MobileApplication).appearancePreferences
@@ -37,15 +38,39 @@ internal class AppThemePreferencesCard(
 
     init {
         style.add(parent, themeCheckBox)
-        val paletteName = activity.getString(preferences.current.palette.label)
-        val choose = visual.action(Button(activity).apply {
-            text = paletteName
-            contentDescription = activity.getString(R.string.theme_palette_current, paletteName)
-            tag = "product/settings/app/palette/current"
-            setOnClickListener { choosePalette() }
-        }, icon = "chevron", atEnd = true)
-        style.add(parent, visual.pair(style.text(activity.getString(R.string.theme_palette_title)), choose,
-            "product/settings/app/palette/row"), 8)
+        if (inlineSwatches) {
+            style.add(parent, style.text(activity.getString(R.string.theme_palette_title), TaskProductVisualStyle.action), 8)
+            val choices = SettingsPreviewOptions(activity, AppThemePalette.entries.size, style).apply {
+                tag = "settings/appearance/palette-swatches"
+            }
+            for (palette in AppThemePalette.entries) {
+                val selected = preferences.current.palette == palette
+                val name = activity.getString(palette.label)
+                choices.addView(settingsPreviewButton(activity, style, name, selected).apply {
+                    tag = if (selected) "product/settings/app/palette/current" else "settings/appearance/palette/${palette.key}"
+                    if (selected) contentDescription = activity.getString(R.string.theme_palette_current, name)
+                    setCompoundDrawablesRelative(GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(AppPalette(activity, palette).accent)
+                        val side = style.dp(16)
+                        setBounds(0, 0, side, side)
+                    }, null, null, null)
+                    compoundDrawablePadding = style.dp(4)
+                    setOnClickListener { choosePalette(palette) }
+                })
+            }
+            style.add(parent, choices, 6)
+        } else {
+            val paletteName = activity.getString(preferences.current.palette.label)
+            val choose = visual.action(Button(activity).apply {
+                text = paletteName
+                contentDescription = activity.getString(R.string.theme_palette_current, paletteName)
+                tag = "product/settings/app/palette/current"
+                setOnClickListener { choosePalette() }
+            }, icon = "chevron", atEnd = true)
+            style.add(parent, visual.pair(style.text(activity.getString(R.string.theme_palette_title)), choose,
+                "product/settings/app/palette/row"), 8)
+        }
         style.add(parent, style.text(activity.getString(R.string.app_settings_subtitle),
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         style.add(parent, themeError, 8)
@@ -76,10 +101,10 @@ internal class AppThemePreferencesCard(
         view.post { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), false) }
     }
 
-    private fun choosePalette() {
+    private fun choosePalette(initial: AppThemePalette? = null) {
         close()
         val applied = preferences.current
-        var selected = applied.palette
+        var selected = initial ?: applied.palette
         val content = style.column().apply { setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(8)) }
         val choices = RadioGroup(activity).apply {
             orientation = RadioGroup.VERTICAL
