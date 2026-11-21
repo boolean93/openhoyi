@@ -71,8 +71,8 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             curveFixture.replace(doc)
         }
         val directory = File(context.getExternalFilesDir(null), "custom-shortcut-checks").apply { mkdirs() }
-        fun capture(name: String) {
-            SystemClock.sleep(400)
+        fun capture(name: String, waitForTransition: Boolean = true) {
+            if (waitForTransition) SystemClock.sleep(400)
             val bitmap = checkNotNull(test.uiAutomation.takeScreenshot())
             try { File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
             finally { bitmap.recycle() }
@@ -94,16 +94,36 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                 check(SystemClock.elapsedRealtime() < until) { "Curve picker did not show A–D" }
                 SystemClock.sleep(40)
             }
+            fun focusedDialog(): View? = android.view.inspector.WindowInspector.getGlobalWindowViews()
+                .singleOrNull { it !== owner.window.decorView && it.hasWindowFocus() &&
+                    views(it).filterIsInstance<ListView>().singleOrNull()?.let { list ->
+                        (0 until list.adapter.count).map { index -> list.adapter.getItem(index).toString() } == choices
+                    } == true }
+            lateinit var capturedDialog: View
             main {
-                val dialog = android.view.inspector.WindowInspector.getGlobalWindowViews()
-                    .single { it !== owner.window.decorView && it.hasWindowFocus() }
-                val list = views(dialog).filterIsInstance<ListView>().single()
-                check((0 until list.adapter.count).map { list.adapter.getItem(it).toString() } == choices) {
-                    "Curve picker adapter must contain exactly A–D in order"
-                }
+                capturedDialog = checkNotNull(focusedDialog()) { "Focused picker must contain exactly A–D in order" }
             }
-            capture(if (legacyRoute) "legacy-route-assignment-ad" else "assignment-ad")
-            clickWindowText(choices.last())
+            capture(if (legacyRoute) "legacy-route-assignment-ad" else "assignment-ad", waitForTransition = false)
+            lateinit var target: android.graphics.Point
+            await("focused, fully visible D row after capture") {
+                if (focusedDialog() !== capturedDialog) return@await false
+                val list = views(capturedDialog).filterIsInstance<ListView>().single()
+                val row = list.getChildAt(choices.lastIndex - list.firstVisiblePosition) ?: return@await false
+                val visible = android.graphics.Rect()
+                if (!row.isShown || !row.isEnabled || !row.getLocalVisibleRect(visible) ||
+                    visible.width() != row.width || visible.height() != row.height ||
+                    views(row).filterIsInstance<TextView>().none { it.text.toString() == choices.last() }) return@await false
+                val location = IntArray(2).also(row::getLocationOnScreen)
+                target = android.graphics.Point(location[0] + visible.centerX(), location[1] + visible.centerY())
+                true
+            }
+            val downTime = SystemClock.uptimeMillis()
+            for (action in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP)) {
+                val event = android.view.MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action,
+                    target.x.toFloat(), target.y.toFloat(), 0).apply { source = android.view.InputDevice.SOURCE_TOUCHSCREEN }
+                try { check(test.uiAutomation.injectInputEvent(event, true)) { "Could not touch measured D row" } }
+                finally { event.recycle() }
+            }
             await("assignment") { slotPrefs.getString(PresetSlots.key(4), null)?.substringBefore("#") == document.id }
             check(slotPrefs.getString(fifthKey, null) == fifthBinding)
             val file = File(context.applicationInfo.dataDir, "shared_prefs/presets.xml")

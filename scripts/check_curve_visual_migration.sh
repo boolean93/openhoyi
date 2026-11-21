@@ -89,9 +89,10 @@ adb shell settings put system user_rotation 0
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 # Exercise the actual main picker from both supported routes before the M3 screenshot matrix.
+picker_failed=0
 for picker_surface in main legacy-redirect; do
   adb shell am force-stop "$package"
-  python3 - "$output_dir/$picker_surface-curve-shortcut.txt" "$picker_surface" <<'PICKER_SHORTCUT_PY'
+  if ! python3 - "$output_dir/$picker_surface-curve-shortcut.txt" "$picker_surface" <<'PICKER_SHORTCUT_PY'
 from pathlib import Path
 import subprocess, sys
 path, surface = Path(sys.argv[1]), sys.argv[2]
@@ -104,7 +105,8 @@ with path.open('w') as receipt:
 if result.returncode != 0 or f'CURVE_SHORTCUT_PICKER_PASSED surface={surface} ' not in path.read_text():
     raise SystemExit(f'Curve shortcut check failed: {path}')
 PICKER_SHORTCUT_PY
-  adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"
+  then picker_failed=1; fi
+  if ! adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"; then picker_failed=1; fi
 done
 
 for product_theme in light dark; do
@@ -550,3 +552,5 @@ assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in (
     'visualAcceptance':'ASTRA_PENDING','specimenImagesUsedAsProductEvidence':False},indent=2)+'\n')
 print('CURVE_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING libraryVisualCasesPerProfile=5 libraryBusinessCasesPerProfile=2')
 VERIFY_PY
+
+if (( picker_failed )); then echo "At least one independent curve picker check failed" >&2; exit 1; fi
