@@ -26,6 +26,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var homeBoilerVisualChecks = false
     private var homeBoilerWarmupChecks = false
     private var settingsCategoryProfile: String? = null
+    private var settingsRecording = false
     private var fontSizeChecks = false
     private var themePaletteChecks = false
     private var quickCurveVisualTheme: String? = null
@@ -94,6 +95,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         homeBoilerWarmupChecks = arguments?.getString("homeBoilerWarmupChecks") == "true"
         settingsCategoryProfile = arguments?.getString("settingsCategoryProfile")
+        settingsRecording = arguments?.getString("settingsRecording") == "true"
         homeBoilerVisualChecks = arguments?.getString("homeBoilerVisualChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
         themePaletteChecks = arguments?.getString("themePaletteChecks") == "true"
@@ -227,6 +229,14 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ExtractionScaleWindowChecks(this).run()
                 report.putString("stream", "LIVE_SCALE_WINDOW_PASSED realMockService=true actualStopButton=true retainedTestShot=true portraitDark=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
+            }
+            if (settingsRecording) {
+                check(disposableCiEmulator && BuildConfig.MOCK_MODE &&
+                    android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
+                SettingsRecordingChecks(this).run()
+                report.putString("stream", "SETTINGS_RECORDING_PASSED realTouch=true scrolledHighlight=true cancelledPalette=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
             }
             settingsCategoryProfile?.let { profile ->
                 check(disposableCiEmulator && BuildConfig.MOCK_MODE && profile in setOf("phone", "phone-short", "tablet") &&

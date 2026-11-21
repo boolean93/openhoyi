@@ -30,6 +30,11 @@ on:
         type: boolean
         default: false
 
+      settings_recording:
+        description: Also record actual Settings gestures on the Mock phone and tablet (use with settings_categories)
+        type: boolean
+        default: false
+
 permissions:
   contents: read
 
@@ -45,6 +50,7 @@ jobs:
       QUICK_CURVE_VISUAL: ${{ (inputs.quick_curve_visual == true || inputs.boiler_warmup == true || inputs.settings_categories == true) && 'true' || 'false' }}
       QUICK_CURVE_BOILER_VIEW: ${{ inputs.quick_curve_boiler_view == true && 'true' || 'false' }}
       BOILER_WARMUP: ${{ inputs.boiler_warmup == true && 'true' || 'false' }}
+      SETTINGS_RECORDING: ${{ inputs.settings_recording == true && 'true' || 'false' }}
       SETTINGS_CATEGORIES: ${{ inputs.settings_categories == true && 'true' || 'false' }}
       QUICK_CURVE_PROFILE: ${{ matrix.profile }}
       QUICK_CURVE_AVD: openhoyi-quick-curve-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.profile }}
@@ -85,7 +91,7 @@ jobs:
           arch: x86_64
           profile: ${{ matrix.profile == 'tablet' && 'Nexus 10' || 'pixel_7_pro' }}
           ram-size: 2048M
-          disable-animations: ${{ !inputs.boiler_warmup }}
+          disable-animations: ${{ !inputs.boiler_warmup && !inputs.settings_recording }}
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: >-
             if [ "$QUICK_CURVE_VISUAL" = true ]; then python3 scripts/check_quick_curve_visual.py;

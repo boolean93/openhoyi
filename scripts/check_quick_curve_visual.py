@@ -136,6 +136,64 @@ def capture_boiler_warmup(adb, executable, output, receipt):
             adb("shell", "settings", "put", "global", "animator_duration_scale", previous)
 
 
+def validate_settings_movie(metadata, expected_width, expected_height):
+    streams = metadata.get("streams", [])
+    require(len(streams) == 1, "Expected one recorded video stream")
+    stream = streams[0]
+    require(stream.get("codec_name") == "h264" and (stream.get("width"), stream.get("height")) ==
+            (expected_width, expected_height), "Wrong Settings recording codec/geometry")
+    duration = float(stream.get("duration", "nan"))
+    frames = int(stream.get("nb_read_frames", 0))
+    require(8 <= duration <= 35 and frames >= 40, "Settings recording is too short, static, or incomplete")
+    return {"durationSeconds": duration, "decodedFrames": frames, "width": expected_width, "height": expected_height}
+
+
+def capture_settings_recording(adb, executable, output, receipt, profile):
+    width, height = {"phone": (720, 1560), "tablet": (1280, 800)}[profile]
+    target = "/data/local/tmp/openhoyi-settings-recording.mp4"
+    worker = None
+    try:
+        worker = subprocess.Popen([str(executable), "-s", "emulator-5554", "shell", "screenrecord",
+                                   "--time-limit", "35", "--size", f"{width}x{height}", "--bit-rate", "5000000", target],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(.5)
+        report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
+                     "-e", "settingsRecording", "true", RUNNER, timeout=55)
+        (output / "settings-recording-instrumentation.txt").write_text(report + "\n")
+        if worker.poll() is None:
+            try:
+                adb("shell", "pkill", "-2", "-x", "screenrecord")
+            except subprocess.CalledProcessError:
+                pass
+        worker.wait(timeout=36)
+        movie = output / f"settings-{profile}.mp4"
+        adb("pull", target, str(movie))
+        require(movie.stat().st_size > 10000, "No Settings recording from AVD")
+        with movie.open("rb") as source:
+            require(source.read(8)[4:] == b"ftyp", "Invalid Settings movie container")
+        require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and
+                "SETTINGS_RECORDING_PASSED realTouch=true scrolledHighlight=true cancelledPalette=true noBle=true" in report,
+                "Settings recording route failed; see instrumentation log")
+        metadata = subprocess.run(["ffprobe", "-v", "error", "-count_frames", "-show_entries",
+                                   "stream=codec_name,width,height,duration,nb_read_frames", "-of", "json", str(movie)],
+                                  capture_output=True, text=True, check=True, timeout=25)
+        require(not metadata.stderr, "Decoder reported an incomplete Settings movie")
+        receipt["settingsRecording"] = dict(validate_settings_movie(json.loads(metadata.stdout), width, height),
+                                             sha256=digest(movie), realTouch=True, cancelledWithoutSave=True)
+    finally:
+        if worker and worker.poll() is None:
+            try:
+                adb("shell", "pkill", "-2", "-x", "screenrecord")
+            except subprocess.CalledProcessError:
+                pass
+            try:
+                worker.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                worker.terminate()
+                worker.wait(timeout=5)
+        adb("shell", "rm", "-f", target)
+
+
 def capture_settings_categories(adb, output, receipt, profile, width, height):
     require(profile in {"phone", "phone-short", "tablet"}, "Expected the fresh phone/tablet Settings profile")
     report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
@@ -244,6 +302,9 @@ def main():
         if os.environ.get("SETTINGS_CATEGORIES") == "true":
             name = "settings-categories"
             capture_settings_categories(adb, output, receipt, profile, width, height)
+            if os.environ.get("SETTINGS_RECORDING") == "true" and profile in {"phone", "tablet"}:
+                name = "settings-recording"
+                capture_settings_recording(adb, executable, output, receipt, profile)
             receipt["passed"] = True
             return
         if os.environ.get("BOILER_WARMUP") == "true":

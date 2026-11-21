@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from check_quick_curve_visual import confirm_display, display_value, save_failure, validate_capture
+from check_quick_curve_visual import confirm_display, display_value, save_failure, validate_capture, validate_settings_movie
 
 
 def frame(width, height):
@@ -13,6 +13,17 @@ def frame(width, height):
 
 
 class TestQuickCurveVisual(unittest.TestCase):
+    def test_settings_movie_decodes_exact_display_geometry(self):
+        for width, height in ((720, 1560), (1280, 800)):
+            stream = dict(codec_name="h264", width=width, height=height, duration="22.35", nb_read_frames="420")
+            self.assertEqual(420, validate_settings_movie({"streams": [stream]}, width, height)["decodedFrames"])
+            for invalid in (dict(width=height, height=width), dict(duration="nan"), dict(duration="4"),
+                            dict(nb_read_frames="1"), dict(codec_name="vp9")):
+                with self.assertRaises(ValueError):
+                    validate_settings_movie({"streams": [dict(stream, **invalid)]}, width, height)
+        with self.assertRaises(ValueError):
+            validate_settings_movie({"streams": []}, 720, 1560)
+
     def test_effective_size_prefers_override_and_handles_crlf(self):
         self.assertEqual("2560x1600", display_value("Physical size: 2560x1800\r\nOverride size: 2560x1600", "size"))
         self.assertEqual("360", display_value("Physical density: 360", "density"))
