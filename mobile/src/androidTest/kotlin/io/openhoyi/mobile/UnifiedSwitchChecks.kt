@@ -64,11 +64,43 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
                     check(toggle.isChecked) { "Repeated toggles must preserve final native state" }
                     off.recycle(); on.recycle(); rtl.recycle()
                     verifyBoilerPendingInk(context)
+                    verifyBoilerArc(context)
                 }
             } catch (error: Throwable) { failure = error }
         }
         failure?.let { throw it }
     }
+    private fun verifyBoilerArc(context: android.content.Context) {
+        for ((steam, goal) in listOf(false to 92f, true to 120f)) {
+            val current = TextView(context)
+            val dial = BoilerTemperatureDial(context, TextView(context), current,
+                TextView(context), TextView(context), HoyiSwitch(context), steam)
+            val side = 300
+            val exact = View.MeasureSpec.makeMeasureSpec(side, View.MeasureSpec.EXACTLY)
+            fun samples(reading: Float?, target: Float?): List<Int> {
+                dial.present(reading, target)
+                dial.measure(exact, exact); dial.layout(0, 0, side, side)
+                val bitmap = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+                return try {
+                    dial.draw(Canvas(bitmap))
+                    listOf(145.0, 230.0, 330.0).map { angle ->
+                        val radians = Math.toRadians(angle)
+                        val r = side * .442
+                        bitmap.getPixel((side / 2 + r * kotlin.math.cos(radians)).toInt(),
+                            (side / 2 + r * kotlin.math.sin(radians)).toInt())
+                    }
+                } finally { bitmap.recycle() }
+            }
+            val empty = samples(30f, goal)
+            check(samples(20f, goal) == empty && current.text.toString() == "20.0 °C")
+            check(samples(goal, 30f) == empty && samples(goal, null) == empty)
+            val middle = samples((30f + goal) / 2f, goal)
+            val full = samples(goal, goal)
+            check(middle.take(2) == full.take(2) && middle[2] == empty[2] && full.zip(empty).all { it.first != it.second })
+            check(samples(goal + 5f, goal) == full && current.text.toString() == "${goal + 5f} °C")
+        }
+    }
+
     // Real dial and switch drawing, but deliberately no HomeFragment or service writes.
     private fun verifyBoilerPendingInk(context: android.content.Context) {
         val power = HoyiSwitch(context).apply { layoutDirection = View.LAYOUT_DIRECTION_LTR }
@@ -85,7 +117,6 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
         fun present(display: HomeBoilerDialHold.Display) {
             val live = display.frame as? IdleTelemetry
             val current = live?.brewTemperatureHundredthsC?.div(100f)
-            temperature.text = current?.toString() ?: "—"
             target.text = display.brewTarget?.let { "$it °C" } ?: "—"
             pressure.text = MachineHomeReadings.from(live).brewPressure
             dial.present(current, display.brewTarget?.toFloat())
@@ -117,7 +148,7 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
         try {
             project(waiting)
             present(hold.resolve(owner, address, null, null, null, null, 2800, hold = true))
-            check(temperature.text.toString() == "91.4" && target.text.toString() == "92 °C")
+            check(temperature.text.toString() == "91.4 °C" && target.text.toString() == "92 °C")
             check(power.isChecked && !power.isEnabled)
             check(!HomeBoilerSwitchPresentation.showInline(
                 HomeBoilerSwitchPresentation.label(true, false, pending, waiting)))

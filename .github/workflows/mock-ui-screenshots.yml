@@ -20,6 +20,11 @@ on:
         type: boolean
         default: false
 
+      boiler_warmup:
+        description: Record both boilers warming in the actual Mock phone Home
+        type: boolean
+        default: false
+
 permissions:
   contents: read
 
@@ -28,12 +33,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: ${{ fromJSON(inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || inputs.quick_curve_profile == 'phone-short' && '["phone-short"]' || '["phone","tablet"]') || '["legacy"]') }}
+        profile: ${{ fromJSON(inputs.boiler_warmup && '["phone"]' || inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || inputs.quick_curve_profile == 'phone-short' && '["phone-short"]' || '["phone","tablet"]') || '["legacy"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      QUICK_CURVE_VISUAL: ${{ inputs.quick_curve_visual == true && 'true' || 'false' }}
+      QUICK_CURVE_VISUAL: ${{ (inputs.quick_curve_visual == true || inputs.boiler_warmup == true) && 'true' || 'false' }}
       QUICK_CURVE_BOILER_VIEW: ${{ inputs.quick_curve_boiler_view == true && 'true' || 'false' }}
+      BOILER_WARMUP: ${{ inputs.boiler_warmup == true && 'true' || 'false' }}
       QUICK_CURVE_PROFILE: ${{ matrix.profile }}
       QUICK_CURVE_AVD: openhoyi-quick-curve-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.profile }}
     steps:
@@ -73,6 +79,7 @@ jobs:
           arch: x86_64
           profile: ${{ matrix.profile == 'tablet' && 'Nexus 10' || 'pixel_7_pro' }}
           ram-size: 2048M
+          disable-animations: ${{ !inputs.boiler_warmup }}
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: >-
             if [ "$QUICK_CURVE_VISUAL" = true ]; then python3 scripts/check_quick_curve_visual.py;

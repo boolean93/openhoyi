@@ -1227,6 +1227,13 @@ class MobileService : Service() {
     internal val boilerDisplayAddress: String? get() = hub?.coffeeAddress ?: boilerFallback?.takeIf {
         it.used && hub === it.hub && boilerReadbackReconnecting && machineWriteRecovery.owns(it.owner)
     }?.address
+    internal val boilerPresentationSession: Any? get() {
+        if (!running || snapshot.coffeeState != DeviceState.READY) return null
+        mock?.let { return it }
+        val active = hub ?: return null
+        val address = active.coffeeAddress ?: return null
+        return Triple(active, address, active.coffeeGeneration)
+    }
     internal val ownsBoilerDisplayWrite: Boolean get() = machineWriteRecovery.owns(settingRecoveryOwner) &&
         boilerDisplayAddress?.let(machineWriteRecovery::matchesDevice) == true
     val boilerReadbackRecoveryActive:Boolean get()=HomeBoilerSwitchPresentation.localProgress(
