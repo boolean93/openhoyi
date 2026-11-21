@@ -128,7 +128,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         if (wide != rail) {
             wide = rail
             indexBody.removeAllViews()
-            for (button in buttons.values) (button.parent as? LinearLayout)?.removeView(button)
+            for (button in buttons.values) (button.parent as? ViewGroup)?.removeView(button)
             compact.removeAllViews()
             compact.visibility = if (rail) GONE else VISIBLE
             panel.getChildAt(0).visibility = if (rail) VISIBLE else GONE
