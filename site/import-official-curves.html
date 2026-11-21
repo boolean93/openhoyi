@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#f8faf6">
   <title>如何导入官方曲线 — OpenHOYI</title>
   <meta name="description" content="把官方 HOYI App 的曲线参数截图，交给 AI 转为 OpenHOYI JSON，再预览核对后导入。下载与 App 版本对应的提示词，缺少参数时不猜测。">
   <link rel="canonical" href="https://boolean93.github.io/openhoyi/import-official-curves.html">
@@ -15,21 +15,42 @@
 </head>
 <body>
   <a class="skip-link" href="#main">跳到主要内容</a>
-  <header class="nav"><div class="nav-inner">
-    <a class="wordmark" href="./index.html">OpenHOYI</a>
-    <nav class="nav-links" aria-label="页面导航"><a href="./index.html">首页</a><a href="#prompt">获取提示词</a></nav>
-  </div></header>
-  <main class="guide wrap" id="main">
-    <header class="guide-heading">
-      <p class="eyebrow">曲线迁移指南</p>
-      <h1>喜欢的配方，<br>不用从头再填。</h1>
+
+  <header class="nav" data-nav>
+    <div class="nav-shell">
+      <a class="brand" href="./index.html" aria-label="OpenHOYI 首页">
+        <img src="./assets/brand/icon-release-256.png" width="28" height="28" alt="">
+        <span>OpenHOYI</span>
+      </a>
+      <nav class="nav-links" aria-label="页面导航">
+        <a href="./index.html">首页</a>
+        <a href="#prompt">获取提示词</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="nav-github" href="https://github.com/boolean93/openhoyi" rel="noopener" aria-label="在 GitHub 查看源码">
+          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.14-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          <span>GitHub</span>
+        </a>
+        <a class="button button-small" href="./index.html#download">下载</a>
+      </div>
+    </div>
+  </header>
+
+  <header class="guide-hero">
+    <div class="wrap guide-hero-inner">
+      <p class="eyebrow eyebrow-light">CURVE MIGRATION · 曲线迁移指南</p>
+      <h1>喜欢的配方，<br><span class="hero-accent">不用从头再填。</span></h1>
       <p class="guide-lede">官方参数截图 → AI 转换 → OpenHOYI 预览导入</p>
       <p class="guide-muted">这是截图转录，不是官方 App 的直接导出。AI 可能看错，保存前请逐项核对。</p>
-    </header>
+    </div>
+  </header>
+
+  <main class="guide wrap" id="main">
     <ol class="guide-steps">
       <li class="guide-step" id="screenshots">
         <span class="guide-number" aria-hidden="true">01</span>
-        <div><h2>拍全参数，不只拍曲线图</h2>
+        <div>
+          <h2>拍全参数，不只拍曲线图</h2>
           <p>在官方 HOYI App 打开曲线的参数页面。内容放不下就分多张截图，同一条曲线一起发送。</p>
           <ul class="guide-checklist">
             <li>名称、温度、目标液重（或未启用）</li>
@@ -42,31 +63,56 @@
       </li>
       <li class="guide-step" id="prompt">
         <span class="guide-number" aria-hidden="true">02</span>
-        <div><h2>拿到与你的 App 对应的提示词</h2>
+        <div>
+          <h2>拿到与你的 App 对应的提示词</h2>
           <p>先在 OpenHOYI「关于」查看版本，再打开同版本的 GitHub Release，在 Assets 中下载下面这个文件。</p>
           <p class="guide-file"><code>OpenHOYI-curve-import-prompt.zh-CN.txt</code></p>
           <p class="guide-muted" id="prompt-status" role="status">请按 App 版本选择附件。</p>
-          <div class="guide-actions"><a id="prompt-download" class="button" hidden>下载提示词</a><a class="button" href="https://github.com/boolean93/openhoyi/releases" rel="noopener">选择对应版本</a></div>
+          <div class="guide-actions"><a id="prompt-download" class="button button-dark" hidden>下载提示词</a><a class="button button-outline" href="https://github.com/boolean93/openhoyi/releases" rel="noopener">选择对应版本</a></div>
           <p class="guide-muted">旧版本可能没有这个附件。此时先升级到带有提示词附件的版本，再使用同版提示词；不要把其他版本的格式直接套用。提示词开头会注明适用版本。</p>
         </div>
       </li>
       <li class="guide-step">
         <span class="guide-number" aria-hidden="true">03</span>
-        <div><h2>把提示词和截图一起交给 AI</h2>
+        <div>
+          <h2>把提示词和截图一起交给 AI</h2>
           <p>用豆包等支持图片的 AI，新开一个对话，粘贴 TXT 的完整内容，再附上这条曲线的全部截图。也可以上传 TXT 文件。</p>
           <p class="guide-muted">不要只发下载链接，AI 不一定能打开。缺项或看不清时，补图或确认参数，不让 AI 猜。最终需要一段纯 JSON，不含解释或 Markdown 代码框。</p>
         </div>
       </li>
       <li class="guide-step">
         <span class="guide-number" aria-hidden="true">04</span>
-        <div><h2>粘贴导入，核对后保存</h2>
+        <div>
+          <h2>粘贴导入，核对后保存</h2>
           <p>打开 OpenHOYI 曲线库的导入入口，粘贴 JSON 或选择 JSON 文件。在预览里对照官方截图，核对温度、目标液重、每一段的模式与数值，以及其余参数，再确认导入。</p>
           <p class="guide-muted">如果提示格式或参数无效，把具体错误交给 AI 修正后重新预览。能导入不等于配方完全一致，也不代表机器已经开始萃取。</p>
         </div>
       </li>
     </ol>
-    <aside class="guide-note" aria-label="核对重点"><strong>最重要的一步：核对数值和单位。</strong><p>别只看名称或曲线长得像。压力、流量、液重、水量是不同字段；确认无误后再使用。</p></aside>
+
+    <aside class="guide-note" aria-label="核对重点">
+      <span class="guide-note-label">最重要的一步</span>
+      <strong>核对数值和单位。</strong>
+      <p>别只看名称或曲线长得像。压力、流量、液重、水量是不同字段；确认无误后再使用。</p>
+    </aside>
+
+    <div class="guide-back">
+      <a class="text-link" href="./index.html">返回首页 <span aria-hidden="true">→</span></a>
+    </div>
   </main>
-  <footer class="footer"><div class="wrap footer-inner"><p class="footer-note">OpenHOYI · 独立开发，非 HOYI 官方应用</p><a href="./index.html">返回首页</a></div></footer>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <img src="./assets/brand/icon-release-256.png" width="32" height="32" alt="">
+        <div><strong>OpenHOYI</strong><p>独立开发 · 非 HOYI 官方应用 · GPL v2</p></div>
+      </div>
+      <nav class="footer-links" aria-label="页脚链接">
+        <a href="./index.html">首页</a>
+        <a href="https://github.com/boolean93/openhoyi/issues" rel="noopener">问题反馈</a>
+        <a href="https://github.com/boolean93/openhoyi" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </footer>
 </body>
 </html>

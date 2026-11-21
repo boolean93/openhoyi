@@ -1,28 +1,146 @@
-/* A compact reading page, using the product site's existing visual tokens. */
-.guide { max-width: 860px; padding-block: 64px 80px; }
-.guide-heading { padding-bottom: 46px; }
-.guide h1 { font-size: clamp(2.1rem, 5vw, 3.5rem); line-height: 1.2; }
-.guide-lede { margin-top: 24px; color: var(--body); font-size: 19px; }
-.guide-muted { color: var(--muted); font-size: 14px; margin-top: 14px; }
-.guide-steps { list-style: none; }
-.guide-step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding-block: 32px; border-top: 1px solid var(--line); }
-.guide-number { color: var(--primary); font-size: 14px; font-weight: 600; padding-top: 6px; }
-.guide h2 { font-size: clamp(1.25rem, 3vw, 1.6rem); margin: 0 0 14px; line-height: 1.4; }
-.guide-step p { max-width: 680px; }
+/* Reading page for the official-curve import guide. Shares site tokens. */
+
+.guide-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 168px 0 84px;
+  background:
+    radial-gradient(70% 80% at 82% 0%, rgba(185, 111, 46, 0.22), transparent 60%),
+    var(--espresso);
+  color: var(--cream);
+}
+.guide-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(246, 240, 228, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(246, 240, 228, 0.04) 1px, transparent 1px);
+  background-size: 88px 88px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 30% 20%, #000 5%, transparent 72%);
+  mask-image: radial-gradient(ellipse 70% 70% at 30% 20%, #000 5%, transparent 72%);
+  pointer-events: none;
+}
+.guide-hero-inner { position: relative; z-index: 1; max-width: 900px; }
+.guide-hero h1 {
+  margin-top: 20px;
+  font-size: clamp(2.7rem, 6.2vw, 4.8rem);
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.guide-lede {
+  max-width: 40em;
+  margin-top: 24px;
+  color: rgba(246, 240, 228, 0.68);
+  font-size: clamp(1rem, 1.3vw, 1.14rem);
+  line-height: 1.7;
+}
+.guide-muted {
+  margin-top: 12px;
+  color: var(--muted-2);
+  font-size: 13px;
+  line-height: 1.72;
+}
+.guide-hero .guide-muted { color: rgba(246, 240, 228, 0.42); }
+.guide-hero .eyebrow { margin-top: 8px; }
+
+.guide { max-width: 880px; padding-block: 64px 96px; }
+.guide-steps { list-style: none; border-top: 1px solid var(--line); }
+.guide-step {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 22px;
+  padding-block: 38px;
+  border-bottom: 1px solid var(--line);
+}
+.guide-number {
+  padding-top: 6px;
+  color: var(--crema-strong);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.guide h2 {
+  margin: 0 0 14px;
+  font-size: clamp(1.25rem, 2.6vw, 1.55rem);
+  line-height: 1.4;
+  letter-spacing: -0.015em;
+}
+.guide-step p { max-width: 64ch; color: var(--muted); font-size: 15px; line-height: 1.75; }
 .guide-step p + p { margin-top: 14px; }
-.guide-checklist { list-style: disc; padding-left: 20px; margin-top: 16px; color: var(--body); }
-.guide-checklist li { margin-top: 6px; }
-.guide-file { padding: 14px 16px; background: var(--soft); border-radius: 10px; font-size: 14px; overflow-wrap: anywhere; }
-.guide-file code { font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.guide-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
-.guide-note { padding: 22px 24px; margin-top: 16px; border-left: 3px solid var(--primary); background: var(--soft); border-radius: 0 12px 12px 0; }
-.guide-note p { margin-top: 6px; color: var(--body); font-size: 15px; }
-.guide-link { display: inline-block; color: var(--primary-strong); text-decoration: underline; text-underline-offset: 4px; margin-top: 16px; padding-block: 8px; }
-@media (max-width: 600px) {
-  .guide { padding-block: 36px 48px; }
-  .guide-heading { padding-bottom: 28px; }
-  .guide-lede { font-size: 16px; }
-  .guide-step { grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding-block: 26px; }
-  .guide-step p, .guide-checklist { font-size: 16px; }
-  .guide-step .guide-muted, .guide-step .guide-file { font-size: 14px; }
+.guide-step > div > p:first-of-type { color: var(--ink-soft); }
+.guide-checklist {
+  margin-top: 18px;
+  padding: 16px 20px 16px 36px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.guide-checklist li + li { margin-top: 6px; }
+.guide-checklist li::marker { color: var(--crema-strong); }
+.guide-file {
+  margin-top: 16px;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--oat);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.guide-file code { font-family: var(--mono); font-size: 12px; }
+.guide-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+.guide-actions .button { min-height: 44px; padding: 10px 20px; font-size: 14px; }
+.guide-note {
+  margin-top: 36px;
+  padding: 24px 26px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--crema-strong);
+  border-radius: 0 18px 18px 0;
+  background: var(--oat);
+}
+.guide-note-label {
+  display: block;
+  color: var(--crema-strong);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.guide-note strong { display: block; margin-top: 6px; font-size: 18px; letter-spacing: -0.015em; }
+.guide-note p { margin-top: 7px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.guide-back { margin-top: 40px; }
+
+@media (max-width: 760px) {
+  .guide-hero { padding: 132px 0 62px; }
+  .guide { padding-block: 42px 72px; }
+  .guide-step { grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding-block: 28px; }
+  .guide-step p, .guide-checklist { font-size: 14px; }
+  .guide h2 { font-size: 1.22rem; }
+  .guide-note { padding: 20px; }
+}
+
+
+/* Light porcelain guide */
+.guide-hero {
+  background:
+    radial-gradient(70% 80% at 82% 0%, rgba(160, 196, 162, 0.3), transparent 60%),
+    linear-gradient(180deg, #f8faf5, #edf4ec);
+  color: var(--ink);
+}
+.guide-hero::after {
+  background-image:
+    linear-gradient(rgba(29, 42, 34, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 42, 34, 0.045) 1px, transparent 1px);
+}
+.guide-hero .eyebrow { color: var(--crema-strong); }
+.guide-hero .guide-muted { color: var(--muted); }
+.guide-lede { color: var(--muted); }
+.guide-note {
+  border-color: var(--line);
+  border-left-color: var(--crema-strong);
+  background: var(--mist);
 }
