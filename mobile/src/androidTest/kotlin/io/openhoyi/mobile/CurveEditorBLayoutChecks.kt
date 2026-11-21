@@ -310,7 +310,7 @@ internal class CurveEditorBLayoutChecks(private val test: Instrumentation) {
                 main {
                     val title = existingRoot.findViewWithTag<EditText>("product/form/curve-editor/name")
                     check(title.text.toString() == existing.name && title.background == null)
-                    check(existingRoot.findViewWithTag<TextView>("product/form/curve-editor/save").text.toString() == reopened.getString(R.string.curve_editor_save_copy))
+                    check(existingRoot.findViewWithTag<TextView>("product/form/curve-editor/save").text.toString() == reopened.getString(R.string.manual_curve_save_copy))
                     title.setText(longName)
                     title.requestFocus(); title.setSelection(title.length())
                     fullyVisible(title)
