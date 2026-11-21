@@ -47,12 +47,16 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
             view.getGlobalVisibleRect(rect) && rect.width() >= view.width && rect.height() >= view.height
         }
     }
-    private fun save(activity: Activity): CustomCurveDocument? {
+    private fun save(activity: Activity, expectedExistingId: String? = null): CustomCurveDocument? {
         val store = (context.applicationContext as MobileApplication).customCurvesResult.getOrThrow()
         val before = store.list().map { it.id }.toSet()
         visible(activity, "save")
         main { check(tag(activity, "save").isEnabled); check(tag(activity, "save").performClick()) }
         test.waitForIdleSync()
+        if (expectedExistingId != null) {
+            check(store.list().map { it.id }.toSet() == before)
+            return store.find(expectedExistingId)
+        }
         return store.list().singleOrNull { it.id !in before }
     }
     private fun recreate(activity: Activity, rotate: Boolean = false): Activity {
@@ -163,8 +167,7 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                 check((tag(reopenedFollow, "pressure-logic") as CurveEditorSegments).checked)
                 check(!(tag(reopenedFollow, "control-mode") as CurveEditorSegments).checked)
             }
-            val followCopy = requireNotNull(save(reopenedFollow)); created += followCopy.id
-            check(followCopy == savedFollow.copy(id = followCopy.id) && followCopy.id != savedFollow.id)
+            check(save(reopenedFollow, followId) == savedFollow)
             await("pressure follow no-edit save") { reopenedFollow.isDestroyed && store.find(followId) == savedFollow }
             check(CustomCurveDocument.decode(savedFollow.encode()) == savedFollow)
             for ((index, item) in representatives.withIndex()) {
@@ -219,8 +222,8 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                     stages = copied.stages.mapIndexed { at, stage -> if (at == 0) stage.copy(target = 25) else stage },
                     configuration = copied.configuration!!.copy(firstSegmentFlowMode = true, pressureLogic = index == 0,
                         preinfusionSeconds = 4, firstDurationSeconds = 8, compensationHundredthsGram = 20))
-                val edited = requireNotNull(save(editor)); created += edited.id
-                check(edited == expected.copy(id = edited.id) && store.find(copied.id) == copied)
+                val edited = requireNotNull(save(editor, copied.id))
+                check(edited == expected && store.find(copied.id) == edited)
                 copied = edited; expected = edited
                 await("edited saved") { editor.isDestroyed && store.find(copied.id) == expected }
                 editor = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, copied.id) }
@@ -261,9 +264,9 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                 store.save(old); created += old.id
                 var editor = start(CurveEditorActivity::class.java) { putExtra(CurveEditorActivity.CURVE_ID, old.id) }
                 main { selectCurveStageCount(root(editor), 2) }
-                val reduced = requireNotNull(save(editor)); created += reduced.id
+                val reduced = requireNotNull(save(editor, old.id))
                 await("old reduced saved") { editor.isDestroyed && reduced.stages.size == 2 }
-                check(store.find(old.id) == old)
+                check(store.find(old.id) == reduced)
                 main {
                     check(reduced.configuration!!.inactiveStages == old.stages.drop(2))
                     check(reduced.totalWaterLimitMl == old.totalWaterLimitMl)
@@ -276,9 +279,9 @@ internal class CustomFlowCurveEditorChecks(private val test: Instrumentation) {
                         check(input(editor, "water-$index").text.toString() == CurveDraftNumber.format(stage.waterTenthsMl, 1))
                     }
                 }
-                val restored = requireNotNull(save(editor)); created += restored.id
+                val restored = requireNotNull(save(editor, old.id))
                 await("hidden stages restored") { editor.isDestroyed && restored.stages == old.stages }
-                check(store.find(old.id) == old && store.find(reduced.id) == reduced)
+                check(restored.id == old.id && store.find(old.id) == restored)
             }
             val raw = CustomCurveDocument(CustomCurveDocument.newId(), "Legacy raw editor guard", 93, 0,
                 CustomCurveDocument.ControlMode.FLOW_RAW, listOf(CustomCurveDocument.Stage(25, 150), CustomCurveDocument.Stage(35, 400)))

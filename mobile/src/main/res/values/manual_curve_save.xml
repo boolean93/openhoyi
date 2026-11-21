@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manual_curve_save_changes">保存</string>
+    <string name="manual_curve_save_copy">另存为</string>
+    <string name="manual_curve_stale">曲线已变更或编辑已失效。请重新打开后再修改。</string>
+    <string name="manual_curve_in_use">这条曲线正在使用，结束后再保存修改。</string>
+</resources>
