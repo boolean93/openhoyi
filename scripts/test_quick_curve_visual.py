@@ -63,6 +63,20 @@ class TestQuickCurveVisual(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_capture(frame(2560, 1600), geometry, 2560, 1600, 360, "light")
 
+    def test_five_card_last_must_span_both_columns_for_both_states(self):
+        last = dict(label="上一杯", rect=[4, 100, 296, 160])
+        geometry = dict(density=2., dark=True, portrait=True, wallpaper=True, noLever=True, emptyRecent=True,
+                        items=[{}, {}, dict(name="HOYI Limit Extraction", rect=[4, 40, 143, 99]),
+                               dict(rect=[157, 40, 296, 99]), last])
+        image = frame(720, 1440)
+        validate_capture(image, geometry, 720, 1440, 320, "dark", empty_recent=True, no_lever=True)
+        geometry["emptyRecent"] = False
+        last["label"] = "复用上一杯"
+        validate_capture(image, geometry, 720, 1440, 320, "dark", no_lever=True)
+        last["rect"][0] = 157
+        with self.assertRaisesRegex(ValueError, "span both"):
+            validate_capture(image, geometry, 720, 1440, 320, "dark", no_lever=True)
+
 
 if __name__ == "__main__":
     unittest.main()

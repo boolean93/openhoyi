@@ -26,17 +26,18 @@ import java.util.UUID
 internal class QuickCurveVisualChecks(private val test: Instrumentation) {
     private fun <T> main(block: () -> T): T = BoundedInstrumentationMain.run("Home shortcut capture", 5000, block)
 
-    fun run(dark: Boolean, wallpaperEnabled: Boolean, shortPortrait: Boolean = false, emptyRecent: Boolean = false) {
+    fun run(dark: Boolean, wallpaperEnabled: Boolean, shortPortrait: Boolean = false, emptyRecent: Boolean = false, noLever: Boolean = emptyRecent) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
         val ids = listOf("factory-v3-050", "factory-v3-001", "factory-v3-002", "factory-v3-004", "factory-v3-005", "factory-v3-004")
         val fixtureNames = listOf("浅烘Slayer长预浸", "Espresso深烘", "SOE浅烘", "HOYI Limit Extraction", "Hyper Ex 超萃手冲", "HOYI Limit Extraction")
-        val tags = (if (emptyRecent) 1..4 else 0..4).map { "product/home/direct-preset/$it" } + "product/home/last-curve"
+        val tags = (if (noLever) 1..4 else 0..4).map { "product/home/direct-preset/$it" } + "product/home/last-curve"
         val titleTags = tags.dropLast(1).map { "$it/name" } + "product/home/quick-recipe"
-        val names = if (emptyRecent) fixtureNames.subList(1, 5) + "" else fixtureNames
+        val names = if (noLever) fixtureNames.drop(1) else fixtureNames
         val presetLabels = listOf("预设 A", "预设 B", "预设 C", "预设 D")
-        val labels = if (emptyRecent) presetLabels + "上一杯" else listOf("拨杆配方") + presetLabels + "复用上一杯"
+        val labels = (if (noLever) emptyList() else listOf("拨杆配方")) + presetLabels +
+            (if (emptyRecent) "上一杯" else "复用上一杯")
         val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
         val storedFifth = "factory-v3-005"
         main {
@@ -50,8 +51,8 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
             check(editor.putString(PresetSlots.key(5), storedFifth).commit())
             val usage = app.curveUsageResult.getOrThrow()
             check(usage.latest() == null)
-            if (!emptyRecent) {
-                check(usage.record("shortcut-visual-fixture", ids.last(), 1L))
+            if (!emptyRecent) check(usage.record("shortcut-visual-fixture", ids.last(), 1L))
+            if (!noLever) {
                 val lever = app.leverRecipes
                 val address = "00:00:00:00:00:01"
                 check(lever.attemptFor(address) == null && !lever.blocked)
@@ -142,6 +143,11 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 check(scroll.scrollY == 0 && scroll.canScrollVertically(1) && topReachable())
                 scroll.scrollTo(0, end)
             }
+            // Wait for the scrolled Android view to be painted before capturing actual pixels.
+            if (shortPortrait) {
+                test.waitForIdleSync()
+                SystemClock.sleep(250)
+            }
             val proof = main {
                 val root = page.active("root:BREW").requireView()
                 check(root.findViewWithTag<View>("product/home/quick-title") == null &&
@@ -202,10 +208,12 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                         .put("labelOffsetPx", JSONArray(listOf(labelBounds.left - card.left, labelBounds.top - card.top)))
                         .put("previewPx", JSONArray(listOf(preview.width, preview.height))))
                 }
-                if (portrait && emptyRecent) {
+                if (portrait && noLever) {
                     check(bounds[0].top == bounds[1].top && bounds[2].top == bounds[3].top &&
                         bounds[0].top < bounds[2].top && bounds[2].top < bounds.last().top &&
-                        bounds.last().left == bounds[3].left)
+                        bounds[0].right < bounds[1].left &&
+                        bounds.last().left == bounds[2].left && bounds.last().right == bounds[3].right
+                    ) { "Five-card phone must span both columns with Last: $bounds" }
                 } else if (portrait) {
                     check(bounds.indices.all { index ->
                         val even = index - index % 2
@@ -233,7 +241,7 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 check(bottomGap >= 10f) { "Expected breathing room inside the Home viewport, got ${bottomGap}dp" }
                 val tab = Rect()
                 if (portrait) {
-                    check(!emptyRecent || root.findViewWithTag<View>("product/home/direct-preset/0") == null)
+                    check(!noLever || root.findViewWithTag<View>("product/home/direct-preset/0") == null)
                     val homeTab = requireNotNull(host.findViewById<View>(android.R.id.content).findViewWithTag<View>("task-nav:BREW"))
                     check(homeTab.getGlobalVisibleRect(tab))
                     check(kotlin.math.abs(bottomGap - 12f) <= 1f && tab.top >= viewport.bottom &&
@@ -245,7 +253,7 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                     else check((spacer?.height ?: 0) > 0 && scroll.scrollY == 0 && !scroll.canScrollVertically(1))
                 } else check(spacer == null)
                 JSONObject().put("portrait", portrait).put("dark", dark).put("wallpaper", wallpaperEnabled)
-                    .put("shortPortrait", shortPortrait).put("emptyRecent", emptyRecent).put("scrollY", scroll.scrollY)
+                    .put("shortPortrait", shortPortrait).put("emptyRecent", emptyRecent).put("noLever", noLever).put("scrollY", scroll.scrollY)
                     .put("bottomTabTopPx", if (portrait) tab.top else JSONObject.NULL)
                     .put("spacerHeightPx", spacer?.height ?: 0).put("fontScale", host.resources.configuration.fontScale.toDouble())
                     .put("viewport", JSONArray(listOf(viewport.left, viewport.top, viewport.right, viewport.bottom)))

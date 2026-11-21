@@ -33,15 +33,19 @@ def display_value(report, kind):
     return rows[-1]
 
 
-def validate_capture(image, geometry, width, height, dpi, theme, background="wallpaper", empty_recent=False):
+def validate_capture(image, geometry, width, height, dpi, theme, background="wallpaper", empty_recent=False, no_lever=False):
     require(png_size(image) == (width, height), "Wrong screenshot PNG geometry")
     require(geometry["density"] == dpi / 160 and geometry["dark"] == (theme == "dark") and
             geometry["portrait"] == (height > width), "Android view proof did not match expected configuration")
     require(geometry["wallpaper"] == (background == "wallpaper"), "Wrong captured backdrop")
     cards = geometry["items"]
-    if empty_recent:
-        require(geometry["emptyRecent"] and len(cards) == 5 and cards[2]["name"] == "HOYI Limit Extraction" and
-                cards[4]["label"] == "上一杯", "Expected A–D and the existing empty last-cup placeholder")
+    if no_lever:
+        require(geometry["noLever"] and geometry["emptyRecent"] == empty_recent and len(cards) == 5 and
+                cards[2]["name"] == "HOYI Limit Extraction" and
+                cards[4]["label"] == ("上一杯" if empty_recent else "复用上一杯"),
+                "Expected A–D and the correct last-cup state")
+        require(cards[4]["rect"][0] == cards[2]["rect"][0] and cards[4]["rect"][2] == cards[3]["rect"][2],
+                "Expected Last to span both phone columns")
     else:
         require(len(cards) == 6 and cards[3]["name"] == cards[5]["name"] == "HOYI Limit Extraction",
                 "Expected six visible controls including both long titles")
@@ -148,18 +152,22 @@ def main():
             receipt["detachedBoilerViewAndFakeGattPassed"] = True
         cases = [("wallpaper", "dark")] if profile == "phone-short" else [
             (background, theme) for background in ("wallpaper", "solid") for theme in ("light", "dark")]
-        fixtures = [(background, theme, False) for background, theme in cases]
+        fixtures = [(background, theme, "") for background, theme in cases]
         if profile == "phone":
-            fixtures.append(("wallpaper", "dark", True))
-        for background, theme, empty_recent in fixtures:
-            name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "") + ("-empty-recent" if empty_recent else "")
+            fixtures.extend([("wallpaper", "dark", "empty-recent"), ("wallpaper", "dark", "five-recent")])
+        def capture_name(background, theme, variant):
+            return f"{profile}-{theme}" + ("-solid" if background == "solid" else "") + (f"-{variant}" if variant else "")
+        for background, theme, variant in fixtures:
+            empty_recent, no_lever = variant == "empty-recent", bool(variant)
+            name = capture_name(background, theme, variant)
             # All data in this exact ephemeral install is synthetic and fixture-owned.
             require(adb("shell", "pm", "clear", APP) == "Success", "Cannot reset isolated Mock fixture")
             try:
                 report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
                              "-e", "quickCurveVisualTheme", theme, "-e", "quickCurveVisualBackground",
                              background, "-e", "quickCurveShortPortrait", str(profile == "phone-short").lower(),
-                             "-e", "quickCurveEmptyRecent", str(empty_recent).lower(), RUNNER, timeout=100)
+                             "-e", "quickCurveEmptyRecent", str(empty_recent).lower(),
+                             "-e", "quickCurveNoLever", str(no_lever).lower(), RUNNER, timeout=100)
             except (subprocess.SubprocessError, OSError) as failure:
                 # am instrument can disappear with a nonzero exit or a killed process.
                 output_text = getattr(failure, "output", None)
@@ -176,13 +184,9 @@ def main():
             target = output / f"{name}.png"
             target.write_bytes(image)
             (output / f"{name}.json").write_text(json.dumps(geometry, ensure_ascii=False, indent=2) + "\n")
-            validate_capture(image, geometry, width, height, dpi, theme, background, empty_recent)
+            validate_capture(image, geometry, width, height, dpi, theme, background, empty_recent, no_lever)
             receipt["screenshots"][target.name] = digest(target)
-        expected_frames = {
-            f"{profile}-{theme}" + ("-solid" if background == "solid" else "") +
-            ("-empty-recent" if empty_recent else "") + ".png"
-            for background, theme, empty_recent in fixtures
-        }
+        expected_frames = {capture_name(*fixture) + ".png" for fixture in fixtures}
         require(set(receipt["screenshots"]) == expected_frames and
                 len(set(receipt["screenshots"].values())) == len(expected_frames),
                 "Missing or duplicate capture outputs")
