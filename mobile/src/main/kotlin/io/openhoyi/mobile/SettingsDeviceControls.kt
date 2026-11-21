@@ -54,10 +54,11 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             if (role != DeviceRole.COFFEE) scaleConnect = HoyiUi.button(host, buttons, host.getString(R.string.home_connect)) {
                 owner?.beginDeviceSelection(); selection.showRole(role); rendered = ""; render(owner)
                 resumeScan()
+                revealScan()
             }.apply { visual.action(this); tag = "settings/devices/scale/connect" }
             HoyiUi.button(host,buttons,host.getString(R.string.home_visual_change)) {
                 owner?.beginDeviceSelection();selection.showRole(role);rendered="";render(owner)
-                candidates.post {candidates.requestRectangleOnScreen(android.graphics.Rect(0,0,candidates.width,minOf(candidates.height,style.dp(120))),false)}
+                revealScan()
             }.apply {visual.action(this,outline=true); linked += this}
             HoyiUi.button(host,buttons,host.getString(label)) {
                 if(connectedActionAllowed())owner?.disconnect(role) else error(host.getString(R.string.scale_active_guard))
@@ -81,6 +82,15 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         style.add(scanCard,message,4)
         candidates=style.column("settings/devices/candidates");style.add(scanCard,candidates,4)
         return scaleCard
+    }
+    private fun revealScan() {
+        val row = scanButton?.parent as? View ?: return
+        row.post {
+            // The scan trigger stays reachable even when a permission prompt or
+            // delayed result has not yet given the result list any height.
+            if (row.isShown) row.requestRectangleOnScreen(
+                android.graphics.Rect(0, 0, row.width, row.height), true)
+        }
     }
     fun addShutdown(body:LinearLayout) {
         HoyiUi.button(host,body,host.getString(R.string.home_shutdown)) {

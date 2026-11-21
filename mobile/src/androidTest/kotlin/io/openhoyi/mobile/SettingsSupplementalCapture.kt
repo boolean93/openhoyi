@@ -74,7 +74,14 @@ internal class SettingsSupplementalCapture(
         section("scale")
         val capabilities = main { view("settings/details/scale/action") }
         reveal(capabilities)
-        main { check(capabilities.performClick()) }
+        main {
+            check(capabilities.performClick())
+            val list = view("settings/devices/scale-capabilities") as TextView
+            check(list.text.toString().lines().size == 5 &&
+                list.text.toString().lines().all { activity.getString(R.string.settings_unknown) in it }) {
+                "Dashboard with no real observed device must show each capability as unknown"
+            }
+        }
         reveal(main { view("settings/details/scale/content") })
         capture("scale-capabilities", "设备：秤精度、能力和使用说明")
         main { check(capabilities.performClick()) }

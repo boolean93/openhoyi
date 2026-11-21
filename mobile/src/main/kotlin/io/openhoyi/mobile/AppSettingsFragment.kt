@@ -176,7 +176,8 @@ class AppSettingsFragment : Fragment() {
             it.cupCountChanged = { value -> root.setDisclosureValue("cups", value) }
             it.create(machine,machineState,embedded=true,documentSections=sections + ("maintenance" to cupDetails))
         }
-        scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),TaskProductVisualStyle.auxiliary,secondary=true)
+        scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),
+            TaskProductVisualStyle.auxiliary, "settings/devices/scale-capabilities", secondary = true)
         val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
         scale.addView(HoyiSwitch(activity).apply {
             text = getString(R.string.scale_precision_short)
