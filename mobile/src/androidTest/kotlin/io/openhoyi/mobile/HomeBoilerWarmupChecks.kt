@@ -23,7 +23,7 @@ internal class HomeBoilerWarmupChecks(private val test: Instrumentation) {
         val context = test.targetContext
         val app = context.applicationContext as MobileApplication
         val owner = Any()
-        val initialClock = 10_000L
+        val initialClock = SystemClock.elapsedRealtime()
         var logical = initialClock
         check(app.history.entries.isEmpty())
         main {
@@ -64,7 +64,8 @@ internal class HomeBoilerWarmupChecks(private val test: Instrumentation) {
                 temperatures.map { it.text.toString().substringBefore(' ').toFloatOrNull() ?: Float.NaN }
             }
             fun offer(brew: Float, steam: Float) = main {
-                MobileMonotonicClock.advanceForMock(owner, ++logical)
+                logical = maxOf(logical + 1, SystemClock.elapsedRealtime())
+                MobileMonotonicClock.advanceForMock(owner, logical)
                 coffee.offerMockExtractionFrame(owner, template.copy(brewTemperatureHundredthsC = (brew * 100).toInt(),
                     steamTemperatureHundredthsC = (steam * 100).toInt(), sleepStateRaw = 0, alarmBits = 0,
                     raw = ByteFrame(byteArrayOf())))
