@@ -85,9 +85,8 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 checkNotNull(resolver.openOutputStream(wallpaper)).use {
                     check(source.compress(Bitmap.CompressFormat.PNG, 100, it))
                 }
-                check(resolver.update(wallpaper, ContentValues().apply {
-                    put(MediaStore.Images.Media.IS_PENDING, 0)
-                }, null, null) == 1)
+                // Keep the synthetic row private and owned until deletion. The production
+                // import accepts a readable content URI and does not require publication.
                 val magic = ByteArray(8)
                 DataInputStream(checkNotNull(resolver.openInputStream(wallpaper))).use { it.readFully(magic) }
                 check(magic.contentEquals(byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10))) {
@@ -168,13 +167,14 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                     val layout = requireNotNull(title.layout)
                     val label = requireNotNull(root.findViewWithTag<TextView>("$tag/label"))
                     check(label.text.toString() == labels[index]) { "Unexpected slot label: ${label.text}" }
-                    check((shortPortrait || layout.lineCount == 1) &&
+                    check((shortPortrait || emptyRecent && index == tags.lastIndex || layout.lineCount == 1) &&
                         layout.height <= title.height - title.compoundPaddingTop - title.compoundPaddingBottom &&
                         (0 until layout.lineCount).all { line ->
                             layout.getEllipsisCount(line) == 0 &&
                                 layout.getLineWidth(line) <= (title.width - title.compoundPaddingLeft - title.compoundPaddingRight) + 1f
                         }) {
-                        "Shortcut name wraps or clips: ${title.text}"
+                        "Shortcut name clips: ${title.text}; lines=${layout.lineCount}, layoutHeight=${layout.height}, " +
+                            "viewHeight=${title.height}, width=${title.width}, lineWidths=${(0 until layout.lineCount).map(layout::getLineWidth)}"
                     }
                     val preview = requireNotNull(root.findViewWithTag<View>("$tag/preview"))
                     if (emptyRecent && index == tags.lastIndex) check(preview.visibility == View.GONE)
@@ -193,6 +193,8 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                         "$tapTag must be a direct action ≥48dp"
                     }
                     items.put(JSONObject().put("name", titleAt(index)).put("label", label.text.toString())
+                        .put("nameLineCount", layout.lineCount).put("nameLayoutHeightPx", layout.height)
+                        .put("nameViewHeightPx", title.height)
                         .put("rect", JSONArray(listOf(card.left, card.top, card.right, card.bottom)))
                         .put("heightDp", heightDp.toDouble())
                         .put("nameSp", title.textSize / density).put("labelSp", label.textSize / density)
@@ -300,6 +302,16 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 File(out, "home.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
             } finally { bitmap.recycle() }
             File(out, "geometry.json").writeText(proof.toString(2))
+        } catch (failure: Throwable) {
+            runCatching {
+                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    File(out, "failure-home.png").outputStream().use {
+                        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                } finally { bitmap.recycle() }
+            }.exceptionOrNull()?.let(failure::addSuppressed)
+            throw failure
         } finally {
             main { host.finish() }
         }

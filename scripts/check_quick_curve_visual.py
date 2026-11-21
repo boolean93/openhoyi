@@ -61,7 +61,14 @@ def save_failure(adb, output, name):
         except (subprocess.SubprocessError, OSError) as diagnostic:
             path.write_text(f"Unavailable: {type(diagnostic).__name__}\n")
     try:
-        (output / f"{name}-failed.png").write_bytes(adb("exec-out", "screencap", "-p", binary=True, timeout=12))
+        try:
+            image = adb("exec-out", "run-as", APP, "cat", "files/quick-curve-visual/failure-home.png",
+                        binary=True, timeout=12)
+        except (subprocess.SubprocessError, OSError):
+            image = b""
+        if png_size(image) is None:
+            image = adb("exec-out", "screencap", "-p", binary=True, timeout=12)
+        (output / f"{name}-failed.png").write_bytes(image)
     except (subprocess.SubprocessError, OSError):
         pass  # Diagnostics must never conceal the original test/transport failure.
 
