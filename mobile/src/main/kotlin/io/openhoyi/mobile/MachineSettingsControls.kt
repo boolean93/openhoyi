@@ -306,7 +306,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sleepCard.addView(scheduleGrid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val dayGrid = if (documentMode) SettingsWideGrid(this, style, 7, 88, 664, 8,
-            stackUntilWide = true).apply {
+            stackUntilWide = true, equalizeRowHeight = true).apply {
             tag = "settings/machine/weekly-grid"
             scheduleGrid.addView(this, LinearLayout.LayoutParams(-1, -2))
         } else null
@@ -608,7 +608,14 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             .forEachIndexed { index, day ->
                 scheduleCards[index].heading.update(
                     if (documentMode) "${day.name}  ›" else "${day.name} · ${day.state}")
-                scheduleCards[index].period.update(if (documentMode && day.enabled != true) day.state else day.period)
+                val period = scheduleCards[index].period
+                if (documentMode && day.enabled == true) {
+                    period.update(day.compactPeriod)
+                    if (period.contentDescription != day.period) period.contentDescription = day.period
+                } else {
+                    period.update(if (documentMode) day.state else day.period)
+                    if (period.contentDescription != null) period.contentDescription = null
+                }
                 scheduleCards[index].heading.setTextColor(if(day.enabled==true)visual.palette.accent else visual.palette.ink)
             }
         val scheduleState = owner?.scheduleWriteState

@@ -203,6 +203,12 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     check(bodyViewport.contains(fullWeek) && week.childCount == 7) {
                                         "The loaded weekly row must fit the tablet machine viewport: $fullWeek vs $bodyViewport"
                                     }
+                                    val tiles = (0 until week.childCount).map { week.getChildAt(it) as android.view.ViewGroup }
+                                    check(tiles.map { it.height }.distinct().size == 1)
+                                    check(tiles.all { tile ->
+                                        val time = tile.getChildAt(1) as android.widget.TextView
+                                        time.lineCount == 1 && time.layout?.getEllipsisCount(0) == 0
+                                    }) { "Normal tablet weekly labels must fit naturally on one line" }
                                 }
                                 check(columns.getChildAt(0).top == columns.getChildAt(1).top &&
                                     columns.getChildAt(0).right <= columns.getChildAt(1).left)

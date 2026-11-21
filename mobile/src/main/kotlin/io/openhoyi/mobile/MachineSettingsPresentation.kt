@@ -10,7 +10,8 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
     constructor(context: android.content.Context) : this({ id, args -> context.getString(id, *args) })
 
     private fun text(id: Int, vararg args: Any): String = resolve(id, args)
-    data class SleepDaySummary(val name: String, val state: String, val period: String, val enabled: Boolean?)
+    data class SleepDaySummary(val name: String, val state: String, val period: String,
+        val enabled: Boolean?, val compactPeriod: String = period)
 
     fun cupCount(value: Settings?, fresh: Boolean): String =
         text(R.string.settings_readback_cups, if (fresh && value != null) value.cupCount.toString() else "—")
@@ -131,9 +132,14 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
         return names.mapIndexed { index, name ->
             val enabled = enabledBits?.let { it and (0x80 shr index) != 0 }
             val state = enabled?.let { if (it) text(R.string.setting_on) else text(R.string.setting_off) } ?: text(R.string.settings_state_unknown)
-            val period = days[index]?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" }
+            val day = days[index]
+            val period = day?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" }
                 ?: text(R.string.settings_time_missing)
-            SleepDaySummary(name, state, period, enabled)
+            val compact = if (day != null && day.sleepHour in 0..23 && day.wakeHour in 0..23 &&
+                day.sleepMinute in 0..59 && day.wakeMinute in 0..59) {
+                "${time(day.sleepHour, day.sleepMinute)}–${time(day.wakeHour, day.wakeMinute)}"
+            } else period
+            SleepDaySummary(name, state, period, enabled, compact)
         }
     }
 

@@ -9,6 +9,7 @@ internal class SettingsWideGrid(
     context: Context, private val style: TaskProductVisualStyle, private val maxColumns: Int,
     minimumCellDp: Int, minimumWideDp: Int, gapDp: Int = 12,
     private val stackUntilWide: Boolean = false,
+    private val equalizeRowHeight: Boolean = false,
     private val onColumns: (Int) -> Unit = {},
 ) : ViewGroup(context) {
     private val cell = style.dp(minimumCellDp)
@@ -38,6 +39,11 @@ internal class SettingsWideGrid(
                 child.measure(exact(childWidth), free)
                 slots += Slot(child, start + index * gap, y)
                 rowHeight = maxOf(rowHeight, child.measuredHeight)
+            }
+            if (equalizeRowHeight && row.size > 1) {
+                row.filter { it.measuredHeight != rowHeight }.forEach { child ->
+                    child.measure(exact(child.measuredWidth), exact(rowHeight))
+                }
             }
             y += rowHeight
         }
