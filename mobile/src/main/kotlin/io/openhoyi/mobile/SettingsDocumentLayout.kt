@@ -154,6 +154,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                     }
                 }
             }
+            body.applySettingsWideMaterial(rail)
             updateButtons()
         }
         if (previousWidth != MeasureSpec.getSize(widthMeasureSpec)) restoring = true
@@ -209,7 +210,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                 val grouped = width >= style.dp(610)
                 if (grouped != (background != null))
-                    background = if (grouped) style.shape(style.surface, outline = true, radius = 14) else null
+                    background = if (grouped) settingsRaisedGroup(host, style) else null
             }
         }
         ordered.forEach { child ->
@@ -276,9 +277,22 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         position = Position(key)
         requestedHeading = key.takeIf { focus }
         restoring = true
+        val measuredLanding = !focus && ViewCompat.isLaidOut(scroll) && !isLayoutRequested && scroll.height > 0
         updateButtons()
-        requestLayout()
+        if (measuredLanding) {
+            // Rail/grid taps target measured geometry immediately, before a partly-visible heading
+            // in the preceding section can be mistaken for a successful landing.
+            val target = sections.getValue(key)
+            scroll.scrollTo(0, top(target).coerceIn(0, maxScroll()))
+            restoring = false
+            rememberPosition(updateHighlight = false)
+        } else requestLayout()
     }
+
+    internal fun isAtSectionLanding(key: String): Boolean =
+        !restoring && sections[key]?.let {
+            kotlin.math.abs(scroll.scrollY - top(it).coerceIn(0, maxScroll())) <= style.dp(2)
+        } == true
 
     private fun updateButtons() {
         buttons.forEach { (category, button) ->
@@ -346,7 +360,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private fun rememberPosition(updateHighlight: Boolean) {
         val naturalOrder = SettingsCategory.entries.flatMap { it.sections }.mapNotNull(sections::get)
         val first = naturalOrder.firstOrNull() ?: return
-        val end = maxScroll() > 0 && scroll.scrollY >= maxScroll() - 2
+        val end = maxScroll() > 0 && !scroll.canScrollVertically(1)
         val current = naturalOrder.filter { top(it) <= scroll.scrollY + style.dp(12) }.maxByOrNull(::top) ?: first
         position = Position(current.key, scroll.scrollY - top(current), end)
         if (updateHighlight) {

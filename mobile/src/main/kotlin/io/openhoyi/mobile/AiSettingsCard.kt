@@ -20,6 +20,7 @@ internal object AiSettingsCard {
             tag = "settings/ai/config"
             setPadding(style.dp(16), style.dp(12), style.dp(16), style.dp(12))
             background = style.shape(style.surface, true, 16)
+            markSettingsGroupMaterial(style)
         }
         fun openChat(action: String? = null) {
             activity.startActivity(Intent(activity, AiChatActivity::class.java)

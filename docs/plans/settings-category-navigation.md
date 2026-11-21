@@ -5,3 +5,5 @@
 - 复用原有真实控件，包括连接、秤精度、机器/计划、外观、更新和诊断；保留 AI 独立授权与无 Key 安全态。不引入二套设置状态或改变硬件门禁、协议、凭据、命令及签名。
 - 用独立的 JVM/Android Mock 验收精确深链、选项切换、宽/窄、明暗、重点控件；不操作本机模拟器或实体设备。
 - 不手动发布；可用回退 PR 退回布局，既有设置与历史仍使用同一存储。
+
+The wide pane uses the existing controls grouped by intent: observed boiler, light and schedule switches; two-state supply and mode selectors; unit-labelled temperature editors; palette and background previews; quiet route rows; and collapsed maintenance operations. Existing confirmations, readback, and write gates remain authoritative. QA captures the same wide layout in both themes, the ordinary phone, and the short English/Large viewport; category screenshots require the final anchor landing, not partial heading visibility.

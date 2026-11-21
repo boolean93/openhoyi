@@ -242,6 +242,7 @@ class AppSettingsFragment : Fragment() {
         val aboutCard = style.column("product/settings/app/about/card").apply {
             setPadding(style.dp(16), style.dp(12), style.dp(16), style.dp(12))
             background = style.shape(style.surface, true, 16)
+            markSettingsGroupMaterial(style)
         }
         style.add(info, aboutCard, 4)
         style.add(aboutCard, style.text(getString(R.string.settings_category_update), TaskProductVisualStyle.action))
@@ -273,6 +274,7 @@ class AppSettingsFragment : Fragment() {
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
         val diagnosticsCard = style.column().apply {
             background = style.shape(style.surface, outline = true, radius = 12)
+            markSettingsGroupMaterial(style)
             setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(10))
         }
         style.add(diagnostics, diagnosticsCard)

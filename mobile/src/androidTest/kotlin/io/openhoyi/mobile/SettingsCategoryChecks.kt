@@ -52,7 +52,8 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 }
                 fun select(category: SettingsCategory) {
                     main { check(button(category).performClick()) }
-                    await(category.key) { button(category).isSelected && heading(category.sections.first()).let { it.isShown && it.getGlobalVisibleRect(Rect()) } }
+                    await(category.key) { button(category).isSelected && settings().isAtSectionLanding(category.sections.first()) &&
+                        heading(category.sections.first()).let { it.isShown && it.getGlobalVisibleRect(Rect()) } }
                 }
                 await("default Devices") { button(SettingsCategory.DEVICE).isSelected && heading("devices").getGlobalVisibleRect(Rect()) }
                 capture("device") // Retain actual first-view pixels even if later geometry checks fail.
@@ -105,6 +106,12 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 check(functions.getChildAt(0).top == functions.getChildAt(1).top)
                                 val summary = settings().findViewWithTag<android.widget.TextView>("settings-machine-summary")
                                 check(!summary.text.contains(activity.getString(R.string.machine_settings_unchanged)))
+                                check(listOf("brew", "steam", "light", "schedule").all {
+                                    settings().findViewWithTag<View>("settings/machine/switch/$it") is HoyiSwitch
+                                })
+                                check(listOf("supply", "run-mode").all {
+                                    settings().findViewWithTag<View>("settings/machine/choice/$it") is SettingsBinaryChoice
+                                })
                             }
                             SettingsCategory.BREWING -> {
                                 val group = settings().findViewWithTag<android.view.ViewGroup>("settings/brewing/group")
@@ -146,7 +153,10 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         SystemClock.sleep(22)
                         input(MotionEvent.ACTION_MOVE, low + (high - low) * step / 10f)
                     }
-                    SystemClock.sleep(140)
+                    repeat(6) {
+                        SystemClock.sleep(25)
+                        input(MotionEvent.ACTION_MOVE, high)
+                    }
                     input(MotionEvent.ACTION_UP, high)
                 }
                 main { (page.active("root:SETTINGS") as AppSettingsFragment).openSection("machine") }
@@ -273,7 +283,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 var restored: MainActivity? = null
                 try {
                     main {
-                        if (dark) check(app.appearancePreferences.selectDark(false) != AppAppearancePreference.Selection.SAVE_FAILED)
+                        if (dark || wide) check(app.appearancePreferences.selectDark(wide) != AppAppearancePreference.Selection.SAVE_FAILED)
                         activity.recreate()
                     }
                     val recreated = test.waitForMonitorWithTimeout(monitor, 12_000) as? MainActivity
@@ -284,6 +294,25 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         val view = fragment?.view
                         view?.findViewWithTag<View>("settings/category/maintenance")?.isSelected == true &&
                             view.findViewWithTag<View>("settings/heading/about")?.getGlobalVisibleRect(Rect()) == true
+                    }
+                    if (wide) {
+                        for (cat in SettingsCategory.entries) {
+                            main {
+                                val fragment = recreated.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
+                                fragment.openSection(cat.sections.first())
+                            }
+                            await("wide dark ${cat.key}") {
+                                val fragment = recreated.supportFragmentManager.primaryNavigationFragment as? AppSettingsFragment
+                                val view = fragment?.view
+                                val night = recreated.resources.configuration.uiMode and
+                                    android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+                                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                night && (view as? SettingsDocumentLayout)?.isAtSectionLanding(cat.sections.first()) == true &&
+                                    view.findViewWithTag<View>("settings/category/${cat.key}")?.isSelected == true &&
+                                    view.findViewWithTag<View>("settings/heading/${cat.sections.first()}")?.getGlobalVisibleRect(Rect()) == true
+                            }
+                            capture("dark-${cat.key}")
+                        }
                     }
                     if (dark) {
                         main {
@@ -305,7 +334,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     restored?.let { main { it.finish() } }
                 }
                 receipts.put("wide", wide).put("dark", dark).put("shortEnglishLarge", short).put("sixCategories", true).put("exactRoutes", 11)
-                    .put("categoryRailFixed", true).put("continuousDrag", true).put("recreatedCategory", true).put("appearancePreviewNoWrite", !short).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
+                    .put("categoryRailFixed", true).put("continuousDrag", true).put("recreatedCategory", true).put("appearancePreviewNoWrite", !short).put("wideDark", wide).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
                     .put("rects", JSONArray(originalIndex.map { JSONArray(listOf(it.left, it.top, it.right, it.bottom)) }))
                     .put("noBleOrDestructiveActions", true)
             } finally {

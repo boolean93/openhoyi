@@ -146,6 +146,8 @@ def capture_settings_categories(adb, output, receipt, profile, width, height):
         "device", "machine", "brewing", "appearance", "ai", "maintenance")
     if profile == "phone":
         keys += ("appearance-light",)
+    if profile == "tablet":
+        keys += tuple(f"dark-{key}" for key in keys)
     standard_keys = keys
     if profile == "tablet":
         keys += ("extra-standby", "extra-weekly", "extra-weekly-editor", "extra-scale-capabilities",
@@ -175,7 +177,7 @@ def capture_settings_categories(adb, output, receipt, profile, width, height):
     require(proof["wide"] == (profile == "tablet") and proof["dark"] == (profile == "phone") and
             proof["sixCategories"] and proof["exactRoutes"] == 11 and proof["returnedToCaller"] and
             proof["recreatedCategory"] and proof["continuousDrag"] and proof["scaleToolReturned"] and proof["shortEnglishLarge"] == (profile == "phone-short") and
-            proof["appearancePreviewNoWrite"] == (profile != "phone-short") and
+            proof["appearancePreviewNoWrite"] == (profile != "phone-short") and proof["wideDark"] == (profile == "tablet") and
             set(receipt["screenshots"]) == expected_names and
             len({receipt["screenshots"][name] for name in expected_names if "-extra-" not in name}) == len(standard_keys),
             "Incomplete Settings category evidence")

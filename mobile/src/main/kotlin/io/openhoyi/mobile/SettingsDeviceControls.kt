@@ -31,8 +31,9 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     fun create(body:LinearLayout, scanBody:LinearLayout = body, scaleBody:LinearLayout = body): LinearLayout {
         val card=visual.card(body,host.getString(R.string.home_device_connection),0)
         card.removeViewAt(0)
+        card.markSettingsGroupMaterial(style)
         val scaleCard = if (scaleBody === body) card else
-            visual.card(scaleBody, host.getString(R.string.scale_title), 0).also { it.removeViewAt(0) }
+            visual.card(scaleBody, host.getString(R.string.scale_title), 0).also { it.removeViewAt(0); it.markSettingsGroupMaterial(style) }
         listOf(DeviceRole.COFFEE to R.string.home_coffee_disconnect,DeviceRole.BOOKOO to R.string.home_scale_disconnect).forEachIndexed { index,(role,label) ->
             val ownerCard = if (role == DeviceRole.COFFEE) card else scaleCard
             if(index > 0 && ownerCard === card) visual.divider(card)
@@ -60,7 +61,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             style.add(ownerCard,visual.pair(words,actions,"settings/devices/${role.name}"))
         }
         val scanCard = if (scanBody === body) card.also { visual.divider(it) }
-            else visual.card(scanBody, host.getString(R.string.home_device_connection), 0).also { it.removeViewAt(0) }
+            else visual.card(scanBody, host.getString(R.string.home_device_connection), 0).also { it.removeViewAt(0); it.markSettingsGroupMaterial(style) }
         val scan=HoyiUi.button(host,LinearLayout(host),host.getString(R.string.home_scan)) {scan()}.apply {visual.action(this,outline=true)}
         val scanWords=style.text(host.getString(R.string.settings_category_scan_nearby),TaskProductVisualStyle.body)
         (scan.parent as android.view.ViewGroup).removeView(scan)
@@ -123,7 +124,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 host.getString(R.string.device_remembered_identity, prefs.getString(if (role == DeviceRole.COFFEE) "coffee" else "scale", "—"))
             val status=state?.let {if(role==DeviceRole.COFFEE)DeviceStatusText.coffeeLabel(host,it,snapshot?.coffeeFailure) else DeviceStatusText.label(host,it)} ?: "—"
             // Saved identity may belong to a different device until the new one reaches READY.
-            val value=DeviceStatusText.settingsSummary(status,identity)
+            val value = if (identity.isEmpty()) status else DeviceStatusText.settingsSummary(status, identity)
             if(text.text.toString()!=value)text.text=value
         }
         val display=localError ?: snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()

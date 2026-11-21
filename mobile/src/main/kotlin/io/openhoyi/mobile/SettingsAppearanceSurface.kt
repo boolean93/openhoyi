@@ -24,7 +24,7 @@ internal class SettingsAppearanceSurface(context: Context, private val style: Ta
             gravity = if (wide) Gravity.CENTER_VERTICAL else Gravity.TOP
             val pad = style.dp(if (wide) 14 else 0)
             setPadding(pad, pad, pad, pad)
-            background = if (wide) style.shape(style.surface, outline = true, radius = 14) else null
+            background = if (wide) settingsRaisedGroup(context, style) else null
             label.visibility = if (wide || narrowLabel) View.VISIBLE else View.GONE
             label.layoutParams = if (wide) LayoutParams(style.dp(110), -2) else LayoutParams(-1, -2)
             label.setPaddingRelative(0, 0, if (wide) style.dp(8) else 0, if (wide) 0 else style.dp(6))
@@ -41,4 +41,5 @@ internal fun settingsAppearanceSurface(style: TaskProductVisualStyle): LinearLay
         val pad = style.dp(10)
         setPadding(pad, pad, pad, pad)
         background = style.shape(style.surface, outline = true, radius = 14)
+        markSettingsGroupMaterial(style)
     }
