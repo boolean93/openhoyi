@@ -47,10 +47,9 @@ internal class HomePresetGrid(
     private fun dp(value: Int) = style.dp(value)
     private fun LayoutParams.withStart(gap: Int) = apply { marginStart = dp(gap) }
 
-    private val slots = (0..5).map { slot ->
+    private val slots = (listOf(0) + PresetSlots.userFacing).map { slot ->
         val title = if (slot == 0) context.getString(R.string.lever_title)
-            else context.getString(if (slot == 5) R.string.home_shortcut_legacy
-                else R.string.home_shortcut_preset, ('A' + slot - 1).toString())
+            else context.getString(R.string.home_shortcut_preset, PresetSlots.label(slot))
         Tile("product/home/direct-preset/$slot", title, if (slot == 0) Glyph.LEVER else Glyph.BOOKMARK) {
             onSlotClick(slot)
         }
@@ -60,7 +59,6 @@ internal class HomePresetGrid(
     val visuals = slots.map(Tile::visual)
     val last = previous.visual
     private var hasLever = false
-    private var hasLegacy = false
     private var arranged: List<Int> = emptyList()
     private var columns = 0
     private val group = row().apply {
@@ -78,10 +76,9 @@ internal class HomePresetGrid(
         keepOwnBackdropTreatment()
     }
 
-    fun showSlots(lever: Boolean, legacy: Boolean) {
-        if (hasLever == lever && hasLegacy == legacy) return
+    fun showSlots(lever: Boolean) {
+        if (hasLever == lever) return
         hasLever = lever
-        hasLegacy = legacy
         requestLayout()
     }
 
@@ -200,10 +197,9 @@ internal class HomePresetGrid(
         val visible = HomeDirectPresetSlots.visible(hasLever)
         val availableDp = (MeasureSpec.getSize(widthMeasureSpec) / resources.displayMetrics.density).toInt()
         val fit = HomeDirectPresetSlots.columns(availableDp, visible.size, portrait, resources.configuration.fontScale)
-        val newLayout = visible + if (hasLegacy) listOf(5) else emptyList()
-        if (arranged != newLayout || columns != fit) {
+        if (arranged != visible || columns != fit) {
             arrange(visible, fit)
-            arranged = newLayout
+            arranged = visible
             columns = fit
         }
         if (!portrait && fit == visible.size) sizeWideTiles(visible, MeasureSpec.getSize(widthMeasureSpec))
@@ -263,7 +259,7 @@ internal class HomePresetGrid(
                 strip.addView(slots[0], LayoutParams(0, -1))
             }
             strip.addView(group, LayoutParams(0, -1).withStart(if (hasLever) endGap else 0))
-            (1..4).forEach { index ->
+            PresetSlots.userFacing.forEach { index ->
                 if (index > 1) group.addView(View(context).apply { setBackgroundColor(separator) }, LayoutParams(dp(1), -1))
                 slots[index].standalone(false)
                 group.addView(slots[index], LayoutParams(0, -1))
@@ -284,10 +280,6 @@ internal class HomePresetGrid(
                         LayoutParams(0, 1, 1f).withStart(7))
                 }
             }
-        }
-        if (hasLegacy) {
-            slots[5].standalone(true)
-            addView(slots[5], LayoutParams(-1, -2).apply { topMargin = dp(5) })
         }
         if (isAttachedToWindow) {
             // Reattaching a reused subtree clears Android's isLaidOut flags.

@@ -35,16 +35,17 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
         val tags = (0..4).map { "product/home/direct-preset/$it" } + "product/home/last-curve"
         val titleTags = tags.take(5).map { "$it/name" } + "product/home/quick-recipe"
         val labels = listOf("拨杆配方", "预设 A", "预设 B", "预设 C", "预设 D", "复用上一杯")
+        val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
+        val storedFifth = "factory-v3-005"
         main {
             check(app.history.entries.isEmpty()) { "Refusing to seed application with existing shot history" }
             check(app.languagePreferences.select(AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
             check(app.fontSizePreferences.select(AppFontSize.MEDIUM) != AppFontSizePreference.Selection.SAVE_FAILED)
             check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
-            val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
             check(presets.all.isEmpty()) { "Expected fresh disposable Mock data" }
             var editor = presets.edit()
             for (index in 1..4) editor = editor.putString(PresetSlots.key(index), ids[index])
-            check(editor.commit())
+            check(editor.putString(PresetSlots.key(5), storedFifth).commit())
             val usage = app.curveUsageResult.getOrThrow()
             check(usage.latest() == null)
             check(usage.record("shortcut-visual-fixture", ids.last(), 1L))
@@ -187,7 +188,8 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                     }
                     check(root.findViewWithTag<View>("product/home/preset-group")?.isShown == true)
                 }
-                check(root.findViewWithTag<View>("product/home/direct-preset/5")?.isShown != true)
+                check(root.findViewWithTag<View>("product/home/direct-preset/5") == null)
+                check(presets.getString(PresetSlots.key(5), null) == storedFifth)
                 check(mainWallpaperVisible(root) == wallpaperEnabled)
                 check(host.currentService?.shotState == io.openhoyi.session.ExtractionState.IDLE && app.history.entries.isEmpty()) {
                     "Visual fixture must not initiate or record an extraction"

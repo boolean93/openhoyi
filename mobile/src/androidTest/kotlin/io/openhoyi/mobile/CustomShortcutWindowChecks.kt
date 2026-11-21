@@ -53,7 +53,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
         val shortcutPrefs = context.getSharedPreferences("shortcut_start", Context.MODE_PRIVATE)
         val shortcutDirect = shortcutPrefs.all["direct_start"] as? Boolean
         val selected = curvePrefs.getString("selected", null)
-        val stored = slotPrefs.getString(PresetSlots.key(5), null)
+        val stored = slotPrefs.getString(PresetSlots.key(4), null)
         val oldHistory = app.history.entries
         val file = File(context.filesDir, "custom_curves_v1.json")
         val originalBytes = if (file.exists()) file.readBytes() else null
@@ -93,12 +93,12 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             }
             await("direct slot action") { page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot")?.isShown == true }
             main { check(page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot").performClick()) }
-            clickWindowText(host.getString(R.string.home_slot, "5"))
-            await("assignment") { slotPrefs.getString(PresetSlots.key(5), null) == document.id }
+            clickWindowText(host.getString(R.string.home_slot, "D"))
+            await("assignment") { slotPrefs.getString(PresetSlots.key(4), null)?.substringBefore("#") == document.id }
             check(curvePrefs.getString("selected", null) == selected)
             noShot()
             page.select(TaskDestination.BREW)
-            fun tile() = page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/5")
+            fun tile() = page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/4")
             await("home label") { views(tile().parent as View).filterIsInstance<TextView>().any { it.text.toString() == document.name } }
             capture("assigned-home")
             main { check(tile().performClick()) }
@@ -128,7 +128,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                 main { put(null); recreated.select(TaskDestination.CURVES); recreated.select(TaskDestination.BREW) }
                 await("missing label") { views(recreated.findViewById(android.R.id.content)).filterIsInstance<TextView>().any { it.text.toString() == recreated.getString(R.string.curve_slot_invalid) } }
                 main {
-                    check(recreated.findViewById<View>(android.R.id.content).findViewWithTag<View>("product/home/direct-preset/5").performClick())
+                    check(recreated.findViewById<View>(android.R.id.content).findViewWithTag<View>("product/home/direct-preset/4").performClick())
                     check(curvePrefs.getString("selected", null) == document.id)
                     check(recreated.supportFragmentManager.primaryNavigationFragment is HomeFragment)
                     noShot()
@@ -142,9 +142,9 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                     if (shortcutDirect == null) remove("direct_start") else putBoolean("direct_start", shortcutDirect)
                 }.commit())
                 check(curvePrefs.edit().apply { if (selected == null) remove("selected") else putString("selected", selected) }.commit())
-                check(slotPrefs.edit().apply { if (stored == null) remove(PresetSlots.key(5)) else putString(PresetSlots.key(5), stored) }.commit())
+                check(slotPrefs.edit().apply { if (stored == null) remove(PresetSlots.key(4)) else putString(PresetSlots.key(4), stored) }.commit())
                 check(curvePrefs.getString("selected", null) == selected)
-                check(slotPrefs.getString(PresetSlots.key(5), null) == stored)
+                check(slotPrefs.getString(PresetSlots.key(4), null) == stored)
                 check(if (originalBytes == null) !file.exists() else file.readBytes().contentEquals(originalBytes))
                 check(app.history.entries == oldHistory)
             }

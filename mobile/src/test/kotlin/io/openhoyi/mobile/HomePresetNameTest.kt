@@ -34,12 +34,12 @@ class HomePresetNameTest {
         assertEquals(reference, HomeDirectPresetSlots.wideWidths(960, weights, List(6) { 200 }))
     }
 
-    @Test fun onlyExplicitLegacyBindingsKeepTheExtraShortcut() {
-        assertFalse(HomeDirectPresetSlots.showLegacy(null))
-        assertFalse(HomeDirectPresetSlots.showLegacy(""))
-        assertFalse(HomeDirectPresetSlots.showLegacy(PresetSlots.EMPTY))
-        assertTrue(HomeDirectPresetSlots.showLegacy("factory-v3-005"))
-        assertTrue(HomeDirectPresetSlots.showLegacy("draft-edited"))
+    @Test fun presentationUsesADWithoutRemovingTheStoredFifthSlot() {
+        assertEquals(listOf("A", "B", "C", "D"), PresetSlots.userFacing.map(PresetSlots::label))
+        assertFalse(5 in HomeDirectPresetSlots.visible(false))
+        assertFalse(5 in HomeDirectPresetSlots.visible(true))
+        assertEquals("slot_5", PresetSlots.key(5))
+        assertEquals("draft-old", PresetSlots.curveId(5, "draft-old#original"))
     }
 
     @Test fun customNameWinsWithoutAddingSlotNumber() {

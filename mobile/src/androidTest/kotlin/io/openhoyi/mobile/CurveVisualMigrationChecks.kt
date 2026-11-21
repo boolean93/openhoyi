@@ -1003,7 +1003,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             R.string.profiles_pressure_compatible else R.string.profiles_read_only)
             else activity.getString(if(scope.curves.canStart(item)) R.string.curve_verified else R.string.curve_unavailable)
         val expectedAvailability=baseAvailability+(expectedAssignedSlot?.let {
-            " · "+activity.getString(R.string.curve_slot_assigned_latest,it.toString()) } ?: "")
+            " · "+activity.getString(R.string.curve_slot_assigned_latest,PresetSlots.label(it)) } ?: "")
         val expectedDetails=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
             else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
         check(title.text.toString()==item.name &&
@@ -1589,7 +1589,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         try {
             val page=start(CurveActivity::class.java); activity=page; unfocus(page)
             librarySelect(page,scope,qualified)
-            for(slot in 1..5) {
+            for(slot in 1..4) {
                 val menu=openLibraryMenu(page)
                 check(menu.count { it==page.getString(R.string.curve_assign_slot) }==1)
                 val menuDiagnostic=JSONObject().put("case","slot-$slot").put("phase","before-main")
@@ -1642,9 +1642,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     .put("chooserDecorIdentity",System.identityHashCode(decor))
                     .put("chooserTokenIdentity",System.identityHashCode(requireNotNull(decor.windowToken)))
                 transitionFile.writeText(transition.toString(2))
-                val labels=(1..5).map { page.getString(R.string.home_slot,it.toString()) }
+                val labels=listOf("A", "B", "C", "D").map { page.getString(R.string.home_slot,it) }
                 val list=requireNotNull(chooser.listView)
-                main { check(list.adapter.count==5 && (0 until 5).map { list.adapter.getItem(it).toString() }==labels) }
+                main { check(list.adapter.count==4 && (0 until 4).map { list.adapter.getItem(it).toString() }==labels) }
                 if(slot==1) {
                     val chooserFolder=File(folder,"chooser")
                     val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(chooserFolder.apply { check(isDirectory || mkdirs()) },"window.png")) {
@@ -1652,8 +1652,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         check(libraryWindowDialog(page,popup) {transitionState=it}===chooser)
                         val titleText=page.getString(R.string.curve_choose_slot)
                         val title=requireNotNull(nodes(decor).filterIsInstance<TextView>().singleOrNull { it.text.toString()==titleText })
-                        check(list.firstVisiblePosition==0 && list.childCount==5)
-                        val rows=JSONArray((0 until 5).map { index ->
+                        check(list.firstVisiblePosition==0 && list.childCount==4)
+                        val rows=JSONArray((0 until 4).map { index ->
                             val child=requireNotNull(list.getChildAt(index))
                             val text=requireNotNull(nodes(child).filterIsInstance<TextView>()
                                 .singleOrNull { it.text.toString()==labels[index] })
@@ -1711,12 +1711,12 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         .put("fullParameters",feedback.getJSONObject("common").getJSONObject("product/curve-library/full-parameters"))
                         .put("use",feedback.getJSONObject("common").getJSONObject("product/curve-library/use")))
                     .put("capture",captureReference(directory,step)))
-                if(slot==5) {
+                if(slot==4) {
                     val reselected=librarySelect(page,scope,qualified)
-                    main { check(field(page,"lastAssignedCurveId")==qualified.id && field(page,"lastAssignedSlot")==5 &&
+                    main { check(field(page,"lastAssignedCurveId")==qualified.id && field(page,"lastAssignedSlot")==4 &&
                         (field(page,"availability") as TextView).text.toString()==feedback.getString("baseAvailability")+
-                            " · "+page.getString(R.string.curve_slot_assigned_latest,"5")) }
-                    report.put("sameCurveRedraw",reselected.put("latestAssignedSlot",5))
+                            " · "+page.getString(R.string.curve_slot_assigned_latest,"D")) }
+                    report.put("sameCurveRedraw",reselected.put("latestAssignedSlot",4))
                 }
                 check(invariant(scope)==frozen && scope.readOnlyService())
             }

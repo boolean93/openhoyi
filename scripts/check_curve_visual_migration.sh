@@ -447,16 +447,16 @@ def require_library_special(folder):
     preset=json.loads((scope/'preset-eligibility-and-slots/business.json').read_text())
     assert preset['status']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE' and preset['visualAcceptance']=='ASTRA_PENDING'
     chooser=require_capture(scope,preset['chooserCapture'],TRANSLATED_WINDOW)
-    assert len(chooser['actualAdapterChoices'])==5 and chooser['choices']==chooser['actualAdapterChoices']
+    assert len(chooser['actualAdapterChoices'])==4 and chooser['choices']==chooser['actualAdapterChoices']
     assert whole(chooser['titleView']) and chooser['titleView']['textLineBoxes'][0]['text']==chooser['title']
-    assert len(chooser['visibleRows'])==5
+    assert len(chooser['visibleRows'])==4
     for index,row in enumerate(chooser['visibleRows']):
         assert row['adapterPosition']==index and row['adapterText']==chooser['choices'][index]
         assert whole(row['child']) and whole(row['label'])
         assert row['label']['textLineBoxes'][0]['text']==chooser['choices'][index]
-    assert [step['slot'] for step in preset['steps']]==[1,2,3,4,5]
+    assert [step['slot'] for step in preset['steps']]==[1,2,3,4]
     assert {path.name for path in (scope/'preset-eligibility-and-slots').glob('slot-*-transition.json')}=={
-        f'slot-{slot}-transition.json' for slot in range(1,6)}
+        f'slot-{slot}-transition.json' for slot in range(1,5)}
     for step in preset['steps']:
         require_capture(scope,step['capture'],DEFAULT_ACTIVITY)
         require_slot_transition(scope,step,chooser if step['slot']==1 else None)
