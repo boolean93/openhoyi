@@ -171,7 +171,8 @@ class AppSettingsFragment : Fragment() {
             setPadding(style.dp(10), style.dp(4), style.dp(10), style.dp(4))
             setTextColor(style.accent)
             background = style.shape(style.selected, radius = 9)
-        }.also(root::machineStatus)
+        }
+        val machineHeaderActions = root.machineStatus(machineSummary)
         machineControls=MachineSettingsControls(activity).also {
             it.statusChanged = { value ->
                 if (machineSummary.text.toString() != value) machineSummary.text = value
@@ -179,6 +180,7 @@ class AppSettingsFragment : Fragment() {
             }
             it.cupCountChanged = { value -> root.setDisclosureValue("cups", value) }
             it.create(machine,machineState,embedded=true,documentSections=sections + ("maintenance" to cupDetails))
+            it.attachReadbackAction(machineHeaderActions)
         }
         scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),
             TaskProductVisualStyle.auxiliary, "settings/devices/scale-capabilities", secondary = true)

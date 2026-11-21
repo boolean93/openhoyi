@@ -146,7 +146,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         settingsToggle = action(settingsCard, if (detailsExpanded) getString(R.string.machine_settings_readback_collapse) else getString(R.string.machine_settings_readback_expand)) {
             detailsExpanded = !detailsExpanded
             settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
-            settingsToggle.text = if (detailsExpanded) getString(R.string.machine_settings_readback_collapse) else getString(R.string.machine_settings_readback_expand)
+            updateReadbackActionLabel()
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
             visual.action(this,icon="chevron",atEnd=true)
         }
@@ -213,19 +213,20 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             if (!documentMode) return action(parent, getString(legacyLabel)) { report()?.let { onChange(!it) } }
             val control = HoyiSwitch(host).apply {
                 visual.switch(this, 48)
+                switchPadding = 0
                 useSettingsPanelInk()
                 text = ""
                 tag = "settings/machine/switch/$key"
                 contentDescription = getString(label)
             }
-            parent.addView(SettingsObservedSwitch(control, style) { chosen ->
+            parent.addView(SettingsObservedSwitch(control, style, compactKnown = key != "schedule") { chosen ->
                 // Check the actual snapshot again; the rendered readback may have
                 // aged between the last frame and the user's input.
                 report()?.takeIf { it != chosen }?.let { onChange(chosen) }
             }, LinearLayout.LayoutParams(-2, -2))
             return control
         }
-        brewHeatingButton = reportedSwitch(functionsCard, "brew", R.string.setting_brew_heating, R.string.machine_settings_brew_heating_toggle,
+        brewHeatingButton = reportedSwitch(functionsCard, "brew", R.string.settings_hig_brew_heat, R.string.machine_settings_brew_heating_toggle,
             { service?.snapshot?.settings?.brewHeating }) { confirm(MachineSettingChange.BrewHeating(it)) }
         steamHeatingButton = reportedSwitch(functionsCard, "steam", R.string.setting_steam_heating, R.string.machine_settings_steam_heating_toggle,
             { service?.snapshot?.settings?.steamHeating }) { confirm(MachineSettingChange.SteamHeating(it)) }
@@ -395,12 +396,12 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 sleepCard.removeViewAt(0)
                 standbyCard.addView(child, params)
             }
-            val pairs=listOf(brewHeatingButton to R.string.setting_brew_heating,steamHeatingButton to R.string.setting_steam_heating,
+            val pairs=listOf(brewHeatingButton to R.string.settings_hig_brew_heat,steamHeatingButton to R.string.setting_steam_heating,
                 lightButton to R.string.setting_light,waterSupplyButton to R.string.machine_settings_supply_label,runModeButton to R.string.machine_settings_run_mode_label)
             val functionGrid = SettingsWideGrid(this, style, 3, 102, 322, 8).apply {
                 tag = "settings/machine/function-grid"
             }
-            val choiceGrid = SettingsWideGrid(this, style, 2, 158, 326, 8).apply {
+            val choiceGrid = SettingsWideGrid(this, style, 2, 158, 326, 12).apply {
                 tag = "settings/machine/setting-choices"
             }
             pairs.forEach {(button,label)->
@@ -412,7 +413,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     else -> label
                 }
                 val row = visual.pair(style.text(getString(caption),TaskProductVisualStyle.Type(16, 550, 24)), control,
-                    "settings/machine/function/$label", gapDp = if (button is HoyiSwitch) 6 else 8)
+                    "settings/machine/function/$label", gapDp = if (button is HoyiSwitch) 4 else 6)
                 row.setPadding(0, 0, 0, 0)
                 (if (button is HoyiSwitch) functionGrid else choiceGrid).addView(row)
             }
@@ -431,7 +432,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 stackGapDp = 12, onMeasuredSplit = { split ->
                     grouped.forEach { it.setWideDraftLayout(split) }
                 }).apply { tag = "settings/machine/main-columns" })
-            listOf(settingsToggle,settings).forEach { view -> (view.parent as? android.view.ViewGroup)?.removeView(view); body.addView(view) }
+            (settings.parent as? android.view.ViewGroup)?.removeView(settings)
+            body.addView(settings)
             standbySection.removeView(standbyCard)
             style.add(documentSections.getValue("schedule"), standbyCard)
             controlsPane.removeView(maintenanceSection);maintenanceSection.visibility=View.VISIBLE;documentSections.getValue("maintenance").addView(maintenanceSection)
@@ -465,6 +467,21 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
 
         } else showSettingsSection(savedInstanceState?.getInt("settingsSection") ?: host.intent.getIntExtra("section", 0))
         render()
+    }
+
+    fun attachReadbackAction(header: LinearLayout) {
+        (settingsToggle.parent as? android.view.ViewGroup)?.removeView(settingsToggle)
+        settingsToggle.tag = "settings/machine/readback-action"
+        settingsToggle.minimumHeight = dp(48)
+        header.addView(settingsToggle, LinearLayout.LayoutParams(-2, -2))
+        updateReadbackActionLabel()
+    }
+
+    private fun updateReadbackActionLabel() {
+        val caption = if (documentMode) {
+            if (detailsExpanded) R.string.settings_hig_readback_hide else R.string.settings_hig_readback_details
+        } else if (detailsExpanded) R.string.machine_settings_readback_collapse else R.string.machine_settings_readback_expand
+        settingsToggle.text = getString(caption)
     }
 
     fun start() {

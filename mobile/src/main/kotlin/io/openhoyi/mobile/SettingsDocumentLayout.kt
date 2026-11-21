@@ -34,6 +34,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val disclosureRenders = mutableMapOf<String, () -> Unit>()
     private val disclosureKeys = state?.getStringArrayList("settings.disclosures").orEmpty().toMutableSet()
     private var brewingChapter: View? = null
+    private var brewingCard: View? = null
     private var pairedDevices: View? = null
     private var scanning: View? = null
     private val headerBackdrop = Any()
@@ -143,6 +144,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         val rail = SettingsCategory.usesRail(usable)
         if (wide != rail) {
             wide = rail
+            brewingChapter?.visibility = if (rail) VISIBLE else GONE
+            brewingCard?.background = settingsRaisedGroup(host, style, horizontalInsetDp = if (rail) 4 else 0)
             indexBody.removeAllViews()
             for (button in buttons.values) (button.parent as? ViewGroup)?.removeView(button)
             compact.removeAllViews()
@@ -218,12 +221,17 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         }
     }
 
-    fun machineStatus(status: TextView) {
+    fun machineStatus(status: TextView): LinearLayout {
         val section = sections.getValue("machine")
         section.block.removeView(section.heading)
         style.apply(section.heading as TextView, TaskProductVisualStyle.Type(22, 700, 32))
-        val row = SettingsVisualStyle(host).pair(section.heading, status, "settings/machine/header", gapDp = 12)
+        val trailing = style.row().apply {
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            addView(status, LayoutParams(-2, -2))
+        }
+        val row = SettingsVisualStyle(host).pair(section.heading, trailing, "settings/machine/header", gapDp = 12)
         section.block.addView(row, 0, LayoutParams(-1, -2))
+        return trailing
     }
 
     fun brewingRow(key: String, label: Int, hint: Int?, toggle: android.widget.Switch) {
@@ -261,7 +269,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         check(ordered.size == body.childCount)
         body.removeAllViews()
         val brew = style.column("settings/brewing/group").apply {
-            background = settingsRaisedGroup(host, style)
+            brewingCard = this
+            background = settingsRaisedGroup(host, style, horizontalInsetDp = if (wide == true) 4 else 0)
             setPadding(0, style.dp(4), 0, style.dp(4))
         }
         ordered.forEach { child ->
@@ -271,6 +280,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 if (brew.parent == null) {
                     brewingChapter = style.text(host.getString(R.string.settings_category_brewing),
                         TaskProductVisualStyle.Type(22, 700, 32), "settings/brewing/title").apply {
+                        visibility = if (wide == true) VISIBLE else GONE
                         setPadding(style.dp(10), style.dp(8), style.dp(10), style.dp(8))
                         ViewCompat.setAccessibilityHeading(this, true)
                         body.addView(this, LayoutParams(-1, -2))
@@ -413,8 +423,11 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         SettingsCategory.AI -> R.drawable.settings_category_ai
         SettingsCategory.MAINTENANCE -> R.drawable.settings_category_maintenance
     }
+    internal fun sectionAnchor(key: String): View = if (key == "shortcuts")
+        brewingChapter?.takeIf { it.visibility == VISIBLE } ?: brewingCard ?: sections.getValue(key).block
+    else sections.getValue(key).block
     private fun top(section: Section): Int = Rect(0, 0, 1, 1).also {
-        body.offsetDescendantRectToMyCoords(if (section.key == "shortcuts") brewingChapter ?: section.block else section.block, it)
+        body.offsetDescendantRectToMyCoords(sectionAnchor(section.key), it)
     }.top
     private fun maxScroll() = (body.height - scroll.height).coerceAtLeast(0)
     private fun rememberPosition(updateHighlight: Boolean) {

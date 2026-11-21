@@ -100,7 +100,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         "Unstable category at $phase: ${category.key}, y=${doc.scroll.scrollY}, heading=$visible, body=$viewport"
                     }
                     if (category == SettingsCategory.BREWING) {
-                        val chapter = doc.findViewWithTag<View>("settings/brewing/title")
+                        val chapter = doc.sectionAnchor("shortcuts")
                         val chapterPosition = IntArray(2).also(chapter::getLocationOnScreen)
                         check(kotlin.math.abs(chapterPosition[1] - viewport.top) <= HoyiUi.dp(activity, 2) && !precedingVisible) {
                             "Brewing must begin at the viewport top with no previous Machine card: title=${chapterPosition[1]}, body=$viewport, machine=$precedingBounds"
@@ -195,9 +195,28 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     "Thermal card or standby outside density budget: ${thermalCard.height}, viewport=$bodyViewport standby=$standbyBounds"
                                 }
                                 check(rows.all { it.height <= HoyiUi.dp(activity, 72) })
+                                val week = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/weekly-grid")
+                                if (week.isShown) {
+                                    val weekLocation = IntArray(2).also(week::getLocationOnScreen)
+                                    val fullWeek = Rect(weekLocation[0], weekLocation[1], weekLocation[0] + week.width,
+                                        weekLocation[1] + week.height)
+                                    check(bodyViewport.contains(fullWeek) && week.childCount == 7) {
+                                        "The loaded weekly row must fit the tablet machine viewport: $fullWeek vs $bodyViewport"
+                                    }
+                                }
                                 check(columns.getChildAt(0).top == columns.getChildAt(1).top &&
                                     columns.getChildAt(0).right <= columns.getChildAt(1).left)
                                 check(functions.childCount == 3 && functions.getChildAt(0).top == functions.getChildAt(1).top)
+                                // Same parent-y is not enough: labels and controls must actually
+                                // occupy the same optical band within each row.
+                                fun center(view: View): Int = IntArray(2).also(view::getLocationOnScreen)[1] + view.height / 2
+                                val choices = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/setting-choices")
+                                listOf(functions, choices).forEach { grid ->
+                                    val rowsInGrid = (0 until grid.childCount).map { grid.getChildAt(it) as android.view.ViewGroup }
+                                    check(rowsInGrid.all { row ->
+                                        kotlin.math.abs(center(row.getChildAt(0)) - center(row.getChildAt(1))) <= HoyiUi.dp(activity, 2)
+                                    }) { "Machine labels and controls not in a single band: ${grid.tag}" }
+                                }
                                 for ((i, row) in rows.withIndex()) {
                                     val minus = row.findViewWithTag<Button>("settings/machine/draft-step/-1")
                                     val plus = row.findViewWithTag<Button>("settings/machine/draft-step/1")
@@ -315,7 +334,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 val boundary = main {
                     val document = settings()
                     val box = Rect()
-                    document.body.offsetDescendantRectToMyCoords(heading("shortcuts"), box)
+                    document.body.offsetDescendantRectToMyCoords(document.sectionAnchor("shortcuts"), box)
                     document.scroll.scrollTo(0, box.top - minOf(HoyiUi.dp(activity, 70), document.scroll.height / 4))
                     box.top
                 }

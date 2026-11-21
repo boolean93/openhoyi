@@ -69,6 +69,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             val style = visual.palette
             style.divider(card, top = 0, bottom = 0)
             visual.action(preview, outline = true, icon = "play")
+            preview.background = android.graphics.drawable.InsetDrawable(preview.background, 0, style.dp(5), 0, style.dp(5))
             preview.minimumHeight = style.dp(52)
             preview.minHeight = style.dp(52)
             preview.setPadding(style.dp(10), 0, style.dp(10), 0)

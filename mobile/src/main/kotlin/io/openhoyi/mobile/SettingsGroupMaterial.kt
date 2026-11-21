@@ -16,8 +16,8 @@ import android.view.ViewGroup
 import kotlin.math.roundToInt
 
 /** Local, wide Settings material; no view elevation or out-of-bounds painting. */
-internal fun settingsRaisedGroup(context: Context, style: TaskProductVisualStyle): Drawable =
-    SettingsRaisedGroup(context, style.surface)
+internal fun settingsRaisedGroup(context: Context, style: TaskProductVisualStyle, horizontalInsetDp: Int = 4): Drawable =
+    SettingsRaisedGroup(context, style.surface, horizontalInsetDp)
 
 internal fun View.markSettingsGroupMaterial(style: TaskProductVisualStyle) {
     setTag(R.id.settings_group_material, WideMaterial(background) { settingsRaisedGroup(context, style) })
@@ -42,7 +42,7 @@ private class WideMaterial(val narrow: Drawable?, val factory: () -> Drawable) {
 }
 
 /** Stretch the middle of a small software-rasterized alpha mask, leaving blurred corners intact. */
-private class SettingsRaisedGroup(context: Context, fill: Int) : Drawable() {
+private class SettingsRaisedGroup(context: Context, fill: Int, private val horizontalInsetDp: Int) : Drawable() {
     private val density = context.resources.displayMetrics.density
     private val dark = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
         Configuration.UI_MODE_NIGHT_YES
@@ -56,7 +56,7 @@ private class SettingsRaisedGroup(context: Context, fill: Int) : Drawable() {
     override fun draw(canvas: Canvas) {
         if (bounds.isEmpty) return
         if (!dark) {
-            val sample = masks.get(density)
+            val sample = masks.get(density, horizontalInsetDp)
             val sliceX = minOf(sample.edge, bounds.width() / 2)
             val sliceY = minOf(sample.edge, bounds.height() / 2)
             parts[0] = bounds.left; parts[1] = bounds.left + sliceX
@@ -69,7 +69,7 @@ private class SettingsRaisedGroup(context: Context, fill: Int) : Drawable() {
                 if (!target.isEmpty) canvas.drawBitmap(sample.bitmap, source, target, shadow)
             }
         }
-        val x = 4 * density
+        val x = horizontalInsetDp * density
         val top = 2 * density
         val bottom = (if (dark) 3 else 6) * density
         val radius = 16 * density
@@ -84,8 +84,8 @@ private class SettingsRaisedGroup(context: Context, fill: Int) : Drawable() {
     private data class ShadowMask(val bitmap: Bitmap, val edge: Int, val edges: IntArray)
     private object masks {
         private val cache = android.util.LruCache<Int, ShadowMask>(6)
-        fun get(density: Float): ShadowMask = synchronized(cache) {
-            val key = (density * 160).roundToInt()
+        fun get(density: Float, insetDp: Int): ShadowMask = synchronized(cache) {
+            val key = 31 * (density * 160).roundToInt() + insetDp
             cache.get(key) ?: run {
                 val edge = (22f * density).roundToInt().coerceAtLeast(1)
                 val size = edge * 2 + 2
@@ -96,7 +96,7 @@ private class SettingsRaisedGroup(context: Context, fill: Int) : Drawable() {
                 }
                 val radius = 16 * density
                 val drop = 2f * density
-                Canvas(bitmap).drawRoundRect(4 * density, 2 * density + drop, size - 4 * density,
+                Canvas(bitmap).drawRoundRect(insetDp * density, 2 * density + drop, size - insetDp * density,
                     size - 6 * density + drop, radius, radius, paint)
                 ShadowMask(bitmap, edge, intArrayOf(0, edge, size - edge, size)).also { cache.put(key, it) }
             }

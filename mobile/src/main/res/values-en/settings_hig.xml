@@ -13,4 +13,7 @@
     <string name="settings_hig_brew_temp">Brew temperature</string>
     <string name="settings_hig_steam_temp">Steam temperature</string>
     <string name="settings_hig_machine_read_back">Read back</string>
+    <string name="settings_hig_readback_details">Readback details</string>
+    <string name="settings_hig_readback_hide">Hide details</string>
+    <string name="settings_hig_brew_heat">Brew heat</string>
 </resources>

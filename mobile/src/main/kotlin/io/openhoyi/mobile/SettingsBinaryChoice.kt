@@ -24,6 +24,7 @@ internal class SettingsBinaryChoice(
                 gravity = Gravity.CENTER
                 text = caption
                 style.apply(this, TaskProductVisualStyle.auxiliary)
+                gravity = Gravity.CENTER
                 minHeight = style.dp(48); minimumHeight = minHeight
                 minimumWidth = style.dp(64)
                 setPaddingRelative(style.dp(6), style.dp(4), style.dp(6), style.dp(4))

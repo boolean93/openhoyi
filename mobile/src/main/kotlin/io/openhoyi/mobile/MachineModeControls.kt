@@ -104,6 +104,16 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
             mode.measuredWidth + logic.measuredWidth + dp(12) > available
         row.orientation = if (vertical) VERTICAL else HORIZONTAL
         (logic.layoutParams as LayoutParams).apply { marginStart = if (vertical) 0 else dp(12) }
+        if (settingsPanel) {
+            val equal = !vertical && MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED &&
+                maxOf(mode.requiredWidth(), logic.requiredWidth()) * 2 + dp(12) <= available
+            listOf(mode, logic).forEach { choice ->
+                (choice.layoutParams as LayoutParams).apply {
+                    width = if (equal) 0 else choice.requiredWidth()
+                    weight = if (equal) 1f else 0f
+                }
+            }
+        }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 }

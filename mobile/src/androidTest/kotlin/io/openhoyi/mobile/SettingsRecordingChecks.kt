@@ -88,7 +88,7 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
                 if (!main { category(SettingsCategory.BREWING).isSelected }) {
                     val delta = main {
                         val target = Rect()
-                        val heading = document.findViewWithTag<View>("settings/heading/shortcuts")
+                        val heading = document.sectionAnchor("shortcuts")
                         document.body.offsetDescendantRectToMyCoords(heading, target)
                         target.top - document.scroll.scrollY
                     }

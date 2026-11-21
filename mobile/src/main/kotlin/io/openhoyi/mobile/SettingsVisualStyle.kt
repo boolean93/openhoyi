@@ -309,7 +309,8 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         style.button(action, primary = true)
         action.minHeight = style.dp(48)
         action.minimumHeight = action.minHeight
-        action.minWidth = style.dp(56)
+        action.minWidth = style.dp(48)
+        action.setPadding(style.dp(6), 0, style.dp(6), 0)
         draftSteppers.forEach { button ->
             button.background = android.graphics.drawable.InsetDrawable(style.shape(style.surface, radius = 8),
                 style.dp(3), style.dp(7), style.dp(3), style.dp(7))
@@ -385,7 +386,7 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         // localized editor and drop the steppers only if the field itself cannot fit.
         val roomForSteppers = wideDraftLayout && available >= style.dp(if (panelField) 175 else 196)
         draftSteppers.forEach { it.visibility = if (roomForSteppers) VISIBLE else GONE }
-        val inputNaturalWidth=maxOf(style.dp(if (panelField) 56 else if (compactField || draftRange != null) 72 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
+        val inputNaturalWidth=maxOf(style.dp(if (panelField) 52 else if (compactField || draftRange != null) 72 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
         input.layoutParams.width=inputNaturalWidth
         listOf(words,quantity,action).forEach {force(it);it.measure(free,free)}
         if (roomForSteppers && draftSteppers.isNotEmpty() && quantity.measuredWidth > available) {

@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 internal class SettingsObservedSwitch(
     val control: HoyiSwitch,
     style: TaskProductVisualStyle,
+    private val compactKnown: Boolean = false,
     private val request: (Boolean) -> Unit,
 ) : FrameLayout(control.context) {
     private val unknown = style.text(context.getString(R.string.machine_settings_readback_missing), TaskProductVisualStyle.auxiliary,
@@ -40,7 +41,7 @@ internal class SettingsObservedSwitch(
     fun present(value: Boolean?, editable: Boolean) {
         // Keep the allotted size stable as readback arrives rather than pushing the surrounding UI around.
         control.visibility = if (value == null) INVISIBLE else VISIBLE
-        unknown.visibility = if (value == null) VISIBLE else INVISIBLE
+        unknown.visibility = if (value == null) VISIBLE else if (compactKnown) GONE else INVISIBLE
         control.isEnabled = value != null && editable
         observed = value
         project(value)

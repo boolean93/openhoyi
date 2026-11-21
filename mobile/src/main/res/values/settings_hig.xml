@@ -13,4 +13,7 @@
     <string name="settings_hig_brew_temp">冲泡温度</string>
     <string name="settings_hig_steam_temp">蒸汽温度</string>
     <string name="settings_hig_machine_read_back">已读回</string>
+    <string name="settings_hig_readback_details">读回详情</string>
+    <string name="settings_hig_readback_hide">收起详情</string>
+    <string name="settings_hig_brew_heat">冲泡加热</string>
 </resources>
