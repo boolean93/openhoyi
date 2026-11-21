@@ -24,23 +24,29 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
                     SystemClock.sleep(50)
                 }
             }
-            fun point(view: View): Rect {
+            fun point(view: View, separateWindow: Boolean = false): Rect {
                 val rect = Rect()
-                check(view.getLocalVisibleRect(rect) && view.isShown && view.hasWindowFocus() &&
+                check(view.getGlobalVisibleRect(rect) && view.isShown && view.hasWindowFocus() &&
                     rect.width() > 0 && rect.height() > 0)
-                // Global View coordinates are relative to this window's root. An
-                // AlertDialog lives in a separate centered window; injected touches
-                // always need display coordinates instead.
-                val location = IntArray(2).also(view::getLocationOnScreen)
-                rect.offset(location[0], location[1])
-                return rect
+                // The Activity test window fills the display; use its clipped
+                // viewport, independent of the ScrollView's own content offset.
+                if (!separateWindow) return rect
+                // The AlertDialog is centered in a separate window. Only this
+                // non-scrolling action needs the window-to-display conversion.
+                val x = IntArray(2).also(view::getLocationOnScreen)
+                val local = Rect()
+                check(view.getLocalVisibleRect(local))
+                local.offset(x[0] - view.scrollX, x[1] - view.scrollY)
+                return local
             }
             fun gesture(x: Float, fromY: Float, toY: Float, steps: Int) {
                 val down = SystemClock.uptimeMillis()
                 fun send(action: Int, y: Float) {
                     val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
                     event.source = InputDevice.SOURCE_TOUCHSCREEN
-                    try { check(test.uiAutomation.injectInputEvent(event, true)) } finally { event.recycle() }
+                    try {
+                        check(test.uiAutomation.injectInputEvent(event, true)) { "Touch rejected: action=$action x=$x y=$y" }
+                    } finally { event.recycle() }
                 }
                 send(MotionEvent.ACTION_DOWN, fromY)
                 for (step in 1..steps) {
@@ -54,8 +60,8 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
                 }
                 send(MotionEvent.ACTION_UP, toY)
             }
-            fun tap(view: View) {
-                val rect = main { point(view) }
+            fun tap(view: View, separateWindow: Boolean = false) {
+                val rect = main { point(view, separateWindow) }
                 gesture(rect.exactCenterX(), rect.exactCenterY(), rect.exactCenterY(), 0)
             }
             fun swipe(distance: Int? = null) {
@@ -105,7 +111,7 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
                     cancel.isLaidOut && cancel.isEnabled
             }
             SystemClock.sleep(1400)
-            tap(main { requireNotNull(fragment.appearanceCard?.dialog).getButton(cancelButton) })
+            tap(main { requireNotNull(fragment.appearanceCard?.dialog).getButton(cancelButton) }, separateWindow = true)
             waitFor("palette preview cancelled without write") {
                 fragment.appearanceCard?.dialog?.isShowing != true && document.hasWindowFocus() &&
                     prefs.current == appearanceBefore && category(SettingsCategory.APPEARANCE).isSelected
