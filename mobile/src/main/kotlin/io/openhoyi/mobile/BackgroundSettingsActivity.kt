@@ -19,6 +19,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.ViewModelProvider
 
+private const val BACKGROUND_CHOOSE_PHOTO = "io.openhoyi.mobile.background.CHOOSE_PHOTO"
 private const val BACKGROUND_PREVIEW_PRESET = "io.openhoyi.mobile.background.PREVIEW_PRESET"
 
 internal fun addBackgroundSettingsRow(activity: ThemedActivity, parent: LinearLayout, visual: SettingsVisualStyle,
@@ -29,34 +30,91 @@ internal fun addBackgroundSettingsRow(activity: ThemedActivity, parent: LinearLa
         tag = "product/settings/background/open"
         setOnClickListener { activity.startActivity(Intent(activity, BackgroundSettingsActivity::class.java)) }
     }, icon = "chevron", atEnd = true)
-    style.add(parent, visual.pair(style.text(activity.getString(R.string.background_title)), button,
-        "product/settings/background/row"), 8)
-    if (inlinePresets) {
-        val applied = (activity.application as MobileApplication).pageBackgrounds.current.config
-        val options = SettingsPreviewOptions(activity, 3, style).apply { tag = "settings/appearance/background-presets" }
-        for ((label, preset) in listOf(R.string.background_solid to AppBackground.Solid,
-            R.string.background_mist to AppBackground.Mist, R.string.background_slate to AppBackground.Slate)) {
-            val selected = applied.choice == preset
-            val tile = settingsPreviewButton(activity, style, activity.getString(label), selected).apply {
-                tag = "settings/appearance/background/${preset.key}"
-                val realPreset = PageBackdrop(style.page, HoyiUi.dark(activity)).apply {
-                    snapshot = BackgroundSnapshot(AppBackgroundConfig(preset, AppBackgroundConfig.MAX_STRENGTH))
-                    protectedAreas = emptyList()
-                }
-                val border = style.shape(Color.TRANSPARENT, outline = true, radius = 0)
-                val preview = LayerDrawable(arrayOf(realPreset, border)).apply {
-                    setBounds(0, 0, style.dp(64), style.dp(32))
-                }
-                setCompoundDrawablesRelative(null, preview, null, null)
-                compoundDrawablePadding = style.dp(4)
-                setOnClickListener {
-                    activity.startActivity(Intent(activity, BackgroundSettingsActivity::class.java)
-                        .putExtra(BACKGROUND_PREVIEW_PRESET, preset.key))
-                }
-            }
-            options.addView(tile)
+    val compactRow = visual.pair(style.text(activity.getString(R.string.background_title)), button,
+        "product/settings/background/row")
+    style.add(parent, compactRow, 8)
+    if (!inlinePresets) return
+
+    val store = (activity.application as MobileApplication).pageBackgrounds
+    val applied = store.current.config
+    val options = SettingsPreviewOptions(activity, 3, style).apply { tag = "settings/appearance/background-presets" }
+    val tiles = linkedMapOf<AppBackground, SettingsBackgroundPreviewButton>()
+    for ((label, preset) in listOf(R.string.background_solid to AppBackground.Solid,
+        R.string.background_mist to AppBackground.Mist, R.string.background_slate to AppBackground.Slate)) {
+        val selected = applied.choice == preset
+        val realPreset = PageBackdrop(style.page, HoyiUi.dark(activity)).apply {
+            snapshot = BackgroundSnapshot(AppBackgroundConfig(preset, AppBackgroundConfig.MAX_STRENGTH))
+            protectedAreas = emptyList()
         }
-        style.add(parent, options, 4)
+        val border = style.shape(Color.TRANSPARENT, outline = true, radius = 0)
+        val preview = LayerDrawable(arrayOf(realPreset, border))
+        val tile = SettingsBackgroundPreviewButton(activity, style, preview)
+        tiles[preset] = tile
+        settingsPreviewButton(activity, style, activity.getString(label), selected, tile).apply {
+            tag = "settings/appearance/background/${preset.key}"
+            compoundDrawablePadding = style.dp(5)
+            setOnClickListener {
+                activity.startActivity(Intent(activity, BackgroundSettingsActivity::class.java)
+                    .putExtra(BACKGROUND_PREVIEW_PRESET, preset.key))
+            }
+        }
+        options.addView(tile)
+    }
+    val photo = settingsPreviewButton(activity, style, activity.getString(R.string.background_choose_photo),
+        applied.choice is AppBackground.Photo).apply {
+        setOnClickListener {
+            // Re-open the current photo editor to keep mask/apply/cancel easy to reach.
+            val hasPhoto = store.current.config.choice is AppBackground.Photo
+            activity.startActivity(Intent(activity, BackgroundSettingsActivity::class.java)
+                .putExtra(BACKGROUND_CHOOSE_PHOTO, !hasPhoto))
+        }
+    }
+    options.addView(photo)
+    fun updateSelection(choice: AppBackground) {
+        tiles.forEach { (preset, tile) ->
+            val selected = choice == preset
+            if (tile.isSelected != selected) tile.settingsPreviewSelection(style, selected)
+        }
+        val selected = choice is AppBackground.Photo
+        if (photo.isSelected != selected) photo.settingsPreviewSelection(style, selected)
+        val label = activity.getString(if (selected) R.string.background_photo else R.string.background_choose_photo)
+        if (photo.text.toString() != label) photo.text = label
+    }
+    updateSelection(applied.choice)
+    val panel = SettingsAppearanceSurface(activity, style, activity.getString(R.string.background_title),
+        options, narrowLabel = false) { wide ->
+        compactRow.visibility = if (wide) View.GONE else View.VISIBLE
+        photo.visibility = if (wide) View.VISIBLE else View.GONE
+        button.tag = if (wide) null else "product/settings/background/open"
+        photo.tag = if (wide) "product/settings/background/open" else null
+        tiles.values.forEach { it.large = wide }
+    }
+    var releaseObservation: (() -> Unit)? = null
+    panel.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(v: View) {
+            releaseObservation?.invoke()
+            releaseObservation = store.observe { updateSelection(it.config.choice) }
+        }
+        override fun onViewDetachedFromWindow(v: View) {
+            releaseObservation?.invoke()
+            releaseObservation = null
+        }
+    })
+    style.add(parent, panel, 8)
+}
+
+private class SettingsBackgroundPreviewButton(context: android.content.Context,
+    private val style: TaskProductVisualStyle, private val preview: LayerDrawable) : Button(context) {
+    var large = false
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val available = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(1)
+        val w = minOf(available, style.dp(if (large) 180 else 64))
+        val h = if (large) (w * .55f).toInt().coerceIn(1, style.dp(96)) else style.dp(32)
+        if (preview.bounds.width() != w || preview.bounds.height() != h) {
+            preview.setBounds(0, 0, w, h)
+            setCompoundDrawablesRelative(null, preview, null, null)
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 }
 
@@ -241,6 +299,10 @@ class BackgroundSettingsActivity : ThemedActivity() {
                 backdrop.show(state.preview)
                 rendering = false
             }
+        }
+        if (savedInstanceState == null && intent.getBooleanExtra(BACKGROUND_CHOOSE_PHOTO, false)) {
+            // Explicit user action launches the same editor picker once, without applying anything.
+            import.post { if (!isFinishing && !isDestroyed) import.performClick() }
         }
     }
 

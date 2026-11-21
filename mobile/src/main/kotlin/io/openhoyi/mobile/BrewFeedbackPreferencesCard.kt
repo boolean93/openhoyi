@@ -9,7 +9,7 @@ import android.view.View
 import kotlin.random.Random
 
 /** App-local controls stay usable while disconnected and never enter machine controlButtons. */
-internal class BrewFeedbackPreferencesCard(private val activity: Activity, parent: LinearLayout, private val visual: SettingsVisualStyle? = null) {
+internal class BrewFeedbackPreferencesCard(private val activity: Activity, parent: LinearLayout, private val visual: SettingsVisualStyle? = null, private val grouped: Boolean = false) {
     private val prefs = (activity.application as MobileApplication).feedbackPreferences
     private val audioOwner = lazy { BrewFeedbackAudio(AndroidBrewFeedbackAudio(activity.applicationContext)) }
     private val audio by audioOwner
@@ -20,7 +20,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
     internal var errorStatus: TextView? = null
         private set
     init {
-        val card = settingsGroup(activity, parent, activity.getString(R.string.feedback_enabled), visual)
+        val card = if (grouped) parent else settingsGroup(activity, parent, activity.getString(R.string.feedback_enabled), visual)
         enabledSwitch = HoyiSwitch(activity).apply {
             text = activity.getString(R.string.settings_enable_feedback)
             textSize = TaskVisualTokens.BODY_SP.toFloat()
@@ -43,7 +43,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             }
         }
         visual?.let {it.switch(enabledSwitch);enabledSwitch.tag="product/settings/app/feedback/toggle"}
-        HoyiUi.label(activity, card, activity.getString(R.string.feedback_enabled_description), 14, muted = true).also {label->
+        HoyiUi.label(activity, card, activity.getString(if (grouped) R.string.settings_category_feedback_hint else R.string.feedback_enabled_description), 14, muted = true).also {label->
             visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}
         }
         errorStatus=visual?.palette?.let {style->
@@ -52,7 +52,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
                 accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
             }.also {style.add(card,it,8)}
         }
-        settingsDivider(activity, card, visual)
+        if (!grouped) settingsDivider(activity, card, visual)
         preview = HoyiUi.button(activity, card, activity.getString(R.string.feedback_preview)) {
             try {
                 if (audio.playing) audio.stop() else audio.play(BrewFeedbackClips.Level.BRAVO, Random.nextInt(4))
@@ -62,7 +62,14 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             asTaskTextAction(); gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
             visual?.action(this);visual?.let {tag="product/settings/app/feedback/preview"}
         }
-        HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description), TaskVisualTokens.SUPPORTING_SP, muted = true).also {label->
+        if (grouped && visual != null) {
+            card.removeView(enabledSwitch); card.removeView(preview)
+            preview.text = activity.getString(R.string.settings_category_preview)
+            preview.contentDescription = activity.getString(R.string.feedback_preview)
+            val controls = visual.pair(enabledSwitch, preview, "settings/brewing/feedback-controls")
+            card.addView(controls, 0, LinearLayout.LayoutParams(-1, -2))
+        } else HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description),
+            TaskVisualTokens.SUPPORTING_SP, muted = true).also {label->
             visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}
         }
     }
@@ -70,7 +77,10 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
         updating = true
         try {
             enabledSwitch.isChecked = prefs.enabled
-            preview.text = activity.getString(if (audioOwner.isInitialized() && audio.playing) R.string.feedback_stop_preview else R.string.feedback_preview)
+            val playing = audioOwner.isInitialized() && audio.playing
+            preview.text = activity.getString(if (playing) R.string.feedback_stop_preview
+                else if (grouped) R.string.settings_category_preview else R.string.feedback_preview)
+            preview.contentDescription = activity.getString(if (playing) R.string.feedback_stop_preview else R.string.feedback_preview)
         } catch (_: RuntimeException) { /* Local card must not interrupt machine settings rendering. */ }
         finally { updating = false }
     }

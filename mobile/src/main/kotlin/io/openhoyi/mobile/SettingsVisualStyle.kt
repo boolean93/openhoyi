@@ -252,6 +252,15 @@ internal class SettingsColumns(context:Context,private val style:TaskProductVisu
 internal class SettingsTemperatureRow(context:Context,private val style:TaskProductVisualStyle,private val words:View,
     private val quantity:View,private val input:EditText,private val action:Button,private val evidence:JSONObject):ViewGroup(context) {
     private var inline=false
+    private var compactField = false
+    private var compactActionsInline = false
+    private val originalAction = action.text
+    fun setGroupedField(grouped: Boolean, apply: CharSequence) {
+        if (compactField == grouped) return
+        compactField = grouped
+        action.text = if (grouped) apply else originalAction
+        action.contentDescription = if (grouped) originalAction else null
+    }
     init {setPadding(style.dp(16),style.dp(16),style.dp(16),style.dp(16));background=style.shape(style.surface,true);addView(words);addView(quantity);addView(action)}
     override fun generateDefaultLayoutParams()=LayoutParams(-2,-2)
     private fun force(view:View) {view.forceLayout();if(view is ViewGroup)(0 until view.childCount).forEach {force(view.getChildAt(it))}}
@@ -266,11 +275,30 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val width=MeasureSpec.getSize(widthMeasureSpec);val available=(width-paddingLeft-paddingRight).coerceAtLeast(0)
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
         val shown=if(input.text.isNullOrEmpty())input.hint?.toString().orEmpty() else input.text.toString()
-        val inputNaturalWidth=maxOf(style.dp(96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
+        val inputNaturalWidth=maxOf(style.dp(if (compactField) 68 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
         input.layoutParams.width=inputNaturalWidth
         listOf(words,quantity,action).forEach {force(it);it.measure(free,free)}
         val wordsWidth=words.measuredWidth;val actionWidth=action.measuredWidth;val quantityWidth=quantity.measuredWidth
         inline=wordsWidth+quantityWidth+actionWidth+style.dp(32)<=available
+        compactActionsInline = compactField && quantityWidth + actionWidth + style.dp(8) <= available
+        if (compactField) {
+            inline = false
+            val quantityDecorationWidth = (quantityWidth - input.measuredWidth).coerceAtLeast(0)
+            input.layoutParams.width = minOf(inputNaturalWidth, (available - quantityDecorationWidth).coerceAtLeast(0))
+            listOf(words, quantity, action).forEach(::force)
+            words.measure(MeasureSpec.makeMeasureSpec(available, MeasureSpec.EXACTLY), free)
+            quantity.measure(MeasureSpec.makeMeasureSpec(if (compactActionsInline) quantityWidth else available,
+                MeasureSpec.EXACTLY), free)
+            action.measure(MeasureSpec.makeMeasureSpec(if (compactActionsInline) actionWidth else available,
+                MeasureSpec.EXACTLY), free)
+            val controls = if (compactActionsInline) maxOf(quantity.measuredHeight, action.measuredHeight)
+                else quantity.measuredHeight + style.dp(4) + action.measuredHeight
+            val content = words.measuredHeight + style.dp(4) + controls
+            evidence.put("inline", false).put("groupedField", true).put("naturalHeightPx", content + paddingTop + paddingBottom)
+            setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(content + paddingTop + paddingBottom, heightMeasureSpec))
+            return
+        }
+        evidence.put("groupedField", false)
         // Keep the original editor horizontally scrollable, not wider than its permanent
         // quantity host. The measured remainder includes the real unit, 8dp gap and padding.
         val quantityDecorationWidth=(quantityWidth-input.measuredWidth).coerceAtLeast(0)
@@ -292,6 +320,19 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     }
     override fun onLayout(changed:Boolean,l:Int,t:Int,r:Int,b:Int) {
         val content=height-paddingTop-paddingBottom
+        if (compactField) {
+            fun place(view: View, x: Int, y: Int) {
+                val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - paddingRight - x - view.measuredWidth
+                    else paddingLeft + x
+                view.layout(left, paddingTop + y, left + view.measuredWidth, paddingTop + y + view.measuredHeight)
+            }
+            place(words, 0, 0)
+            val controls = words.measuredHeight + style.dp(4)
+            place(quantity, 0, controls)
+            if (compactActionsInline) place(action, quantity.measuredWidth + style.dp(8), controls)
+            else place(action, 0, controls + quantity.measuredHeight + style.dp(4))
+            return
+        }
         var start=0;var top=0
         for(view in listOf(words,quantity,action)) {
             val left=if(layoutDirection==LAYOUT_DIRECTION_RTL)width-paddingRight-start-view.measuredWidth else paddingLeft+start

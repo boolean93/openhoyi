@@ -119,7 +119,8 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         val prefs=host.getSharedPreferences("devices",android.content.Context.MODE_PRIVATE)
         states.forEach {(role,text)->
             val state=if(role==DeviceRole.COFFEE)snapshot?.coffeeState else snapshot?.scaleState
-            val identity=if(BuildConfig.MOCK_MODE)host.getString(R.string.application_mode_mock) else host.getString(R.string.device_remembered_identity,prefs.getString(if(role==DeviceRole.COFFEE)"coffee" else "scale","—"))
+            val identity = if (BuildConfig.MOCK_MODE) "" else
+                host.getString(R.string.device_remembered_identity, prefs.getString(if (role == DeviceRole.COFFEE) "coffee" else "scale", "—"))
             val status=state?.let {if(role==DeviceRole.COFFEE)DeviceStatusText.coffeeLabel(host,it,snapshot?.coffeeFailure) else DeviceStatusText.label(host,it)} ?: "—"
             // Saved identity may belong to a different device until the new one reaches READY.
             val value=DeviceStatusText.settingsSummary(status,identity)

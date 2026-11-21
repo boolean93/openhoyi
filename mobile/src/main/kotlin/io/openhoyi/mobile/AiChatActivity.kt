@@ -81,6 +81,12 @@ internal class AiChatViewState : ViewModel() {
 }
 
 class AiChatActivity : ThemedActivity() {
+    companion object {
+        internal const val SETTINGS_ENTRY = "io.openhoyi.mobile.ai.settings-entry"
+        internal const val SETTINGS_MODEL = "model"
+        internal const val SETTINGS_REASONING = "reasoning"
+        internal const val SETTINGS_USAGE = "usage"
+    }
     private val memory by lazy { ViewModelProvider(this)[AiChatViewState::class.java] }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val requestDiagnostics by lazy { AiDiagnosticRecorder(record = { kind, fields -> (application as MobileApplication).logs.record(kind, fields) }) }
@@ -186,6 +192,17 @@ class AiChatActivity : ThemedActivity() {
             }
         }
         scroll?.post { scroll?.scrollTo(0, memory.scrollY) }
+        if (savedInstanceState == null) {
+            val entry = intent.getStringExtra(SETTINGS_ENTRY)
+            if (entry != null) presentation.root.post {
+                if (!isFinishing && !isDestroyed) when (entry) {
+                    SETTINGS_MODEL -> showModels()
+                    SETTINGS_REASONING -> showReasoning()
+                    SETTINGS_USAGE -> showUsage()
+                    else -> Unit
+                }
+            }
+        }
     }
     override fun onStart() {
         super.onStart()

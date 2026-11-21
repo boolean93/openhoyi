@@ -4,6 +4,7 @@ import android.app.Instrumentation
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -93,9 +94,33 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     select(category)
                     main {
                         check(SettingsCategory.entries.count { button(it).isSelected } == 1)
-                        check(SettingsCategory.entries.filter { it != category }.all { other ->
-                            other.sections.none { heading(it).isShown }
-                        })
+                        check(SettingsCategory.entries.all { other ->
+                            other.sections.all { heading(it).isShown && heading(it).isAttachedToWindow }
+                        }) { "Category landing must retain the whole continuous document" }
+                        if (wide) when (category) {
+                            SettingsCategory.MACHINE -> {
+                                val temperature = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/temperature-grid")
+                                val functions = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/function-grid")
+                                check((0 until temperature.childCount).map { temperature.getChildAt(it).top }.distinct().size == 1)
+                                check(functions.getChildAt(0).top == functions.getChildAt(1).top)
+                                val summary = settings().findViewWithTag<android.widget.TextView>("settings-machine-summary")
+                                check(!summary.text.contains(activity.getString(R.string.machine_settings_unchanged)))
+                            }
+                            SettingsCategory.BREWING -> {
+                                val group = settings().findViewWithTag<android.view.ViewGroup>("settings/brewing/group")
+                                check(group.background != null && group.childCount == 5)
+                                val audition = settings().findViewWithTag<Button>("product/settings/app/feedback/preview")
+                                check(audition.text == activity.getString(R.string.settings_category_preview))
+                            }
+                            SettingsCategory.AI -> {
+                                val card = settings().findViewWithTag<View>("settings/ai/config")
+                                check(listOf("key", "model", "reasoning", "usage").all {
+                                    card.findViewWithTag<View>("settings/ai/$it").isClickable
+                                })
+                                check(card.findViewWithTag<View>("settings/ai/review") == null)
+                            }
+                            else -> Unit
+                        }
                         check(SettingsCategory.entries.map { rect(button(it)) } == originalIndex) { "Index moved by changing category" }
                     }
                     if (!short || category in listOf(SettingsCategory.DEVICE, SettingsCategory.BREWING,
@@ -106,6 +131,54 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     main { (page.active("root:SETTINGS") as AppSettingsFragment).openSection(section) }
                     await("exact $section heading") { button(category).isSelected && heading(section).getGlobalVisibleRect(Rect()) && heading(section).hasFocus() }
                 }
+                fun dragUp(viewport: Rect) {
+                    val now = SystemClock.uptimeMillis()
+                    val x = viewport.left + 6f
+                    val low = viewport.top + viewport.height() * .72f
+                    val high = viewport.top + viewport.height() * .27f
+                    fun input(action: Int, y: Float) {
+                        val event = MotionEvent.obtain(now, SystemClock.uptimeMillis(), action, x, y, 0)
+                        try { check(test.uiAutomation.injectInputEvent(event, true)) }
+                        finally { event.recycle() }
+                    }
+                    input(MotionEvent.ACTION_DOWN, low)
+                    for (step in 1..10) {
+                        SystemClock.sleep(22)
+                        input(MotionEvent.ACTION_MOVE, low + (high - low) * step / 10f)
+                    }
+                    SystemClock.sleep(140)
+                    input(MotionEvent.ACTION_UP, high)
+                }
+                main { (page.active("root:SETTINGS") as AppSettingsFragment).openSection("machine") }
+                await("machine focus before scroll gesture") { heading("machine").hasFocus() }
+                val boundary = main {
+                    val document = settings()
+                    val box = Rect()
+                    document.body.offsetDescendantRectToMyCoords(heading("shortcuts"), box)
+                    document.scroll.scrollTo(0, box.top - minOf(HoyiUi.dp(activity, 70), document.scroll.height / 4))
+                    box.top
+                }
+                val (before, viewport) = main {
+                    val document = settings()
+                    check(button(SettingsCategory.MACHINE).isSelected)
+                    document.scroll.scrollY to rect(document.scroll)
+                }
+                dragUp(viewport)
+                await("continuous drag into adjacent category") {
+                    val newY = settings().scroll.scrollY
+                    newY > before && newY > boundary && button(SettingsCategory.BREWING).isSelected &&
+                        heading("machine").hasFocus()
+                }
+                val settled = main { settings().scroll.scrollY }
+                SystemClock.sleep(280)
+                main { check(settings().scroll.scrollY == settled && SettingsCategory.entries.map { rect(button(it)) } == originalIndex) }
+                val end = main {
+                    settings().scroll.scrollTo(0, Int.MAX_VALUE)
+                    check(button(SettingsCategory.MAINTENANCE).isSelected)
+                    settings().scroll.scrollY
+                }
+                dragUp(viewport)
+                main { check(settings().scroll.scrollY == end && button(SettingsCategory.MAINTENANCE).isSelected) }
                 if (!short) {
                     val fragment = main { page.active("root:SETTINGS") as AppSettingsFragment }
                     main { fragment.openSection("appearance") }
@@ -154,6 +227,9 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         test.removeMonitor(previewMonitor)
                         editor?.let { main { if (!it.isFinishing) it.finish() } }
                     }
+                }
+                if (wide) {
+                    receipts.put("supplemental", SettingsSupplementalCapture(test, page, out).run())
                 }
                 // Exact return route, not just a successful navigation to Settings.
                 main { activity.select(TaskDestination.BEANS); activity.openSettingsSection("scale") }
@@ -229,7 +305,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     restored?.let { main { it.finish() } }
                 }
                 receipts.put("wide", wide).put("dark", dark).put("shortEnglishLarge", short).put("sixCategories", true).put("exactRoutes", 11)
-                    .put("categoryRailFixed", true).put("recreatedCategory", true).put("appearancePreviewNoWrite", !short).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
+                    .put("categoryRailFixed", true).put("continuousDrag", true).put("recreatedCategory", true).put("appearancePreviewNoWrite", !short).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
                     .put("rects", JSONArray(originalIndex.map { JSONArray(listOf(it.left, it.top, it.right, it.bottom)) }))
                     .put("noBleOrDestructiveActions", true)
             } finally {

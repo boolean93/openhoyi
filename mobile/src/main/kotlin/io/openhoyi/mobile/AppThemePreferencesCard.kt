@@ -37,9 +37,42 @@ internal class AppThemePreferencesCard(
     val themeError = errorLabel("product/settings/app/theme/error")
 
     init {
-        style.add(parent, themeCheckBox)
         if (inlineSwatches) {
-            style.add(parent, style.text(activity.getString(R.string.theme_palette_title), TaskProductVisualStyle.action), 8)
+            val modes = style.row().apply {
+                tag = "settings/appearance/modes"
+                val pad = style.dp(3)
+                setPadding(pad, pad, pad, pad)
+                background = style.shape(style.surface, outline = true, radius = 10)
+            }
+            for ((dark, name) in listOf(false to R.string.theme_palette_light_preview, true to R.string.theme_palette_dark_preview)) {
+                val selected = preferences.current.dark == dark
+                modes.addView(settingsPreviewButton(activity, style, activity.getString(name), selected).apply {
+                    tag = "settings/appearance/mode/" + if (dark) "dark" else "light"
+                    if (selected) {
+                        background = style.shape(style.accent, radius = 8)
+                        setTextColor(style.onPrimary)
+                    }
+                    setOnClickListener {
+                        // Own no second preference: invoke the exact narrow switch validation/save path.
+                        if (themeCheckBox.isChecked != dark) themeCheckBox.isChecked = dark
+                    }
+                }, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    if (!dark) marginEnd = style.dp(4)
+                })
+            }
+            val modePanel = SettingsAppearanceSurface(activity, style,
+                activity.getString(R.string.settings_appearance_mode), modes, minWideDp = 590, narrowLabel = false) { wide ->
+                themeCheckBox.visibility = if (wide) View.GONE else View.VISIBLE
+                // Retain the original narrow layout and single accessible switch.
+                modes.visibility = if (wide) View.VISIBLE else View.GONE
+            }.apply {
+                tag = "settings/appearance/mode-surface"
+                // The wrapper must remain measurable to re-enable the mode on resize.
+                minimumHeight = 0
+            }
+            style.add(parent, themeCheckBox)
+            style.add(parent, modePanel)
+
             val choices = SettingsPreviewOptions(activity, AppThemePalette.entries.size, style).apply {
                 tag = "settings/appearance/palette-swatches"
             }
@@ -59,8 +92,10 @@ internal class AppThemePreferencesCard(
                     setOnClickListener { choosePalette(palette) }
                 })
             }
-            style.add(parent, choices, 6)
+            style.add(parent, SettingsAppearanceSurface(activity, style,
+                activity.getString(R.string.theme_palette_title), choices), 8)
         } else {
+            style.add(parent, themeCheckBox)
             val paletteName = activity.getString(preferences.current.palette.label)
             val choose = visual.action(Button(activity).apply {
                 text = paletteName
@@ -71,7 +106,7 @@ internal class AppThemePreferencesCard(
             style.add(parent, visual.pair(style.text(activity.getString(R.string.theme_palette_title)), choose,
                 "product/settings/app/palette/row"), 8)
         }
-        style.add(parent, style.text(activity.getString(R.string.app_settings_subtitle),
+        if (!inlineSwatches) style.add(parent, style.text(activity.getString(R.string.app_settings_subtitle),
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         style.add(parent, themeError, 8)
         themeCheckBox.setOnCheckedChangeListener { button, dark ->

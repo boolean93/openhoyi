@@ -72,6 +72,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private lateinit var compensationInput: EditText
     private lateinit var steamInput: EditText
     private lateinit var standbyTemperatureInput: EditText
+    private var embeddedStandbyDelay: Button? = null
     private lateinit var brewHeatingButton: Button
     private lateinit var steamHeatingButton: Button
     private lateinit var lightButton: Button
@@ -224,7 +225,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         }
         controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
         val standbyCard = card(standbySection, getString(R.string.machine_settings_standby_title))
-        controlButtons += action(standbyCard, getString(R.string.machine_settings_standby_delay_set)) { chooseStandbyDelay() }
+        val standbyDelay = action(standbyCard, getString(R.string.machine_settings_standby_delay_set)) { chooseStandbyDelay() }
+        controlButtons += standbyDelay
         standbyTemperatureInput = temperatureInput(standbyCard, getString(R.string.machine_settings_standby_input))
         controlButtons += action(standbyCard, getString(R.string.machine_settings_standby_set)) {
             val c = standbyTemperatureInput.text.toString().toIntOrNull()
@@ -255,10 +257,14 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             R.string.machine_settings_thursday, R.string.machine_settings_friday, R.string.machine_settings_saturday)
         scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sleepCard.addView(scheduleGrid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        val dayGrid = if (documentMode) SettingsWideGrid(this, style, 7, 88, 590, 6).apply {
+            tag = "settings/machine/weekly-grid"
+            scheduleGrid.addView(this, LinearLayout.LayoutParams(-1, -2))
+        } else null
         val scheduleColumns = if (resources.configuration.screenWidthDp >= 900) 2 else 1
         (0..6).chunked(scheduleColumns).forEach { days ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            scheduleGrid.addView(row)
+            if (dayGrid == null) scheduleGrid.addView(row)
             days.forEach { day ->
                 val cell = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
@@ -294,13 +300,44 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             overview.visibility = View.GONE
             temperatureSection.removeView(controls); functionsSection.removeView(functionsCard)
             controls.getChildAt(controls.childCount-1).visibility = View.GONE
-            temperatureRows.take(3).forEach { row -> row.background=null; row.setPadding(0,dp(8),0,dp(8)); (row.layoutParams as LinearLayout.LayoutParams).topMargin=0 }
+            val grouped = temperatureRows.take(3)
+            val applyLabel = getString(R.string.settings_category_apply)
+            val temperatureGrid = SettingsWideGrid(this, style, 3, 183, 590, 10) { columns ->
+                grouped.forEach { it.setGroupedField(columns > 1, applyLabel) }
+            }.apply { tag = "settings/machine/temperature-grid" }
+            grouped.forEach { row ->
+                controls.removeView(row); row.background = null
+                row.setPadding(0, dp(6), 0, dp(6))
+                temperatureGrid.addView(row)
+            }
+            controls.addView(temperatureGrid, 1, LinearLayout.LayoutParams(-1, -2))
+            val standbyRow = temperatureRows.last()
+            embeddedStandbyDelay = standbyDelay
+            standbyCard.removeView(standbyDelay)
+            standbyCard.removeView(standbyRow)
+            val standbyGrid = SettingsWideGrid(this, style, 2, 240, 560, 12) { columns ->
+                standbyRow.setGroupedField(columns > 1, applyLabel)
+            }.apply {
+                tag = "settings/machine/standby-grid"
+                val delay = style.column().apply {
+                    style.add(this, style.text(getString(R.string.machine_settings_standby_delay_title), TaskProductVisualStyle.body))
+                    style.add(this, standbyDelay, 6)
+                }
+                addView(delay)
+                addView(standbyRow)
+            }
+            style.add(standbyCard, standbyGrid, 6)
             val pairs=listOf(brewHeatingButton to R.string.setting_brew_heating,steamHeatingButton to R.string.setting_steam_heating,
                 lightButton to R.string.setting_light,waterSupplyButton to R.string.machine_settings_supply_label,runModeButton to R.string.machine_settings_run_mode_label)
+            val functionGrid = SettingsWideGrid(this, style, 2, 220, 560, 8).apply { tag = "settings/machine/function-grid" }
             pairs.forEach {(button,label)->
                 functionsCard.removeView(button);button.asTaskTextAction();button.gravity=Gravity.END or Gravity.CENTER_VERTICAL
-                visual.palette.add(functionsCard,visual.pair(visual.palette.text(getString(label),TaskProductVisualStyle.body),button,"settings/machine/function/$label"));visual.divider(functionsCard)
+                val row = visual.pair(visual.palette.text(getString(label),TaskProductVisualStyle.body),button,"settings/machine/function/$label")
+                row.setPadding(dp(9), 0, dp(8), 0)
+                row.background = style.shape(style.page, outline = true, radius = 10)
+                functionGrid.addView(row)
             }
+            style.add(functionsCard, functionGrid, 4)
             text(functionsCard,getString(R.string.machine_mode_title),14)
             machineModes = MachineModeControls(host) { change ->
                 if (MachineSettingsEditGate.allowed(service)) service?.changeMachineSetting(change)?.let {
@@ -308,9 +345,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 }
                 render()
             }.also { functionsCard.addView(it, LinearLayout.LayoutParams(-1,-2)) }
-            body.addView(SettingsColumns(this, visual.palette, controls, functionsCard, org.json.JSONObject(),
-                firstFraction = .52f, minimumFirstWidth = { dp(315) }, minimumSecondWidth = { dp(270) }),
-                LinearLayout.LayoutParams(-1, -2))
+            style.add(body, controls)
+            style.add(body, functionsCard, 9)
             listOf(settingsToggle,settings).forEach { view -> (view.parent as? android.view.ViewGroup)?.removeView(view); body.addView(view) }
             listOf(standbySection,sleepSection).forEach { section -> controlsPane.removeView(section);section.visibility=View.VISIBLE;documentSections.getValue("schedule").addView(section) }
             controlsPane.removeView(maintenanceSection);maintenanceSection.visibility=View.VISIBLE;documentSections.getValue("maintenance").addView(maintenanceSection)
@@ -399,7 +435,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 val freshness = getString(if(snapshot?.settings == null) R.string.machine_settings_readback_missing
                     else if(snapshot.coffeeState == DeviceState.READY && service?.machineSettingsFresh == true) R.string.machine_settings_readback_current
                     else R.string.machine_settings_readback_stale)
-                statusChanged("${connectionState.text} · $freshness\n${writeStatus.text}")
+                val idle = writeStatus.text.toString() == getString(R.string.machine_settings_unchanged) || service == null
+                val connection = if (BuildConfig.MOCK_MODE && documentMode) "Mock" else connectionState.text.toString()
+                val base = "$connection · $freshness"
+                statusChanged(if (documentMode && idle) base else "$base\n${writeStatus.text}")
             }
         }
     }
@@ -506,6 +545,16 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 else->getString(R.string.setting_toggle_status,getString(label),getString(value))
             }
             button.update(text)
+        }
+        embeddedStandbyDelay?.let { button ->
+            val minutes = snapshot.settings?.standbyMinutes
+            val text = when (minutes) {
+                null -> getString(R.string.settings_unknown)
+                0 -> getString(R.string.machine_settings_standby_never)
+                else -> getString(R.string.machine_settings_minutes, minutes.toString())
+            }
+            button.update(text)
+            button.contentDescription = "${getString(R.string.machine_settings_standby_delay_title)} · $text"
         }
         status(brewHeatingButton,R.string.setting_brew_heating,if(snapshot.settings?.brewHeating==true)R.string.setting_on else R.string.setting_off)
         status(steamHeatingButton,R.string.setting_steam_heating,if(snapshot.settings?.steamHeating==true)R.string.setting_on else R.string.setting_off)

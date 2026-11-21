@@ -439,7 +439,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     val root = requireNotNull(settings.view)
                     val machine = root.findViewWithTag<View>("settings/heading/machine")
                     val devices = root.findViewWithTag<View>("settings/heading/devices")
-                    check(machine.getGlobalVisibleRect(Rect()) && !devices.isShown) {
+                    check(machine.getGlobalVisibleRect(Rect()) && !devices.getGlobalVisibleRect(Rect())) {
                         "Machine deep link must switch the active category before repeated Device entry"
                     }
                 }

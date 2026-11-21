@@ -21,13 +21,12 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import androidx.core.view.ViewCompat
 
-/** Category selection is independent of scroll; one existing instance of every section. */
+/** Fixed category index above/beside one continuous Settings document. */
 internal class SettingsDocumentLayout(private val host: MainActivity, state: Bundle?) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
     private data class Section(val key: String, val heading: View, val block: LinearLayout)
     private data class Position(val anchor: String, val offset: Int = 0, val end: Boolean = false)
     private val sections = linkedMapOf<String, Section>()
-    private val positions = mutableMapOf<SettingsCategory, Position>()
     private val statuses = mutableMapOf<String, String>()
     private val buttons = linkedMapOf<SettingsCategory, Button>()
     private val disclosureKeys = state?.getStringArrayList("settings.disclosures").orEmpty().toMutableSet()
@@ -43,25 +42,24 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         id = R.id.m8_settings_scroll
         tag = "settings/document/scroll"
         isFillViewport = true
-        isSaveEnabled = false // Scroll restoration belongs to the active category, not Android's old absolute Y.
+        isSaveEnabled = false // Restore a heading and offset, not a pre-rotation absolute Y.
         addView(body)
     }
     private var active = SettingsCategory.entries.firstOrNull { it.key == state?.getString("settings.category") }
         ?: state?.getString("settings.anchor")?.let(SettingsCategory::forSection) ?: SettingsCategory.DEVICE
+    private val formerState = state?.getBundle("settings.category.${active.key}")
+    private var position = Position(
+        state?.getString("settings.anchor") ?: formerState?.getString("anchor") ?: active.sections.first(),
+        state?.getInt("settings.offset")?.takeIf { state.containsKey("settings.offset") } ?: formerState?.getInt("offset") ?: 0,
+        state?.getBoolean("settings.atEnd")?.takeIf { state.containsKey("settings.atEnd") } ?: formerState?.getBoolean("end") ?: false,
+    )
     private var wide: Boolean? = null
     private var restoring = true
     private var requestedHeading = state?.getString("settings.requested")
-    private var resolvedTop = -1
     private var previousWidth = 0
 
     init {
         SettingsCategory.entries.forEach { category ->
-            val saved = state?.getBundle("settings.category.${category.key}")
-            val anchor = saved?.getString("anchor")
-                ?: state?.getString("settings.anchor")?.takeIf { it in category.sections }
-            if (anchor != null) positions[category] = Position(anchor,
-                saved?.getInt("offset") ?: state?.getInt("settings.offset") ?: 0,
-                saved?.getBoolean("end") ?: state?.getBoolean("settings.atEnd") ?: false)
             buttons[category] = Button(host).apply {
                 tag = "settings/category/${category.key}"
                 text = host.getString(label(category))
@@ -99,13 +97,12 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         })
         panel.addView(scroll, LayoutParams(0, -1, 1f))
         addView(panel, LayoutParams(-1, 0, 1f))
-        scroll.setOnScrollChangeListener { _, _, _, _, _ -> if (!restoring) rememberPosition() }
+        scroll.setOnScrollChangeListener { _, _, _, _, _ ->
+            if (!restoring) rememberPosition(updateHighlight = true)
+        }
         viewTreeObserver.addOnGlobalLayoutListener {
-            val position = position()
-            val target = sections[position.anchor] ?: return@addOnGlobalLayoutListener
-            if (!restoring && width == previousWidth && top(target) == resolvedTop) return@addOnGlobalLayoutListener
-            if (!ViewCompat.isLaidOut(scroll) || scroll.height == 0 || target.block.visibility != VISIBLE) return@addOnGlobalLayoutListener
-            restoring = true
+            if (!restoring || !ViewCompat.isLaidOut(scroll) || scroll.height == 0) return@addOnGlobalLayoutListener
+            val target = sections[position.anchor] ?: sections["devices"] ?: return@addOnGlobalLayoutListener
             val focus = requestedHeading?.let(sections::get)?.heading
             if (focus != null) {
                 focus.requestFocus()
@@ -113,10 +110,10 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                     focus.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
             }
             scroll.scrollTo(0, if (position.end) maxScroll() else (top(target) + position.offset).coerceAtLeast(0))
+            requestedHeading = null
             previousWidth = width
-            if (focus != null) requestedHeading = null
             restoring = false
-            rememberPosition()
+            rememberPosition(updateHighlight = false)
         }
         updateButtons()
     }
@@ -164,10 +161,9 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     }
 
     fun section(key: String, title: String): LinearLayout {
-        val category = requireNotNull(SettingsCategory.forSection(key))
+        requireNotNull(SettingsCategory.forSection(key))
         check(key !in sections)
         val block = style.column("settings/section/$key").apply {
-            visibility = if (category == active) VISIBLE else GONE
             setPadding(style.dp(10), 0, style.dp(10), style.dp(14))
             protectRoundedBackdropContent(style.surface, style.dp(12), leaveBottomPaddingVisible = true)
         }
@@ -193,14 +189,46 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         pairedDevices = SettingsColumns(host, style, devices, scale, org.json.JSONObject(), firstFraction = .5f,
             minimumFirstWidth = { style.dp(300) }, minimumSecondWidth = { style.dp(250) }, stackGapDp = 3).apply {
             tag = "settings/devices/overview"
-            visibility = if (active == SettingsCategory.DEVICE) VISIBLE else GONE
             body.addView(this, at, LayoutParams(-1, -2))
         }
         return style.column("settings/devices/scan-section").apply {
             setPadding(style.dp(10), 0, style.dp(10), style.dp(12))
-            visibility = if (active == SettingsCategory.DEVICE) VISIBLE else GONE
             body.addView(this, at + 1, LayoutParams(-1, -2))
             scanning = this
+        }
+    }
+
+    /** Build each panel once; reorder before attachment so View identity survives category taps. */
+    fun finishSections() {
+        val ordered = listOfNotNull(pairedDevices, scanning) + SettingsCategory.entries
+            .filter { it != SettingsCategory.DEVICE }
+            .flatMap { it.sections }.map { sections.getValue(it).block }
+        check(ordered.size == body.childCount)
+        body.removeAllViews()
+        val brew = style.column("settings/brewing/group").apply {
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                val grouped = width >= style.dp(610)
+                if (grouped != (background != null))
+                    background = if (grouped) style.shape(style.surface, outline = true, radius = 14) else null
+            }
+        }
+        ordered.forEach { child ->
+            val section = sections.values.firstOrNull { it.block === child }
+            if (section?.key !in SettingsCategory.BREWING.sections) body.addView(child, LayoutParams(-1, -2))
+            else {
+                if (brew.parent == null) body.addView(brew, LayoutParams(-1, -2))
+                val block = section!!.block
+                val content = block.getChildAt(1)
+                block.removeAllViews()
+                val pair = SettingsColumns(host, style, section.heading, content, org.json.JSONObject(),
+                    firstFraction = .31f, minimumFirstWidth = { style.dp(160) },
+                    minimumSecondWidth = { style.dp(425) }, stackGapDp = 0)
+                block.addView(pair, LayoutParams(-1, -2))
+                if (brew.childCount > 0) brew.addView(hairline(), LayoutParams(-1, style.dp(1)).apply {
+                    marginStart = style.dp(10); marginEnd = style.dp(10)
+                })
+                brew.addView(block, LayoutParams(-1, -2))
+            }
         }
     }
 
@@ -237,31 +265,17 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         updateButtons()
     }
 
-    fun navigate(key: String) {
+    fun navigate(key: String) = moveTo(key, focus = true)
+
+    private fun select(category: SettingsCategory) = moveTo(category.sections.first(), focus = false)
+
+    private fun moveTo(key: String, focus: Boolean) {
         val category = SettingsCategory.forSection(key) ?: return
         if (key !in sections) return
-        if (!restoring) rememberPosition()
-        positions[category] = Position(key)
-        requestedHeading = key
-        show(category)
-    }
-
-    private fun select(category: SettingsCategory) {
-        if (active == category) return
-        if (!restoring) rememberPosition()
-        requestedHeading = null
-        show(category)
-    }
-
-    private fun show(category: SettingsCategory) {
-        // No control/listener (or typed draft) is reconstructed when the index changes.
-        findFocus()?.takeIf { focused -> sections.values.any { it.block.hasFocus() && it.block.findFocus() === focused } }
-            ?.clearFocus()
         active = category
-        pairedDevices?.visibility = if (category == SettingsCategory.DEVICE) VISIBLE else GONE
-        scanning?.visibility = if (category == SettingsCategory.DEVICE) VISIBLE else GONE
+        position = Position(key)
+        requestedHeading = key.takeIf { focus }
         restoring = true
-        sections.values.forEach { it.block.visibility = if (it.key in category.sections) VISIBLE else GONE }
         updateButtons()
         requestLayout()
     }
@@ -325,34 +339,35 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         SettingsCategory.AI -> R.drawable.settings_category_ai
         SettingsCategory.MAINTENANCE -> R.drawable.settings_category_maintenance
     }
-    private fun position(): Position = positions[active] ?: Position(active.sections.first())
     private fun top(section: Section): Int = Rect(0, 0, 1, 1).also {
         body.offsetDescendantRectToMyCoords(section.block, it)
     }.top
     private fun maxScroll() = (body.height - scroll.height).coerceAtLeast(0)
-    private fun rememberPosition() {
-        val candidates = active.sections.mapNotNull(sections::get)
-        if (candidates.isEmpty()) return
+    private fun rememberPosition(updateHighlight: Boolean) {
+        val naturalOrder = SettingsCategory.entries.flatMap { it.sections }.mapNotNull(sections::get)
+        val first = naturalOrder.firstOrNull() ?: return
         val end = maxScroll() > 0 && scroll.scrollY >= maxScroll() - 2
-        val current = candidates.filter { top(it) <= scroll.scrollY + style.dp(12) }.maxByOrNull(::top)
-            ?: candidates.first()
-        val top = top(current)
-        positions[active] = Position(current.key, scroll.scrollY - top, end)
-        resolvedTop = top
-    }
-    fun save(state: Bundle) {
-        if (!restoring) rememberPosition()
-        state.putString("settings.category", active.key)
-        state.putString("settings.requested", requestedHeading)
-        state.putStringArrayList("settings.disclosures", ArrayList(disclosureKeys))
-        positions.forEach { (category, position) ->
-            state.putBundle("settings.category.${category.key}", Bundle().apply {
-                putString("anchor", position.anchor)
-                putInt("offset", position.offset)
-                putBoolean("end", position.end)
-            })
+        val current = naturalOrder.filter { top(it) <= scroll.scrollY + style.dp(12) }.maxByOrNull(::top) ?: first
+        position = Position(current.key, scroll.scrollY - top(current), end)
+        if (updateHighlight) {
+            val category = if (end) SettingsCategory.MAINTENANCE else SettingsCategory.forSection(current.key)
+            if (category != null && active != category) {
+                active = category
+                updateButtons()
+            }
         }
     }
+
+    fun save(state: Bundle) {
+        if (!restoring) rememberPosition(updateHighlight = false)
+        state.putString("settings.category", active.key)
+        state.putString("settings.anchor", position.anchor)
+        state.putInt("settings.offset", position.offset)
+        state.putBoolean("settings.atEnd", position.end)
+        state.putString("settings.requested", requestedHeading)
+        state.putStringArrayList("settings.disclosures", ArrayList(disclosureKeys))
+    }
+
 }
 
 /** Fixed-width cells keep their tallest natural line, independent of decorative separators. */

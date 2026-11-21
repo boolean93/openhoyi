@@ -17,22 +17,24 @@ internal class SettingsPreviewOptions(context: Context, private val size: Int,
     private val gap = style.dp(8)
     private var columns = size
     private val heights = mutableListOf<Int>()
+    private var visible = emptyList<View>()
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val required = style.dp(if (size == 4) 112 else 86)
-        columns = if (width >= size * required + (size - 1) * gap) size
-            else if (size == 4 && width >= 2 * required + gap) 2
-            else if (size == 3 && width >= 2 * required + gap) 2 else 1
+        visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
+        val count = visible.size.coerceAtLeast(1)
+        columns = if (width >= count * required + (count - 1) * gap) count
+            else if (count > 1 && width >= 2 * required + gap) 2 else 1
         val cellWidth = ((width - (columns - 1) * gap) / columns).coerceAtLeast(0)
         heights.clear()
-        (0 until childCount).chunked(columns).forEach { row ->
+        visible.chunked(columns).forEach { row ->
             val w = MeasureSpec.makeMeasureSpec(cellWidth, MeasureSpec.EXACTLY)
             val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-            val rowHeight = row.maxOf { i -> getChildAt(i).let { it.measure(w, free); it.measuredHeight } }
+            val rowHeight = row.maxOf { it.measure(w, free); it.measuredHeight }
             val h = MeasureSpec.makeMeasureSpec(rowHeight, MeasureSpec.EXACTLY)
-            row.forEach { getChildAt(it).measure(w, h) }
+            row.forEach { it.measure(w, h) }
             heights.add(rowHeight)
         }
         val total = heights.sum() + (heights.size - 1).coerceAtLeast(0) * gap
@@ -44,8 +46,8 @@ internal class SettingsPreviewOptions(context: Context, private val size: Int,
         heights.forEachIndexed { row, h ->
             for (col in 0 until columns) {
                 val i = row * columns + col
-                if (i >= childCount) break
-                val child = getChildAt(i)
+                if (i >= visible.size) break
+                val child = visible[i]
                 val x = col * (child.measuredWidth + gap)
                 val start = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - x - child.measuredWidth else x
                 child.layout(start, y, start + child.measuredWidth, y + h)
@@ -56,15 +58,19 @@ internal class SettingsPreviewOptions(context: Context, private val size: Int,
 }
 
 internal fun settingsPreviewButton(context: Context, style: TaskProductVisualStyle, title: CharSequence,
-    selected: Boolean): Button = style.button(Button(context), outline = true).apply {
+    selected: Boolean, button: Button = Button(context)): Button = style.button(button, outline = true).apply {
     text = title
     style.apply(this, TaskProductVisualStyle.auxiliary)
-    setTextColor(if (selected) style.accent else style.ink)
-    isSelected = selected
     minHeight = style.dp(48)
     minimumHeight = minHeight
     gravity = Gravity.CENTER
     setPaddingRelative(style.dp(6), style.dp(6), style.dp(6), style.dp(6))
+    settingsPreviewSelection(style, selected)
+}
+
+internal fun Button.settingsPreviewSelection(style: TaskProductVisualStyle, selected: Boolean) {
+    setTextColor(if (selected) style.accent else style.ink)
+    isSelected = selected
     val fill = if (selected) style.selected else style.surface
     fun shape(focused: Boolean): GradientDrawable = style.shape(fill, true, 10).apply {
         if (selected || focused) setStroke(style.dp(1), style.accent)

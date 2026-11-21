@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ai_model">Model</string>
+    <string name="settings_ai_not_set">Not set</string>
+    <string name="settings_ai_on">On</string>
+    <string name="settings_ai_off">Off</string>
+    <string name="settings_ai_open">Open HOYI.AI</string>
+    <string name="settings_ai_review">Automatic shot review</string>
+    <string name="settings_ai_key_unavailable">Unavailable</string>
+</resources>

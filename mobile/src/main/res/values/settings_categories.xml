@@ -14,4 +14,10 @@
     <string name="settings_category_brewing">萃取</string>
     <string name="settings_category_project_details">项目与导入指南</string>
     <string name="settings_category_scale_tool">打开秤工具</string>
+    <string name="settings_category_apply">应用</string>
+    <string name="settings_category_preview">试听</string>
+    <string name="settings_category_shortcut_hint">工作室模式需先达温。</string>
+    <string name="settings_category_axes_hint">仅影响显示，保留原始数据。</string>
+    <string name="settings_category_feedback_hint">完成后显示反馈并播放提示音。</string>
+    <string name="settings_category_diagnostics_label">诊断日志</string>
 </resources>

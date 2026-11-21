@@ -344,7 +344,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             check(paper.snapshot.image != null && paper.photoScrim != null)
             check(paper.photoBounds?.invoke()?.contains(0, 0) == true)
             verifyShellBackdrop(host, photo = true)
-            scroll.scrollTo(0, HoyiUi.dp(host, 120))
+            scroll.scrollTo(0, scroll.scrollY + HoyiUi.dp(host, 120))
         }
         await("settings backing matches the section's scrolled visible bounds") {
             if (scroll.scrollY <= 0) return@await false
