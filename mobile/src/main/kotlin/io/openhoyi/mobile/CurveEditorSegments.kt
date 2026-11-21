@@ -13,6 +13,8 @@ import android.widget.TextView
 internal class CurveEditorSegments(context: Context, private val style: TaskProductVisualStyle,
     first: String, second: String) : FrameLayout(context) {
     private var selectedColors = listOf(style.primary, style.primary)
+    private var selectedInk = Color.WHITE
+    private var selectedStroke: Int? = null
     private val thumb = View(context).apply { background = style.shape(style.primary, false, 7) }
     private val row = LinearLayout(context).apply { isBaselineAligned = false }
     private val choices = List(2) { index -> style.text(if (index == 0) first else second, TaskProductVisualStyle.action).apply {
@@ -41,13 +43,21 @@ internal class CurveEditorSegments(context: Context, private val style: TaskProd
         thumb.visibility = if (known) View.VISIBLE else View.INVISIBLE
         choices.forEachIndexed { index, choice ->
             choice.isSelected = known && selected == (index == 1)
-            choice.setTextColor(if (choice.isSelected) Color.WHITE else style.ink)
+            choice.setTextColor(if (choice.isSelected) selectedInk else style.ink)
         }
     }
-    fun colors(first: Int, second: Int) {
-        if (selectedColors[0] == first && selectedColors[1] == second) return
+    fun colors(first: Int, second: Int, ink: Int = Color.WHITE, stroke: Int? = null) {
+        if (selectedColors[0] == first && selectedColors[1] == second && selectedInk == ink && selectedStroke == stroke) return
         selectedColors = listOf(first, second)
-        thumb.background = style.shape(selectedColors[if (selected) 1 else 0], false, 7)
+        selectedInk = ink
+        selectedStroke = stroke
+        paintThumb()
+        choices.forEach { it.setTextColor(if (it.isSelected) selectedInk else style.ink) }
+    }
+    private fun paintThumb() {
+        thumb.background = style.shape(selectedColors[if (selected) 1 else 0], false, 7).apply {
+            selectedStroke?.let { setStroke(style.dp(1), it) }
+        }
     }
     /** Compact visual type, not compact touch targets. */
     fun compact() {
@@ -74,10 +84,10 @@ internal class CurveEditorSegments(context: Context, private val style: TaskProd
     fun select(value: Boolean, animate: Boolean = false) {
         if (selected == value && !animate && thumb.isLaidOut) return
         selected = value
-        thumb.background = style.shape(selectedColors[if (value) 1 else 0], false, 7)
+        paintThumb()
         choices.forEachIndexed { index, label ->
             label.isSelected = value == (index == 1)
-            label.setTextColor(if (label.isSelected) Color.WHITE else style.ink)
+            label.setTextColor(if (label.isSelected) selectedInk else style.ink)
             label.accessibilityDelegate = object : View.AccessibilityDelegate() {
                 override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
                     super.onInitializeAccessibilityNodeInfo(host, info)

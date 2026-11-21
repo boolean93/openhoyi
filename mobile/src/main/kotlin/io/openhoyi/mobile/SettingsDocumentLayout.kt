@@ -196,9 +196,23 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             parent.addView(heading, 0, LayoutParams(-1, -2))
         }
         style.apply(heading, if (rail) TaskProductVisualStyle.Type(22, 700, 32) else TaskProductVisualStyle.settingsChapter)
-        heading.setPadding(0, style.dp(if (rail) 0 else 8), 0, style.dp(8))
+        heading.setPadding(0, style.dp(if (rail) 0 else 8), 0, style.dp(if (rail) 0 else 8))
+        card.setPadding(card.paddingLeft, style.dp(if (rail) 8 else 16), card.paddingRight, card.paddingBottom)
+        card.findViewWithTag<View>("product/settings/machine/standby/row")?.apply {
+            val vertical = style.dp(if (rail) 0 else 4)
+            setPadding(paddingLeft, vertical, paddingRight, vertical)
+        }
+        card.findViewWithTag<View>("settings/machine/standby-divider")?.let { divider ->
+            (divider.layoutParams as LayoutParams).apply {
+                topMargin = style.dp(if (rail) 2 else 4)
+                bottomMargin = topMargin
+            }
+        }
+        card.findViewWithTag<View>("settings/machine/week-tiles-section")?.let { grid ->
+            (grid.layoutParams as LayoutParams).topMargin = style.dp(if (rail) 4 else 8)
+        }
         sections["machine"]?.block?.apply {
-            setPadding(paddingLeft, paddingTop, paddingRight, style.dp(if (rail) 6 else 14))
+            setPadding(paddingLeft, paddingTop, paddingRight, style.dp(if (rail) 2 else 14))
         }
     }
 

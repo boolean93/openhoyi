@@ -311,7 +311,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         val dayNames = listOf(R.string.machine_settings_sunday, R.string.machine_settings_monday,
             R.string.machine_settings_tuesday, R.string.machine_settings_wednesday,
             R.string.machine_settings_thursday, R.string.machine_settings_friday, R.string.machine_settings_saturday)
-        scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = "settings/machine/week-tiles-section" }
         sleepCard.addView(scheduleGrid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val dayGrid = if (documentMode) SettingsWideGrid(this, style, 7, 88, 664, 8,
             stackUntilWide = true, equalizeRowHeight = true) { columns ->
@@ -409,6 +409,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             standbyCard.getChildAt(0).visibility = View.GONE
             style.add(standbyCard, standbyGrid, 0)
             style.divider(standbyCard, top = 4, bottom = 4)
+            standbyCard.getChildAt(standbyCard.childCount - 1).tag = "settings/machine/standby-divider"
             sleepCard.getChildAt(0).visibility = View.GONE
             while (sleepCard.childCount > 0) {
                 val child = sleepCard.getChildAt(0)
@@ -451,6 +452,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 firstFraction = .46f, gapDp = 14, minimumFirstWidth = { dp(345) }, minimumSecondWidth = { dp(380) },
                 stackGapDp = 12, onMeasuredSplit = { split ->
                     grouped.forEach { it.setWideDraftLayout(split) }
+                    machineModes?.setWidePanel(split)
                 }).apply { tag = "settings/machine/main-columns" })
             (settings.parent as? android.view.ViewGroup)?.removeView(settings)
             body.addView(settings)
