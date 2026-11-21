@@ -471,8 +471,8 @@ class HomeActivity : ThemedActivity() {
             setOnClickListener { startActivity(Intent(this@HomeActivity, HistoryActivity::class.java)) }
         }
         presetPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(16), 0) }
-        presetButtons = (1..5).map { slot ->
-            button(presetPanel, getString(R.string.home_slot, slot.toString())) {
+        presetButtons = PresetSlots.userFacing.map { slot ->
+            button(presetPanel, getString(R.string.home_slot, PresetSlots.label(slot))) {
                 presetDialog?.dismiss()
                 val library = (application as MobileApplication).curves
                 val id = PresetSlots.curveId(slot, getSharedPreferences("presets", MODE_PRIVATE)
@@ -859,7 +859,7 @@ class HomeActivity : ThemedActivity() {
             val slot = index + 1
             val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null), library)
             val item = library.find(id)
-            val label = getString(R.string.home_slot_curve, slot.toString(), if (id == PresetSlots.EMPTY) getString(R.string.curve_slot_choose) else item?.name ?: id)
+            val label = getString(R.string.home_slot_curve, PresetSlots.label(slot), if (id == PresetSlots.EMPTY) getString(R.string.curve_slot_choose) else item?.name ?: id)
             if (button.text.toString() != label) button.text = label
         }
         val keys = s.candidates.map { "${it.address}:${it.advertisedName}:${it.scaleProtocolId}" }

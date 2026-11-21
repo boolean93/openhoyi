@@ -496,12 +496,12 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         assignPreset = HoyiUi.button(host, detailToolbar, getString(R.string.curve_assign_slot)) {
             val item = selected?.takeIf { PresetSlots.canAssign(it, library) } ?: return@button
             AlertDialog.Builder(host).setTitle(getString(R.string.curve_choose_slot))
-                .setItems((1..5).map { getString(R.string.home_slot, it.toString()) }.toTypedArray()) { _, index ->
+                .setItems(PresetSlots.userFacing.map { getString(R.string.home_slot, PresetSlots.label(it)) }.toTypedArray()) { _, index ->
                     if (library.find(item.id) != item || !PresetSlots.canAssign(item, library)) {
                         Toast.makeText(host, R.string.curve_slot_unavailable, Toast.LENGTH_LONG).show()
                         return@setItems
                     }
-                    val slot = index + 1
+                    val slot = PresetSlots.userFacing.first + index
                     getSharedPreferences("presets", MODE_PRIVATE).edit()
                         .putString(PresetSlots.key(slot), PresetSlots.bind(item.id)).apply()
                     lastAssignedCurveId = item.id
@@ -664,7 +664,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private fun updateAvailabilityFeedback() {
         val slot = lastAssignedSlot?.takeIf { lastAssignedCurveId == selected?.id }
         availability.text = if (slot == null) baseAvailabilityText else
-            "$baseAvailabilityText · ${getString(R.string.curve_slot_assigned_latest, slot.toString())}"
+            "$baseAvailabilityText · ${getString(R.string.curve_slot_assigned_latest, PresetSlots.label(slot))}"
     }
 
     private fun showBrowser() {

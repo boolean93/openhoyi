@@ -31,7 +31,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
         val prefs = context.getSharedPreferences("shortcut_start", Context.MODE_PRIVATE)
         val oldDirect = prefs.all["direct_start"] as? Boolean
         val slots = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
-        val oldSlot = slots.getString(PresetSlots.key(5), null)
+        val oldSlot = slots.getString(PresetSlots.key(4), null)
         val curves = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val oldSelected = curves.getString("selected", null)
         val history = app.history.entries
@@ -60,7 +60,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
             main {
                 darkTheme?.let { check(appearance.edit().putBoolean("dark", it).commit()) }
                 curveFixture.replace(document)
-                check(slots.edit().putString(PresetSlots.key(5), document.id).commit())
+                check(slots.edit().putString(PresetSlots.key(4), document.id).commit())
                 check(prefs.edit().remove("direct_start").commit())
             }
             val page = MainPageTestHost.launch(test, timeoutMs = 15000)
@@ -106,7 +106,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 resetCold()
                 val current = service.currentCorrectedBrewTemperature()
                 check(current == null || kotlin.math.abs(current - 10500) > 100) { "Unsafe temperature fixture" }
-                check(page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/5").performClick())
+                check(page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/4").performClick())
             }
             main {
                 check(host.findViewById<View>(android.R.id.content)
@@ -260,7 +260,7 @@ internal class ShortcutDirectStartWindowChecks(private val test: Instrumentation
                 check(prefs.edit().apply {
                     if (oldDirect == null) remove("direct_start") else putBoolean("direct_start", oldDirect)
                 }.commit())
-                check(slots.edit().apply { if (oldSlot == null) remove(PresetSlots.key(5)) else putString(PresetSlots.key(5), oldSlot) }.commit())
+                check(slots.edit().apply { if (oldSlot == null) remove(PresetSlots.key(4)) else putString(PresetSlots.key(4), oldSlot) }.commit())
                 check(curves.edit().apply { if (oldSelected == null) remove("selected") else putString("selected", oldSelected) }.commit())
             }
             // Cross another main-queue barrier and verify the exact original key/value survived.

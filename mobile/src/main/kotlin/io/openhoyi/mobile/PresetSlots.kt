@@ -2,6 +2,12 @@ package io.openhoyi.mobile
 
 /** Local shortcuts, not writes to the machine's stored recipes. */
 object PresetSlots {
+    /** Slots offered by the UI; the fifth persisted/wire slot remains compatible. */
+    internal val userFacing = 1..4
+    internal fun label(slot: Int): String {
+        require(slot in userFacing)
+        return ('A' + slot - 1).toString()
+    }
     const val EMPTY = "empty"
     fun bind(id: String): String = if (id.startsWith("draft-"))
         id + "#" + java.util.UUID.randomUUID().toString() else id

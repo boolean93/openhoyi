@@ -504,7 +504,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         if(name=="presets" && preferences.all==values) return@forEach
                         val keys = when(name) {
                             "appearance" -> listOf("dark")
-                            "curves" -> listOf("selected","sort")
+                            "curves" -> listOf("selected","sort","customOnly")
                             else -> (1..5).map(PresetSlots::key)
                         }
                         val edit = preferences.edit()
@@ -530,7 +530,13 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     saved.forEach { (name,lazy) -> check(field(app,name+"\$delegate") === lazy && lazy.isInitialized()==originalInitialized.getValue(name)) }
                     legacy.forEach { (name,pair) -> check(field(app,name+"\$delegate") === pair.first && pair.first.isInitialized()==pair.second) }
                     check(field(app,"languagePreferences") === oldLanguage && field(app,"journalObservationFailure") === oldFailure)
-                    savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
+                    savedPrefs.forEach { (name,values) ->
+                        val actual = context.getSharedPreferences(name,Context.MODE_PRIVATE).all
+                        check(actual == values) {
+                            val changed = (actual.keys + values.keys).filter { actual[it] != values[it] }
+                            "Preference restore differed for $name keys $changed"
+                        }
+                    }
                     val after = businessDisk(specialLibrary)
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
                         .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
@@ -541,8 +547,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
                         .put("whitePrefFilesBefore",JSONObject(whitePrefFileBefore)).put("whitePrefFilesAfter",JSONObject(whitePrefFiles()))
                         .put("whitePrefPhysicalBytesMayDiffer",if(specialLibrary)
-                            "appearance.dark/curves.selected/curves.sort/presets.slot_1..slot_5 typed restoration; no file deletion or byte rollback"
-                            else "only appearance.dark/curves.selected/curves.sort typed restoration; presets bytes part of strict businessDisk")
+                            "appearance.dark/curves.selected/curves.sort/curves.customOnly/presets.slot_1..slot_5 typed restoration; no file deletion or byte rollback"
+                            else "only appearance.dark/curves.selected/curves.sort/curves.customOnly typed restoration; presets bytes part of strict businessDisk")
                 }
                 proof.put("status","PASS_ISOLATION_ONLY")
             } catch (failure: Throwable) {
@@ -999,18 +1005,26 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         }
         val expectedSource=if(item.customDocument!=null) activity.getString(R.string.profiles_category)
             else CurveCategoryFilter.display(activity,item.category)
-        val baseAvailability=if(item.customDocument!=null) activity.getString(if(scope.curves.canStart(item))
-            R.string.profiles_pressure_compatible else R.string.profiles_read_only)
-            else activity.getString(if(scope.curves.canStart(item)) R.string.curve_verified else R.string.curve_unavailable)
+        val draft = item.customDocument
+        val baseAvailability = when {
+            draft?.controlMode == CustomCurveDocument.ControlMode.FLOW_RAW ->
+                activity.getString(R.string.flow_curve_missing_modes_short)
+            draft != null -> activity.profileExecutionSummary(draft)
+            else -> activity.getString(if(scope.curves.canStart(item)) R.string.curve_verified else R.string.curve_unavailable)
+        }
         val expectedAvailability=baseAvailability+(expectedAssignedSlot?.let {
-            " · "+activity.getString(R.string.curve_slot_assigned_latest,it.toString()) } ?: "")
+            " · "+activity.getString(R.string.curve_slot_assigned_latest,PresetSlots.label(it)) } ?: "")
         val expectedDetails=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
             else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
-        check(title.text.toString()==item.name &&
-            source.text.toString()==expectedSource && availability.text.toString()==expectedAvailability &&
-            details.text.toString()==expectedDetails && (field(activity,"selected") as CurveLibraryItem)==item)
+        check(title.text.toString()==item.name) { "Wrong detail title for ${item.id}" }
+        check(source.text.toString()==expectedSource) { "Wrong detail source for ${item.id}" }
+        check(availability.text.toString()==expectedAvailability) {
+            "Wrong availability for ${item.id}: expected $expectedAvailability, observed ${availability.text}"
+        }
+        check(details.text.toString()==expectedDetails) { "Wrong detail parameters for ${item.id}" }
+        check((field(activity,"selected") as CurveLibraryItem)==item) { "Wrong selected detail for ${item.id}" }
         check((field(activity,"select") as Button).isEnabled==scope.curves.canStart(item))
-        check((field(activity,"assignPreset") as Button).isEnabled==(item.factoryCurve!=null && scope.curves.canStart(item)))
+        check((field(activity,"assignPreset") as Button).isEnabled==PresetSlots.canAssign(item, scope.curves))
         check(field(activity,"lastAssignedCurveId")==(
             if(expectedAssignedSlot==null) null else item.id))
         check(field(activity,"lastAssignedSlot")==expectedAssignedSlot)
@@ -1587,9 +1601,13 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("allowedKeys",JSONArray((1..5).map(PresetSlots::key))).put("visualAcceptance","ASTRA_PENDING")
         var activity:Activity?=null; var primary:Throwable?=null
         try {
+            val fifthKey = PresetSlots.key(5)
+            val fifthBinding = "factory-v3-005"
+            check(prefs.edit().putString(fifthKey, fifthBinding).commit())
+            report.put("fifthBindingSeed", fifthBinding)
             val page=start(CurveActivity::class.java); activity=page; unfocus(page)
             librarySelect(page,scope,qualified)
-            for(slot in 1..5) {
+            for(slot in 1..4) {
                 val menu=openLibraryMenu(page)
                 check(menu.count { it==page.getString(R.string.curve_assign_slot) }==1)
                 val menuDiagnostic=JSONObject().put("case","slot-$slot").put("phase","before-main")
@@ -1642,9 +1660,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     .put("chooserDecorIdentity",System.identityHashCode(decor))
                     .put("chooserTokenIdentity",System.identityHashCode(requireNotNull(decor.windowToken)))
                 transitionFile.writeText(transition.toString(2))
-                val labels=(1..5).map { page.getString(R.string.home_slot,it.toString()) }
+                val labels=listOf("A", "B", "C", "D").map { page.getString(R.string.home_slot,it) }
                 val list=requireNotNull(chooser.listView)
-                main { check(list.adapter.count==5 && (0 until 5).map { list.adapter.getItem(it).toString() }==labels) }
+                main { check(list.adapter.count==4 && (0 until 4).map { list.adapter.getItem(it).toString() }==labels) }
                 if(slot==1) {
                     val chooserFolder=File(folder,"chooser")
                     val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(chooserFolder.apply { check(isDirectory || mkdirs()) },"window.png")) {
@@ -1652,8 +1670,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         check(libraryWindowDialog(page,popup) {transitionState=it}===chooser)
                         val titleText=page.getString(R.string.curve_choose_slot)
                         val title=requireNotNull(nodes(decor).filterIsInstance<TextView>().singleOrNull { it.text.toString()==titleText })
-                        check(list.firstVisiblePosition==0 && list.childCount==5)
-                        val rows=JSONArray((0 until 5).map { index ->
+                        check(list.firstVisiblePosition==0 && list.childCount==4)
+                        val rows=JSONArray((0 until 4).map { index ->
                             val child=requireNotNull(list.getChildAt(index))
                             val text=requireNotNull(nodes(child).filterIsInstance<TextView>()
                                 .singleOrNull { it.text.toString()==labels[index] })
@@ -1694,6 +1712,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 val step=File(folder,"slot-$slot")
                 val captured=libraryCapture(page,step) {
                     libraryDisclosureState(page,qualified,scope,expectedAssignedSlot=slot) }
+                check(prefs.getString(fifthKey, null) == fifthBinding && diskPresetString(fifthKey) == fifthBinding)
                 val feedback=captured.getJSONObject("libraryDisclosure")
                 report.getJSONArray("steps").put(JSONObject().put("slot",slot).put("menu",JSONArray(menu))
                     .put("menuNodes",menuNodes)
@@ -1711,12 +1730,12 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         .put("fullParameters",feedback.getJSONObject("common").getJSONObject("product/curve-library/full-parameters"))
                         .put("use",feedback.getJSONObject("common").getJSONObject("product/curve-library/use")))
                     .put("capture",captureReference(directory,step)))
-                if(slot==5) {
+                if(slot==4) {
                     val reselected=librarySelect(page,scope,qualified)
-                    main { check(field(page,"lastAssignedCurveId")==qualified.id && field(page,"lastAssignedSlot")==5 &&
+                    main { check(field(page,"lastAssignedCurveId")==qualified.id && field(page,"lastAssignedSlot")==4 &&
                         (field(page,"availability") as TextView).text.toString()==feedback.getString("baseAvailability")+
-                            " · "+page.getString(R.string.curve_slot_assigned_latest,"5")) }
-                    report.put("sameCurveRedraw",reselected.put("latestAssignedSlot",5))
+                            " · "+page.getString(R.string.curve_slot_assigned_latest,"D")) }
+                    report.put("sameCurveRedraw",reselected.put("latestAssignedSlot",4))
                 }
                 check(invariant(scope)==frozen && scope.readOnlyService())
             }

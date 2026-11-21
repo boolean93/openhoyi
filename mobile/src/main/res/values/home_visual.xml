@@ -21,7 +21,6 @@
     <string name="home_last_unavailable">上一杯曲线已不可用</string>
     <string name="home_last_draft_changed">上一杯自定义曲线参数无法确认</string>
     <string name="home_shortcut_preset">预设 %1$s</string>
-    <string name="home_shortcut_legacy">旧版预设 %1$s</string>
     <string name="home_shortcut_previous">复用上一杯</string>
     <string name="home_shortcut_last">上一杯</string>
     <string name="home_shortcut_pressure_key">压力 · bar</string>

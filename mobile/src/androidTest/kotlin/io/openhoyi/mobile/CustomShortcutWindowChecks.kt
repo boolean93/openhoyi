@@ -1,7 +1,9 @@
 package io.openhoyi.mobile
 
+import android.app.Activity
 import android.app.Instrumentation
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.os.SystemClock
 import android.view.View
@@ -42,7 +44,8 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             SystemClock.sleep(40)
         }
     }
-    fun run() {
+    fun run(pickerOnly: Boolean = false, legacyRoute: Boolean = false) {
+        check(!legacyRoute || pickerOnly)
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -53,11 +56,14 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
         val shortcutPrefs = context.getSharedPreferences("shortcut_start", Context.MODE_PRIVATE)
         val shortcutDirect = shortcutPrefs.all["direct_start"] as? Boolean
         val selected = curvePrefs.getString("selected", null)
-        val stored = slotPrefs.getString(PresetSlots.key(5), null)
+        val stored = slotPrefs.getString(PresetSlots.key(4), null)
+        val fifthKey = PresetSlots.key(5)
+        val priorFifth = slotPrefs.getString(fifthKey, null)
+        val fifthBinding = "factory-v3-005"
         val oldHistory = app.history.entries
         val file = File(context.filesDir, "custom_curves_v1.json")
         val originalBytes = if (file.exists()) file.readBytes() else null
-        var activity: MainActivity? = null
+        var activity: Activity? = null
         val document = CustomCurveDocument(CustomCurveDocument.newId(), "Shortcut QA", 92, 3600,
             CustomCurveDocument.ControlMode.PRESSURE,
             listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
@@ -65,16 +71,103 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             curveFixture.replace(doc)
         }
         val directory = File(context.getExternalFilesDir(null), "custom-shortcut-checks").apply { mkdirs() }
-        fun capture(name: String) {
-            SystemClock.sleep(400)
+        fun capture(name: String, waitForTransition: Boolean = true) {
+            if (waitForTransition) SystemClock.sleep(400)
             val bitmap = checkNotNull(test.uiAutomation.takeScreenshot())
             try { File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
             finally { bitmap.recycle() }
         }
+        fun verifyPicker(owner: Activity) {
+            val choices = listOf("A", "B", "C", "D").map { owner.getString(R.string.home_slot, it) }
+            val until = SystemClock.elapsedRealtime() + 10000
+            while (true) {
+                val window = test.uiAutomation.rootInActiveWindow
+                if (window?.packageName?.toString() == context.packageName && choices.all { label ->
+                    window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
+                }) {
+                    check(listOf("E", "5").none { suffix ->
+                        val label = owner.getString(R.string.home_slot, suffix)
+                        window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
+                    })
+                    break
+                }
+                check(SystemClock.elapsedRealtime() < until) { "Curve picker did not show A–D" }
+                SystemClock.sleep(40)
+            }
+            fun focusedDialog(): View? = android.view.inspector.WindowInspector.getGlobalWindowViews()
+                .singleOrNull { it !== owner.window.decorView && it.hasWindowFocus() &&
+                    views(it).filterIsInstance<ListView>().singleOrNull()?.let { list ->
+                        (0 until list.adapter.count).map { index -> list.adapter.getItem(index).toString() } == choices
+                    } == true }
+            lateinit var capturedDialog: View
+            main {
+                capturedDialog = checkNotNull(focusedDialog()) { "Focused picker must contain exactly A–D in order" }
+            }
+            capture(if (legacyRoute) "legacy-route-assignment-ad" else "assignment-ad", waitForTransition = false)
+            lateinit var target: android.graphics.Point
+            await("focused, fully visible D row after capture") {
+                if (focusedDialog() !== capturedDialog) return@await false
+                val list = views(capturedDialog).filterIsInstance<ListView>().single()
+                val row = list.getChildAt(choices.lastIndex - list.firstVisiblePosition) ?: return@await false
+                val visible = android.graphics.Rect()
+                if (!row.isShown || !row.isEnabled || !row.getLocalVisibleRect(visible) ||
+                    visible.width() != row.width || visible.height() != row.height ||
+                    views(row).filterIsInstance<TextView>().none { it.text.toString() == choices.last() }) return@await false
+                val location = IntArray(2).also(row::getLocationOnScreen)
+                target = android.graphics.Point(location[0] + visible.centerX(), location[1] + visible.centerY())
+                true
+            }
+            val downTime = SystemClock.uptimeMillis()
+            for (action in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_UP)) {
+                val event = android.view.MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action,
+                    target.x.toFloat(), target.y.toFloat(), 0).apply { source = android.view.InputDevice.SOURCE_TOUCHSCREEN }
+                try { check(test.uiAutomation.injectInputEvent(event, true)) { "Could not touch measured D row" } }
+                finally { event.recycle() }
+            }
+            await("assignment") { slotPrefs.getString(PresetSlots.key(4), null)?.substringBefore("#") == document.id }
+            check(slotPrefs.getString(fifthKey, null) == fifthBinding)
+            val file = File(context.applicationInfo.dataDir, "shared_prefs/presets.xml")
+            fun diskBindings(): Map<String, String> {
+                val parser = android.util.Xml.newPullParser()
+                return buildMap {
+                    file.inputStream().use {
+                        parser.setInput(it, "UTF-8")
+                        while (parser.eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                            if (parser.eventType == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "string") {
+                                val key = parser.getAttributeValue(null, "name")
+                                if (key == PresetSlots.key(4) || key == fifthKey) put(key, parser.nextText())
+                            }
+                            parser.next()
+                        }
+                    }
+                }
+            }
+            await("persisted D and unchanged fifth") {
+                val bindings = runCatching { diskBindings() }.getOrDefault(emptyMap())
+                bindings[PresetSlots.key(4)]?.substringBefore("#") == document.id && bindings[fifthKey] == fifthBinding
+            }
+        }
         try {
             check(shortcutPrefs.edit().putBoolean("direct_start", false).commit())
+            check(slotPrefs.edit().putString(fifthKey, fifthBinding).commit())
             main { put(document) }
-            val page = MainPageTestHost.launch(test, timeoutMs = 15000)
+            val page = if (legacyRoute) {
+                val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
+                try {
+                    val legacy = test.startActivitySync(Intent(context, CurveActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    val target = checkNotNull(monitor.waitForActivityWithTimeout(10000) as? MainActivity) {
+                        "Legacy curve route did not launch MainActivity"
+                    }
+                    activity = target
+                    val redirected = MainPageTestHost(test, target)
+                    await("legacy route uses the actual main curve renderer") {
+                        (legacy.isFinishing || legacy.isDestroyed) && target.hasWindowFocus() &&
+                            runCatching { redirected.active("root:CURVES") is CurveFragment }.getOrDefault(false)
+                    }
+                    redirected
+                } finally { test.removeMonitor(monitor) }
+            } else MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
             await("service") { host.currentService?.running == true }
             val service = requireNotNull(host.currentService)
@@ -83,7 +176,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                 check(service.shotState == oldShotState && app.history.entries == oldHistory)
                 check(MobileService::class.java.getDeclaredField("hub").apply { isAccessible = true }.get(service) == null)
             }
-            page.select(TaskDestination.CURVES)
+            if (!legacyRoute) page.select(TaskDestination.CURVES)
             main {
                 val root = page.active("root:CURVES").requireView()
                 views(root).filterIsInstance<EditText>().single().setText(document.name)
@@ -93,12 +186,12 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             }
             await("direct slot action") { page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot")?.isShown == true }
             main { check(page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot").performClick()) }
-            clickWindowText(host.getString(R.string.home_slot, "5"))
-            await("assignment") { slotPrefs.getString(PresetSlots.key(5), null) == document.id }
+            verifyPicker(host)
             check(curvePrefs.getString("selected", null) == selected)
             noShot()
+            if (pickerOnly) return
             page.select(TaskDestination.BREW)
-            fun tile() = page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/5")
+            fun tile() = page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/4")
             await("home label") { views(tile().parent as View).filterIsInstance<TextView>().any { it.text.toString() == document.name } }
             capture("assigned-home")
             main { check(tile().performClick()) }
@@ -128,7 +221,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                 main { put(null); recreated.select(TaskDestination.CURVES); recreated.select(TaskDestination.BREW) }
                 await("missing label") { views(recreated.findViewById(android.R.id.content)).filterIsInstance<TextView>().any { it.text.toString() == recreated.getString(R.string.curve_slot_invalid) } }
                 main {
-                    check(recreated.findViewById<View>(android.R.id.content).findViewWithTag<View>("product/home/direct-preset/5").performClick())
+                    check(recreated.findViewById<View>(android.R.id.content).findViewWithTag<View>("product/home/direct-preset/4").performClick())
                     check(curvePrefs.getString("selected", null) == document.id)
                     check(recreated.supportFragmentManager.primaryNavigationFragment is HomeFragment)
                     noShot()
@@ -142,9 +235,13 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                     if (shortcutDirect == null) remove("direct_start") else putBoolean("direct_start", shortcutDirect)
                 }.commit())
                 check(curvePrefs.edit().apply { if (selected == null) remove("selected") else putString("selected", selected) }.commit())
-                check(slotPrefs.edit().apply { if (stored == null) remove(PresetSlots.key(5)) else putString(PresetSlots.key(5), stored) }.commit())
+                check(slotPrefs.edit().apply {
+                    if (stored == null) remove(PresetSlots.key(4)) else putString(PresetSlots.key(4), stored)
+                    if (priorFifth == null) remove(fifthKey) else putString(fifthKey, priorFifth)
+                }.commit())
+                check(slotPrefs.getString(fifthKey, null) == priorFifth)
                 check(curvePrefs.getString("selected", null) == selected)
-                check(slotPrefs.getString(PresetSlots.key(5), null) == stored)
+                check(slotPrefs.getString(PresetSlots.key(4), null) == stored)
                 check(if (originalBytes == null) !file.exists() else file.readBytes().contentEquals(originalBytes))
                 check(app.history.entries == oldHistory)
             }

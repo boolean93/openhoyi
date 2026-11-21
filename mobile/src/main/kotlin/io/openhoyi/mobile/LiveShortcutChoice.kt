@@ -9,7 +9,7 @@ internal data class LiveShortcutChoice(
     val route: PresetSlots.Route.Ready?,
 ) {
     companion object {
-        val slots = 1..4
+        val slots = PresetSlots.userFacing
 
         /** Entry gate only; the shot's own start/tare transitions are permitted after claiming. */
         fun operationBlock(busyReason: String, automatic: Boolean, manual: Boolean, scalePreflight: Boolean,

@@ -88,6 +88,27 @@ adb shell settings put system user_rotation 0
 # APKs were built by the workflow. Installation is confined to this guarded emulator.
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+# Exercise the actual main picker from both supported routes before the M3 screenshot matrix.
+picker_failed=0
+for picker_surface in main legacy-redirect; do
+  adb shell am force-stop "$package"
+  if ! python3 - "$output_dir/$picker_surface-curve-shortcut.txt" "$picker_surface" <<'PICKER_SHORTCUT_PY'
+from pathlib import Path
+import subprocess, sys
+path, surface = Path(sys.argv[1]), sys.argv[2]
+with path.open('w') as receipt:
+    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-e',
+        'customShortcutChecks', 'true', '-e', 'customShortcutPickerOnly', 'true',
+        '-e', 'customShortcutLegacyRoute', str(surface == 'legacy-redirect').lower(),
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=receipt, stderr=subprocess.STDOUT, timeout=120)
+if result.returncode != 0 or f'CURVE_SHORTCUT_PICKER_PASSED surface={surface} ' not in path.read_text():
+    raise SystemExit(f'Curve shortcut check failed: {path}')
+PICKER_SHORTCUT_PY
+  then picker_failed=1; fi
+  if ! adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"; then picker_failed=1; fi
+done
+
 for product_theme in light dark; do
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
   for font_scale in 1.0 1.3; do
@@ -447,16 +468,16 @@ def require_library_special(folder):
     preset=json.loads((scope/'preset-eligibility-and-slots/business.json').read_text())
     assert preset['status']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE' and preset['visualAcceptance']=='ASTRA_PENDING'
     chooser=require_capture(scope,preset['chooserCapture'],TRANSLATED_WINDOW)
-    assert len(chooser['actualAdapterChoices'])==5 and chooser['choices']==chooser['actualAdapterChoices']
+    assert len(chooser['actualAdapterChoices'])==4 and chooser['choices']==chooser['actualAdapterChoices']
     assert whole(chooser['titleView']) and chooser['titleView']['textLineBoxes'][0]['text']==chooser['title']
-    assert len(chooser['visibleRows'])==5
+    assert len(chooser['visibleRows'])==4
     for index,row in enumerate(chooser['visibleRows']):
         assert row['adapterPosition']==index and row['adapterText']==chooser['choices'][index]
         assert whole(row['child']) and whole(row['label'])
         assert row['label']['textLineBoxes'][0]['text']==chooser['choices'][index]
-    assert [step['slot'] for step in preset['steps']]==[1,2,3,4,5]
+    assert [step['slot'] for step in preset['steps']]==[1,2,3,4]
     assert {path.name for path in (scope/'preset-eligibility-and-slots').glob('slot-*-transition.json')}=={
-        f'slot-{slot}-transition.json' for slot in range(1,6)}
+        f'slot-{slot}-transition.json' for slot in range(1,5)}
     for step in preset['steps']:
         require_capture(scope,step['capture'],DEFAULT_ACTIVITY)
         require_slot_transition(scope,step,chooser if step['slot']==1 else None)
@@ -464,6 +485,7 @@ def require_library_special(folder):
         assert step['menu']==step['menuNodes']['localizedAdapterChoices']
         assert step['menuNodes']['visibleNodes'] and step['menuNodes']['noIndependentWindowProtocolClaim']
         assert after[key]=={'type':'String','value':preset['qualifiedId']}
+        assert before['slot_5']==after['slot_5']=={'type':'String','value':preset['fifthBindingSeed']}
         assert {k:v for k,v in before.items() if k!=key}=={k:v for k,v in after.items() if k!=key}
         assert step['actualStoredId']==preset['qualifiedId']
     assert [item['case'] for item in preset['negative']]==['custom-pressure','readonly-flow']
@@ -530,3 +552,5 @@ assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in (
     'visualAcceptance':'ASTRA_PENDING','specimenImagesUsedAsProductEvidence':False},indent=2)+'\n')
 print('CURVE_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING libraryVisualCasesPerProfile=5 libraryBusinessCasesPerProfile=2')
 VERIFY_PY
+
+if (( picker_failed )); then echo "At least one independent curve picker check failed" >&2; exit 1; fi

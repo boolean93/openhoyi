@@ -28,16 +28,16 @@ internal object HomePresetRowChecks {
             val groupTag = "product/home/preset-group"
             layout(980)
             val group = checkNotNull(grid.findViewWithTag<ViewGroup>(groupTag))
-            fun checkWide(lever: Boolean, legacy: Boolean = false) {
+            fun checkWide(lever: Boolean) {
                 val oldStrip = group.parent
-                grid.showSlots(lever, legacy)
+                grid.showSlots(lever)
                 layout(980)
                 check(grid.findViewWithTag<ViewGroup>(groupTag) === group) { "Preset group identity changed" }
                 val strip = checkNotNull(group.parent as? ViewGroup)
                 check(strip !== oldStrip && strip.parent === grid) { "Preset group remained attached to a retired strip" }
                 check((oldStrip as? View)?.parent == null) { "Retired strip still active" }
                 check((grid.findViewWithTag<View>("product/home/direct-preset/0") != null) == lever)
-                check((grid.findViewWithTag<View>("product/home/direct-preset/5") != null) == legacy)
+                check(grid.findViewWithTag<View>("product/home/direct-preset/5") == null)
                 check(group.height == (66 * density).toInt())
                 for (visual in grid.visuals + grid.last) {
                     if (visual.label.isAttachedToWindow) {
@@ -53,7 +53,7 @@ internal object HomePresetRowChecks {
             layout(276)
             check(group.parent == null && retiredStrip.parent == null && grid.findViewWithTag<View>(groupTag) == null)
             checkWide(lever = false)
-            checkWide(lever = true, legacy = true)
+            checkWide(lever = true)
             checkWide(lever = false)
         } finally {
             windowContent.removeView(grid)
@@ -75,7 +75,8 @@ internal object HomePresetRowChecks {
             val calls = mutableListOf<Int>()
             val grid = HomePresetGrid(context, TaskProductVisualStyle(context), portrait, short = false,
                 onSlotClick = { calls += it }, onLastClick = { calls += HomeDirectPresetSlots.LAST })
-            val visuals = grid.visuals + grid.last
+            val visuals = (grid.visuals.mapIndexed { slot, visual -> slot to visual } +
+                (HomeDirectPresetSlots.LAST to grid.last)).toMap()
             // Match a real ScrollView's bounded viewport remeasure rather than only measuring
             // the detached component with UNSPECIFIED height (which masks divider stretch).
             fun measure(heightMode: Int = View.MeasureSpec.AT_MOST) {
@@ -88,11 +89,11 @@ internal object HomePresetRowChecks {
             fun all(view: View): List<View> = listOf(view) + if (view is ViewGroup) {
                 (0 until view.childCount).flatMap { all(view.getChildAt(it)) }
             } else emptyList()
-            fun verifyRows(lever: Boolean, legacy: Boolean) {
-                val slots = HomeDirectPresetSlots.visible(lever) + if (legacy) listOf(5) else emptyList()
-                check(all(grid).filter { v -> visuals.any { it.button === v } } == slots.map { visuals[it].button })
+            fun verifyRows(lever: Boolean) {
+                val slots = HomeDirectPresetSlots.visible(lever)
+                check(all(grid).filter { v -> visuals.values.any { it.button === v } } == slots.map { visuals.getValue(it).button })
                 for (index in slots) {
-                    val visual = visuals[index]
+                    val visual = visuals.getValue(index)
                     val tile = visual.button.parent as View
                     check(tile.width >= (48 * density).toInt() && tile.height >= (48 * density).toInt())
                     check(visual.button.width == tile.width && visual.button.height == tile.height)
@@ -102,20 +103,20 @@ internal object HomePresetRowChecks {
                 }
             }
             val long = "HOYI Limit Extraction"
-            for ((lever, legacy) in listOf(false to false, true to false, true to true, false to false)) {
-                grid.showSlots(lever, legacy)
-                visuals.forEachIndexed { index, visual ->
+            for (lever in listOf(false, true, false)) {
+                grid.showSlots(lever)
+                visuals.forEach { (index, visual) ->
                     visual.name.text = if (index == 3 || index == HomeDirectPresetSlots.LAST) long else "Espresso"
                     visual.sparkline.visibility = View.VISIBLE
                 }
                 measure()
-                verifyRows(lever, legacy)
+                verifyRows(lever)
                 if (widthDp in listOf(980, 322) && scale == 1f) {
-                    check(visuals[3].name.lineCount == 1 && grid.last.name.lineCount == 1) {
+                    check(visuals.getValue(3).name.lineCount == 1 && grid.last.name.lineCount == 1) {
                         "Longest factory curve should fit the approved widths"
                     }
                 }
-                if (widthDp == 980 && !portrait && lever && !legacy) {
+                if (widthDp == 980 && !portrait && lever) {
                     val expected = (66 * density).toInt()
                     check(grid.height == expected) { "Grouped shortcut strip must match 66dp, was ${grid.height / density}dp" }
                     check((grid.last.button.parent as View).height == expected)
@@ -135,14 +136,14 @@ internal object HomePresetRowChecks {
                 val shortHeight = grid.height
                 grid.visuals[4].name.text = "Morning espresso 完整的自定义配方 ".repeat(4)
                 measure()
-                verifyRows(lever, legacy)
+                verifyRows(lever)
                 check(grid.visuals[4].name.lineCount > 1 && grid.height > shortHeight)
                 grid.visuals[4].name.text = "Espresso"
                 measure()
                 check(grid.height == shortHeight) { "Stale row height after shorter text" }
-                val visible = HomeDirectPresetSlots.visible(lever) + if (legacy) listOf(5) else emptyList()
+                val visible = HomeDirectPresetSlots.visible(lever)
                 calls.clear()
-                visible.forEach { check(visuals[it].button.performClick()) }
+                visible.forEach { check(visuals.getValue(it).button.performClick()) }
                 check(calls == visible) { "Shortcut callbacks changed order or identity" }
                 check((grid.findViewWithTag<View>("product/home/preset-group") != null) == (!portrait &&
                     HomeDirectPresetSlots.columns(widthDp, HomeDirectPresetSlots.visible(lever).size, portrait, scale) ==

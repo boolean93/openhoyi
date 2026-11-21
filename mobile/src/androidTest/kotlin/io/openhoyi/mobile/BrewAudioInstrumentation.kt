@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.Context
 import android.content.ComponentName
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import io.openhoyi.protocol.ExtractionTelemetry
@@ -34,6 +35,8 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var shortcutTheme: Boolean? = null
     private var machineLeverRecipeChecks = false
     private var customShortcutChecks = false
+    private var customShortcutPickerOnly = false
+    private var customShortcutLegacyRoute = false
     private var darkThemeWindow: Boolean? = null
     private var connectionSleepChecks=false
     private var settingsVisualArguments: Bundle? = null
@@ -134,6 +137,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         languageChecks = arguments?.getString("languageChecks") == "true"
         upgradeChecks = arguments?.getString("upgradeChecks")
         customShortcutChecks = arguments?.getString("customShortcutChecks") == "true"
+        customShortcutPickerOnly = arguments?.getString("customShortcutPickerOnly") == "true"
+        customShortcutLegacyRoute = arguments?.getString("customShortcutLegacyRoute") == "true"
         machineLeverRecipeChecks = arguments?.getString("machineLeverRecipeChecks") == "true"
         liveScaleReadoutChecks = arguments?.getString("liveScaleReadoutChecks") == "true"
         shortcutDirectStartChecks = arguments?.getString("shortcutDirectStartChecks") == "true"
@@ -244,8 +249,13 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report); return
             }
             if (customShortcutChecks) {
-                CustomShortcutWindowChecks(this).run()
-                report.putString("stream", "CUSTOM_SHORTCUT_WINDOW_PASSED assignment=true navigation=true recreate=true edited=true missing=true noBle=true noShot=true\n")
+                if (customShortcutPickerOnly) check(
+                    Build.HARDWARE in setOf("ranchu", "goldfish") && Build.VERSION.SDK_INT >= 34
+                )
+                CustomShortcutWindowChecks(this).run(pickerOnly = customShortcutPickerOnly, legacyRoute = customShortcutLegacyRoute)
+                report.putString("stream", if (customShortcutPickerOnly)
+                    "CURVE_SHORTCUT_PICKER_PASSED surface=${if (customShortcutLegacyRoute) "legacy-redirect" else "main"} labels=AD assigned=D fifthPreserved=true noBle=true noShot=true\n"
+                    else "CUSTOM_SHORTCUT_WINDOW_PASSED assignment=true navigation=true recreate=true edited=true missing=true noBle=true noShot=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             darkThemeWindow?.let { dark ->

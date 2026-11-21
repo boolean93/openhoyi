@@ -569,8 +569,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         button(presetPanel, getString(R.string.lever_title)) {
             presetDialog?.dismiss(); MachineLeverRecipeUi.details(host)
         }
-        presetButtons = (1..5).map { slot ->
-            button(presetPanel, getString(R.string.home_slot, slot.toString())) {
+        presetButtons = PresetSlots.userFacing.map { slot ->
+            button(presetPanel, getString(R.string.home_slot, PresetSlots.label(slot))) {
                 presetDialog?.dismiss()
                 host.openShortcut(slot)
             }
@@ -1005,9 +1005,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val leverAddress = service?.leverDeviceAddress
         val leverAttempt = leverAddress?.let(leverStore::attemptFor)
         val leverRecord = leverAddress?.let(leverStore::recordFor)
-        val legacyBinding = getSharedPreferences("presets", MODE_PRIVATE).getString(PresetSlots.key(5), null)
-        directPresets.showSlots(leverRecord != null, HomeDirectPresetSlots.showLegacy(legacyBinding) &&
-            PresetSlots.curveId(5, legacyBinding, library) != PresetSlots.EMPTY)
+        directPresets.showSlots(leverRecord != null)
         val leverUnknown = leverAttempt?.state == MachineLeverRecipeStore.State.UNKNOWN
         val leverName = when {
             leverUnknown -> getString(R.string.lever_unknown_short)
@@ -1034,7 +1032,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 val item = library.find(id)
                 val empty = id == PresetSlots.EMPTY
                 val unavailable = id.startsWith("draft-") && (item == null || !library.canStart(item))
-                val label = getString(R.string.home_slot_curve, slot.toString(),
+                val label = getString(R.string.home_slot_curve, PresetSlots.label(slot),
                     if (empty) getString(R.string.curve_slot_choose) else if (unavailable) getString(R.string.curve_slot_invalid) else item?.name ?: id)
                 if (button.text.toString() != label) button.text = label
                 val visual = directPresets.visuals[index + 1]
