@@ -210,20 +210,18 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         val functionsCard = card(functionsSection, getString(R.string.machine_settings_functions_title))
         fun reportedSwitch(parent: LinearLayout, key: String, label: Int, legacyLabel: Int, report: () -> Boolean?, onChange: (Boolean) -> Unit): Button {
             if (!documentMode) return action(parent, getString(legacyLabel)) { report()?.let { onChange(!it) } }
-            return HoyiSwitch(host).apply {
+            val control = HoyiSwitch(host).apply {
                 visual.switch(this, 48)
                 text = ""
                 tag = "settings/machine/switch/$key"
                 contentDescription = getString(label)
-                parent.addView(this, LinearLayout.LayoutParams(-2, -2))
-                setOnClickListener {
-                    // Native performClick toggles before the callback. Keep observed state
-                    // until existing confirmation and actual readback, never optimistic writes.
-                    val before = report()
-                    isChecked = before == true
-                    if (isEnabled && before != null) onChange(!before)
-                }
             }
+            parent.addView(SettingsObservedSwitch(control, style) { chosen ->
+                // Check the actual snapshot again; the rendered readback may have
+                // aged between the last frame and the user's input.
+                report()?.takeIf { it != chosen }?.let { onChange(chosen) }
+            }, LinearLayout.LayoutParams(-2, -2))
+            return control
         }
         brewHeatingButton = reportedSwitch(functionsCard, "brew", R.string.setting_brew_heating, R.string.machine_settings_brew_heating_toggle,
             { service?.snapshot?.settings?.brewHeating }) { confirm(MachineSettingChange.BrewHeating(it)) }
@@ -273,9 +271,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             confirm(MachineSettingChange.SleepScheduleEnabled(it))
         }
         if (documentMode) {
-            sleepCard.removeView(sleepScheduleButton)
+            val switch = sleepScheduleButton.parent as SettingsObservedSwitch
+            sleepCard.removeView(switch)
             style.add(sleepCard, visual.pair(style.text(getString(R.string.settings_category_weekly_active)),
-                sleepScheduleButton, "settings/machine/weekly-enabled"), 4)
+                switch, "settings/machine/weekly-enabled"), 4)
         }
         controlButtons += sleepScheduleButton
         scheduleButtons += action(sleepCard, getString(R.string.machine_settings_schedule_every_day)) {
@@ -371,8 +370,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 lightButton to R.string.setting_light,waterSupplyButton to R.string.machine_settings_supply_label,runModeButton to R.string.machine_settings_run_mode_label)
             val functionGrid = SettingsWideGrid(this, style, 2, 220, 560, 8).apply { tag = "settings/machine/function-grid" }
             pairs.forEach {(button,label)->
-                functionsCard.removeView(button)
-                val row = visual.pair(visual.palette.text(getString(label),TaskProductVisualStyle.body),button,"settings/machine/function/$label")
+                val control = if (button is HoyiSwitch) button.parent as SettingsObservedSwitch else button
+                functionsCard.removeView(control)
+                val row = visual.pair(visual.palette.text(getString(label),TaskProductVisualStyle.body),control,"settings/machine/function/$label")
                 row.setPadding(dp(9), 0, dp(8), 0)
                 row.background = style.shape(style.page, outline = false, radius = 10)
                 functionGrid.addView(row)
@@ -590,10 +590,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             }
             val button = control as Button
             if (button is HoyiSwitch) {
-                button.isChecked = snapshot.settings != null && value == R.string.setting_on
-                button.isEnabled = editable && snapshot.settings != null
-                androidx.core.view.ViewCompat.setStateDescription(button, if (snapshot.settings == null)
-                    getString(R.string.settings_unknown) else null)
+                (button.parent as SettingsObservedSwitch).present(
+                    snapshot.settings?.let { value == R.string.setting_on }, editable)
                 return
             }
             val text=when {
@@ -621,10 +619,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         status(waterSupplyButton,R.string.machine_settings_supply_label,if(snapshot.settings?.flags?.and(0x02)==0x02)R.string.setting_water_piped else R.string.setting_water_tank,R.string.setting_water_supply_status)
         status(runModeButton,R.string.machine_settings_run_mode_label,if(snapshot.settings?.flags?.and(0x04)==0x04)R.string.setting_run_studio else R.string.setting_run_cafe,R.string.setting_run_mode_status)
         machineModes?.render(service)
-        if (sleepScheduleButton is HoyiSwitch) (sleepScheduleButton as HoyiSwitch).apply {
-            isChecked = snapshot.settings?.flags?.and(0x01) == 1
-            androidx.core.view.ViewCompat.setStateDescription(this, if (snapshot.settings == null)
-                getString(R.string.settings_unknown) else null)
+        if (sleepScheduleButton is HoyiSwitch) {
+            (sleepScheduleButton.parent as SettingsObservedSwitch).present(
+                snapshot.settings?.let { it.flags and 0x01 == 1 }, sleepScheduleButton.isEnabled)
         } else sleepScheduleButton.update(getString(when(snapshot.settings?.flags?.and(0x01)) {
             1->R.string.setting_sleep_schedule_on
             0->R.string.setting_sleep_schedule_off

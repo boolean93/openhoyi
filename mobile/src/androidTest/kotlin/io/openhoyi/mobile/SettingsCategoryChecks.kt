@@ -107,8 +107,53 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 val summary = settings().findViewWithTag<android.widget.TextView>("settings-machine-summary")
                                 check(!summary.text.contains(activity.getString(R.string.machine_settings_unchanged)))
                                 check(listOf("brew", "steam", "light", "schedule").all {
-                                    settings().findViewWithTag<View>("settings/machine/switch/$it") is HoyiSwitch
+                                    val rendered = settings().findViewWithTag<View>("settings/machine/switch/$it")
+                                    rendered is HoyiSwitch && rendered.parent is SettingsObservedSwitch
                                 })
+                                val sample = HoyiSwitch(activity).apply { contentDescription = "Test observed state" }
+                                val requests = mutableListOf<Boolean>()
+                                val observed = SettingsObservedSwitch(sample, TaskProductVisualStyle(activity)) { requests.add(it) }
+                                val unknown = observed.findViewWithTag<View>("settings/machine/switch-unknown")
+                                check(!sample.isEnabled && sample.visibility == View.INVISIBLE && unknown.visibility == View.VISIBLE)
+                                observed.present(false, true)
+                                check(sample.isEnabled && !sample.isChecked && sample.visibility == View.VISIBLE && unknown.visibility == View.INVISIBLE)
+                                // A native Switch drag ends in setChecked(), with no click callback.
+                                sample.isChecked = true
+                                check(!sample.isChecked && requests == listOf(true))
+                                sample.performClick()
+                                check(!sample.isChecked && requests == listOf(true, true))
+                                observed.present(true, false)
+                                check(requests == listOf(true, true))
+                                check(!sample.isEnabled && sample.isChecked && sample.visibility == View.VISIBLE && unknown.visibility == View.INVISIBLE)
+                                observed.present(null, true)
+                                check(!sample.isEnabled && sample.visibility == View.INVISIBLE && unknown.visibility == View.VISIBLE)
+                                observed.present(false, true)
+                                val width = HoyiUi.dp(activity, 72)
+                                val height = HoyiUi.dp(activity, 48)
+                                sample.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+                                sample.layout(0, 0, width, height)
+                                val fixture = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                try { sample.draw(android.graphics.Canvas(fixture)) }
+                                finally { fixture.recycle() }
+                                val thumb = sample.thumbDrawable.bounds
+                                val track = sample.trackDrawable.bounds
+                                check(!thumb.isEmpty && !track.isEmpty)
+                                val t0 = SystemClock.uptimeMillis()
+                                val x0 = thumb.exactCenterX()
+                                val y = thumb.exactCenterY()
+                                val xEnd = track.right + HoyiUi.dp(activity, 4).toFloat()
+                                fun finger(action: Int, x: Float, elapsed: Long) {
+                                    val event = MotionEvent.obtain(t0, t0 + elapsed, action, x, y, 0)
+                                    try { sample.onTouchEvent(event) } finally { event.recycle() }
+                                }
+                                finger(MotionEvent.ACTION_DOWN, x0, 0)
+                                finger(MotionEvent.ACTION_MOVE, x0 + HoyiUi.dp(activity, 11), 75)
+                                finger(MotionEvent.ACTION_MOVE, xEnd, 125)
+                                finger(MotionEvent.ACTION_UP, xEnd, 165)
+                                check(!sample.isChecked && requests == listOf(true, true, true)) {
+                                    "Native thumb drag did not request exactly one change while retaining readback: $requests"
+                                }
                                 check(listOf("supply", "run-mode").all {
                                     settings().findViewWithTag<View>("settings/machine/choice/$it") is SettingsBinaryChoice
                                 })
