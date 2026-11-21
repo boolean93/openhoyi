@@ -42,6 +42,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         id = R.id.m8_settings_scroll
         tag = "settings/document/scroll"
         isFillViewport = true
+        overScrollMode = OVER_SCROLL_NEVER // Do not translate the document at either end.
+        isFocusableInTouchMode = true
         isSaveEnabled = false // Restore a heading and offset, not a pre-rotation absolute Y.
         addView(body)
     }
@@ -57,6 +59,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private var restoring = true
     private var requestedHeading = state?.getString("settings.requested")
     private var previousWidth = 0
+    private var completingPosition: Position? = null
 
     init {
         SettingsCategory.entries.forEach { category ->
@@ -102,18 +105,30 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         }
         viewTreeObserver.addOnGlobalLayoutListener {
             if (!restoring || !ViewCompat.isLaidOut(scroll) || scroll.height == 0) return@addOnGlobalLayoutListener
-            val target = sections[position.anchor] ?: sections["devices"] ?: return@addOnGlobalLayoutListener
+            val pending = position
+            if (completingPosition === pending) return@addOnGlobalLayoutListener
+            completingPosition = pending
+            val target = sections[pending.anchor] ?: sections["devices"] ?: return@addOnGlobalLayoutListener
             val focus = requestedHeading?.let(sections::get)?.heading
             if (focus != null) {
                 focus.requestFocus()
                 if (host.getSystemService(AccessibilityManager::class.java)?.isEnabled == true)
                     focus.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
             }
-            scroll.scrollTo(0, if (position.end) maxScroll() else (top(target) + position.offset).coerceAtLeast(0))
-            requestedHeading = null
-            previousWidth = width
-            restoring = false
-            rememberPosition(updateHighlight = false)
+            fun land() = scroll.scrollTo(0, if (pending.end) maxScroll()
+                else (top(target) + pending.offset).coerceIn(0, maxScroll()))
+            land()
+            scroll.post {
+                // ScrollView can finish a pending focus scroll during layout. Resolve the explicit
+                // anchor after that pass as well, before allowing scroll-driven highlight updates.
+                if (!restoring || position !== pending || !isAttachedToWindow) return@post
+                land()
+                requestedHeading = null
+                previousWidth = width
+                restoring = false
+                completingPosition = null
+                rememberPosition(updateHighlight = false)
+            }
         }
         updateButtons()
     }
@@ -277,16 +292,16 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         position = Position(key)
         requestedHeading = key.takeIf { focus }
         restoring = true
-        val measuredLanding = !focus && ViewCompat.isLaidOut(scroll) && !isLayoutRequested && scroll.height > 0
+        if (!focus && scroll.findFocus() != null && !scroll.isFocused) {
+            // An explicit destination tap may leave an underlying editor focused. Keep its draft,
+            // but don't let the framework pull the viewport back to that offscreen control.
+            val policy = scroll.descendantFocusability
+            scroll.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            try { scroll.requestFocus() }
+            finally { scroll.descendantFocusability = policy }
+        }
         updateButtons()
-        if (measuredLanding) {
-            // Rail/grid taps target measured geometry immediately, before a partly-visible heading
-            // in the preceding section can be mistaken for a successful landing.
-            val target = sections.getValue(key)
-            scroll.scrollTo(0, top(target).coerceIn(0, maxScroll()))
-            restoring = false
-            rememberPosition(updateHighlight = false)
-        } else requestLayout()
+        requestLayout()
     }
 
     internal fun isAtSectionLanding(key: String): Boolean =

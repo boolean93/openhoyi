@@ -176,7 +176,16 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         check(SettingsCategory.entries.map { rect(button(it)) } == originalIndex) { "Index moved by changing category" }
                     }
                     if (!short || category in listOf(SettingsCategory.DEVICE, SettingsCategory.BREWING,
-                            SettingsCategory.APPEARANCE)) capture(category.key)
+                            SettingsCategory.APPEARANCE)) {
+                        test.waitForIdleSync()
+                        main { check(button(category).isSelected && settings().isAtSectionLanding(category.sections.first())) {
+                            "Changed before draw: ${category.key}, y=${settings().scroll.scrollY}"
+                        } }
+                        capture(category.key)
+                        main { check(button(category).isSelected && settings().isAtSectionLanding(category.sections.first())) {
+                            "Changed during screenshot: ${category.key}, y=${settings().scroll.scrollY}"
+                        } }
+                    }
                 }
                 main { check(savedText.text.toString() == "94") { "Category change lost unsent editor draft" }; savedText.setText(previous) }
                 for (category in SettingsCategory.entries) for (section in category.sections) {
@@ -233,7 +242,13 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     settings().scroll.scrollY
                 }
                 dragUp(viewport)
-                main { check(settings().scroll.scrollY == end && button(SettingsCategory.MAINTENANCE).isSelected) }
+                await("end remains pinned after upward motion") {
+                    settings().scroll.scrollY == end && !settings().scroll.canScrollVertically(1) &&
+                        button(SettingsCategory.MAINTENANCE).isSelected
+                }
+                main { check(settings().scroll.scrollY == end && button(SettingsCategory.MAINTENANCE).isSelected) {
+                    "End boundary moved from $end to ${settings().scroll.scrollY}"
+                } }
                 if (!short) {
                     val fragment = main { page.active("root:SETTINGS") as AppSettingsFragment }
                     main { fragment.openSection("appearance") }
