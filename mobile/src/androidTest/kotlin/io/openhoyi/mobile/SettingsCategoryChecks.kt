@@ -11,6 +11,8 @@ import android.widget.EditText
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** Representative real phone/tablet Settings views; never runs a device or update action. */
 internal class SettingsCategoryChecks(private val test: Instrumentation) {
@@ -44,11 +46,52 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 fun heading(section: String): View =
                     requireNotNull(settings().findViewWithTag("settings/heading/$section"))
                 fun rect(view: View) = Rect().also { check(view.getGlobalVisibleRect(it)) { "Not visible: ${view.tag}" } }
-                fun capture(name: String) {
+                fun capture(name: String, owner: MainActivity = activity) {
+                    val committed = CountDownLatch(1)
+                    main {
+                        val decor = owner.window.decorView
+                        if (android.os.Build.VERSION.SDK_INT >= 29 && decor.isHardwareAccelerated) {
+                            decor.viewTreeObserver.registerFrameCommitCallback {
+                                decor.post {
+                                    val frame = android.view.Choreographer.getInstance()
+                                    frame.postFrameCallback { frame.postFrameCallback { committed.countDown() } }
+                                }
+                            }
+                            decor.postInvalidateOnAnimation()
+                        } else decor.postOnAnimation { committed.countDown() }
+                    }
+                    check(committed.await(4, TimeUnit.SECONDS)) { "Settings window did not submit a frame: $name" }
                     val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
                     try {
                         File(out, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
+                }
+                val landingDebug = JSONObject()
+                fun checkRenderedLanding(category: SettingsCategory, phase: String) {
+                    val doc = settings()
+                    val view = heading(category.sections.first())
+                    val viewport = rect(doc.scroll)
+                    val title = IntArray(2).also(view::getLocationOnScreen)
+                    val visible = Rect()
+                    val allVisible = view.isShown && view.getGlobalVisibleRect(visible) &&
+                        Rect.intersects(viewport, visible)
+                    val preceding = doc.findViewWithTag<View>("settings/machine/function-grid")
+                    val precedingBounds = Rect()
+                    val precedingVisible = preceding != null && preceding.isShown &&
+                        preceding.getGlobalVisibleRect(precedingBounds) && Rect.intersects(viewport, precedingBounds)
+                    landingDebug.put("${category.key}/$phase", JSONObject()
+                        .put("viewport", viewport.toShortString()).put("heading", title[1])
+                        .put("visibleHeading", visible.toShortString()).put("scrollY", doc.scroll.scrollY)
+                        .put("precedingMachine", precedingBounds.toShortString()).put("machineVisible", precedingVisible))
+                    File(out, "landing-debug.json").writeText(landingDebug.toString(2))
+                    check(button(category).isSelected && doc.isAtSectionLanding(category.sections.first()) && allVisible) {
+                        "Unstable category at $phase: ${category.key}, y=${doc.scroll.scrollY}, heading=$visible, body=$viewport"
+                    }
+                    if (category == SettingsCategory.BREWING) {
+                        check(kotlin.math.abs(title[1] - viewport.top) <= HoyiUi.dp(activity, 2) && !precedingVisible) {
+                            "Brewing must begin at the viewport top with no previous Machine card: title=${title[1]}, body=$viewport, machine=$precedingBounds"
+                        }
+                    }
                 }
                 fun select(category: SettingsCategory) {
                     main { check(button(category).performClick()) }
@@ -178,13 +221,9 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     if (!short || category in listOf(SettingsCategory.DEVICE, SettingsCategory.BREWING,
                             SettingsCategory.APPEARANCE)) {
                         test.waitForIdleSync()
-                        main { check(button(category).isSelected && settings().isAtSectionLanding(category.sections.first())) {
-                            "Changed before draw: ${category.key}, y=${settings().scroll.scrollY}"
-                        } }
+                        main { checkRenderedLanding(category, "before") }
                         capture(category.key)
-                        main { check(button(category).isSelected && settings().isAtSectionLanding(category.sections.first())) {
-                            "Changed during screenshot: ${category.key}, y=${settings().scroll.scrollY}"
-                        } }
+                        main { checkRenderedLanding(category, "after") }
                     }
                 }
                 main { check(savedText.text.toString() == "94") { "Category change lost unsent editor draft" }; savedText.setText(previous) }
@@ -265,7 +304,13 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     val swatches = main { settings().findViewWithTag<android.view.ViewGroup>("settings/appearance/palette-swatches") }
                     val previews = main { settings().findViewWithTag<android.view.ViewGroup>("settings/appearance/background-presets") }
                     val swatch = main {
-                        check(swatches.childCount == 4 && previews.childCount == 3)
+                        check(swatches.childCount == AppThemePalette.entries.size)
+                        check(listOf("solid", "mist", "slate").all {
+                            previews.findViewWithTag<Button>("settings/appearance/background/$it")?.isShown == true
+                        })
+                        val photoRoute = requireNotNull(settings().findViewWithTag<Button>("product/settings/background/open"))
+                        check(photoRoute.isShown && photoRoute.isClickable &&
+                            (photoRoute.parent === previews) == wide)
                         val alternate = swatches.findViewWithTag<Button>("settings/appearance/palette/sea-salt")
                         alternate.requestRectangleOnScreen(Rect(0, 0, alternate.width, alternate.height), true)
                         alternate
@@ -378,7 +423,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     view.findViewWithTag<View>("settings/category/${cat.key}")?.isSelected == true &&
                                     view.findViewWithTag<View>("settings/heading/${cat.sections.first()}")?.getGlobalVisibleRect(Rect()) == true
                             }
-                            capture("dark-${cat.key}")
+                            capture("dark-${cat.key}", recreated)
                         }
                     }
                     if (dark) {
@@ -394,7 +439,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                             light && view?.findViewWithTag<View>("settings/category/appearance")?.isSelected == true &&
                                 view.findViewWithTag<View>("settings/heading/appearance")?.getGlobalVisibleRect(Rect()) == true
                         }
-                        capture("appearance-light")
+                        capture("appearance-light", recreated)
                     }
                 } finally {
                     test.removeMonitor(monitor)

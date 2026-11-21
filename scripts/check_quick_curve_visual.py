@@ -141,6 +141,12 @@ def capture_settings_categories(adb, output, receipt, profile, width, height):
     report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
                  "-e", "settingsCategoryProfile", profile, RUNNER, timeout=220)
     (output / "settings-instrumentation.txt").write_text(report + "\n")
+    try:
+        landing_receipt = adb("exec-out", "run-as", APP, "cat", "files/settings-categories/landing-debug.json")
+        (output / "settings-landing-debug.json").write_text(json.dumps(json.loads(landing_receipt), indent=2) + "\n")
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        if "SETTINGS_CATEGORIES_PASSED" in report:
+            raise
     # Pull actual captured image(s) even on a later UI assertion failure.
     keys = ("device", "brewing", "appearance") if profile == "phone-short" else (
         "device", "machine", "brewing", "appearance", "ai", "maintenance")
