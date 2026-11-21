@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -19,6 +20,8 @@ import androidx.core.content.res.ResourcesCompat
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.TextView
+import android.view.animation.LinearInterpolator
+import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -37,6 +40,10 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private val bounds = RectF()
     private val icon = Path()
     private var currentTemperature: Float? = null
+    private var lastReceivedTemperature: Float? = null
+    private var lastSession: Any? = null
+    private var warming: ValueAnimator? = null
+    private var presented = false
     private var targetTemperature: Float? = null
     private val touch = (48 * density).roundToInt()
 
@@ -90,9 +97,49 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         setSpan(RelativeSizeSpan(.53f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
-    fun present(current: Float?, goal: Float?) {
-        if (currentTemperature == current && targetTemperature == goal) return
-        currentTemperature = current; targetTemperature = goal; invalidate()
+    /** A null session means snap (including held/stale data), not a new ramp. */
+    fun present(current: Float?, goal: Float?, session: Any? = null) {
+        val old = lastReceivedTemperature
+        if (presented && old == current && targetTemperature == goal && lastSession == session) return
+        presented = true
+        val start = currentTemperature
+        val ramp = isAttachedToWindow && ValueAnimator.areAnimatorsEnabled() &&
+            homeBoilerShouldAnimate(old, current, targetTemperature, goal, lastSession, session) && start != null
+        warming?.cancel()
+        warming = null
+        lastSession = session
+        lastReceivedTemperature = current
+        val goalChanged = targetTemperature != goal
+        targetTemperature = goal
+        if (ramp) {
+            warming = ValueAnimator.ofFloat(checkNotNull(start), checkNotNull(current)).apply {
+                duration = 190
+                interpolator = LinearInterpolator()
+                addUpdateListener { renderTemperature(it.animatedValue as Float) }
+                start()
+            }
+        } else {
+            renderTemperature(current)
+            if (goalChanged) invalidate()
+        }
+    }
+
+    private fun renderTemperature(current: Float?) {
+        currentTemperature = current
+        val rendered = current?.let { String.format(Locale.ROOT, "%.1f °C", it) } ?: "—"
+        if (value.text.toString() != rendered) {
+            value.text = if (current == null) rendered else formatReading(rendered, rendered.indexOf(' '))
+        }
+        invalidate()
+    }
+
+    override fun onDetachedFromWindow() {
+        warming?.cancel()
+        warming = null
+        lastSession = null
+        // Reattaching must start with the last actual sample, never the interrupted value.
+        renderTemperature(lastReceivedTemperature)
+        super.onDetachedFromWindow()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -163,11 +210,10 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         paint.style = Paint.Style.STROKE; paint.strokeWidth = d * .034f; paint.strokeCap = Paint.Cap.ROUND
         paint.color = style.homeDialTrack
         canvas.drawArc(bounds, 140f, 260f, false, paint)
-        val goal = targetTemperature
-        val current = currentTemperature
-        if (current != null && goal != null && goal > 0) {
+        val fraction = homeBoilerArcFraction(currentTemperature, targetTemperature)
+        if (fraction > 0f) {
             paint.color = style.homeDialProgress
-            canvas.drawArc(bounds, 140f, 260f * (current / goal).coerceIn(0f, 1f), false, paint)
+            canvas.drawArc(bounds, 140f, 260f * fraction, false, paint)
         }
         for (step in -12..12) {
             val angle = Math.toRadians(270.0 + step * 10)

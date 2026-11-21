@@ -24,6 +24,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var autoPreheatChecks = false
     private var unifiedSwitchChecks = false
     private var homeBoilerVisualChecks = false
+    private var homeBoilerWarmupChecks = false
     private var fontSizeChecks = false
     private var themePaletteChecks = false
     private var quickCurveVisualTheme: String? = null
@@ -90,6 +91,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         downloadRoutingChecks = arguments?.getString("downloadRoutingChecks") == "true"
         autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
+        homeBoilerWarmupChecks = arguments?.getString("homeBoilerWarmupChecks") == "true"
         homeBoilerVisualChecks = arguments?.getString("homeBoilerVisualChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
         themePaletteChecks = arguments?.getString("themePaletteChecks") == "true"
@@ -223,6 +225,15 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ExtractionScaleWindowChecks(this).run()
                 report.putString("stream", "LIVE_SCALE_WINDOW_PASSED realMockService=true actualStopButton=true retainedTestShot=true portraitDark=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
+            }
+            if (homeBoilerWarmupChecks) {
+                check(disposableCiEmulator && BuildConfig.MOCK_MODE &&
+                    android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
+                UnifiedSwitchChecks(this).run()
+                HomeBoilerWarmupChecks(this).run()
+                report.putString("stream", "HOME_BOILER_WARMUP_PASSED realHome=true pairedAnimation=true noBle=true noShot=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
             }
             if (homeBoilerVisualChecks) {
                 check(disposableCiEmulator && BuildConfig.MOCK_MODE &&

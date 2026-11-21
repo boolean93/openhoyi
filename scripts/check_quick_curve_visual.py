@@ -91,6 +91,50 @@ def confirm_display(adb, width, height, dpi):
     raise ValueError("AVD did not settle at the required size, dpi and orientation before instrumentation")
 
 
+def capture_boiler_warmup(adb, executable, output, receipt):
+    # Use Android's real display encoder on the already identity-checked disposable AVD.
+    target = "/data/local/tmp/openhoyi-boiler-warmup.mp4"
+    previous = adb("shell", "settings", "get", "global", "animator_duration_scale")
+    require(previous == "null" or re.fullmatch(r"[0-9]+(?:[.][0-9]+)?", previous), "Unexpected fresh AVD animator scale")
+    worker = None
+    try:
+        adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
+        worker = subprocess.Popen([str(executable), "-s", "emulator-5554", "shell", "screenrecord",
+                                   "--time-limit", "24", "--bit-rate", "5000000", target],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(.4)
+        report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
+                     "-e", "homeBoilerWarmupChecks", "true", RUNNER, timeout=70)
+        (output / "boiler-warmup-instrumentation.txt").write_text(report + "\n")
+        # Close MediaMuxer on SIGINT so the output contains the movie index.
+        if worker.poll() is None:
+            try:
+                adb("shell", "pkill", "-2", "-x", "screenrecord")
+            except subprocess.CalledProcessError:
+                pass  # The 24s recorder may already have exited.
+        worker.wait(timeout=26)
+        movie = output / "boiler-warmup.mp4"
+        adb("pull", target, str(movie))
+        require(movie.stat().st_size > 10000 and movie.read_bytes()[4:8] == b"ftyp", "No playable container from AVD")
+        require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "HOME_BOILER_WARMUP_PASSED" in report,
+                "Actual Home warmup failed; see recorded MP4 and instrumentation log")
+        proof = json.loads(adb("exec-out", "run-as", APP, "cat", "files/boiler-warmup.json"))
+        require(proof["path"] == "real_home_guarded_mock_idle_telemetry" and proof["coolingSnaps"] and proof["retargetAndReset"] and
+                len(proof["samples"]) == 6 and proof["samples"][-1]["actual"] == proof["targets"],
+                "Missing actual Home warmup evidence")
+        (output / "boiler-warmup.json").write_text(json.dumps(proof, indent=2) + "\n")
+        receipt["warmupRecording"] = {"sha256": digest(movie), "realHome": True, "pairedAnimation": True}
+    finally:
+        if worker and worker.poll() is None:
+            worker.terminate()
+            worker.wait(timeout=5)
+        adb("shell", "rm", "-f", target)
+        if previous == "null":
+            adb("shell", "settings", "delete", "global", "animator_duration_scale")
+        else:
+            adb("shell", "settings", "put", "global", "animator_duration_scale", previous)
+
+
 def main():
     require(os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
             and os.environ.get("QUICK_CURVE_VISUAL") == "true", "Manual CI runner required")
@@ -142,6 +186,12 @@ def main():
         for kind, source in DESTINATIONS.items():
             require(digest(source) == apks[kind]["sha256"], "APK changed before install")
             require(adb("install", source, timeout=120).splitlines()[-1] == "Success", "Mock fixture install failed")
+        if os.environ.get("BOILER_WARMUP") == "true":
+            require(profile == "phone", "Boiler recording requires the dedicated phone viewport")
+            name = "boiler-warmup"
+            capture_boiler_warmup(adb, executable, output, receipt)
+            receipt["passed"] = True
+            return
         if os.environ.get("QUICK_CURVE_BOILER_VIEW") == "true" and profile == "phone":
             name = f"{profile}-boiler-view"
             report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
@@ -211,7 +261,8 @@ def main():
         receipt["cleanupErrors"] = cleanup_errors
         receipt["passed"] = receipt["passed"] and not cleanup_errors
         (output / "quick-curve-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
-    require(receipt["passed"], "Display restoration failed; see quick-curve receipt")
+        require(not cleanup_errors, "Display restoration failed; see quick-curve receipt")
+    require(receipt["passed"], "Capture did not pass; see quick-curve receipt")
 
 
 if __name__ == "__main__":

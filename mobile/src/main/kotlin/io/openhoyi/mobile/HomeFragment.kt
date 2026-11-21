@@ -850,17 +850,23 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             is ExtractionTelemetry -> frame.brewTemperatureHundredthsC / 100f
             else -> null
         }
-        boilerDials.getOrNull(0)?.present(brewCurrent, dial.brewTarget?.toFloat())
-        boilerDials.getOrNull(1)?.present((dial.frame as? IdleTelemetry)?.steamTemperatureHundredthsC?.div(100f), dial.steamTarget?.toFloat())
+        val warmingSession = owner?.boilerPresentationSession?.takeIf {
+            !shotActive && !boilerRecoveryActive && !inFlight(true) && !inFlight(false) &&
+                idle != null && dial.frame === idle && idle.sleepStateRaw == 0 &&
+                io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)
+        }
+        boilerDials.getOrNull(0)?.present(brewCurrent, dial.brewTarget?.toFloat(), warmingSession)
+        boilerDials.getOrNull(1)?.present((dial.frame as? IdleTelemetry)?.steamTemperatureHundredthsC?.div(100f),
+            dial.steamTarget?.toFloat(), warmingSession)
         // Only the round cards may hold the previous display; connection status, feed, and
         // control gates still use independently freshness-checked live telemetry.
         val liveReadings = if (dial.frame === liveMachine) readings else MachineHomeReadings.from(liveMachine)
         brewTemperature.show(liveReadings.brewTemperature)
-        brewBoilerTemperature.showMetric(readings.brewTemperature.compactTemperature())
+        if (boilerDials.isEmpty()) brewBoilerTemperature.showMetric(readings.brewTemperature.compactTemperature())
         brewPressure.show(liveReadings.brewPressure)
         brewBoilerPressure.showBoilerPressure(readings.brewPressure)
         steamTemperature.show(liveReadings.steamTemperature)
-        steamBoilerTemperature.showMetric(readings.steamTemperature.compactTemperature())
+        if (boilerDials.isEmpty()) steamBoilerTemperature.showMetric(readings.steamTemperature.compactTemperature())
         steamPressure.show(liveReadings.steamPressure)
         steamBoilerPressure.showBoilerPressure(readings.steamPressure)
         brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.brewTarget?.let { "${it} °C" } ?: "—"))
@@ -1136,10 +1142,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private fun TextView.showMetric(value: String) {
         if (text.toString() == value) return
         val unitStart = value.indexOf(' ')
-        val dial = parent as? BoilerTemperatureDial
         text = when {
             unitStart < 0 -> value
-            dial != null -> dial.formatReading(value, unitStart)
             else -> SpannableString(value).apply {
                 setSpan(RelativeSizeSpan(0.36f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
