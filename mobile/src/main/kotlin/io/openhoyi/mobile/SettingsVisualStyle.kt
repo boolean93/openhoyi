@@ -221,7 +221,7 @@ internal class SettingsWrappingActions(context: Context, private val gap: Int) :
 internal class SettingsColumns(context:Context,private val style:TaskProductVisualStyle,val first:View,val second:View,
     private val evidence:JSONObject, private val firstFraction:Float=.4f,
     private val minimumFirstWidth:(()->Int)?=null, private val minimumSecondWidth:(()->Int)?=null,
-    private val stackGapDp: Int = 24):ViewGroup(context) {
+    private val stackGapDp: Int = 24, private val onMeasuredSplit: (Boolean) -> Unit = {}):ViewGroup(context) {
     private var split=false
     init {addView(first);addView(second)}
     override fun generateDefaultLayoutParams()=LayoutParams(-1,-2)
@@ -230,6 +230,7 @@ internal class SettingsColumns(context:Context,private val style:TaskProductVisu
         val firstRequired=minimumFirstWidth?.invoke() ?: style.dp(280)
         val secondRequired=minimumSecondWidth?.invoke() ?: style.dp(400)
         split=width>=firstRequired+secondRequired+gap
+        onMeasuredSplit(split)
         val firstWidth=if(split)((width-gap)*firstFraction).toInt().coerceIn(firstRequired,width-gap-secondRequired) else width
         val secondWidth=if(split)width-gap-firstWidth else width
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
@@ -285,6 +286,8 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     private var editAvailable = false
     private var currentReadbackTenths: Int? = null
     private val draftSteppers = mutableListOf<Button>()
+    private var wideDraftLayout = false
+    fun setWideDraftLayout(wide: Boolean) { wideDraftLayout = wide }
     fun presentDraftBaseline(valueTenths: Int?, editable: Boolean) {
         currentReadbackTenths = valueTenths
         renderDraft(editable)
@@ -293,6 +296,8 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         draftRange = range
         action.contentDescription = originalAction
         action.text = label
+        // The full label is still announced; don't reserve a sentence's width in an empty numeric field.
+        input.hint = "—"
         val field = quantity as LinearLayout
         listOf(-1, 1).forEach { delta ->
             val button = style.button(Button(context)).apply {
@@ -309,8 +314,9 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
                         currentReadbackTenths, range, delta)?.let { input.setText(it.toString()) }
                 }
             }
-            if (delta < 0) field.addView(button, 0, LinearLayout.LayoutParams(-2, -2))
-            else field.addView(button, LinearLayout.LayoutParams(-2, -2))
+            val touch = LinearLayout.LayoutParams(style.dp(48), style.dp(48))
+            if (delta < 0) field.addView(button, 0, touch)
+            else field.addView(button, touch)
             draftSteppers += button
         }
         input.addTextChangedListener(object : android.text.TextWatcher {
@@ -347,8 +353,7 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val shown=if(input.text.isNullOrEmpty())input.hint?.toString().orEmpty() else input.text.toString()
         // Reserve ordinary compact phones for direct entry; then measure the actual,
         // localized editor and drop the steppers only if the field itself cannot fit.
-        val roomForSteppers = context.resources.configuration.screenWidthDp >= 600 &&
-            available >= style.dp(196)
+        val roomForSteppers = wideDraftLayout && available >= style.dp(196)
         draftSteppers.forEach { it.visibility = if (roomForSteppers) VISIBLE else GONE }
         val inputNaturalWidth=maxOf(style.dp(if (compactField || draftRange != null) 72 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
         input.layoutParams.width=inputNaturalWidth

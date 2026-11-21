@@ -369,6 +369,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             standbyCard.removeView(standbyRow)
             val standbyGrid = SettingsWideGrid(this, style, 2, 240, 560, 12) { columns ->
                 standbyRow.setGroupedField(columns > 1, applyLabel)
+                standbyRow.setWideDraftLayout(columns > 1)
             }.apply {
                 tag = "settings/machine/standby-grid"
                 val delay = style.column().apply {
@@ -406,7 +407,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             }.also { functionsCard.addView(it, LinearLayout.LayoutParams(-1,-2)) }
             style.add(body, SettingsColumns(host, style, controls, functionsCard, org.json.JSONObject(),
                 firstFraction = .46f, minimumFirstWidth = { dp(320) }, minimumSecondWidth = { dp(350) },
-                stackGapDp = 12).apply { tag = "settings/machine/main-columns" })
+                stackGapDp = 12, onMeasuredSplit = { split ->
+                    grouped.forEach { it.setWideDraftLayout(split) }
+                }).apply { tag = "settings/machine/main-columns" })
             listOf(settingsToggle,settings).forEach { view -> (view.parent as? android.view.ViewGroup)?.removeView(view); body.addView(view) }
             listOf(standbySection,sleepSection).forEach { section -> controlsPane.removeView(section);section.visibility=View.VISIBLE;documentSections.getValue("schedule").addView(section) }
             controlsPane.removeView(maintenanceSection);maintenanceSection.visibility=View.VISIBLE;documentSections.getValue("maintenance").addView(maintenanceSection)

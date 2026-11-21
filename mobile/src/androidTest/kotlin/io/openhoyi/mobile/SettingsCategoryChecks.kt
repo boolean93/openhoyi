@@ -148,6 +148,13 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 val originalPrecision = precision.getBoolean("one_decimal", false)
                 for (category in SettingsCategory.entries) {
                     select(category)
+                    if (!short || category in listOf(SettingsCategory.DEVICE, SettingsCategory.BREWING,
+                            SettingsCategory.APPEARANCE)) {
+                        test.waitForIdleSync()
+                        main { checkRenderedLanding(category, "before") }
+                        capture(category.key)
+                        main { checkRenderedLanding(category, "after") }
+                    }
                     main {
                         check(SettingsCategory.entries.count { button(it).isSelected } == 1)
                         check(SettingsCategory.entries.all { other ->
@@ -168,7 +175,12 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     val minus = row.findViewWithTag<Button>("settings/machine/draft-step/-1")
                                     val plus = row.findViewWithTag<Button>("settings/machine/draft-step/1")
                                     check(listOf(minus, plus).all { it.isShown && it.width >= HoyiUi.dp(activity, 48) &&
-                                        it.height >= HoyiUi.dp(activity, 48) }) { "Tablet draft steppers must be present" }
+                                        it.height >= HoyiUi.dp(activity, 48) }) {
+                                        "Tablet draft steppers must be present, row $i=${row.width}×${row.height}; " +
+                                            listOf(minus, plus).joinToString {
+                                                "${it.tag}: shown=${it.isShown}, visibility=${it.visibility}, ${it.width}×${it.height}"
+                                            }
+                                    }
                                 }
                                 val summary = settings().findViewWithTag<android.widget.TextView>("settings-machine-summary")
                                 check(!summary.text.contains(activity.getString(R.string.machine_settings_unchanged)))
@@ -243,13 +255,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         }
                         check(SettingsCategory.entries.map { rect(button(it)) } == originalIndex) { "Index moved by changing category" }
                     }
-                    if (!short || category in listOf(SettingsCategory.DEVICE, SettingsCategory.BREWING,
-                            SettingsCategory.APPEARANCE)) {
-                        test.waitForIdleSync()
-                        main { checkRenderedLanding(category, "before") }
-                        capture(category.key)
-                        main { checkRenderedLanding(category, "after") }
-                    }
+
                 }
                 main { check(savedText.text.toString() == "94") { "Category change lost unsent editor draft" }; savedText.setText(previous) }
                 for (category in SettingsCategory.entries) for (section in category.sections) {

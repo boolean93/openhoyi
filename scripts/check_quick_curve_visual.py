@@ -301,10 +301,20 @@ def main():
             require(adb("install", source, timeout=120).splitlines()[-1] == "Success", "Mock fixture install failed")
         if os.environ.get("SETTINGS_CATEGORIES") == "true":
             name = "settings-categories"
-            capture_settings_categories(adb, output, receipt, profile, width, height)
+            category_failure = None
+            try:
+                capture_settings_categories(adb, output, receipt, profile, width, height)
+            except ValueError as exc:
+                # Let the independent real-touch route run after a category assertion;
+                # both outcomes remain independently visible and categories must still pass.
+                category_failure = exc
+                receipt["settingsCategoriesError"] = str(exc)
             if os.environ.get("SETTINGS_RECORDING") == "true" and profile in {"phone", "tablet"}:
                 name = "settings-recording"
                 capture_settings_recording(adb, executable, output, receipt, profile)
+            if category_failure is not None:
+                name = "settings-categories"
+                raise category_failure
             receipt["passed"] = True
             return
         if os.environ.get("BOILER_WARMUP") == "true":

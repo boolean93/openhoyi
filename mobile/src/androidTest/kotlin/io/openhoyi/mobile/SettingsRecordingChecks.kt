@@ -17,10 +17,10 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
             val fragment = main { page.active("root:SETTINGS") as AppSettingsFragment }
             val document = main { fragment.requireView() as SettingsDocumentLayout }
             fun category(type: SettingsCategory) = document.findViewWithTag<View>("settings/category/${type.key}")
-            fun waitFor(check: () -> Boolean) {
+            fun waitFor(stage: String, check: () -> Boolean) {
                 val until = SystemClock.uptimeMillis() + 3500
                 while (!main(check)) {
-                    check(SystemClock.uptimeMillis() < until) { "Settings recording route did not settle" }
+                    check(SystemClock.uptimeMillis() < until) { "Settings recording route did not settle: $stage" }
                     SystemClock.sleep(50)
                 }
             }
@@ -41,46 +41,60 @@ internal class SettingsRecordingChecks(private val test: Instrumentation) {
                     SystemClock.sleep(27)
                     send(MotionEvent.ACTION_MOVE, fromY + (toY - fromY) * step / steps)
                 }
-                SystemClock.sleep(if (steps == 0) 65 else 160)
+                if (steps == 0) SystemClock.sleep(65)
+                else repeat(6) {
+                    SystemClock.sleep(23)
+                    send(MotionEvent.ACTION_MOVE, toY)
+                }
                 send(MotionEvent.ACTION_UP, toY)
             }
             fun tap(view: View) {
                 val rect = main { point(view) }
                 gesture(rect.exactCenterX(), rect.exactCenterY(), rect.exactCenterY(), 0)
             }
-            fun swipe() {
+            fun swipe(distance: Int? = null) {
                 val r = main { point(document.scroll) }
-                gesture(r.left + r.width() * .10f, r.top + r.height() * .80f, r.top + r.height() * .22f, 20)
+                val max = r.height() * .61f
+                val direction = if (distance != null && distance < 0) -1 else 1
+                val travel = distance?.let { (kotlin.math.abs(it) + HoyiUi.dp(page.activity, 14)).toFloat().coerceIn(38f, max) } ?: max
+                val from = if (direction > 0) r.top + r.height() * .81f else r.top + r.height() * .19f
+                // Use the blank inset rather than letting an EditText consume the drag.
+                gesture(r.left + 6f, from, from - direction * travel, 16)
             }
-            waitFor { category(SettingsCategory.DEVICE).isSelected }
+            waitFor("default Devices") { category(SettingsCategory.DEVICE).isSelected }
             SystemClock.sleep(1300)
             val start = main { document.scroll.scrollY }
             swipe()
-            waitFor { document.scroll.scrollY > start }
+            waitFor("initial real swipe") { document.scroll.scrollY > start }
             SystemClock.sleep(1000)
             tap(main { category(SettingsCategory.MACHINE) })
-            waitFor { document.isAtSectionLanding("machine") }
+            waitFor("Machines directory tap") { document.isAtSectionLanding("machine") }
             SystemClock.sleep(1200)
-            // Align close to a category boundary to guarantee the change is visible in both viewports.
-            // Navigation is via a real directory tap; highlight transition below comes only from a swipe.
-            repeat(7) {
+            // Measure the scroll target, but move toward it only with visible real gestures.
+            // A phone has a longer machine section than the tablet's paired cards.
+            repeat(14) {
                 if (!main { category(SettingsCategory.BREWING).isSelected }) {
-                    swipe()
-                    SystemClock.sleep(520)
+                    val delta = main {
+                        val target = Rect()
+                        val heading = document.findViewWithTag<View>("settings/heading/shortcuts")
+                        document.body.offsetDescendantRectToMyCoords(heading, target)
+                        target.top - document.scroll.scrollY
+                    }
+                    swipe(delta)
                 }
             }
-            waitFor { category(SettingsCategory.BREWING).isSelected }
+            waitFor("Brewing highlight from scroll") { category(SettingsCategory.BREWING).isSelected }
             SystemClock.sleep(1300)
             tap(main { category(SettingsCategory.APPEARANCE) })
-            waitFor { document.isAtSectionLanding("appearance") }
+            waitFor("Appearance directory tap") { document.isAtSectionLanding("appearance") }
             SystemClock.sleep(1350)
             val prefs = (page.activity.application as MobileApplication).appearancePreferences
             val appearanceBefore = main { prefs.current }
             tap(main { document.findViewWithTag<View>("settings/appearance/palette/sea-salt") })
-            waitFor { fragment.appearanceCard?.dialog?.isShowing == true }
+            waitFor("original palette preview") { fragment.appearanceCard?.dialog?.isShowing == true }
             SystemClock.sleep(1650)
             tap(main { requireNotNull(fragment.appearanceCard?.dialog).getButton(android.content.DialogInterface.BUTTON_NEGATIVE) })
-            waitFor { fragment.appearanceCard?.dialog?.isShowing != true && prefs.current == appearanceBefore }
+            waitFor("palette preview cancelled without write") { fragment.appearanceCard?.dialog?.isShowing != true && prefs.current == appearanceBefore }
             SystemClock.sleep(1600)
         } finally {
             main { page.activity.finish() }
