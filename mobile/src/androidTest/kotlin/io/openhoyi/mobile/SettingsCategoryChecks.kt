@@ -54,6 +54,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     await(category.key) { button(category).isSelected && heading(category.sections.first()).let { it.isShown && it.getGlobalVisibleRect(Rect()) } }
                 }
                 await("default Devices") { button(SettingsCategory.DEVICE).isSelected && heading("devices").getGlobalVisibleRect(Rect()) }
+                capture("device") // Retain actual first-view pixels even if later geometry checks fail.
                 val originalIndex = main {
                     val settings = settings()
                     check(settings.scroll.height > 0)
@@ -74,7 +75,10 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         r
                     }.also { rows ->
                         if (wide) check(rows.map { it.left }.distinct().size == 1 && rows.map { it.top }.distinct().size == 6)
-                        else check(rows.map { it.left }.distinct().size == 3 && rows.map { it.top }.distinct().size == 2)
+                        else check(rows.map { it.left }.distinct().size == 3 && rows.map { it.top }.distinct().size == 2 &&
+                            rows.chunked(3).all { row -> row.map { it.height() }.distinct().size == 1 }) {
+                            "Expected aligned two rows of three touch targets: $rows"
+                        }
                     }
                 }
                 val savedText = main { settings().findViewsByClass(EditText::class.java).first() }

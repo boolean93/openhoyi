@@ -152,7 +152,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                         button.gravity = Gravity.CENTER
                         button.setPaddingRelative(style.dp(3), style.dp(5), style.dp(3), style.dp(5))
                         if (j > 0) row.addView(hairline(), LayoutParams(style.dp(1), style.dp(30)))
-                        row.addView(button, LayoutParams(0, -2, 1f))
+                        row.addView(button, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
                     }
                 }
             }
