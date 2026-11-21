@@ -154,19 +154,21 @@ class AppSettingsFragment : Fragment() {
             "chart" to root.section("chart", getString(R.string.fixed_chart_section)),
             "appearance" to root.section("appearance", getString(R.string.settings_appearance_language)),
             "feedback" to root.section("feedback", getString(R.string.settings_section_feedback)),
-            "about" to root.section("about", getString(R.string.settings_category_update)),
+            "about" to root.section("about", getString(R.string.settings_section_about)),
             "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)))
         val scanSection = root.arrangeDeviceOverview()
         val diagnostics = sections.getValue("maintenance")
         val cupDetails = root.disclosure(diagnostics, "cups", getString(R.string.machine_settings_cups_title))
         val maintenanceDetails = root.disclosure(diagnostics, "maintenance", getString(R.string.settings_category_diagnostics))
 
-        deviceControls = SettingsDeviceControls(activity, visual, { permissions.launch(it) }, {
+        val connectionControls = SettingsDeviceControls(activity, visual, { permissions.launch(it) }, {
             bluetooth.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))
         }).also { controls ->
             controls.errorChanged={ failed->document?.setStatus("devices",if(failed)getString(R.string.settings_state_unknown) else null) }
-            controls.create(sections.getValue("devices"), scanSection)
         }
+        deviceControls = connectionControls
+        val scale = connectionControls.create(sections.getValue("devices"), scanSection, sections.getValue("scale"))
+        visual.divider(scale)
         machineState = state?.getBundle("machineControls") ?: machineState
         val machine = sections.getValue("machine")
         val machineSummary=style.text("",TaskProductVisualStyle.auxiliary,"settings-machine-summary",true).also {style.add(machine,it,8)}
@@ -174,7 +176,6 @@ class AppSettingsFragment : Fragment() {
             it.statusChanged={ value->if(machineSummary.text.toString()!=value)machineSummary.text=value }
             it.create(machine,machineState,embedded=true,documentSections=sections + ("maintenance" to cupDetails))
         }
-        val scale=sections.getValue("scale")
         scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),TaskProductVisualStyle.auxiliary,secondary=true)
         val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
         scale.addView(HoyiSwitch(activity).apply {
@@ -187,7 +188,7 @@ class AppSettingsFragment : Fragment() {
         val scaleDetails = root.disclosure(scale, "scale", getString(R.string.settings_category_scale_capabilities))
         scaleCapabilities?.let { style.add(scaleDetails, it) }
         style.add(scaleDetails, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
-        HoyiUi.button(activity, scale, getString(R.string.scale_title)) { activity.openScaleFromSettings() }
+        HoyiUi.button(activity, scale, getString(R.string.settings_category_scale_tool)) { activity.openScaleFromSettings() }
         listOf(R.string.scale_timer_title to R.string.scale_timer_help, R.string.scale_operation_limits to R.string.scale_active_guard,
             R.string.scale_protocol_support to R.string.scale_offline_evidence).forEach { (title, detail) ->
             style.add(scaleDetails,style.text(getString(title),TaskProductVisualStyle.action),16)
@@ -254,8 +255,9 @@ class AppSettingsFragment : Fragment() {
             background = style.shape(style.surface, true, 16)
         }
         style.add(info, aboutCard, 4)
+        style.add(aboutCard, style.text(getString(R.string.settings_category_update), TaskProductVisualStyle.action))
         updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
-        val aboutDetails = root.disclosure(info, "about", getString(R.string.settings_section_about))
+        val aboutDetails = root.disclosure(info, "about", getString(R.string.settings_category_project_details))
         val name = style.text(getString(R.string.app_name), TaskProductVisualStyle.section,
             "product/settings/app/info/name/value")
         val website = style.button(Button(activity)).apply {

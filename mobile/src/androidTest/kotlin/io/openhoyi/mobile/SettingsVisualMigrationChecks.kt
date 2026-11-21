@@ -641,6 +641,25 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     }
     private fun tagged(activity:Activity,tag:String):View=requireNotNull(root(activity).findViewWithTag<View>(tag)) {"Missing real settings target: $tag"}
     private fun reveal(activity:Activity,view:View) {
+        if (activity is MainActivity) {
+            var revealSection = false
+            main {
+                if (view.isShown) return@main
+                val document = activity.supportFragmentManager.primaryNavigationFragment?.requireView() as SettingsDocumentLayout
+                val ancestors = generateSequence(view) { it.parent as? View }.mapNotNull { it.tag as? String }.toList()
+                val section = ancestors.firstOrNull { it.startsWith("settings/section/") }?.substringAfterLast('/')
+                    ?: return@main
+                document.navigate(section)
+                for (tag in ancestors.filter { it.startsWith("settings/details/") && it.endsWith("/content") }.asReversed()) {
+                    if (document.findViewWithTag<View>(tag).visibility == View.GONE) {
+                        val action = document.findViewWithTag<View>(tag.removeSuffix("/content") + "/action")
+                        check(action.performClick()) { "Settings disclosure not reachable: $tag" }
+                    }
+                }
+                revealSection = true
+            }
+            if (revealSection) frames.committedFrame(root(activity))
+        }
         main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
         frames.committedFrame(root(activity));main {check(whole(observation(view))) {"M8 target not completely reachable: ${view.tag}/${(view as? TextView)?.text}"}}
     }
@@ -1313,6 +1332,14 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 }
             }
             reachability(activity,File(directory,"main-reachability"))
+            if (activity is MainActivity) {
+                val document = activity.supportFragmentManager.primaryNavigationFragment?.requireView() as SettingsDocumentLayout
+                for (category in SettingsCategory.entries.filter { it != SettingsCategory.DEVICE }) {
+                    main { document.navigate(category.sections.first()) }
+                    frames.committedFrame(document)
+                    reachability(activity, File(directory, "category-${category.key}-reachability"), category.key)
+                }
+            }
             val specialFolder=File(directory,"special-states").apply {check(isDirectory || mkdirs())}
             val cases=when(activity) {
                 is MainActivity->appSpecials(active,activity,specialFolder)

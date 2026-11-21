@@ -137,27 +137,34 @@ def capture_boiler_warmup(adb, executable, output, receipt):
 
 
 def capture_settings_categories(adb, output, receipt, profile, width, height):
-    require(profile in {"phone", "tablet"}, "Expected the fresh phone/tablet Settings profile")
+    require(profile in {"phone", "phone-short", "tablet"}, "Expected the fresh phone/tablet Settings profile")
     report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
                  "-e", "settingsCategoryProfile", profile, RUNNER, timeout=160)
     (output / "settings-instrumentation.txt").write_text(report + "\n")
     # Pull actual captured image(s) even on a later UI assertion failure.
-    for key in ("device", "machine", "brewing", "appearance", "ai", "maintenance"):
+    keys = ("device", "brewing", "appearance") if profile == "phone-short" else (
+        "device", "machine", "brewing", "appearance", "ai", "maintenance")
+    if profile == "phone":
+        keys += ("appearance-light",)
+    for key in keys:
         try:
             frame = adb("exec-out", "run-as", APP, "cat", f"files/settings-categories/{key}.png", binary=True)
         except subprocess.CalledProcessError:
             continue
-        require(png_size(frame) == (width, height), "Wrong Settings screenshot geometry")
+        # Some adb exec-out implementations return cat's error as bytes with exit 0.
+        if not frame.startswith(b"\x89PNG\r\n\x1a\n"):
+            continue
+        require(png_size(frame) == (width, height), f"Wrong Settings screenshot geometry: {key}")
         image = output / f"settings-{profile}-{key}.png"
         image.write_bytes(frame)
         receipt["screenshots"][image.name] = digest(image)
     require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "SETTINGS_CATEGORIES_PASSED" in report,
-            "Settings UI checks failed; see instrumentation report")
+            "Settings UI checks failed; see settings-instrumentation.txt")
     proof = json.loads(adb("exec-out", "run-as", APP, "cat", "files/settings-categories/receipt.json"))
     require(proof["wide"] == (profile == "tablet") and proof["dark"] == (profile == "phone") and
             proof["sixCategories"] and proof["exactRoutes"] == 11 and proof["returnedToCaller"] and
-            proof["recreatedCategory"] and
-            len(receipt["screenshots"]) == 6 and len(set(receipt["screenshots"].values())) == 6,
+            proof["recreatedCategory"] and proof["scaleToolReturned"] and proof["shortEnglishLarge"] == (profile == "phone-short") and
+            len(receipt["screenshots"]) == len(keys) and len(set(receipt["screenshots"].values())) == len(keys),
             "Incomplete Settings category evidence")
     (output / "settings-geometry.json").write_text(json.dumps(proof, indent=2) + "\n")
 

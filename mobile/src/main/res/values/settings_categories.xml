@@ -12,4 +12,6 @@
     <string name="settings_category_ai_hint">API Key、模型、思考强度及萃取后自动评价在 HOYI.AI 对话菜单中管理。</string>
     <string name="settings_category_diagnostics">诊断存储与服务</string>
     <string name="settings_category_brewing">萃取</string>
+    <string name="settings_category_project_details">项目与导入指南</string>
+    <string name="settings_category_scale_tool">打开秤工具</string>
 </resources>

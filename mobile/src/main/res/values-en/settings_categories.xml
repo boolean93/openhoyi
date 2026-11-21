@@ -12,4 +12,6 @@
     <string name="settings_category_ai_hint">Manage the API key, model, reasoning effort and automatic shot review from the HOYI.AI chat menu.</string>
     <string name="settings_category_diagnostics">Diagnostic storage and service</string>
     <string name="settings_category_brewing">Brewing</string>
+    <string name="settings_category_project_details">Project and import guide</string>
+    <string name="settings_category_scale_tool">Open scale tool</string>
 </resources>

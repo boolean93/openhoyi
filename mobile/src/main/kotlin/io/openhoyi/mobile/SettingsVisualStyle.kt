@@ -220,7 +220,8 @@ internal class SettingsWrappingActions(context: Context, private val gap: Int) :
 
 internal class SettingsColumns(context:Context,private val style:TaskProductVisualStyle,val first:View,val second:View,
     private val evidence:JSONObject, private val firstFraction:Float=.4f,
-    private val minimumFirstWidth:(()->Int)?=null, private val minimumSecondWidth:(()->Int)?=null):ViewGroup(context) {
+    private val minimumFirstWidth:(()->Int)?=null, private val minimumSecondWidth:(()->Int)?=null,
+    private val stackGapDp: Int = 24):ViewGroup(context) {
     private var split=false
     init {addView(first);addView(second)}
     override fun generateDefaultLayoutParams()=LayoutParams(-1,-2)
@@ -234,7 +235,7 @@ internal class SettingsColumns(context:Context,private val style:TaskProductVisu
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
         first.measure(MeasureSpec.makeMeasureSpec(firstWidth,MeasureSpec.EXACTLY),free)
         second.measure(MeasureSpec.makeMeasureSpec(secondWidth,MeasureSpec.EXACTLY),free)
-        val natural=if(split)maxOf(first.measuredHeight,second.measuredHeight) else first.measuredHeight+gap+second.measuredHeight
+        val natural=if(split)maxOf(first.measuredHeight,second.measuredHeight) else first.measuredHeight+style.dp(stackGapDp)+second.measuredHeight
         evidence.put("split",split).put("actualWidthPx",width).put("leftWidthPx",firstWidth).put("rightWidthPx",secondWidth).put("naturalHeightPx",natural)
         setMeasuredDimension(resolveSize(width,widthMeasureSpec),resolveSize(natural,heightMeasureSpec))
     }
@@ -243,7 +244,7 @@ internal class SettingsColumns(context:Context,private val style:TaskProductVisu
             val left=if(layoutDirection==LAYOUT_DIRECTION_RTL)width-start-view.measuredWidth else start
             view.layout(left,top,left+view.measuredWidth,top+view.measuredHeight)
         }
-        place(first,0,0);place(second,if(split)first.measuredWidth+style.dp(24) else 0,if(split)0 else first.measuredHeight+style.dp(24))
+        place(first,0,0);place(second,if(split)first.measuredWidth+style.dp(24) else 0,if(split)0 else first.measuredHeight+style.dp(stackGapDp))
     }
 }
 

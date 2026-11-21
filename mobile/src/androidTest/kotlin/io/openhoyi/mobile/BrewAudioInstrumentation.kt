@@ -229,9 +229,9 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report); return
             }
             settingsCategoryProfile?.let { profile ->
-                check(disposableCiEmulator && BuildConfig.MOCK_MODE && profile in setOf("phone", "tablet") &&
+                check(disposableCiEmulator && BuildConfig.MOCK_MODE && profile in setOf("phone", "phone-short", "tablet") &&
                     android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
-                SettingsCategoryChecks(this).run(wide = profile == "tablet", dark = profile == "phone")
+                SettingsCategoryChecks(this).run(wide = profile == "tablet", dark = profile == "phone", short = profile == "phone-short")
                 report.putString("stream", "SETTINGS_CATEGORIES_PASSED six=true routes=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return

@@ -28,13 +28,17 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     var errorChanged:(Boolean)->Unit={}
     private fun connectedActionAllowed()=owner!=null && allowed()
     private fun allowed()=owner?.let { !it.manualShotActive && DeviceConnectionGate.mayChangeScale(it.shotState) } ?: true
-    fun create(body:LinearLayout, scanBody:LinearLayout = body) {
+    fun create(body:LinearLayout, scanBody:LinearLayout = body, scaleBody:LinearLayout = body): LinearLayout {
         val card=visual.card(body,host.getString(R.string.home_device_connection),0)
         card.removeViewAt(0)
+        val scaleCard = if (scaleBody === body) card else
+            visual.card(scaleBody, host.getString(R.string.scale_title), 0).also { it.removeViewAt(0) }
         listOf(DeviceRole.COFFEE to R.string.home_coffee_disconnect,DeviceRole.BOOKOO to R.string.home_scale_disconnect).forEachIndexed { index,(role,label) ->
-            if(index>0)visual.divider(card)
+            val ownerCard = if (role == DeviceRole.COFFEE) card else scaleCard
+            if(index > 0 && ownerCard === card) visual.divider(card)
             val words=style.column()
-            style.add(words,style.text(host.getString(if(role==DeviceRole.COFFEE)R.string.home_coffee else R.string.scale_title),TaskProductVisualStyle.body))
+            if (role == DeviceRole.COFFEE || ownerCard === card) style.add(words,
+                style.text(host.getString(if (role == DeviceRole.COFFEE) R.string.home_coffee else R.string.scale_title), TaskProductVisualStyle.body))
             states[role]=style.text("—",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(words,it,4)}
             val buttons=LinearLayout(host)
             val actions=SettingsWrappingActions(host, style.dp(6))
@@ -53,7 +57,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 buttons.removeViewAt(0)
                 actions.addView(button)
             }
-            style.add(card,visual.pair(words,actions,"settings/devices/${role.name}"))
+            style.add(ownerCard,visual.pair(words,actions,"settings/devices/${role.name}"))
         }
         val scanCard = if (scanBody === body) card.also { visual.divider(it) }
             else visual.card(scanBody, host.getString(R.string.home_device_connection), 0).also { it.removeViewAt(0) }
@@ -64,6 +68,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         message=style.text("",TaskProductVisualStyle.auxiliary,"settings/devices/message",true).apply {accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE}
         style.add(scanCard,message,4)
         candidates=style.column("settings/devices/candidates");style.add(scanCard,candidates,4)
+        return scaleCard
     }
     fun addShutdown(body:LinearLayout) {
         HoyiUi.button(host,body,host.getString(R.string.home_shutdown)) {

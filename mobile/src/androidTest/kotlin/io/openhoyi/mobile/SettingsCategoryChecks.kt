@@ -23,7 +23,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
         SystemClock.sleep(180)
     }
 
-    fun run(wide: Boolean, dark: Boolean) {
+    fun run(wide: Boolean, dark: Boolean, short: Boolean) {
         val context = test.targetContext
         val app = context.applicationContext as MobileApplication
         val out = File(context.filesDir, "settings-categories").apply { check(mkdirs() || isDirectory) }
@@ -31,8 +31,8 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
         try {
             main {
                 check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
-                check(app.languagePreferences.select(AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
-                check(app.fontSizePreferences.select(AppFontSize.MEDIUM) != AppFontSizePreference.Selection.SAVE_FAILED)
+                check(app.languagePreferences.select(if (short) AppLanguage.ENGLISH else AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
+                check(app.fontSizePreferences.select(if (short) AppFontSize.LARGE else AppFontSize.MEDIUM) != AppFontSizePreference.Selection.SAVE_FAILED)
             }
             val page = MainPageTestHost.launch(test, TaskDestination.SETTINGS, timeoutMs = 15_000)
             val activity = page.activity
@@ -51,11 +51,14 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 }
                 fun select(category: SettingsCategory) {
                     main { check(button(category).performClick()) }
-                    await(category.key) { button(category).isSelected && heading(category.sections.first()).getGlobalVisibleRect(Rect()) }
+                    await(category.key) { button(category).isSelected && heading(category.sections.first()).let { it.isShown && it.getGlobalVisibleRect(Rect()) } }
                 }
                 await("default Devices") { button(SettingsCategory.DEVICE).isSelected && heading("devices").getGlobalVisibleRect(Rect()) }
                 val originalIndex = main {
                     val settings = settings()
+                    check(settings.scroll.height > 0)
+                    if (short) check(activity.resources.configuration.fontScale > 1f &&
+                        activity.resources.configuration.locales[0].language == "en")
                     check(settings.findViewWithTag<View>("settings/document/category-sidebar").isShown == wide)
                     check(settings.findViewWithTag<View>("settings/document/category-grid").isShown != wide)
                     SettingsCategory.entries.map { category ->
@@ -64,7 +67,10 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         val text = b.layout
                         val unit = activity.resources.displayMetrics.density
                         check(r.width() == b.width && r.height() == b.height && r.width() >= 48 * unit && r.height() >= 48 * unit)
-                        check(text != null && (0 until text.lineCount).all { text.getEllipsisCount(it) == 0 })
+                        check(text != null && (0 until text.lineCount).all { line ->
+                            text.getEllipsisCount(line) == 0 &&
+                                text.getLineWidth(line) <= b.width - b.compoundPaddingStart - b.compoundPaddingEnd + 1
+                        })
                         r
                     }.also { rows ->
                         if (wide) check(rows.map { it.left }.distinct().size == 1 && rows.map { it.top }.distinct().size == 6)
@@ -80,11 +86,12 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     main {
                         check(SettingsCategory.entries.count { button(it).isSelected } == 1)
                         check(SettingsCategory.entries.filter { it != category }.all { other ->
-                            other.sections.none { heading(it).getGlobalVisibleRect(Rect()) }
+                            other.sections.none { heading(it).isShown }
                         })
                         check(SettingsCategory.entries.map { rect(button(it)) } == originalIndex) { "Index moved by changing category" }
                     }
-                    capture(category.key)
+                    if (!short || category in listOf(SettingsCategory.DEVICE, SettingsCategory.BREWING,
+                            SettingsCategory.APPEARANCE)) capture(category.key)
                 }
                 main { check(savedText.text.toString() == "94") { "Category change lost unsent editor draft" }; savedText.setText(previous) }
                 for (category in SettingsCategory.entries) for (section in category.sections) {
@@ -96,21 +103,40 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 await("external scale link") { button(SettingsCategory.DEVICE).isSelected && heading("scale").getGlobalVisibleRect(Rect()) && heading("scale").hasFocus() }
                 main { activity.onBackPressedDispatcher.onBackPressed() }
                 await("return to caller") { activity.supportFragmentManager.primaryNavigationFragment is BeanInventoryFragment }
+                main { activity.openSettingsSection("scale") }
+                await("scale heading before tool") { heading("scale").hasFocus() && heading("scale").getGlobalVisibleRect(Rect()) }
+                main { activity.openScaleFromSettings() }
+                await("real scale tool") { activity.supportFragmentManager.primaryNavigationFragment is ScaleFragment }
+                main { activity.onBackPressedDispatcher.onBackPressed() }
+                await("scale tool returned to Devices") { button(SettingsCategory.DEVICE).isSelected && heading("scale").getGlobalVisibleRect(Rect()) }
                 main { activity.openSettingsSection("about") }
+
                 await("updates anchor") { heading("about").getGlobalVisibleRect(Rect()) && heading("about").hasFocus() }
                 main {
-                    check(settings().findViewWithTag<View>("product/settings/app/update/check").isEnabled)
+                    val update = settings().findViewWithTag<View>("product/settings/app/update/check")
+                    check(update.isEnabled && update.isShown && rect(update).height() == update.height)
+                    (page.active("root:SETTINGS") as AppSettingsFragment).openSection("maintenance")
+                }
+                await("maintenance control heading") { heading("maintenance").getGlobalVisibleRect(Rect()) }
+                val action = main { settings().findViewWithTag<Button>("settings/details/maintenance/action") }
+                main { action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true) }
+                await("maintenance detail control reachable") { action.isShown && Rect().let { action.getGlobalVisibleRect(it) && it.height() == action.height } }
+                main {
                     val details = settings().findViewWithTag<View>("settings/details/maintenance/content")
                     check(!details.isShown)
-                    val action = settings().findViewWithTag<Button>("settings/details/maintenance/action")
                     check(action.performClick() && details.isShown)
                     check(action.performClick() && !details.isShown)
                     check(precision.getBoolean("one_decimal", false) == originalPrecision)
+                    (page.active("root:SETTINGS") as AppSettingsFragment).openSection("about")
                 }
+                await("about reselected") { heading("about").getGlobalVisibleRect(Rect()) && heading("about").hasFocus() }
                 val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
                 var restored: MainActivity? = null
                 try {
-                    main { activity.recreate() }
+                    main {
+                        if (dark) check(app.appearancePreferences.selectDark(false) != AppAppearancePreference.Selection.SAVE_FAILED)
+                        activity.recreate()
+                    }
                     val recreated = test.waitForMonitorWithTimeout(monitor, 12_000) as? MainActivity
                         ?: error("Settings Activity recreation did not return")
                     restored = recreated
@@ -120,12 +146,27 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         view?.findViewWithTag<View>("settings/category/maintenance")?.isSelected == true &&
                             view.findViewWithTag<View>("settings/heading/about")?.getGlobalVisibleRect(Rect()) == true
                     }
+                    if (dark) {
+                        main {
+                            val fragment = recreated.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
+                            fragment.openSection("appearance")
+                        }
+                        await("matching Chinese light phone appearance") {
+                            val fragment = recreated.supportFragmentManager.primaryNavigationFragment as? AppSettingsFragment
+                            val view = fragment?.view
+                            val light = recreated.resources.configuration.uiMode and
+                                android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_NO
+                            light && view?.findViewWithTag<View>("settings/category/appearance")?.isSelected == true &&
+                                view.findViewWithTag<View>("settings/heading/appearance")?.getGlobalVisibleRect(Rect()) == true
+                        }
+                        capture("appearance-light")
+                    }
                 } finally {
                     test.removeMonitor(monitor)
                     restored?.let { main { it.finish() } }
                 }
-                receipts.put("wide", wide).put("dark", dark).put("sixCategories", true).put("exactRoutes", 11)
-                    .put("categoryRailFixed", true).put("recreatedCategory", true).put("draftRetained", true).put("returnedToCaller", true)
+                receipts.put("wide", wide).put("dark", dark).put("shortEnglishLarge", short).put("sixCategories", true).put("exactRoutes", 11)
+                    .put("categoryRailFixed", true).put("recreatedCategory", true).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
                     .put("rects", JSONArray(originalIndex.map { JSONArray(listOf(it.left, it.top, it.right, it.bottom)) }))
                     .put("noBleOrDestructiveActions", true)
             } finally {

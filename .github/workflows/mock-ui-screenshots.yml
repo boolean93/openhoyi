@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: ${{ fromJSON(inputs.settings_categories && '["phone","tablet"]' || inputs.boiler_warmup && '["phone"]' || inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || inputs.quick_curve_profile == 'phone-short' && '["phone-short"]' || '["phone","tablet"]') || '["legacy"]') }}
+        profile: ${{ fromJSON(inputs.settings_categories && (inputs.quick_curve_profile == 'phone-short' && '["phone-short"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || inputs.quick_curve_profile == 'tablet' && '["tablet"]' || '["phone","tablet","phone-short"]') || inputs.boiler_warmup && '["phone"]' || inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || inputs.quick_curve_profile == 'phone-short' && '["phone-short"]' || '["phone","tablet"]') || '["legacy"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

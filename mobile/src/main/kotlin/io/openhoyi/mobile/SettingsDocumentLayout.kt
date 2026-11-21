@@ -5,7 +5,12 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
+import android.os.Build
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ImageSpan
 import android.view.Gravity
 import android.view.View
 import android.view.accessibility.AccessibilityManager
@@ -62,7 +67,11 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 style.apply(this, TaskProductVisualStyle.action)
                 asTaskTextAction()
                 isAllCaps = false
-                minimumHeight = style.dp(48)
+                backgroundTintList = null
+                stateListAnimator = null
+                elevation = 0f
+                minHeight = style.dp(48)
+                minimumHeight = minHeight
                 setOnClickListener { select(category) }
             }
         }
@@ -181,7 +190,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         body.removeView(devices)
         body.removeView(scale)
         pairedDevices = SettingsColumns(host, style, devices, scale, org.json.JSONObject(), firstFraction = .5f,
-            minimumFirstWidth = { style.dp(300) }, minimumSecondWidth = { style.dp(250) }).apply {
+            minimumFirstWidth = { style.dp(300) }, minimumSecondWidth = { style.dp(250) }, stackGapDp = 3).apply {
             tag = "settings/devices/overview"
             visibility = if (active == SettingsCategory.DEVICE) VISIBLE else GONE
             body.addView(this, at, LayoutParams(-1, -2))
@@ -273,12 +282,25 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 setColor(style.accent)
                 setBounds(0, 0, style.dp(5), style.dp(5))
             }
-            button.setCompoundDrawablesRelative(icon, null, status, null)
-            button.compoundDrawablePadding = style.dp(if (wide == true) 8 else 4)
-            button.background = RippleDrawable(ColorStateList.valueOf(style.selected),
-                if (selected) style.shape(style.selected, radius = 8) else null,
+            val title = host.getString(label(category))
+            button.text = icon?.let {
+                SpannableString("\uFFFC  $title").apply {
+                    setSpan(ImageSpan(it, if (Build.VERSION.SDK_INT >= 29) ImageSpan.ALIGN_CENTER else ImageSpan.ALIGN_BASELINE),
+                        0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            } ?: title
+            button.setCompoundDrawablesRelative(null, null, status, null)
+            button.compoundDrawablePadding = style.dp(4)
+            val fill = if (selected) style.selected else Color.TRANSPARENT
+            val states = StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), style.shape(fill, radius = 8).apply {
+                    setStroke(style.dp(1), style.accent)
+                })
+                addState(intArrayOf(), style.shape(fill, radius = 8))
+            }
+            button.background = RippleDrawable(ColorStateList.valueOf(style.selected), states,
                 style.shape(Color.WHITE, radius = 8))
-            button.contentDescription = (listOf(button.text.toString()) + badges).joinToString(" · ")
+            button.contentDescription = (listOf(title) + badges).joinToString(" · ")
         }
     }
 
@@ -295,9 +317,9 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         SettingsCategory.MAINTENANCE -> R.string.settings_category_maintenance
     }
     private fun icon(category: SettingsCategory): Int = when (category) {
-        SettingsCategory.DEVICE -> R.drawable.nav_scale
-        SettingsCategory.MACHINE -> R.drawable.nav_home
-        SettingsCategory.BREWING -> R.drawable.nav_extraction
+        SettingsCategory.DEVICE -> R.drawable.settings_category_device
+        SettingsCategory.MACHINE -> R.drawable.settings_category_machine
+        SettingsCategory.BREWING -> R.drawable.settings_category_brewing
         SettingsCategory.APPEARANCE -> R.drawable.settings_category_appearance
         SettingsCategory.AI -> R.drawable.settings_category_ai
         SettingsCategory.MAINTENANCE -> R.drawable.settings_category_maintenance
