@@ -41,6 +41,24 @@ internal fun settingsAccentContrast(context: android.content.Context): Map<Strin
         }
     }.toMap()
 
+internal fun settingsWeeklyTileContrast(context: android.content.Context): Map<String, Double> =
+    listOf(false, true).flatMap { night ->
+        val base = AppLanguageContext.wrap(context, AppLanguage.ENGLISH, night)
+        AppThemePalette.entries.flatMap { palette ->
+            val candidate = ContextThemeWrapper(AppAppearanceContext(base, AppAppearance(night, palette)),
+                R.style.MobileTheme).apply { theme.applyStyle(palette.nativeOverlay, true) }
+            val style = TaskProductVisualStyle(candidate)
+            val name = "${if (night) "dark" else "light"}/${palette.key}"
+            mapOf("enabledHeading" to weeklyTileHeadingInk(style, wide = true, enabled = true),
+                "disabledHeading" to weeklyTileHeadingInk(style, wide = true, enabled = false),
+                "time" to style.ink).map { (role, ink) ->
+                val ratio = ColorUtils.calculateContrast(ink, style.selected)
+                check(ratio >= 4.5) { "Insufficient weekly tile contrast: $name/$role = $ratio" }
+                "$name/$role" to ratio
+            }
+        }
+    }.toMap()
+
 internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
     private val context get() = test.targetContext
     private val app get() = context.applicationContext as MobileApplication

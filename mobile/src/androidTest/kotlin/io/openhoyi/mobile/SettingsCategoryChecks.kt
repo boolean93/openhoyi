@@ -32,7 +32,10 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
         val out = File(context.filesDir, "settings-categories").apply { check(mkdirs() || isDirectory) }
         val receipts = JSONObject()
         try {
-            if (wide) receipts.put("modeAccentContrast", JSONObject(main { settingsAccentContrast(context) }))
+            if (wide) {
+                receipts.put("modeAccentContrast", JSONObject(main { settingsAccentContrast(context) }))
+                receipts.put("weeklyTileContrast", JSONObject(main { settingsWeeklyTileContrast(context) }))
+            }
             check(SettingsTemperatureDraft.differs(3, 25, 0..5))
             check(!SettingsTemperatureDraft.differs(3, 30, 0..5))
             check(!SettingsTemperatureDraft.differs(3, null, 0..5))
@@ -208,10 +211,14 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     val tiles = (0 until week.childCount).map { week.getChildAt(it) as android.view.ViewGroup }
                                     check(tiles.map { it.height }.distinct().size == 1)
                                     check(tiles.all { tile ->
+                                        val heading = tile.getChildAt(0) as android.widget.TextView
                                         val time = tile.getChildAt(1) as android.widget.TextView
+                                        val fill = (tile.background as android.graphics.drawable.GradientDrawable)
+                                            .color!!.defaultColor
                                         time.lineCount == 1 && time.layout?.getEllipsisCount(0) == 0 &&
-                                            androidx.core.graphics.ColorUtils.calculateContrast(time.currentTextColor,
-                                                TaskProductVisualStyle(activity).selected) >= 4.5
+                                            listOf(heading, time).all { label ->
+                                                androidx.core.graphics.ColorUtils.calculateContrast(label.currentTextColor, fill) >= 4.5
+                                            }
                                     }) { "Normal tablet weekly labels must fit naturally on one line" }
                                 }
                                 check(columns.getChildAt(0).top == columns.getChildAt(1).top &&

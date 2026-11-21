@@ -35,6 +35,13 @@ import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.DeviceState
 import java.util.Locale
 
+internal fun weeklyTileHeadingInk(style: TaskProductVisualStyle, wide: Boolean, enabled: Boolean): Int =
+    when {
+        !enabled -> style.ink
+        !wide || androidx.core.graphics.ColorUtils.calculateContrast(style.accent, style.selected) >= 4.5 -> style.accent
+        else -> style.ink
+    }
+
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
 internal class MachineSettingsControls(private val host: ThemedActivity, suppliedVisual: SettingsVisualStyle? = null) : android.content.ContextWrapper(host) {
     private val visual by lazy {suppliedVisual ?: SettingsVisualStyle(this)}
@@ -42,7 +49,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private lateinit var brewTemperatureUnit:TextView
     private lateinit var steamTemperatureUnit:TextView
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
-    private data class ScheduleCard(val heading: TextView, val period: TextView)
+    private data class ScheduleCard(val heading: TextView, val period: TextView, var enabled: Boolean = false)
+    private var wideScheduleTiles = false
     private var machineModes:MachineModeControls?=null
     private var documentMode = false
     var statusChanged: (String) -> Unit = {}
@@ -309,7 +317,11 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             stackUntilWide = true, equalizeRowHeight = true) { columns ->
             // The wide tile uses a tinted surface; ordinary body ink passes on it
             // in both appearances. Narrow documents retain their existing projection.
-            scheduleCards.forEach { it.period.setTextColor(if (columns > 1) style.ink else style.muted) }
+            wideScheduleTiles = columns > 1
+            scheduleCards.forEach {
+                it.period.setTextColor(if (wideScheduleTiles) style.ink else style.muted)
+                it.heading.setTextColor(weeklyTileHeadingInk(style, wideScheduleTiles, it.enabled))
+            }
         }.apply {
             tag = "settings/machine/weekly-grid"
             scheduleGrid.addView(this, LinearLayout.LayoutParams(-1, -2))
@@ -620,7 +632,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     period.update(if (documentMode) day.state else day.period)
                     if (period.contentDescription != null) period.contentDescription = null
                 }
-                scheduleCards[index].heading.setTextColor(if(day.enabled==true)visual.palette.accent else visual.palette.ink)
+                val tile = scheduleCards[index]
+                tile.enabled = day.enabled == true
+                tile.heading.setTextColor(weeklyTileHeadingInk(visual.palette, wideScheduleTiles, tile.enabled))
             }
         val scheduleState = owner?.scheduleWriteState
         scheduleWriteStatus.visibility = if (documentMode && (scheduleState == null ||
