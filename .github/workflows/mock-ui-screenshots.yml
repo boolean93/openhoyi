@@ -13,7 +13,7 @@ on:
         type: choice
         required: false
         default: both
-        options: [both, phone, tablet]
+        options: [both, phone, phone-short, tablet]
 
       quick_curve_boiler_view:
         description: Also verify offscreen boiler controls and detached fake GATT (phone emulator only)
@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: ${{ fromJSON(inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || '["phone","tablet"]') || '["legacy"]') }}
+        profile: ${{ fromJSON(inputs.quick_curve_visual && (inputs.quick_curve_profile == 'tablet' && '["tablet"]' || inputs.quick_curve_profile == 'phone' && '["phone"]' || inputs.quick_curve_profile == 'phone-short' && '["phone-short"]' || '["phone","tablet"]') || '["legacy"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

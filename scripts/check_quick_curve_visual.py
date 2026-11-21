@@ -11,7 +11,7 @@ import time
 from shared_mock_artifact import APP, TEST, DESTINATIONS, digest, inspect_apk, require, run
 
 
-PROFILES = {"phone": (720, 1560, 320), "tablet": (2560, 1600, 360)}
+PROFILES = {"phone": (720, 1560, 320), "phone-short": (720, 1120, 320), "tablet": (2560, 1600, 360)}
 RUNNER = TEST + "/io.openhoyi.mobile.BrewAudioInstrumentation"
 MARKER = "QUICK_CURVE_VISUAL_PASSED androidHome=true tap48=true noBle=true noShot=true"
 
@@ -33,14 +33,22 @@ def display_value(report, kind):
     return rows[-1]
 
 
-def validate_capture(image, geometry, width, height, dpi, theme, background="wallpaper"):
+def validate_capture(image, geometry, width, height, dpi, theme, background="wallpaper", empty_recent=False, no_lever=False):
     require(png_size(image) == (width, height), "Wrong screenshot PNG geometry")
     require(geometry["density"] == dpi / 160 and geometry["dark"] == (theme == "dark") and
             geometry["portrait"] == (height > width), "Android view proof did not match expected configuration")
     require(geometry["wallpaper"] == (background == "wallpaper"), "Wrong captured backdrop")
     cards = geometry["items"]
-    require(len(cards) == 6 and cards[3]["name"] == cards[5]["name"] == "HOYI Limit Extraction",
-            "Expected six visible controls including both long titles")
+    if no_lever:
+        require(geometry["noLever"] and geometry["emptyRecent"] == empty_recent and len(cards) == 5 and
+                cards[2]["name"] == "HOYI Limit Extraction" and
+                cards[4]["label"] == ("上一杯" if empty_recent else "复用上一杯"),
+                "Expected A–D and the correct last-cup state")
+        require(cards[4]["rect"][0] == cards[2]["rect"][0] and cards[4]["rect"][2] == cards[3]["rect"][2],
+                "Expected Last to span both phone columns")
+    else:
+        require(len(cards) == 6 and cards[3]["name"] == cards[5]["name"] == "HOYI Limit Extraction",
+                "Expected six visible controls including both long titles")
 
 
 def save_failure(adb, output, name):
@@ -57,7 +65,14 @@ def save_failure(adb, output, name):
         except (subprocess.SubprocessError, OSError) as diagnostic:
             path.write_text(f"Unavailable: {type(diagnostic).__name__}\n")
     try:
-        (output / f"{name}-failed.png").write_bytes(adb("exec-out", "screencap", "-p", binary=True, timeout=12))
+        try:
+            image = adb("exec-out", "run-as", APP, "cat", "files/quick-curve-visual/failure-home.png",
+                        binary=True, timeout=12)
+        except (subprocess.SubprocessError, OSError):
+            image = b""
+        if png_size(image) is None:
+            image = adb("exec-out", "screencap", "-p", binary=True, timeout=12)
+        (output / f"{name}-failed.png").write_bytes(image)
     except (subprocess.SubprocessError, OSError):
         pass  # Diagnostics must never conceal the original test/transport failure.
 
@@ -135,15 +150,24 @@ def main():
             require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "HOME_BOILER_LAYER_PROOF_PASSED" in report,
                     "Detached boiler layer checks failed")
             receipt["detachedBoilerViewAndFakeGattPassed"] = True
-        for background, theme in ((background, theme) for background in ("wallpaper", "solid")
-                                  for theme in ("light", "dark")):
-            name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "")
+        cases = [("wallpaper", "dark")] if profile == "phone-short" else [
+            (background, theme) for background in ("wallpaper", "solid") for theme in ("light", "dark")]
+        fixtures = [(background, theme, "") for background, theme in cases]
+        if profile == "phone":
+            fixtures.extend([("wallpaper", "dark", "empty-recent"), ("wallpaper", "dark", "five-recent")])
+        def capture_name(background, theme, variant):
+            return f"{profile}-{theme}" + ("-solid" if background == "solid" else "") + (f"-{variant}" if variant else "")
+        for background, theme, variant in fixtures:
+            empty_recent, no_lever = variant == "empty-recent", bool(variant)
+            name = capture_name(background, theme, variant)
             # All data in this exact ephemeral install is synthetic and fixture-owned.
             require(adb("shell", "pm", "clear", APP) == "Success", "Cannot reset isolated Mock fixture")
             try:
                 report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
                              "-e", "quickCurveVisualTheme", theme, "-e", "quickCurveVisualBackground",
-                             background, RUNNER, timeout=100)
+                             background, "-e", "quickCurveShortPortrait", str(profile == "phone-short").lower(),
+                             "-e", "quickCurveEmptyRecent", str(empty_recent).lower(),
+                             "-e", "quickCurveNoLever", str(no_lever).lower(), RUNNER, timeout=100)
             except (subprocess.SubprocessError, OSError) as failure:
                 # am instrument can disappear with a nonzero exit or a killed process.
                 output_text = getattr(failure, "output", None)
@@ -160,9 +184,12 @@ def main():
             target = output / f"{name}.png"
             target.write_bytes(image)
             (output / f"{name}.json").write_text(json.dumps(geometry, ensure_ascii=False, indent=2) + "\n")
-            validate_capture(image, geometry, width, height, dpi, theme, background)
+            validate_capture(image, geometry, width, height, dpi, theme, background, empty_recent, no_lever)
             receipt["screenshots"][target.name] = digest(target)
-        require(len(set(receipt["screenshots"].values())) == 4, "Duplicate capture outputs")
+        expected_frames = {capture_name(*fixture) + ".png" for fixture in fixtures}
+        require(set(receipt["screenshots"]) == expected_frames and
+                len(set(receipt["screenshots"].values())) == len(expected_frames),
+                "Missing or duplicate capture outputs")
         receipt["passed"] = True
     except (ValueError, KeyError, subprocess.SubprocessError, OSError):
         save_failure(adb, output, name)
