@@ -34,7 +34,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val disclosureRenders = mutableMapOf<String, () -> Unit>()
     private val disclosureKeys = state?.getStringArrayList("settings.disclosures").orEmpty().toMutableSet()
     private var brewingChapter: View? = null
-    private var brewingCard: View? = null
+    private var brewingCard: LinearLayout? = null
     private var brewingCardAnchor: LinearLayout? = null
     private val brewingRows = mutableMapOf<String, View>()
     private var pairedDevices: View? = null
@@ -267,8 +267,11 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     }
 
     private fun styleBrewingLanding(rail: Boolean) {
-        brewingCard?.background = settingsRaisedGroup(host, style, horizontalInsetDp = if (rail) 4 else 0)
-        brewingCardAnchor?.setPadding(0, style.dp(if (rail) 0 else 6), 0, 0)
+        brewingCard?.apply {
+            background = settingsRaisedGroup(host, style, horizontalInsetDp = if (rail) 4 else 0,
+                topInsetDp = if (rail) 2 else 0)
+            setPadding(0, style.dp(if (rail) 4 else 2), 0, style.dp(if (rail) 4 else 6))
+        }
         brewingRows.forEach { (key, row) ->
             val height = when (key) {
                 "shortcuts" -> if (rail) 64 else 72
@@ -289,8 +292,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         body.removeAllViews()
         val brew = style.column("settings/brewing/group").apply {
             brewingCard = this
-            background = settingsRaisedGroup(host, style, horizontalInsetDp = if (wide == true) 4 else 0)
-            setPadding(0, style.dp(4), 0, style.dp(4))
+
         }
         ordered.forEach { child ->
             val section = sections.values.firstOrNull { it.block === child }
