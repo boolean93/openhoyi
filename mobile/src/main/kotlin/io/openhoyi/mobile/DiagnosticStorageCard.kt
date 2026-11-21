@@ -29,6 +29,7 @@ internal class DiagnosticStorageCard(private val activity: Activity, parent: Lin
     private val result = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/diagnostic-storage/result", true).apply {
         visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
+    var storageSummaryChanged: (String) -> Unit = {}
     private var observing = false
     private val observer: (DiagnosticStorageController.State) -> Unit = { render(it) }
     init {
@@ -46,6 +47,7 @@ internal class DiagnosticStorageCard(private val activity: Activity, parent: Lin
             state.bytes == null -> activity.getString(R.string.diagnostic_storage_unavailable)
             else -> activity.getString(R.string.diagnostic_storage_size, Formatter.formatFileSize(activity, state.bytes))
         }
+        storageSummaryChanged(size.text.toString())
         val text = when {
             state.outcome == DiagnosticStorageController.Outcome.FAILED -> activity.getString(R.string.diagnostic_storage_failed)
             state.readFailed && !state.busy -> activity.getString(R.string.diagnostic_storage_read_failed)

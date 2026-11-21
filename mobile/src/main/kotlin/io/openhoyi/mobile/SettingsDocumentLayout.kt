@@ -29,6 +29,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val sections = linkedMapOf<String, Section>()
     private val statuses = mutableMapOf<String, String>()
     private val buttons = linkedMapOf<SettingsCategory, Button>()
+    private val disclosureValues = mutableMapOf<String, String>()
+    private val disclosureRenders = mutableMapOf<String, () -> Unit>()
     private val disclosureKeys = state?.getStringArrayList("settings.disclosures").orEmpty().toMutableSet()
     private var pairedDevices: View? = null
     private var scanning: View? = null
@@ -259,8 +261,11 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         fun render() {
             val expanded = key in disclosureKeys
             content.visibility = if (expanded) VISIBLE else GONE
-            header.text = title + if (expanded) "  ▾" else "  ›"
-            header.contentDescription = title
+            val value = disclosureValues[key]?.takeIf { !expanded && it.isNotBlank() }
+            val caption = if (value != null) "$title   $value" else title
+            val rendered = caption + if (expanded) "  ▾" else "  ›"
+            if (header.text.toString() != rendered) header.text = rendered
+            if (header.contentDescription != caption) header.contentDescription = caption
             ViewCompat.setStateDescription(header, host.getString(
                 if (expanded) R.string.settings_category_expanded else R.string.settings_category_collapsed))
         }
@@ -270,8 +275,13 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         }
         style.add(parent, header, 8)
         style.add(parent, content, 4)
+        disclosureRenders[key] = ::render
         render()
         return content
+    }
+
+    fun setDisclosureValue(key: String, value: String) {
+        if (disclosureValues.put(key, value) != value) disclosureRenders[key]?.invoke()
     }
 
     fun setStatus(key: String, status: String?) {

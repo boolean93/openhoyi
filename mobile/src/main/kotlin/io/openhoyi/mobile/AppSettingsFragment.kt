@@ -155,7 +155,7 @@ class AppSettingsFragment : Fragment() {
         val cupGroup = style.column()
         val serviceGroup = style.column()
         val cupDetails = root.disclosure(cupGroup, "cups", getString(R.string.machine_settings_cups_title))
-        val maintenanceDetails = root.disclosure(serviceGroup, "maintenance", getString(R.string.settings_category_diagnostics))
+        val maintenanceDetails = root.disclosure(serviceGroup, "maintenance", getString(R.string.settings_hig_diagnostic_storage))
 
         val connectionControls = SettingsDeviceControls(activity, visual, { permissions.launch(it) }, {
             bluetooth.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))
@@ -173,6 +173,7 @@ class AppSettingsFragment : Fragment() {
                 if (machineSummary.text.toString() != value) machineSummary.text = value
                 machineSummary.visibility = if (value.isBlank()) View.GONE else View.VISIBLE
             }
+            it.cupCountChanged = { value -> root.setDisclosureValue("cups", value) }
             it.create(machine,machineState,embedded=true,documentSections=sections + ("maintenance" to cupDetails))
         }
         scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),TaskProductVisualStyle.auxiliary,secondary=true)
@@ -313,7 +314,9 @@ class AppSettingsFragment : Fragment() {
             addView(serviceGroup)
         }
         style.add(diagnosticsCard, detailsGrid, 8)
-        diagnosticStorageCard = DiagnosticStorageCard(activity, maintenanceDetails, visual, confirmClear = true)
+        diagnosticStorageCard = DiagnosticStorageCard(activity, maintenanceDetails, visual, confirmClear = true).apply {
+            storageSummaryChanged = { value -> root.setDisclosureValue("maintenance", value) }
+        }
         deviceControls?.addShutdown(maintenanceDetails)
         style.add(diagnostics, projectLinks, 6)
         root.finishSections()

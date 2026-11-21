@@ -46,6 +46,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private var machineModes:MachineModeControls?=null
     private var documentMode = false
     var statusChanged: (String) -> Unit = {}
+    var cupCountChanged: (String) -> Unit = {}
     private val dialogs = mutableListOf<AlertDialog>()
     private var service: MobileService? = null
     private var bound = false
@@ -571,7 +572,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             SleepScheduleWriteTracker.State.RECONCILED -> getString(R.string.machine_settings_schedule_reconciled)
             else -> getString(R.string.machine_settings_unchanged)
         })
-        cupCountValue.update(settingsPresentation.cupCount(reported, ready && owner?.machineSettingsFresh == true))
+        val cups = settingsPresentation.cupCount(reported, ready && owner?.machineSettingsFresh == true)
+        cupCountValue.update(cups)
+        cupCountChanged(cups)
         val pending = owner?.settingWriteState ?: SettingsWriteTracker.State.IDLE
         cupResetStatus.update(getString(R.string.machine_settings_cup_status_prefix) + when (owner?.cupResetState) {
             CupResetTracker.State.WRITING -> getString(R.string.machine_settings_cup_writing)

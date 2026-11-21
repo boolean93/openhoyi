@@ -7,4 +7,5 @@
     <string name="settings_hig_feedback_complete">Completion feedback</string>
     <string name="settings_hig_decrease">Decrease %1$s</string>
     <string name="settings_hig_increase">Increase %1$s</string>
+    <string name="settings_hig_diagnostic_storage">Diagnostic storage</string>
 </resources>

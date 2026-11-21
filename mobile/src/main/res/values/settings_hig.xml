@@ -7,4 +7,5 @@
     <string name="settings_hig_feedback_complete">完成反馈</string>
     <string name="settings_hig_decrease">降低%1$s</string>
     <string name="settings_hig_increase">调高%1$s</string>
+    <string name="settings_hig_diagnostic_storage">诊断存储</string>
 </resources>
