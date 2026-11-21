@@ -67,11 +67,15 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         val r = rect(b)
                         val text = b.layout
                         val unit = activity.resources.displayMetrics.density
-                        check(r.width() == b.width && r.height() == b.height && r.width() >= 48 * unit && r.height() >= 48 * unit)
+                        check(r.width() == b.width && r.height() == b.height && r.width() >= 48 * unit && r.height() >= 48 * unit) {
+                            "Unreachable settings cell: ${category.key}, $r vs ${b.width}×${b.height}"
+                        }
                         check(text != null && (0 until text.lineCount).all { line ->
                             text.getEllipsisCount(line) == 0 &&
                                 text.getLineWidth(line) <= b.width - b.compoundPaddingStart - b.compoundPaddingEnd + 1
-                        })
+                        } && text.height <= b.height - b.compoundPaddingTop - b.compoundPaddingBottom) {
+                            "Clipped settings label: ${category.key}, layout=${text?.height}, view=${b.height}"
+                        }
                         r
                     }.also { rows ->
                         if (wide) check(rows.map { it.left }.distinct().size == 1 && rows.map { it.top }.distinct().size == 6)

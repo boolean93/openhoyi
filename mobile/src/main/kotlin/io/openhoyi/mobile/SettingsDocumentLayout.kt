@@ -13,6 +13,7 @@ import android.text.Spanned
 import android.text.style.ImageSpan
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
@@ -145,14 +146,14 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 compact.background = style.shape(style.surface, true, 12)
                 buttons.values.chunked(3).forEachIndexed { i, cells ->
                     if (i > 0) compact.addView(hairline(), LayoutParams(-1, style.dp(1)))
-                    val row = style.row().apply { gravity = Gravity.CENTER_VERTICAL }
+                    val row = CompactCategoryRow(host, style.dp(1), style.dp(30), style.dp(48))
                     compact.addView(row, LayoutParams(-1, -2))
                     cells.forEachIndexed { j, button ->
                         // Compound controls can wrap at larger app sizes instead of clipping words.
                         button.gravity = Gravity.CENTER
                         button.setPaddingRelative(style.dp(3), style.dp(5), style.dp(3), style.dp(5))
-                        if (j > 0) row.addView(hairline(), LayoutParams(style.dp(1), style.dp(30)))
-                        row.addView(button, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+                        if (j > 0) row.addView(hairline())
+                        row.addView(button)
                     }
                 }
             }
@@ -350,6 +351,44 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 putInt("offset", position.offset)
                 putBoolean("end", position.end)
             })
+        }
+    }
+}
+
+/** Fixed-width cells keep their tallest natural line, independent of decorative separators. */
+private class CompactCategoryRow(context: android.content.Context, private val dividerWidth: Int,
+    private val dividerHeight: Int, private val minimum: Int) : ViewGroup(context) {
+    override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
+    private fun exact(value: Int) = MeasureSpec.makeMeasureSpec(value, MeasureSpec.EXACTLY)
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        check(childCount == 5) // three controls separated by two decorative hairlines.
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val available = (width - 2 * dividerWidth).coerceAtLeast(0)
+        val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        var rowHeight = minimum
+        for (i in 0..2) {
+            val child = getChildAt(i * 2)
+            val extent = available * (i + 1) / 3 - available * i / 3
+            child.measure(exact(extent), free)
+            rowHeight = maxOf(rowHeight, child.measuredHeight)
+        }
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (i % 2 == 0) child.measure(exact(child.measuredWidth), exact(rowHeight))
+            else child.measure(exact(dividerWidth), exact(minOf(dividerHeight, rowHeight)))
+        }
+        setMeasuredDimension(width, rowHeight)
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        var x = 0
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            val start = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - x - child.measuredWidth else x
+            val top = (height - child.measuredHeight) / 2
+            child.layout(start, top, start + child.measuredWidth, top + child.measuredHeight)
+            x += child.measuredWidth
         }
     }
 }
