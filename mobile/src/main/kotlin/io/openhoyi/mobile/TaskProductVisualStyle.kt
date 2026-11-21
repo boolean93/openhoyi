@@ -23,6 +23,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 
 /** Explicit M1 page input, not a theme override. No dependency on Mock specimens. */
 internal class TaskProductVisualStyle(val context: Context) {
@@ -49,6 +50,7 @@ internal class TaskProductVisualStyle(val context: Context) {
     val primary = brand.productPrimary
     val onPrimary = brand.onPrimary
     val accent = brand.productAccent
+    val onAccent: Int get() = if (ColorUtils.calculateContrast(Color.WHITE, accent) >= 4.5) Color.WHITE else Color.BLACK
     val selected = brand.productSelected
     val disabled = pick("#ECEFF1", "#263234")
     val onDisabled = pick("#8A95A3", "#7D908F")

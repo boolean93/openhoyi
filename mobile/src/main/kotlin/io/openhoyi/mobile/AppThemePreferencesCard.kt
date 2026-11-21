@@ -50,7 +50,7 @@ internal class AppThemePreferencesCard(
                     tag = "settings/appearance/mode/" + if (dark) "dark" else "light"
                     if (selected) {
                         background = style.shape(style.accent, radius = 8)
-                        setTextColor(style.onPrimary)
+                        setTextColor(style.onAccent)
                     }
                     setOnClickListener {
                         // Own no second preference: invoke the exact narrow switch validation/save path.

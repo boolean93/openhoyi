@@ -32,6 +32,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
         val out = File(context.filesDir, "settings-categories").apply { check(mkdirs() || isDirectory) }
         val receipts = JSONObject()
         try {
+            if (wide) receipts.put("modeAccentContrast", JSONObject(main { settingsAccentContrast(context) }))
             main {
                 check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
                 check(app.languagePreferences.select(if (short) AppLanguage.ENGLISH else AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
@@ -421,6 +422,16 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 night && (view as? SettingsDocumentLayout)?.isAtSectionLanding(cat.sections.first()) == true &&
                                     view.findViewWithTag<View>("settings/category/${cat.key}")?.isSelected == true &&
                                     view.findViewWithTag<View>("settings/heading/${cat.sections.first()}")?.getGlobalVisibleRect(Rect()) == true
+                            }
+                            if (cat == SettingsCategory.APPEARANCE) main {
+                                val fragment = recreated.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
+                                val darkChoice = fragment.requireView()
+                                    .findViewWithTag<Button>("settings/appearance/mode/dark")
+                                val fill = (darkChoice.background as android.graphics.drawable.GradientDrawable)
+                                    .color!!.defaultColor
+                                val ratio = androidx.core.graphics.ColorUtils.calculateContrast(darkChoice.currentTextColor, fill)
+                                check(darkChoice.isShown && ratio >= 4.5)
+                                receipts.put("visibleDarkModeContrast", ratio)
                             }
                             capture("dark-${cat.key}", recreated)
                         }

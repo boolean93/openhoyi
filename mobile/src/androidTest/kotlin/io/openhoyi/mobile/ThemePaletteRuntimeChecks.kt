@@ -27,6 +27,20 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 /** Actual settings/preview window and configuration restoration. Disposable Mock emulator only. */
+internal fun settingsAccentContrast(context: android.content.Context): Map<String, Double> =
+    listOf(false, true).flatMap { night ->
+        val base = AppLanguageContext.wrap(context, AppLanguage.ENGLISH, night)
+        AppThemePalette.entries.map { palette ->
+            val candidate = ContextThemeWrapper(AppAppearanceContext(base, AppAppearance(night, palette)),
+                R.style.MobileTheme).apply { theme.applyStyle(palette.nativeOverlay, true) }
+            val style = TaskProductVisualStyle(candidate)
+            val ratio = ColorUtils.calculateContrast(style.onAccent, style.accent)
+            val name = "${if (night) "dark" else "light"}/${palette.key}"
+            check(ratio >= 4.5) { "Insufficient Settings accent contrast: $name = $ratio" }
+            name to ratio
+        }
+    }.toMap()
+
 internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
     private val context get() = test.targetContext
     private val app get() = context.applicationContext as MobileApplication
@@ -36,6 +50,7 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
     private fun <T> main(action: () -> T) = BoundedInstrumentationMain.run("theme palette", action = action)
 
     fun run() {
+        settingsAccentContrast(test.targetContext)
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock" &&
             Build.HARDWARE in setOf("ranchu", "goldfish")) { "Palette fixtures require the disposable Mock emulator" }
         check(evidence.mkdir()) { "Fresh palette evidence directory required" }
