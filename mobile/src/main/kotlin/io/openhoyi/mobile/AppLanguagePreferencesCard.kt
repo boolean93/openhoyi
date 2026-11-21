@@ -15,6 +15,7 @@ internal class AppLanguagePreferencesCard(
     private val preferences: AppLanguagePreference = (activity.application as MobileApplication).languagePreferences,
     private val embedded: Boolean = false,
     private val visual: SettingsVisualStyle? = null,
+    private val noteBelowRow: Boolean = false,
     private val onApplied: () -> Unit,
 ) {
     val button: Button
@@ -28,10 +29,12 @@ internal class AppLanguagePreferencesCard(
             val style=visual.palette
             val words=style.column()
             style.add(words,style.text(activity.getString(R.string.language_title),TaskProductVisualStyle.body))
-            style.add(words,style.text(activity.getString(R.string.language_hint),TaskProductVisualStyle.auxiliary,secondary=true),8)
+            val note = style.text(activity.getString(R.string.language_hint), TaskProductVisualStyle.auxiliary, secondary = true)
+            if (!noteBelowRow) style.add(words, note, 8)
             button=visual.action(android.widget.Button(activity).apply {text=currentLabel();setOnClickListener {choose()}},icon="chevron",atEnd=true)
                 .apply {tag="product/settings/app/language/current";contentDescription=activity.getString(R.string.language_current,preferences.current.nativeName)}
             style.add(card,visual.pair(words,button,"product/settings/app/language/row"))
+            if (noteBelowRow) style.add(card, note, 4)
         } else {
             val row = if (embedded) LinearLayout(activity).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL

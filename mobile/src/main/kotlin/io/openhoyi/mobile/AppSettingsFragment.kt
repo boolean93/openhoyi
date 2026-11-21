@@ -243,7 +243,7 @@ class AppSettingsFragment : Fragment() {
         val type = style.column()
         style.add(theme, SettingsColumns(activity, style, language, type, org.json.JSONObject(), firstFraction = .5f,
             minimumFirstWidth = { style.dp(235) }, minimumSecondWidth = { style.dp(235) }))
-        languageCard = AppLanguagePreferencesCard(activity, language, embedded = true, visual = visual) {
+        languageCard = AppLanguagePreferencesCard(activity, language, embedded = true, visual = visual, noteBelowRow = true) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
         fontSizeCard = AppFontSizePreferencesCard(activity, type, visual) { activity.recreate() }
