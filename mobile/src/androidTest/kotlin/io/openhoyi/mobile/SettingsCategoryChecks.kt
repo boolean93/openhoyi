@@ -350,9 +350,8 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         editor?.let { main { if (!it.isFinishing) it.finish() } }
                     }
                 }
-                if (wide) {
-                    receipts.put("supplemental", SettingsSupplementalCapture(test, page, out).run())
-                }
+                val supplemental = if (wide) runCatching { SettingsSupplementalCapture(test, page, out).run() }
+                    else null
                 // Exact return route, not just a successful navigation to Settings.
                 main { activity.select(TaskDestination.BEANS); activity.openSettingsSection("scale") }
                 await("external scale link") { button(SettingsCategory.DEVICE).isSelected && heading("scale").getGlobalVisibleRect(Rect()) && heading("scale").hasFocus() }
@@ -445,6 +444,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     test.removeMonitor(monitor)
                     restored?.let { main { it.finish() } }
                 }
+                supplemental?.getOrThrow()?.let { receipts.put("supplemental", it) }
                 receipts.put("wide", wide).put("dark", dark).put("shortEnglishLarge", short).put("sixCategories", true).put("exactRoutes", 11)
                     .put("categoryRailFixed", true).put("continuousDrag", true).put("recreatedCategory", true).put("appearancePreviewNoWrite", !short).put("wideDark", wide).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
                     .put("rects", JSONArray(originalIndex.map { JSONArray(listOf(it.left, it.top, it.right, it.bottom)) }))

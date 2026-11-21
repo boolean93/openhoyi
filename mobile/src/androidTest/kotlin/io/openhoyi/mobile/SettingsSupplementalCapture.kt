@@ -50,15 +50,26 @@ internal class SettingsSupplementalCapture(
     fun run(): JSONObject {
         section("schedule")
         capture("standby", "机器：待机时间与温度")
-        val day = main { view("product/settings/machine/schedule/day/6") }
+        val day = main {
+            val week = view("settings/machine/weekly-grid") as ViewGroup
+            check(week.childCount == 7 && (0..6).all {
+                val setting = week.getChildAt(it)
+                setting.tag == "product/settings/machine/schedule/day/$it" && setting.isShown && setting.isClickable &&
+                    setting.width >= HoyiUi.dp(activity, 48) && setting.height >= HoyiUi.dp(activity, 48)
+            }) { "The wide weekly grid must expose all seven original days, once each" }
+            week.getChildAt(6)
+        }
         reveal(day)
         capture("weekly", "机器：每周睡眠计划与七天编辑入口")
         if (main { day.isEnabled }) {
             main { check(day.performClick()) }
-            await("weekly editor") { accessibility { it.className.toString().endsWith("EditText") }?.let { it.recycle(); true } == true }
-            capture("weekly-editor", "机器：单日睡眠与唤醒时间（未保存）")
-            back()
-            await("weekly editor cancelled") { main { activity.hasWindowFocus() } }
+            try {
+                await("weekly editor") { accessibility { it.className.toString().endsWith("EditText") }?.let { it.recycle(); true } == true }
+                capture("weekly-editor", "机器：单日睡眠与唤醒时间（未保存）")
+            } finally {
+                if (!main { activity.hasWindowFocus() }) back()
+                await("weekly editor cancelled") { main { activity.hasWindowFocus() } }
+            }
         }
         section("scale")
         val capabilities = main { view("settings/details/scale/action") }

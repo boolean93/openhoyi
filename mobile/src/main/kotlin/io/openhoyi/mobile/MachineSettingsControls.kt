@@ -296,7 +296,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             days.forEach { day ->
                 val cell = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(16), dp(8), dp(16), dp(8))
+                    val horizontal = dp(if (documentMode) 8 else 16)
+                    setPadding(horizontal, dp(8), horizontal, dp(8))
                     background = style.shape(style.selected)
                     minimumHeight = dp(48)
                     tag = "product/settings/machine/schedule/day/$day"
@@ -304,7 +305,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     setOnClickListener { editScheduleDay(day, getString(dayNames[day])) }
                 }
                 scheduleButtons += cell
-                row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (dayGrid != null) dayGrid.addView(cell)
+                else row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
                     topMargin = dp(8)
                     if (day != days.last()) marginEnd = dp(8)
                 })
@@ -312,7 +314,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 val period = style.text("",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(cell,it,8)}
                 scheduleCards += ScheduleCard(heading, period)
             }
-            if (days.size < scheduleColumns) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            if (dayGrid == null && days.size < scheduleColumns)
+                row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         }
         val cupCard = card(maintenanceSection, getString(R.string.machine_settings_cups_title))
         cupCountValue = text(cupCard, settingsPresentation.cupCount(null, false), 16)
@@ -534,6 +537,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 scheduleCards[index].heading.setTextColor(if(day.enabled==true)visual.palette.accent else visual.palette.ink)
                 scheduleCards[index].period.update(day.period)
             }
+        val scheduleState = owner?.scheduleWriteState
+        scheduleWriteStatus.visibility = if (documentMode && (scheduleState == null ||
+            scheduleState == SleepScheduleWriteTracker.State.IDLE)) View.GONE else View.VISIBLE
         scheduleWriteStatus.update(getString(R.string.machine_settings_schedule_status_prefix) + when (owner?.scheduleWriteState) {
             SleepScheduleWriteTracker.State.WRITING -> getString(R.string.machine_settings_schedule_writing)
             SleepScheduleWriteTracker.State.WAITING_READBACK -> getString(R.string.machine_settings_schedule_waiting)
