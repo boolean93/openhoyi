@@ -237,9 +237,16 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 SystemClock.sleep(280)
                 main { check(settings().scroll.scrollY == settled && SettingsCategory.entries.map { rect(button(it)) } == originalIndex) }
                 val end = main {
-                    settings().scroll.scrollTo(0, Int.MAX_VALUE)
-                    check(button(SettingsCategory.MAINTENANCE).isSelected)
-                    settings().scroll.scrollY
+                    val doc = settings()
+                    val limit = (doc.body.height - doc.scroll.height + doc.scroll.paddingTop +
+                        doc.scroll.paddingBottom).coerceAtLeast(0)
+                    // ScrollView clamps using viewport + requestedY; MAX_VALUE overflows there.
+                    doc.scroll.scrollTo(0, limit)
+                    check(doc.scroll.scrollY == limit && !doc.scroll.canScrollVertically(1) &&
+                        button(SettingsCategory.MAINTENANCE).isSelected) {
+                        "Expected true end $limit, got ${doc.scroll.scrollY}"
+                    }
+                    limit
                 }
                 dragUp(viewport)
                 await("end remains pinned after upward motion") {
