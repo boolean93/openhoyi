@@ -1,0 +1,10 @@
+<resources>
+    <string name="settings_hig_feedback_sound">Feedback sound</string>
+    <string name="settings_hig_ai_configure_key">Set up API Key first</string>
+    <string name="settings_hig_export_zip">Export ZIP</string>
+    <string name="settings_hig_scanning">Scanning</string>
+    <string name="settings_hig_machine_extracting">Extraction in progress</string>
+    <string name="settings_hig_feedback_complete">Completion feedback</string>
+    <string name="settings_hig_decrease">Decrease %1$s</string>
+    <string name="settings_hig_increase">Increase %1$s</string>
+</resources>

@@ -47,6 +47,8 @@ internal class AppThemePreferencesCard(
             for ((dark, name) in listOf(false to R.string.theme_palette_light_preview, true to R.string.theme_palette_dark_preview)) {
                 val selected = preferences.current.dark == dark
                 modes.addView(settingsPreviewButton(activity, style, activity.getString(name), selected).apply {
+                    minimumWidth = style.dp(64)
+                    minWidth = minimumWidth
                     tag = "settings/appearance/mode/" + if (dark) "dark" else "light"
                     if (selected) {
                         background = style.shape(style.accent, radius = 8)
@@ -61,15 +63,13 @@ internal class AppThemePreferencesCard(
                 })
             }
             val modePanel = SettingsAppearanceSurface(activity, style,
-                activity.getString(R.string.settings_appearance_mode), modes, minWideDp = 590, narrowLabel = false) { wide ->
-                themeCheckBox.visibility = if (wide) View.GONE else View.VISIBLE
-                // Retain the original narrow layout and single accessible switch.
-                modes.visibility = if (wide) View.VISIBLE else View.GONE
-            }.apply {
+                activity.getString(R.string.settings_appearance_mode), modes, minWideDp = 460,
+                maxContentDp = 192).apply {
                 tag = "settings/appearance/mode-surface"
                 // The wrapper must remain measurable to re-enable the mode on resize.
                 minimumHeight = 0
             }
+            themeCheckBox.visibility = View.GONE // Original validation remains the owner of the mode change.
             style.add(parent, themeCheckBox)
             style.add(parent, modePanel)
 

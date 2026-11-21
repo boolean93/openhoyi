@@ -8,6 +8,7 @@ import android.view.ViewGroup
 internal class SettingsWideGrid(
     context: Context, private val style: TaskProductVisualStyle, private val maxColumns: Int,
     minimumCellDp: Int, minimumWideDp: Int, gapDp: Int = 12,
+    private val stackUntilWide: Boolean = false,
     private val onColumns: (Int) -> Unit = {},
 ) : ViewGroup(context) {
     private val cell = style.dp(minimumCellDp)
@@ -21,7 +22,8 @@ internal class SettingsWideGrid(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
-        val columns = if (width < wide) 1 else ((width + gap) / (cell + gap)).coerceIn(1, maxColumns)
+        val capacity = ((width + gap) / (cell + gap)).coerceIn(1, maxColumns)
+        val columns = if (width < wide || (stackUntilWide && capacity < maxColumns)) 1 else capacity
         if (columns != previousColumns) { previousColumns = columns; onColumns(columns) }
         val usable = (width - (columns - 1) * gap).coerceAtLeast(0)
         val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)

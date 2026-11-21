@@ -35,6 +35,7 @@ internal class TaskProductVisualStyle(val context: Context) {
         val auxiliary = Type(14, 400, 22)
         val section = Type(20, 500, 30)
         val title = Type(24, 500, 36)
+        val settingsChapter = Type(22, 500, 32)
         val compactMetric = Type(16, 500, 24)
         val shareMetric = Type(20, 400, 30)
         val largeValue = Type(40, 700, 60)

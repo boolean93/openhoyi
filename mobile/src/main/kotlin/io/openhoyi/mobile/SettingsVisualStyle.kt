@@ -258,8 +258,62 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     fun setGroupedField(grouped: Boolean, apply: CharSequence) {
         if (compactField == grouped) return
         compactField = grouped
-        action.text = if (grouped) apply else originalAction
+        action.text = if (grouped || draftRange != null) apply else originalAction
         action.contentDescription = if (grouped) originalAction else null
+    }
+    private var draftRange: IntRange? = null
+    private var editAvailable = false
+    private var currentReadback: Int? = null
+    private val draftSteppers = mutableListOf<Button>()
+    fun presentDraftBaseline(value: Int?, editable: Boolean) {
+        currentReadback = value
+        renderDraft(editable)
+    }
+    fun bindDraftAction(label: String, range: IntRange) {
+        draftRange = range
+        action.contentDescription = originalAction
+        action.text = label
+        val field = quantity as LinearLayout
+        listOf(-1, 1).forEach { delta ->
+            val button = style.button(Button(context)).apply {
+                text = if (delta < 0) "−" else "+"
+                contentDescription = resources.getString(if (delta < 0)
+                    R.string.settings_hig_decrease else R.string.settings_hig_increase, input.contentDescription)
+                minWidth = style.dp(48); minimumWidth = minWidth
+                minHeight = style.dp(48); minimumHeight = minHeight
+                setPadding(0, 0, 0, 0)
+                visibility = GONE
+                setOnClickListener {
+                    val prior = input.text.toString().toIntOrNull() ?: currentReadback
+                    if (prior != null && prior in range) {
+                        val next = (prior + delta).coerceIn(range)
+                        if (next != prior) input.setText(next.toString())
+                    }
+                }
+            }
+            if (delta < 0) field.addView(button, 0, LinearLayout.LayoutParams(-2, -2))
+            else field.addView(button, LinearLayout.LayoutParams(-2, -2))
+            draftSteppers += button
+        }
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderDraft(editAvailable)
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        })
+        renderDraft(false)
+    }
+    private fun renderDraft(editable: Boolean) {
+        val range = draftRange ?: return
+        editAvailable = editable
+        val draft = input.text.toString().toIntOrNull()
+        val validChange = draft != null && draft in range && currentReadback != null && draft != currentReadback
+        action.isEnabled = editable && validChange
+        action.alpha = if (action.isEnabled) 1f else .55f
+        val shown = draft ?: currentReadback
+        draftSteppers.forEachIndexed { index, button ->
+            button.isEnabled = editable && shown != null && shown in range &&
+                (if (index == 0) shown > range.first else shown < range.last)
+        }
     }
     init {setPadding(style.dp(16),style.dp(16),style.dp(16),style.dp(16));background=style.shape(style.surface,true);addView(words);addView(quantity);addView(action)}
     override fun generateDefaultLayoutParams()=LayoutParams(-2,-2)
@@ -275,7 +329,8 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val width=MeasureSpec.getSize(widthMeasureSpec);val available=(width-paddingLeft-paddingRight).coerceAtLeast(0)
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
         val shown=if(input.text.isNullOrEmpty())input.hint?.toString().orEmpty() else input.text.toString()
-        val inputNaturalWidth=maxOf(style.dp(if (compactField) 68 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
+        draftSteppers.forEach { it.visibility = if (available >= style.dp(388)) VISIBLE else GONE }
+        val inputNaturalWidth=maxOf(style.dp(if (compactField || draftRange != null) 72 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
         input.layoutParams.width=inputNaturalWidth
         listOf(words,quantity,action).forEach {force(it);it.measure(free,free)}
         val wordsWidth=words.measuredWidth;val actionWidth=action.measuredWidth;val quantityWidth=quantity.measuredWidth

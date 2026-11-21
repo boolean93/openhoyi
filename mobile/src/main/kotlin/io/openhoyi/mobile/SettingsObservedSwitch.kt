@@ -10,7 +10,7 @@ internal class SettingsObservedSwitch(
     style: TaskProductVisualStyle,
     private val request: (Boolean) -> Unit,
 ) : FrameLayout(control.context) {
-    private val unknown = style.text(context.getString(R.string.settings_unknown), TaskProductVisualStyle.auxiliary,
+    private val unknown = style.text(context.getString(R.string.machine_settings_readback_missing), TaskProductVisualStyle.auxiliary,
         "settings/machine/switch-unknown").apply {
         gravity = Gravity.END or Gravity.CENTER_VERTICAL
         setTextColor(style.muted)

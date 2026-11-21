@@ -1,6 +1,10 @@
 package io.openhoyi.mobile
 
 import android.content.Intent
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
@@ -10,10 +14,32 @@ import android.widget.TextView
 internal object AiSettingsCard {
     fun create(activity: MainActivity, style: TaskProductVisualStyle): View {
         val refresh = mutableListOf<() -> Unit>()
+        var observedModel: String? = null
+        var requestGeneration = 0
+        fun refreshModel() {
+            val generation = ++requestGeneration
+            activity.lifecycleScope.launch {
+                val model = withContext(Dispatchers.IO) {
+                    val epoch = AiKeyStore(activity).credentialEpoch() ?: return@withContext null
+                    val stored = AiSessionStore(activity).load(epoch) as? AiSessionLoad.Ready
+                        ?: return@withContext null
+                    if (AiKeyStore(activity).credentialEpoch() != epoch) return@withContext null
+                    AiModelPolicy.models.firstOrNull { it.id == stored.session.modelId }?.label
+                }
+                if (generation == requestGeneration) {
+                    observedModel = model
+                    refresh.forEach { it() }
+                }
+            }
+        }
         val card = object : LinearLayout(activity) {
             override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
                 super.onWindowFocusChanged(hasWindowFocus)
-                if (hasWindowFocus) refresh.forEach { it() }
+                if (hasWindowFocus) {
+                    observedModel = null
+                    refresh.forEach { it() }
+                    refreshModel()
+                }
             }
         }.apply {
             orientation = LinearLayout.VERTICAL
@@ -61,13 +87,18 @@ internal object AiSettingsCard {
             update()
             style.add(card, entry)
         }
+        style.action(card, activity.getString(R.string.settings_ai_open), "settings/ai-assistant", top = 0) { openChat() }
+            .apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL }
         val keyStore = AiKeyStore(activity)
         row(R.string.ai_key_title, "settings/ai/key", { activity.getString(when (keyStore.status()) {
             AiKeyStatus.MISSING -> R.string.settings_ai_not_set
             AiKeyStatus.SAVED -> R.string.ai_key_saved
             AiKeyStatus.UNAVAILABLE -> R.string.settings_ai_key_unavailable
         }) }) { openKey() }
-        row(R.string.settings_ai_model, "settings/ai/model") { openChat(AiChatActivity.SETTINGS_MODEL) }
+        row(R.string.settings_ai_model, "settings/ai/model",
+            { observedModel ?: activity.getString(R.string.settings_ai_key_unavailable) }) {
+            openChat(AiChatActivity.SETTINGS_MODEL)
+        }
         row(R.string.ai_reasoning_title, "settings/ai/reasoning",
             { activity.getString(AiReasoningPreference.read(activity).label) }) { openChat(AiChatActivity.SETTINGS_REASONING) }
         row(R.string.ai_usage_title, "settings/ai/usage") { openChat(AiChatActivity.SETTINGS_USAGE) }
@@ -75,13 +106,13 @@ internal object AiSettingsCard {
             val reviews = (activity.application as MobileApplication).shotReviews
             row(R.string.settings_ai_review, "settings/ai/review", { activity.getString(when {
                 reviews.revocationUnconfirmed -> R.string.shot_review_revoke_failed
+                keyStore.status() == AiKeyStatus.MISSING -> R.string.settings_hig_ai_configure_key
+                keyStore.status() == AiKeyStatus.UNAVAILABLE -> R.string.settings_ai_key_unavailable
                 reviews.enabled() -> R.string.settings_ai_on
                 else -> R.string.settings_ai_off
-            }) }) { openKey(review = true) }
+            }) }) { openKey(review = keyStore.status() == AiKeyStatus.SAVED) }
         }
         style.divider(card, top = 1, bottom = 4)
-        style.action(card, activity.getString(R.string.settings_ai_open), "settings/ai-assistant", top = 0) { openChat() }
-            .apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL }
         if (BuildConfig.MOCK_MODE) {
             style.action(card, activity.getString(R.string.ai_preview_title), "settings/ai-chat-preview", top = 0) {
                 activity.startActivity(Intent().setClassName(activity, "io.openhoyi.mobile.AiChatPreviewActivity"))

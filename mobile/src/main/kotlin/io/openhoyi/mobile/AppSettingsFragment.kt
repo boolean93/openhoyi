@@ -94,14 +94,24 @@ class AppSettingsFragment : Fragment() {
         diagnosticState?.let { view -> if(view.text.toString()!=diagnosticText)view.text=diagnosticText }
         val snapshot = it?.snapshot
         val actual = snapshot?.scaleCapabilities?.takeIf { snapshot.scaleState == io.openhoyi.session.DeviceState.READY && !BuildConfig.MOCK_MODE }
-        val capabilitiesText = if (actual == null) getString(R.string.scale_capability_no_device) else
-            listOf(R.string.scale_capability_weight to actual.weight, R.string.scale_capability_tare to actual.tare,
-                R.string.scale_capability_flow to actual.deviceFlow, R.string.scale_capability_battery to actual.battery,
-                R.string.scale_capability_timer to actual.deviceTimer).joinToString("\n") { (label, available) ->
-                getString(R.string.scale_capability_format, getString(label), getString(if (!available) R.string.scale_capability_no
-                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY) R.string.scale_capability_read_only
-                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.DOCUMENTED_TRANSPORT) R.string.scale_capability_documented else R.string.scale_capability_yes))
+        val capabilitiesText = listOf(
+            R.string.scale_capability_weight to actual?.weight,
+            R.string.scale_capability_tare to actual?.tare,
+            R.string.scale_capability_flow to actual?.deviceFlow,
+            R.string.scale_capability_battery to actual?.battery,
+            R.string.scale_capability_timer to actual?.deviceTimer,
+        ).joinToString("\n") { (label, available) ->
+            val value = when {
+                available == null -> R.string.settings_unknown
+                !available -> R.string.scale_capability_no
+                snapshot?.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY ->
+                    R.string.scale_capability_read_only
+                snapshot?.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.DOCUMENTED_TRANSPORT ->
+                    R.string.scale_capability_documented
+                else -> R.string.scale_capability_yes
             }
+            getString(R.string.scale_capability_format, getString(label), getString(value))
+        }
         scaleCapabilities?.let {view->if(view.text.toString()!=capabilitiesText)view.text=capabilitiesText}
     }
     private val export = registerForActivityResult(object : ActivityResultContracts.CreateDocument("application/zip") {
@@ -228,11 +238,11 @@ class AppSettingsFragment : Fragment() {
         appearanceCard = AppThemePreferencesCard(activity, theme, visual, inlineSwatches = true) { activity.recreate() }
         addBackgroundSettingsRow(activity, theme, visual, inlinePresets = true)
         settingsDivider(activity, theme, visual)
-        val language = style.column()
-        val type = style.column()
+        val language = settingsAppearanceSurface(style)
+        val type = settingsAppearanceSurface(style)
         style.add(theme, SettingsColumns(activity, style, language, type, org.json.JSONObject(), firstFraction = .5f,
             minimumFirstWidth = { style.dp(235) }, minimumSecondWidth = { style.dp(235) }))
-        languageCard = AppLanguagePreferencesCard(activity, language, embedded = true, visual = visual, noteBelowRow = true) {
+        languageCard = AppLanguagePreferencesCard(activity, language, embedded = true, visual = visual, noteBelowRow = false) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
         fontSizeCard = AppFontSizePreferencesCard(activity, type, visual) { activity.recreate() }
@@ -247,9 +257,7 @@ class AppSettingsFragment : Fragment() {
         style.add(info, aboutCard, 4)
         style.add(aboutCard, style.text(getString(R.string.settings_category_update), TaskProductVisualStyle.action))
         updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
-        val aboutDetails = root.disclosure(info, "about", getString(R.string.settings_category_project_details))
-        val name = style.text(getString(R.string.app_name), TaskProductVisualStyle.section,
-            "product/settings/app/info/name/value")
+        val aboutDetails = style.column()
         val website = style.button(Button(activity)).apply {
             text = getString(R.string.settings_project_home)
             tag = "product/settings/app/project-home"
@@ -263,8 +271,7 @@ class AppSettingsFragment : Fragment() {
                 }
             }
         }
-        style.add(aboutDetails, visual.pair(name, website, "product/settings/app/about/identity"))
-        style.action(aboutDetails, getString(R.string.settings_curve_import_guide),
+        val guide = style.action(aboutDetails, getString(R.string.settings_curve_import_guide),
             "product/settings/app/curve-import-guide", top = 0) {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(CURVE_IMPORT_GUIDE_URL)))
@@ -272,6 +279,10 @@ class AppSettingsFragment : Fragment() {
                 android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
             }
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        aboutDetails.removeView(guide)
+        val projectLinks = SettingsColumns(activity, style, website, guide, org.json.JSONObject(),
+            firstFraction = .5f, minimumFirstWidth = { style.dp(160) }, minimumSecondWidth = { style.dp(160) },
+            stackGapDp = 0).apply { tag = "settings/maintenance/project-links" }
         val diagnosticsCard = style.column().apply {
             background = style.shape(style.surface, outline = true, radius = 12)
             markSettingsGroupMaterial(style)
@@ -284,7 +295,7 @@ class AppSettingsFragment : Fragment() {
         style.add(maintenanceDetails, style.text(getString(R.string.app_settings_export_hint),
             TaskProductVisualStyle.auxiliary, secondary = true), 4)
         val exportAction = visual.action(Button(activity).apply {
-            text = getString(R.string.app_settings_export)
+            text = getString(R.string.settings_hig_export_zip)
             tag = "product/settings/app/export/action"
             setOnClickListener {
                 exportGeneration++
@@ -302,8 +313,9 @@ class AppSettingsFragment : Fragment() {
             addView(serviceGroup)
         }
         style.add(diagnosticsCard, detailsGrid, 8)
-        diagnosticStorageCard = DiagnosticStorageCard(activity, maintenanceDetails, visual)
+        diagnosticStorageCard = DiagnosticStorageCard(activity, maintenanceDetails, visual, confirmClear = true)
         deviceControls?.addShutdown(maintenanceDetails)
+        style.add(diagnostics, projectLinks, 6)
         root.finishSections()
         pendingSection?.let { root.navigate(it); pendingSection=null }
         return root

@@ -183,7 +183,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             setPadding(style.dp(10), 0, style.dp(10), style.dp(14))
             protectRoundedBackdropContent(style.surface, style.dp(12), leaveBottomPaddingVisible = true)
         }
-        val heading = style.text(title, TaskProductVisualStyle.section, "settings/heading/$key").apply {
+        val heading = style.text(title, TaskProductVisualStyle.settingsChapter, "settings/heading/$key").apply {
             ViewCompat.setAccessibilityHeading(this, true)
             isFocusable = true
             isFocusableInTouchMode = true

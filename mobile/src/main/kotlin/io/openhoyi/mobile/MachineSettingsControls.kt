@@ -273,19 +273,27 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         if (documentMode) {
             val switch = sleepScheduleButton.parent as SettingsObservedSwitch
             sleepCard.removeView(switch)
-            style.add(sleepCard, visual.pair(style.text(getString(R.string.settings_category_weekly_active)),
-                switch, "settings/machine/weekly-enabled"), 4)
-        }
-        controlButtons += sleepScheduleButton
-        scheduleButtons += action(sleepCard, getString(R.string.machine_settings_schedule_every_day)) {
+            val toggleRow = visual.pair(style.text(getString(R.string.settings_category_weekly_active)),
+                switch, "settings/machine/weekly-enabled")
+            val allDays = action(sleepCard, getString(R.string.machine_settings_schedule_every_day)) {
+                editScheduleDay(null, getString(R.string.machine_settings_schedule_every_day))
+            }.apply { tag = "settings/machine/weekly-every-day" }
+            sleepCard.removeView(allDays)
+            scheduleButtons += allDays
+            style.add(sleepCard, SettingsColumns(this, style, toggleRow, allDays, org.json.JSONObject(),
+                firstFraction = .72f, minimumFirstWidth = { dp(180) }, minimumSecondWidth = { dp(96) },
+                stackGapDp = 4), 4)
+        } else scheduleButtons += action(sleepCard, getString(R.string.machine_settings_schedule_every_day)) {
             editScheduleDay(null, getString(R.string.machine_settings_schedule_every_day))
         }
+        controlButtons += sleepScheduleButton
         val dayNames = listOf(R.string.machine_settings_sunday, R.string.machine_settings_monday,
             R.string.machine_settings_tuesday, R.string.machine_settings_wednesday,
             R.string.machine_settings_thursday, R.string.machine_settings_friday, R.string.machine_settings_saturday)
         scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sleepCard.addView(scheduleGrid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        val dayGrid = if (documentMode) SettingsWideGrid(this, style, 7, 88, 590, 6).apply {
+        val dayGrid = if (documentMode) SettingsWideGrid(this, style, 7, 88, 664, 8,
+            stackUntilWide = true).apply {
             tag = "settings/machine/weekly-grid"
             scheduleGrid.addView(this, LinearLayout.LayoutParams(-1, -2))
         } else null
@@ -299,7 +307,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     val horizontal = dp(if (documentMode) 8 else 16)
                     setPadding(horizontal, dp(8), horizontal, dp(8))
                     background = style.shape(style.selected)
-                    minimumHeight = dp(48)
+                    minimumHeight = dp(if (documentMode) 64 else 48)
                     tag = "product/settings/machine/schedule/day/$day"
                     isFocusable = true
                     setOnClickListener { editScheduleDay(day, getString(dayNames[day])) }
@@ -311,7 +319,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     if (day != days.last()) marginEnd = dp(8)
                 })
                 val heading = style.text("",TaskProductVisualStyle.action).also {style.add(cell,it)}
-                val period = style.text("",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(cell,it,8)}
+                val period = style.text("",TaskProductVisualStyle.auxiliary,secondary=true).also {
+                    if (documentMode) it.fontFeatureSettings = "tnum"
+                    style.add(cell,it,4)
+                }
                 scheduleCards += ScheduleCard(heading, period)
             }
             if (dayGrid == null && days.size < scheduleColumns)
@@ -344,12 +355,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             }
             val grouped = temperatureRows.take(3)
             val applyLabel = getString(R.string.settings_category_apply)
-            val temperatureGrid = SettingsWideGrid(this, style, 3, 183, 590, 10) { columns ->
-                grouped.forEach { it.setGroupedField(columns > 1, applyLabel) }
-            }.apply { tag = "settings/machine/temperature-grid" }
+            val temperatureGrid = style.column("settings/machine/temperature-grid")
             grouped.forEach { row ->
                 controls.removeView(row); row.background = null
-                row.setPadding(0, dp(6), 0, dp(6))
+                row.setPadding(0, dp(3), 0, dp(3))
                 temperatureGrid.addView(row)
             }
             controls.addView(temperatureGrid, 1, LinearLayout.LayoutParams(-1, -2))
@@ -371,16 +380,22 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             style.add(standbyCard, standbyGrid, 6)
             val pairs=listOf(brewHeatingButton to R.string.setting_brew_heating,steamHeatingButton to R.string.setting_steam_heating,
                 lightButton to R.string.setting_light,waterSupplyButton to R.string.machine_settings_supply_label,runModeButton to R.string.machine_settings_run_mode_label)
-            val functionGrid = SettingsWideGrid(this, style, 2, 220, 560, 8).apply { tag = "settings/machine/function-grid" }
+            val functionGrid = SettingsWideGrid(this, style, 3, 102, 322, 8).apply {
+                tag = "settings/machine/function-grid"
+            }
+            val choiceGrid = SettingsWideGrid(this, style, 2, 195, 410, 8).apply {
+                tag = "settings/machine/setting-choices"
+            }
             pairs.forEach {(button,label)->
                 val control = if (button is HoyiSwitch) button.parent as SettingsObservedSwitch else button
                 functionsCard.removeView(control)
                 val row = visual.pair(visual.palette.text(getString(label),TaskProductVisualStyle.body),control,"settings/machine/function/$label")
                 row.setPadding(dp(9), 0, dp(8), 0)
                 row.background = style.shape(style.page, outline = false, radius = 10)
-                functionGrid.addView(row)
+                (if (button is HoyiSwitch) functionGrid else choiceGrid).addView(row)
             }
             style.add(functionsCard, functionGrid, 4)
+            style.add(functionsCard, choiceGrid, 8)
             text(functionsCard,getString(R.string.machine_mode_title),14)
             machineModes = MachineModeControls(host) { change ->
                 if (MachineSettingsEditGate.allowed(service)) service?.changeMachineSetting(change)?.let {
@@ -388,8 +403,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 }
                 render()
             }.also { functionsCard.addView(it, LinearLayout.LayoutParams(-1,-2)) }
-            style.add(body, controls)
-            style.add(body, functionsCard, 9)
+            style.add(body, SettingsColumns(host, style, controls, functionsCard, org.json.JSONObject(),
+                firstFraction = .46f, minimumFirstWidth = { dp(320) }, minimumSecondWidth = { dp(350) },
+                stackGapDp = 12).apply { tag = "settings/machine/main-columns" })
             listOf(settingsToggle,settings).forEach { view -> (view.parent as? android.view.ViewGroup)?.removeView(view); body.addView(view) }
             listOf(standbySection,sleepSection).forEach { section -> controlsPane.removeView(section);section.visibility=View.VISIBLE;documentSections.getValue("schedule").addView(section) }
             controlsPane.removeView(maintenanceSection);maintenanceSection.visibility=View.VISIBLE;documentSections.getValue("maintenance").addView(maintenanceSection)
@@ -484,7 +500,12 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 val idle = service?.pendingSetting == null &&
                     (service?.settingWriteState ?: SettingsWriteTracker.State.IDLE) == SettingsWriteTracker.State.IDLE
                 val connection = if (BuildConfig.MOCK_MODE && documentMode) "Mock" else connectionState.text.toString()
-                val base = "$connection · $freshness"
+                val activityStatus = when {
+                    service?.let { it.manualShotActive || ShotGate.active(it.shotState) } == true ->
+                        getString(R.string.settings_hig_machine_extracting)
+                    else -> null
+                }
+                val base = listOfNotNull(connection, freshness, activityStatus).joinToString(" · ")
                 statusChanged(if (documentMode && idle) base else "$base\n${writeStatus.text}")
             }
         }
@@ -533,9 +554,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         scheduleGrid.visibility = if (snapshot.sleepFirst == null && snapshot.sleepSecond == null) View.GONE else View.VISIBLE
         settingsPresentation.scheduleDaySummaries(snapshot.sleepFirst, snapshot.sleepSecond)
             .forEachIndexed { index, day ->
-                scheduleCards[index].heading.update("${day.name} · ${day.state}")
+                scheduleCards[index].heading.update(
+                    if (documentMode) "${day.name}  ›" else "${day.name} · ${day.state}")
+                scheduleCards[index].period.update(if (documentMode && day.enabled != true) day.state else day.period)
                 scheduleCards[index].heading.setTextColor(if(day.enabled==true)visual.palette.accent else visual.palette.ink)
-                scheduleCards[index].period.update(day.period)
             }
         val scheduleState = owner?.scheduleWriteState
         scheduleWriteStatus.visibility = if (documentMode && (scheduleState == null ||
@@ -577,6 +599,12 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
         val editable = MachineSettingsEditGate.allowed(owner, snapshot, now)
         controlButtons.forEach { it.isEnabled = editable }
+        if (documentMode) {
+            val observed = listOf(reported?.brewTemperatureC,
+                reported?.brewCompensationTenthsC?.takeIf { it % 10 == 0 }?.div(10),
+                reported?.steamTemperatureC, reported?.standbyTemperatureC)
+            temperatureRows.forEachIndexed { index, row -> row.presentDraftBaseline(observed[index], editable) }
+        }
         cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
             owner?.cupResetState != CupResetTracker.State.UNKNOWN &&
             owner?.sleepNowState !in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
@@ -823,6 +851,14 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             val rowEvidence=org.json.JSONObject();productLayoutEvidence.put(keys[index],rowEvidence)
             val row=SettingsTemperatureRow(this,visual.palette,words,quantity,input,button,rowEvidence)
                 .apply {tag="product/settings/machine/${keys[index]}/row"}
+            if (documentMode) row.bindDraftAction(
+                getString(R.string.settings_category_apply),
+                when (keys[index]) {
+                    "brew" -> 75..105
+                    "steam" -> 110..145
+                    "compensation" -> 0..5
+                    else -> 0..100
+                })
             temperatureRows += row
             parent.addView(row,inputIndex-1,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         }

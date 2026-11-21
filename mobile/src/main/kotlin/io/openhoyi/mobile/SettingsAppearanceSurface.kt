@@ -9,7 +9,7 @@ import android.widget.TextView
 /** Give only roomy Appearance panels the reference's horizontal label-and-control surface. */
 internal class SettingsAppearanceSurface(context: Context, private val style: TaskProductVisualStyle,
     title: CharSequence, private val content: View, private val minWideDp: Int = 620,
-    private val narrowLabel: Boolean = true, private val onWidthMode: (Boolean) -> Unit = {}) : LinearLayout(context) {
+    private val narrowLabel: Boolean = true, private val maxContentDp: Int? = null, private val onWidthMode: (Boolean) -> Unit = {}) : LinearLayout(context) {
     private var roomy: Boolean? = null
     private val label: TextView = style.text(title, TaskProductVisualStyle.action)
     init {
@@ -28,7 +28,8 @@ internal class SettingsAppearanceSurface(context: Context, private val style: Ta
             label.visibility = if (wide || narrowLabel) View.VISIBLE else View.GONE
             label.layoutParams = if (wide) LayoutParams(style.dp(110), -2) else LayoutParams(-1, -2)
             label.setPaddingRelative(0, 0, if (wide) style.dp(8) else 0, if (wide) 0 else style.dp(6))
-            content.layoutParams = if (wide) LayoutParams(0, -2, 1f) else LayoutParams(-1, -2)
+            content.layoutParams = if (wide) maxContentDp?.let { LayoutParams(style.dp(it), -2) }
+                ?: LayoutParams(0, -2, 1f) else LayoutParams(-1, -2)
             onWidthMode(wide)
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)

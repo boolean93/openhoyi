@@ -22,7 +22,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
     init {
         val card = if (grouped) parent else settingsGroup(activity, parent, activity.getString(R.string.feedback_enabled), visual)
         enabledSwitch = HoyiSwitch(activity).apply {
-            text = activity.getString(R.string.settings_enable_feedback)
+            text = activity.getString(if (grouped) R.string.settings_hig_feedback_complete else R.string.settings_enable_feedback)
             textSize = TaskVisualTokens.BODY_SP.toFloat()
             typeface = TaskTypography.face(activity, 400)
             setTextColor(activity.getColor(R.color.mobile_text))
@@ -63,11 +63,13 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             visual?.action(this);visual?.let {tag="product/settings/app/feedback/preview"}
         }
         if (grouped && visual != null) {
-            card.removeView(enabledSwitch); card.removeView(preview)
+            card.removeView(preview)
             preview.text = activity.getString(R.string.settings_category_preview)
             preview.contentDescription = activity.getString(R.string.feedback_preview)
-            val controls = visual.pair(enabledSwitch, preview, "settings/brewing/feedback-controls")
-            card.addView(controls, 0, LinearLayout.LayoutParams(-1, -2))
+            val style = visual.palette
+            style.divider(card, top = 2, bottom = 2)
+            style.add(card, visual.pair(style.text(activity.getString(R.string.settings_hig_feedback_sound),
+                TaskProductVisualStyle.body), preview, "settings/brewing/feedback-preview-row"))
         } else HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description),
             TaskVisualTokens.SUPPORTING_SP, muted = true).also {label->
             visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}

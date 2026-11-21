@@ -72,7 +72,7 @@ private class SettingsRaisedGroup(context: Context, fill: Int) : Drawable() {
         val x = 4 * density
         val top = 2 * density
         val bottom = (if (dark) 3 else 6) * density
-        val radius = 14 * density
+        val radius = 16 * density
         canvas.drawRoundRect(bounds.left + x, bounds.top + top, bounds.right - x, bounds.bottom - bottom,
             radius, radius, surface)
     }
@@ -94,7 +94,7 @@ private class SettingsRaisedGroup(context: Context, fill: Int) : Drawable() {
                     color = Color.argb(36, 255, 255, 255)
                     maskFilter = BlurMaskFilter(3f * density, BlurMaskFilter.Blur.NORMAL)
                 }
-                val radius = 14 * density
+                val radius = 16 * density
                 val drop = 2f * density
                 Canvas(bitmap).drawRoundRect(4 * density, 2 * density + drop, size - 4 * density,
                     size - 6 * density + drop, radius, radius, paint)

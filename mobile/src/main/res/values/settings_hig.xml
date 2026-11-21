@@ -1,0 +1,10 @@
+<resources>
+    <string name="settings_hig_feedback_sound">提示音</string>
+    <string name="settings_hig_ai_configure_key">先配置 Key</string>
+    <string name="settings_hig_export_zip">导出 ZIP</string>
+    <string name="settings_hig_scanning">正在扫描</string>
+    <string name="settings_hig_machine_extracting">萃取中</string>
+    <string name="settings_hig_feedback_complete">完成反馈</string>
+    <string name="settings_hig_decrease">降低%1$s</string>
+    <string name="settings_hig_increase">调高%1$s</string>
+</resources>

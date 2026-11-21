@@ -20,6 +20,10 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     private lateinit var candidates:LinearLayout
     private val disconnectActions=mutableListOf<Button>()
     private val states=mutableMapOf<DeviceRole,TextView>()
+    private val statusDotColors = mutableMapOf<DeviceRole, Int>()
+    private val linkedActions=mutableMapOf<DeviceRole, MutableList<Button>>()
+    private var scaleConnect: Button? = null
+    private var scanButton: Button? = null
     private var coffeeRetry:Button?=null
     private var dialog:AlertDialog?=null
     private var localError:String?=null
@@ -38,7 +42,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             val ownerCard = if (role == DeviceRole.COFFEE) card else scaleCard
             if(index > 0 && ownerCard === card) visual.divider(card)
             val words=style.column()
-            if (role == DeviceRole.COFFEE || ownerCard === card) style.add(words,
+            style.add(words,
                 style.text(host.getString(if (role == DeviceRole.COFFEE) R.string.home_coffee else R.string.scale_title), TaskProductVisualStyle.body))
             states[role]=style.text("—",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(words,it,4)}
             val buttons=LinearLayout(host)
@@ -46,13 +50,18 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             if(role==DeviceRole.COFFEE)coffeeRetry=HoyiUi.button(host,buttons,host.getString(R.string.coffee_connection_retry)) {
                 host.reconnectCoffee()
             }.apply {visual.action(this,outline=true);tag="product/devices/coffee/retry"}
+            val linked = linkedActions.getOrPut(role) { mutableListOf() }
+            if (role != DeviceRole.COFFEE) scaleConnect = HoyiUi.button(host, buttons, host.getString(R.string.home_connect)) {
+                owner?.beginDeviceSelection(); selection.showRole(role); rendered = ""; render(owner)
+                resumeScan()
+            }.apply { visual.action(this); tag = "settings/devices/scale/connect" }
             HoyiUi.button(host,buttons,host.getString(R.string.home_visual_change)) {
                 owner?.beginDeviceSelection();selection.showRole(role);rendered="";render(owner)
                 candidates.post {candidates.requestRectangleOnScreen(android.graphics.Rect(0,0,candidates.width,minOf(candidates.height,style.dp(120))),false)}
-            }.apply {visual.action(this,outline=true)}
+            }.apply {visual.action(this,outline=true); linked += this}
             HoyiUi.button(host,buttons,host.getString(label)) {
                 if(connectedActionAllowed())owner?.disconnect(role) else error(host.getString(R.string.scale_active_guard))
-            }.apply {visual.action(this,outline=true);disconnectActions+=this}
+            }.apply {visual.action(this);asTaskTextAction();disconnectActions+=this;linked+=this}
             while (buttons.childCount > 0) {
                 val button = buttons.getChildAt(0)
                 buttons.removeViewAt(0)
@@ -62,7 +71,9 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         }
         val scanCard = if (scanBody === body) card.also { visual.divider(it) }
             else visual.card(scanBody, host.getString(R.string.home_device_connection), 0).also { it.removeViewAt(0); it.markSettingsGroupMaterial(style) }
-        val scan=HoyiUi.button(host,LinearLayout(host),host.getString(R.string.home_scan)) {scan()}.apply {visual.action(this,outline=true)}
+        val scan=HoyiUi.button(host,LinearLayout(host),host.getString(R.string.home_scan)) {scan()}.apply {
+            visual.action(this,outline=true); scanButton = this
+        }
         val scanWords=style.text(host.getString(R.string.settings_category_scan_nearby),TaskProductVisualStyle.body)
         (scan.parent as android.view.ViewGroup).removeView(scan)
         style.add(scanCard,visual.pair(scanWords,scan,"settings/devices/scan"))
@@ -111,6 +122,12 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         if(!::message.isInitialized)return
         disconnectActions.forEach {it.isEnabled=connectedActionAllowed()}
         val snapshot=service?.snapshot
+        scanButton?.apply {
+            val scanning = snapshot?.scanning == true
+            val caption = host.getString(if (scanning) R.string.settings_hig_scanning else R.string.home_scan)
+            if (text.toString() != caption) text = caption
+            isEnabled = !scanning && allowed()
+        }
         val coffeeState=snapshot?.coffeeState ?: io.openhoyi.session.DeviceState.DISCONNECTED
         coffeeRetry?.apply {
             visibility=if(coffeeState==io.openhoyi.session.DeviceState.READY)View.GONE else View.VISIBLE
@@ -120,6 +137,26 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         val prefs=host.getSharedPreferences("devices",android.content.Context.MODE_PRIVATE)
         states.forEach {(role,text)->
             val state=if(role==DeviceRole.COFFEE)snapshot?.coffeeState else snapshot?.scaleState
+            val connected = state == io.openhoyi.session.DeviceState.READY
+            val connecting = state != null && TaskShellDeviceStatus.connecting(state)
+            linkedActions[role].orEmpty().forEach {
+                it.visibility = if (connected) View.VISIBLE else View.GONE
+                it.isEnabled = connected && connectedActionAllowed()
+            }
+            if (role != DeviceRole.COFFEE) scaleConnect?.apply {
+                visibility = if (!connected && !connecting) View.VISIBLE else View.GONE
+                isEnabled = allowed()
+            }
+            val dotColor = if (connected) style.accent else style.muted
+            if (statusDotColors.put(role, dotColor) != dotColor) {
+                val dot = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(dotColor)
+                    val size = style.dp(7); setBounds(0, 0, size, size)
+                }
+                text.setCompoundDrawablesRelative(dot, null, null, null)
+                text.compoundDrawablePadding = style.dp(6)
+            }
             val identity = if (BuildConfig.MOCK_MODE) "" else
                 host.getString(R.string.device_remembered_identity, prefs.getString(if (role == DeviceRole.COFFEE) "coffee" else "scale", "—"))
             val status=state?.let {if(role==DeviceRole.COFFEE)DeviceStatusText.coffeeLabel(host,it,snapshot?.coffeeFailure) else DeviceStatusText.label(host,it)} ?: "—"

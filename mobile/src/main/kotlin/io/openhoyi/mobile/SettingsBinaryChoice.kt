@@ -25,7 +25,7 @@ internal class SettingsBinaryChoice(
                 text = caption
                 style.apply(this, TaskProductVisualStyle.auxiliary)
                 minHeight = style.dp(48); minimumHeight = minHeight
-                minimumWidth = style.dp(48)
+                minimumWidth = style.dp(64)
                 setPaddingRelative(style.dp(6), style.dp(4), style.dp(6), style.dp(4))
                 setOnClickListener {
                     if (this@SettingsBinaryChoice.isEnabled && observed != null && observed != (index == 1))

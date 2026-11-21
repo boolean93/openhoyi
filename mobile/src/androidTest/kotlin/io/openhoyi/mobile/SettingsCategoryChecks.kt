@@ -146,8 +146,12 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                             SettingsCategory.MACHINE -> {
                                 val temperature = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/temperature-grid")
                                 val functions = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/function-grid")
-                                check((0 until temperature.childCount).map { temperature.getChildAt(it).top }.distinct().size == 1)
-                                check(functions.getChildAt(0).top == functions.getChildAt(1).top)
+                                val columns = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/main-columns")
+                                check(temperature.childCount == 3 &&
+                                    (0 until temperature.childCount).map { temperature.getChildAt(it).top }.distinct().size == 3)
+                                check(columns.getChildAt(0).top == columns.getChildAt(1).top &&
+                                    columns.getChildAt(0).right <= columns.getChildAt(1).left)
+                                check(functions.childCount == 3 && functions.getChildAt(0).top == functions.getChildAt(1).top)
                                 val summary = settings().findViewWithTag<android.widget.TextView>("settings-machine-summary")
                                 check(!summary.text.contains(activity.getString(R.string.machine_settings_unchanged)))
                                 check(listOf("brew", "steam", "light", "schedule").all {
@@ -207,6 +211,8 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 check(group.background != null && group.childCount == 5)
                                 val audition = settings().findViewWithTag<Button>("product/settings/app/feedback/preview")
                                 check(audition.text == activity.getString(R.string.settings_category_preview))
+                                val completion = settings().findViewWithTag<View>("product/settings/app/feedback/toggle")
+                                check(audition.parent !== completion.parent && audition.minimumHeight >= HoyiUi.dp(activity, 48))
                             }
                             SettingsCategory.AI -> {
                                 val card = settings().findViewWithTag<View>("settings/ai/config")

@@ -7,3 +7,5 @@
 - 不手动发布；可用回退 PR 退回布局，既有设置与历史仍使用同一存储。
 
 The wide pane uses the existing controls grouped by intent: observed boiler, light and schedule switches; two-state supply and mode selectors; unit-labelled temperature editors; palette and background previews; quiet route rows; and collapsed maintenance operations. Existing confirmations, readback, and write gates remain authoritative. QA captures the same wide layout in both themes, the ordinary phone, and the short English/Large viewport; category screenshots require the final anchor landing, not partial heading visibility.
+
+用户确认的逐项再设计（沿用 5f33de63 所在隔离分支，目标 develop）：只替换右栏原生展示与编辑草稿样式，继续复用真实偏好、权威读回、既有确认及路由。按已交付五张设计板和规格验收；在用户授权前仅本地验证，不推送、开 PR、发版、签名、安装或操作机器。保留原读回模型、存储和协议；有需要可撤销界面提交，不接触数据。
