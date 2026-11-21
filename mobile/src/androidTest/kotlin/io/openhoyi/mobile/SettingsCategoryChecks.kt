@@ -169,11 +169,17 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 main { activity.openSettingsSection("about") }
 
                 await("updates anchor") { heading("about").getGlobalVisibleRect(Rect()) && heading("about").hasFocus() }
-                main {
-                    val update = settings().findViewWithTag<View>("product/settings/app/update/check")
-                    check(update.isEnabled && update.isShown && rect(update).height() == update.height)
-                    (page.active("root:SETTINGS") as AppSettingsFragment).openSection("maintenance")
+                val update = main {
+                    settings().findViewWithTag<View>("product/settings/app/update/check").also {
+                        it.requestRectangleOnScreen(Rect(0, 0, it.width, it.height), true)
+                    }
                 }
+                await("update control reachable in the local right scroll") {
+                    update.isEnabled && update.isShown && Rect().let {
+                        update.getGlobalVisibleRect(it) && it.height() == update.height && it.width() == update.width
+                    }
+                }
+                main { (page.active("root:SETTINGS") as AppSettingsFragment).openSection("maintenance") }
                 await("maintenance control heading") { heading("maintenance").getGlobalVisibleRect(Rect()) }
                 val action = main { settings().findViewWithTag<Button>("settings/details/maintenance/action") }
                 main { action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true) }
