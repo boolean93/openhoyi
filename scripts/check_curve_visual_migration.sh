@@ -88,6 +88,24 @@ adb shell settings put system user_rotation 0
 # APKs were built by the workflow. Installation is confined to this guarded emulator.
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+# Run the separate main picker first: general library screenshots cannot mask it.
+# The M3 matrix below targets standalone CurveActivity. Exercise the actual
+# MainActivity CurveFragment assignment separately on the same disposable AVD.
+adb shell am force-stop "$package"
+python3 - "$output_dir/main-curve-shortcut.txt" <<'MAIN_SHORTCUT_PY'
+from pathlib import Path
+import subprocess, sys
+path = Path(sys.argv[1])
+with path.open('w') as receipt:
+    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-e',
+        'customShortcutChecks', 'true', '-e', 'customShortcutPickerOnly', 'true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=receipt, stderr=subprocess.STDOUT, timeout=120)
+if result.returncode != 0 or 'MAIN_CURVE_SHORTCUT_PICKER_PASSED' not in path.read_text():
+    raise SystemExit(f'Main curve shortcut check failed: {path}')
+MAIN_SHORTCUT_PY
+adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"
+
 for product_theme in light dark; do
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
   for font_scale in 1.0 1.3; do
@@ -531,21 +549,3 @@ assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in (
     'visualAcceptance':'ASTRA_PENDING','specimenImagesUsedAsProductEvidence':False},indent=2)+'\n')
 print('CURVE_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING libraryVisualCasesPerProfile=5 libraryBusinessCasesPerProfile=2')
 VERIFY_PY
-
-
-# The M3 matrix above targets standalone CurveActivity. Exercise the actual
-# MainActivity CurveFragment assignment separately on the same disposable AVD.
-adb shell am force-stop "$package"
-python3 - "$output_dir/main-curve-shortcut.txt" <<'MAIN_SHORTCUT_PY'
-from pathlib import Path
-import subprocess, sys
-path = Path(sys.argv[1])
-with path.open('w') as receipt:
-    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-e',
-        'customShortcutChecks', 'true',
-        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
-        stdout=receipt, stderr=subprocess.STDOUT, timeout=120)
-if result.returncode != 0 or 'CUSTOM_SHORTCUT_WINDOW_PASSED' not in path.read_text():
-    raise SystemExit(f'Main curve shortcut check failed: {path}')
-MAIN_SHORTCUT_PY
-adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"

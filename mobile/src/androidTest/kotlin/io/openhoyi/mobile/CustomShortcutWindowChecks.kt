@@ -42,7 +42,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             SystemClock.sleep(40)
         }
     }
-    fun run() {
+    fun run(pickerOnly: Boolean = false) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -119,6 +119,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             check(slotPrefs.getString(fifthKey, null) == fifthBinding)
             check(curvePrefs.getString("selected", null) == selected)
             noShot()
+            if (pickerOnly) return
             page.select(TaskDestination.BREW)
             fun tile() = page.active("root:BREW").requireView().findViewWithTag<View>("product/home/direct-preset/4")
             await("home label") { views(tile().parent as View).filterIsInstance<TextView>().any { it.text.toString() == document.name } }

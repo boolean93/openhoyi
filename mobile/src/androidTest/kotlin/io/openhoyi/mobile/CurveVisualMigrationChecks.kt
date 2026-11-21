@@ -504,7 +504,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         if(name=="presets" && preferences.all==values) return@forEach
                         val keys = when(name) {
                             "appearance" -> listOf("dark")
-                            "curves" -> listOf("selected","sort")
+                            "curves" -> listOf("selected","sort","customOnly")
                             else -> (1..5).map(PresetSlots::key)
                         }
                         val edit = preferences.edit()
@@ -530,7 +530,13 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     saved.forEach { (name,lazy) -> check(field(app,name+"\$delegate") === lazy && lazy.isInitialized()==originalInitialized.getValue(name)) }
                     legacy.forEach { (name,pair) -> check(field(app,name+"\$delegate") === pair.first && pair.first.isInitialized()==pair.second) }
                     check(field(app,"languagePreferences") === oldLanguage && field(app,"journalObservationFailure") === oldFailure)
-                    savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
+                    savedPrefs.forEach { (name,values) ->
+                        val actual = context.getSharedPreferences(name,Context.MODE_PRIVATE).all
+                        check(actual == values) {
+                            val changed = (actual.keys + values.keys).filter { actual[it] != values[it] }
+                            "Preference restore differed for $name keys $changed"
+                        }
+                    }
                     val after = businessDisk(specialLibrary)
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
                         .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
@@ -541,8 +547,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
                         .put("whitePrefFilesBefore",JSONObject(whitePrefFileBefore)).put("whitePrefFilesAfter",JSONObject(whitePrefFiles()))
                         .put("whitePrefPhysicalBytesMayDiffer",if(specialLibrary)
-                            "appearance.dark/curves.selected/curves.sort/presets.slot_1..slot_5 typed restoration; no file deletion or byte rollback"
-                            else "only appearance.dark/curves.selected/curves.sort typed restoration; presets bytes part of strict businessDisk")
+                            "appearance.dark/curves.selected/curves.sort/curves.customOnly/presets.slot_1..slot_5 typed restoration; no file deletion or byte rollback"
+                            else "only appearance.dark/curves.selected/curves.sort/curves.customOnly typed restoration; presets bytes part of strict businessDisk")
                 }
                 proof.put("status","PASS_ISOLATION_ONLY")
             } catch (failure: Throwable) {
