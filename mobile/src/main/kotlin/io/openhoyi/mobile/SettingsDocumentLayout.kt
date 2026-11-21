@@ -19,6 +19,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import androidx.core.view.ViewCompat
 
 /** Fixed category index above/beside one continuous Settings document. */
@@ -32,6 +33,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val disclosureValues = mutableMapOf<String, String>()
     private val disclosureRenders = mutableMapOf<String, () -> Unit>()
     private val disclosureKeys = state?.getStringArrayList("settings.disclosures").orEmpty().toMutableSet()
+    private var brewingChapter: View? = null
     private var pairedDevices: View? = null
     private var scanning: View? = null
     private val headerBackdrop = Any()
@@ -216,6 +218,41 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         }
     }
 
+    fun machineStatus(status: TextView) {
+        val section = sections.getValue("machine")
+        section.block.removeView(section.heading)
+        style.apply(section.heading as TextView, TaskProductVisualStyle.Type(22, 650, 32))
+        val row = SettingsVisualStyle(host).pair(section.heading, status, "settings/machine/header", gapDp = 12)
+        section.block.addView(row, 0, LayoutParams(-1, -2))
+    }
+
+    fun brewingRow(key: String, label: Int, hint: Int?, toggle: android.widget.Switch) {
+        val section = sections.getValue(key)
+        val content = section.block.getChildAt(1) as LinearLayout
+        val heading = section.heading as TextView
+        content.removeView(toggle)
+        section.block.removeView(heading)
+        heading.text = host.getString(label)
+        style.apply(heading, TaskProductVisualStyle.Type(16, 650, 24))
+        heading.setPadding(0, 0, 0, 0)
+        val words = style.column().apply {
+            addView(heading, LayoutParams(-1, -2))
+            hint?.let { style.add(this, style.text(host.getString(it), TaskProductVisualStyle.auxiliary, secondary = true), 2) }
+        }
+        (toggle as? HoyiSwitch)?.useSettingsPanelInk()
+        toggle.contentDescription = heading.text
+        toggle.text = ""
+        toggle.switchPadding = 0
+        val row = style.row("settings/brewing/row/$key").apply {
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = style.dp(if (hint == null) 56 else 64)
+            addView(words, LayoutParams(0, -2, 1f).apply { marginEnd = style.dp(12) })
+            addView(toggle, LayoutParams(-2, -2))
+        }
+        content.addView(row, 0, LayoutParams(-1, -2))
+        section.block.setPadding(style.dp(12), 0, style.dp(12), 0)
+    }
+
     /** Build each panel once; reorder before attachment so View identity survives category taps. */
     fun finishSections() {
         val ordered = listOfNotNull(pairedDevices, scanning) + SettingsCategory.entries
@@ -224,28 +261,26 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         check(ordered.size == body.childCount)
         body.removeAllViews()
         val brew = style.column("settings/brewing/group").apply {
-            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                val grouped = width >= style.dp(610)
-                if (grouped != (background != null))
-                    background = if (grouped) settingsRaisedGroup(host, style) else null
-            }
+            background = settingsRaisedGroup(host, style)
+            setPadding(0, style.dp(4), 0, style.dp(4))
         }
         ordered.forEach { child ->
             val section = sections.values.firstOrNull { it.block === child }
             if (section?.key !in SettingsCategory.BREWING.sections) body.addView(child, LayoutParams(-1, -2))
             else {
-                if (brew.parent == null) body.addView(brew, LayoutParams(-1, -2))
-                val block = section!!.block
-                val content = block.getChildAt(1)
-                block.removeAllViews()
-                val pair = SettingsColumns(host, style, section.heading, content, org.json.JSONObject(),
-                    firstFraction = .31f, minimumFirstWidth = { style.dp(160) },
-                    minimumSecondWidth = { style.dp(425) }, stackGapDp = 0)
-                block.addView(pair, LayoutParams(-1, -2))
+                if (brew.parent == null) {
+                    brewingChapter = style.text(host.getString(R.string.settings_category_brewing),
+                        TaskProductVisualStyle.Type(22, 650, 32), "settings/brewing/title").apply {
+                        setPadding(style.dp(10), style.dp(8), style.dp(10), style.dp(8))
+                        ViewCompat.setAccessibilityHeading(this, true)
+                        body.addView(this, LayoutParams(-1, -2))
+                    }
+                    body.addView(brew, LayoutParams(-1, -2))
+                }
                 if (brew.childCount > 0) brew.addView(hairline(), LayoutParams(-1, style.dp(1)).apply {
-                    marginStart = style.dp(10); marginEnd = style.dp(10)
+                    marginStart = style.dp(12); marginEnd = style.dp(12)
                 })
-                brew.addView(block, LayoutParams(-1, -2))
+                brew.addView(child, LayoutParams(-1, -2))
             }
         }
     }
@@ -379,7 +414,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         SettingsCategory.MAINTENANCE -> R.drawable.settings_category_maintenance
     }
     private fun top(section: Section): Int = Rect(0, 0, 1, 1).also {
-        body.offsetDescendantRectToMyCoords(section.block, it)
+        body.offsetDescendantRectToMyCoords(if (section.key == "shortcuts") brewingChapter ?: section.block else section.block, it)
     }.top
     private fun maxScroll() = (body.height - scroll.height).coerceAtLeast(0)
     private fun rememberPosition(updateHighlight: Boolean) {

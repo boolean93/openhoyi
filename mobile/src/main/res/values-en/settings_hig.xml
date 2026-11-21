@@ -8,4 +8,9 @@
     <string name="settings_hig_decrease">Decrease %1$s</string>
     <string name="settings_hig_increase">Increase %1$s</string>
     <string name="settings_hig_diagnostic_storage">Diagnostic storage</string>
+    <string name="settings_hig_supply_short">Supply</string>
+    <string name="settings_hig_run_short">Mode</string>
+    <string name="settings_hig_brew_temp">Brew temperature</string>
+    <string name="settings_hig_steam_temp">Steam temperature</string>
+    <string name="settings_hig_machine_read_back">Read back</string>
 </resources>

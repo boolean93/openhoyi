@@ -43,7 +43,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             }
         }
         visual?.let {it.switch(enabledSwitch);enabledSwitch.tag="product/settings/app/feedback/toggle"}
-        HoyiUi.label(activity, card, activity.getString(if (grouped) R.string.settings_category_feedback_hint else R.string.feedback_enabled_description), 14, muted = true).also {label->
+        if (!grouped) HoyiUi.label(activity, card, activity.getString(R.string.feedback_enabled_description), 14, muted = true).also {label->
             visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}
         }
         errorStatus=visual?.palette?.let {style->
@@ -67,9 +67,13 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             preview.text = activity.getString(R.string.settings_category_preview)
             preview.contentDescription = activity.getString(R.string.feedback_preview)
             val style = visual.palette
-            style.divider(card, top = 2, bottom = 2)
+            style.divider(card, top = 0, bottom = 0)
+            visual.action(preview, outline = true, icon = "play")
+            preview.minimumHeight = style.dp(52)
+            preview.minHeight = style.dp(52)
+            preview.setPadding(style.dp(10), 0, style.dp(10), 0)
             style.add(card, visual.pair(style.text(activity.getString(R.string.settings_hig_feedback_sound),
-                TaskProductVisualStyle.body), preview, "settings/brewing/feedback-preview-row"))
+                TaskProductVisualStyle.action), preview, "settings/brewing/feedback-preview-row"))
         } else HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description),
             TaskVisualTokens.SUPPORTING_SP, muted = true).also {label->
             visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}
@@ -83,6 +87,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             preview.text = activity.getString(if (playing) R.string.feedback_stop_preview
                 else if (grouped) R.string.settings_category_preview else R.string.feedback_preview)
             preview.contentDescription = activity.getString(if (playing) R.string.feedback_stop_preview else R.string.feedback_preview)
+            if (grouped) HomeVisualIcon.buttonIcon(preview, if (playing) "pausePreview" else "play")
         } catch (_: RuntimeException) { /* Local card must not interrupt machine settings rendering. */ }
         finally { updating = false }
     }

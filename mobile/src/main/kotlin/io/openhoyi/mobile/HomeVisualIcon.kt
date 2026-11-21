@@ -159,6 +159,14 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
             "copy" -> { canvas.drawRoundRect(RectF(8f,3f,21f,17f),2f,2f,paint); canvas.drawRoundRect(RectF(3f,8f,16f,22f),2f,2f,paint) }
             "export" -> { line(12f,2f,12f,15f); line(7f,10f,12f,15f); line(12f,15f,17f,10f); line(3f,16f,3f,22f); line(3f,22f,21f,22f); line(21f,22f,21f,16f) }
             "back" -> { line(12f,4f,4f,12f); line(4f,12f,12f,20f); line(4f,12f,22f,12f) }
+            "play" -> {
+                paint.style = Paint.Style.FILL
+                canvas.drawPath(Path().apply { moveTo(7f, 4f); lineTo(20f, 12f); lineTo(7f, 20f); close() }, paint)
+            }
+            "pausePreview" -> {
+                paint.style = Paint.Style.FILL
+                canvas.drawRoundRect(RectF(6f, 6f, 18f, 18f), 2f, 2f, paint)
+            }
             "chevron" -> { line(8f, 4f, 16f, 12f); line(16f, 12f, 8f, 20f) }
             "coffee" -> { canvas.drawRoundRect(RectF(4f,4f,18f,17f),2f,2f,paint); canvas.drawArc(RectF(16f,6f,23f,14f),-90f,180f,false,paint); line(3f,21f,21f,21f) }
             "curve" -> { line(3f,3f,3f,21f); line(3f,21f,22f,21f); line(4f,18f,9f,11f); line(9f,11f,13f,15f); line(13f,15f,20f,6f) }

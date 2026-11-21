@@ -137,14 +137,14 @@ internal class SettingsVisualStyle(val context:Context) {
         val entry=JSONObject();val entries=evidence.optJSONArray("dialogs") ?: JSONArray().also {evidence.put("dialogs",it)}
         entries.put(entry);SettingsDialogLayoutObserver(dialog,body,entry).bind()
     }
-    fun pair(first:View,second:View,id:String,fillFirst:Boolean=true)=SettingsPairLayout(context,palette,first,second,id,fillFirst).also {
+    fun pair(first:View,second:View,id:String,fillFirst:Boolean=true,gapDp:Int=16)=SettingsPairLayout(context,palette,first,second,id,fillFirst,gapDp).also {
         evidence.put(id,it.productLayoutEvidence)
     }
 }
 
 /** Permanent pair: complete natural strings determine wrapping, never fontScale/language thresholds. */
 internal class SettingsPairLayout(context:Context,private val style:TaskProductVisualStyle,
-    private val first:View,private val second:View,id:String,private val fillFirst:Boolean=true):ViewGroup(context) {
+    private val first:View,private val second:View,id:String,private val fillFirst:Boolean=true, private val gapDp:Int=16):ViewGroup(context) {
     val productLayoutEvidence=JSONObject()
     private var inline=false
     init {tag=id;addView(first);addView(second)}
@@ -155,10 +155,10 @@ internal class SettingsPairLayout(context:Context,private val style:TaskProductV
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
         force(first);force(second);first.measure(free,free);second.measure(free,free)
         val firstNatural=first.measuredWidth;val secondNatural=second.measuredWidth
-        inline=firstNatural+style.dp(16)+secondNatural<=available
+        inline=firstNatural+style.dp(gapDp)+secondNatural<=available
         force(first);force(second)
-        first.measure(MeasureSpec.makeMeasureSpec(if(inline)if(fillFirst)available-style.dp(16)-secondNatural else firstNatural else available,MeasureSpec.EXACTLY),free)
-        second.measure(MeasureSpec.makeMeasureSpec(if(inline)if(fillFirst)secondNatural else available-style.dp(16)-firstNatural else available,MeasureSpec.EXACTLY),free)
+        first.measure(MeasureSpec.makeMeasureSpec(if(inline)if(fillFirst)available-style.dp(gapDp)-secondNatural else firstNatural else available,MeasureSpec.EXACTLY),free)
+        second.measure(MeasureSpec.makeMeasureSpec(if(inline)if(fillFirst)secondNatural else available-style.dp(gapDp)-firstNatural else available,MeasureSpec.EXACTLY),free)
         val required=if(inline)maxOf(first.measuredHeight,second.measuredHeight) else first.measuredHeight+style.dp(8)+second.measuredHeight
         productLayoutEvidence.put("availableWidthPx",available).put("firstNaturalWidthPx",firstNatural).put("secondNaturalWidthPx",secondNatural)
             .put("inline",inline).put("naturalHeightPx",required+paddingTop+paddingBottom)
@@ -171,7 +171,7 @@ internal class SettingsPairLayout(context:Context,private val style:TaskProductV
             view.layout(left,paddingTop+top,left+view.measuredWidth,paddingTop+top+view.measuredHeight)
         }
         place(first,0,if(inline)(contentHeight-first.measuredHeight)/2 else 0)
-        place(second,if(inline)first.measuredWidth+style.dp(16) else 0,if(inline)(contentHeight-second.measuredHeight)/2 else first.measuredHeight+style.dp(8))
+        place(second,if(inline)first.measuredWidth+style.dp(gapDp) else 0,if(inline)(contentHeight-second.measuredHeight)/2 else first.measuredHeight+style.dp(8))
     }
 }
 
@@ -221,12 +221,12 @@ internal class SettingsWrappingActions(context: Context, private val gap: Int) :
 internal class SettingsColumns(context:Context,private val style:TaskProductVisualStyle,val first:View,val second:View,
     private val evidence:JSONObject, private val firstFraction:Float=.4f,
     private val minimumFirstWidth:(()->Int)?=null, private val minimumSecondWidth:(()->Int)?=null,
-    private val stackGapDp: Int = 24, private val onMeasuredSplit: (Boolean) -> Unit = {}):ViewGroup(context) {
+    private val stackGapDp: Int = 24, private val gapDp: Int = 24, private val onMeasuredSplit: (Boolean) -> Unit = {}):ViewGroup(context) {
     private var split=false
     init {addView(first);addView(second)}
     override fun generateDefaultLayoutParams()=LayoutParams(-1,-2)
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
-        val width=MeasureSpec.getSize(widthMeasureSpec);val gap=style.dp(24)
+        val width=MeasureSpec.getSize(widthMeasureSpec);val gap=style.dp(gapDp)
         val firstRequired=minimumFirstWidth?.invoke() ?: style.dp(280)
         val secondRequired=minimumSecondWidth?.invoke() ?: style.dp(400)
         split=width>=firstRequired+secondRequired+gap
@@ -287,6 +287,35 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     private var currentReadbackTenths: Int? = null
     private val draftSteppers = mutableListOf<Button>()
     private var wideDraftLayout = false
+    private var panelField = false
+    fun usePanelField() {
+        panelField = true
+        val field = quantity as LinearLayout
+        field.background = android.graphics.drawable.InsetDrawable(style.shape(style.selected, radius = 10),
+            0, style.dp(5), 0, style.dp(5))
+        field.setPadding(0, 0, 0, 0)
+        field.gravity = Gravity.CENTER_VERTICAL
+        input.minHeight = style.dp(48)
+        input.minimumHeight = input.minHeight
+        input.gravity = Gravity.CENTER
+        input.setPadding(style.dp(3), 0, style.dp(3), 0)
+        input.background = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), style.shape(style.selected, radius = 8).apply {
+                setStroke(style.dp(1), style.accent)
+            })
+            addState(intArrayOf(), android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        }
+        (field.getChildAt(2).layoutParams as LinearLayout.LayoutParams).marginStart = 0
+        style.button(action, primary = true)
+        action.minHeight = style.dp(48)
+        action.minimumHeight = action.minHeight
+        action.minWidth = style.dp(56)
+        draftSteppers.forEach { button ->
+            button.background = android.graphics.drawable.InsetDrawable(style.shape(style.surface, radius = 8),
+                style.dp(3), style.dp(7), style.dp(3), style.dp(7))
+        }
+        renderDraft(editAvailable)
+    }
     fun setWideDraftLayout(wide: Boolean) { wideDraftLayout = wide }
     fun presentDraftBaseline(valueTenths: Int?, editable: Boolean) {
         currentReadbackTenths = valueTenths
@@ -331,7 +360,8 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         editAvailable = editable
         val draft = input.text.toString().toIntOrNull()
         action.isEnabled = editable && SettingsTemperatureDraft.differs(draft, currentReadbackTenths, range)
-        action.alpha = if (action.isEnabled) 1f else .55f
+        if (panelField) action.visibility = if (action.isEnabled) VISIBLE else INVISIBLE
+        else action.alpha = if (action.isEnabled) 1f else .55f
         draftSteppers.forEachIndexed { index, button ->
             button.isEnabled = editable && SettingsTemperatureDraft.stepped(draft, currentReadbackTenths,
                 range, if (index == 0) -1 else 1) != null
@@ -353,9 +383,9 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val shown=if(input.text.isNullOrEmpty())input.hint?.toString().orEmpty() else input.text.toString()
         // Reserve ordinary compact phones for direct entry; then measure the actual,
         // localized editor and drop the steppers only if the field itself cannot fit.
-        val roomForSteppers = wideDraftLayout && available >= style.dp(196)
+        val roomForSteppers = wideDraftLayout && available >= style.dp(if (panelField) 175 else 196)
         draftSteppers.forEach { it.visibility = if (roomForSteppers) VISIBLE else GONE }
-        val inputNaturalWidth=maxOf(style.dp(if (compactField || draftRange != null) 72 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
+        val inputNaturalWidth=maxOf(style.dp(if (panelField) 56 else if (compactField || draftRange != null) 72 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
         input.layoutParams.width=inputNaturalWidth
         listOf(words,quantity,action).forEach {force(it);it.measure(free,free)}
         if (roomForSteppers && draftSteppers.isNotEmpty() && quantity.measuredWidth > available) {
@@ -363,7 +393,11 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
             force(quantity); quantity.measure(free, free)
         }
         val wordsWidth=words.measuredWidth;val actionWidth=action.measuredWidth;val quantityWidth=quantity.measuredWidth
-        inline=wordsWidth+quantityWidth+actionWidth+style.dp(32)<=available
+        val inlineGap = style.dp(if (panelField) 8 else 16)
+        // The name is allowed to wrap before losing the one-row editor. The fallback below
+        // still stacks at very narrow sizes instead of squeezing the value or Apply.
+        val minimumLabel = if (panelField) minOf(wordsWidth, style.dp(78)) else wordsWidth
+        inline=minimumLabel+quantityWidth+actionWidth+2*inlineGap<=available
         stackedDraft = compactField || (draftRange != null && !inline)
         compactActionsInline = stackedDraft && quantityWidth + actionWidth + style.dp(8) <= available
         if (stackedDraft) {
@@ -390,7 +424,7 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val inputWidthLimit=(available-quantityDecorationWidth).coerceAtLeast(0)
         if(!inline)input.layoutParams.width=minOf(inputNaturalWidth,inputWidthLimit)
         listOf(words,quantity,action).forEach(::force)
-        val remaining=if(inline)available-quantityWidth-actionWidth-style.dp(32) else available
+        val remaining=if(inline)available-quantityWidth-actionWidth-2*inlineGap else available
         words.measure(MeasureSpec.makeMeasureSpec(remaining.coerceAtLeast(0),MeasureSpec.EXACTLY),free)
         quantity.measure(MeasureSpec.makeMeasureSpec(if(inline)quantityWidth else available,MeasureSpec.EXACTLY),free)
         action.measure(MeasureSpec.makeMeasureSpec(if(inline)actionWidth else available,MeasureSpec.EXACTLY),free)
@@ -423,7 +457,7 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
             val left=if(layoutDirection==LAYOUT_DIRECTION_RTL)width-paddingRight-start-view.measuredWidth else paddingLeft+start
             val y=paddingTop+if(inline)(content-view.measuredHeight)/2 else top
             view.layout(left,y,left+view.measuredWidth,y+view.measuredHeight)
-            if(inline)start+=view.measuredWidth+style.dp(16) else top+=view.measuredHeight+style.dp(8)
+            if(inline)start+=view.measuredWidth+style.dp(if (panelField) 8 else 16) else top+=view.measuredHeight+style.dp(8)
         }
     }
 }

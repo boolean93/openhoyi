@@ -7,7 +7,10 @@ import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.SettingsWriteTracker
 
 /** Two independent wire bits. Missing readback uses disabled labels, never a writable default. */
-internal class MachineModeControls(context: Context, private val submit: (MachineSettingChange.LeverMode) -> Unit) : LinearLayout(context) {
+internal class MachineModeControls(context: Context, private val submit: (MachineSettingChange.LeverMode) -> Unit, private val settingsPanel: Boolean) : LinearLayout(context) {
+    constructor(context: Context, submit: (MachineSettingChange.LeverMode) -> Unit) : this(context, submit, false)
+    constructor(context: Context, settingsPanel: Boolean, submit: (MachineSettingChange.LeverMode) -> Unit) :
+        this(context, submit, settingsPanel)
     private var rendering = false
     private val style = TaskProductVisualStyle(context)
     private val palette = CurveEditorColors(context)
@@ -63,13 +66,14 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
         pressure = settings?.flags?.and(0x80) != 0 && settings != null
         flow = settings?.flags?.and(0x40) != 0 && settings != null
         mode.select(flow); logic.select(pressure)
-        mode.colors(palette.pressureFill, palette.flowFill)
+        if (settingsPanel) mode.colors(style.primary, style.primary) else mode.colors(palette.pressureFill, palette.flowFill)
         logic.labels(context.getString(if (flow) R.string.curve_control_slow else R.string.curve_control_constant),
             context.getString(if (flow) R.string.curve_control_fast else R.string.curve_control_follow))
-        logic.colors(palette.fill(flow), palette.fill(flow))
+        if (settingsPanel) logic.colors(style.primary, style.primary) else logic.colors(palette.fill(flow), palette.fill(flow))
         val known = settings != null
         val enabled = known && MachineSettingsEditGate.allowed(owner)
         listOf(mode, logic).forEach { toggle ->
+            if (settingsPanel) toggle.setSelectionVisible(known)
             toggle.isEnabled = enabled
             toggle.contentDescription = if (known)
                 context.getString(R.string.machine_mode_title) + " · " + toggle.text

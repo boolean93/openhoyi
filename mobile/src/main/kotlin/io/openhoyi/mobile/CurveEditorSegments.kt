@@ -37,6 +37,13 @@ internal class CurveEditorSegments(context: Context, private val style: TaskProd
     val checked get() = selected
     val text get() = choices[if (selected) 1 else 0].text
     fun selectFromUser(value: Boolean) { choices[if (value) 1 else 0].performClick() }
+    fun setSelectionVisible(known: Boolean) {
+        thumb.visibility = if (known) View.VISIBLE else View.INVISIBLE
+        choices.forEachIndexed { index, choice ->
+            choice.isSelected = known && selected == (index == 1)
+            choice.setTextColor(if (choice.isSelected) Color.WHITE else style.ink)
+        }
+    }
     fun colors(first: Int, second: Int) {
         if (selectedColors[0] == first && selectedColors[1] == second) return
         selectedColors = listOf(first, second)

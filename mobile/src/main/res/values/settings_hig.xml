@@ -8,4 +8,9 @@
     <string name="settings_hig_decrease">降低%1$s</string>
     <string name="settings_hig_increase">调高%1$s</string>
     <string name="settings_hig_diagnostic_storage">诊断存储</string>
+    <string name="settings_hig_supply_short">供水</string>
+    <string name="settings_hig_run_short">运行</string>
+    <string name="settings_hig_brew_temp">冲泡温度</string>
+    <string name="settings_hig_steam_temp">蒸汽温度</string>
+    <string name="settings_hig_machine_read_back">已读回</string>
 </resources>

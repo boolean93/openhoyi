@@ -100,8 +100,10 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         "Unstable category at $phase: ${category.key}, y=${doc.scroll.scrollY}, heading=$visible, body=$viewport"
                     }
                     if (category == SettingsCategory.BREWING) {
-                        check(kotlin.math.abs(title[1] - viewport.top) <= HoyiUi.dp(activity, 2) && !precedingVisible) {
-                            "Brewing must begin at the viewport top with no previous Machine card: title=${title[1]}, body=$viewport, machine=$precedingBounds"
+                        val chapter = doc.findViewWithTag<View>("settings/brewing/title")
+                        val chapterPosition = IntArray(2).also(chapter::getLocationOnScreen)
+                        check(kotlin.math.abs(chapterPosition[1] - viewport.top) <= HoyiUi.dp(activity, 2) && !precedingVisible) {
+                            "Brewing must begin at the viewport top with no previous Machine card: title=${chapterPosition[1]}, body=$viewport, machine=$precedingBounds"
                         }
                     }
                 }
@@ -155,6 +157,22 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         capture(category.key)
                         main { checkRenderedLanding(category, "after") }
                     }
+                    if (!wide && !short && category == SettingsCategory.BREWING) main {
+                        val doc = settings()
+                        val visible = Rect().also { check(doc.scroll.getGlobalVisibleRect(it)) }
+                        val controls = listOf("product/settings/shortcuts/direct-start", "product/settings/chart/fixed-axes",
+                            "product/settings/app/feedback/toggle", "product/settings/app/feedback/preview").map { tag ->
+                            doc.findViewWithTag<View>(tag).let { it to Rect().also { bounds -> check(it.getGlobalVisibleRect(bounds)) } }
+                        }
+                        val measured = controls.map { (target, bounds) ->
+                            check(visible.contains(bounds) && bounds.height() == target.height && bounds.width() == target.width &&
+                                target.height >= HoyiUi.dp(activity, 48) && target.width >= HoyiUi.dp(activity, 48)) {
+                                "Clipped phone brewing control: ${target.tag}, $bounds in $visible"
+                            }
+                            bounds.top
+                        }
+                        check(measured == measured.sorted() && measured.distinct().size == 4)
+                    }
                     main {
                         check(SettingsCategory.entries.count { button(it).isSelected } == 1)
                         check(SettingsCategory.entries.all { other ->
@@ -165,13 +183,22 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 val temperature = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/temperature-grid")
                                 val functions = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/function-grid")
                                 val columns = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/main-columns")
-                                check(temperature.childCount == 3 &&
-                                    (0 until temperature.childCount).map { temperature.getChildAt(it).top }.distinct().size == 3)
+                                val rows = (0 until temperature.childCount).map(temperature::getChildAt)
+                                    .filter { it is SettingsTemperatureRow }
+                                check(rows.size == 3 && rows.map { it.top }.distinct().size == 3)
+                                val thermalCard = settings().findViewWithTag<View>("settings/machine/temperature-card")
+                                val standby = settings().findViewWithTag<View>("settings/machine/standby-delay")
+                                val bodyViewport = Rect().also { check(settings().scroll.getGlobalVisibleRect(it)) }
+                                val standbyBounds = Rect().also { check(standby.getGlobalVisibleRect(it)) }
+                                check(thermalCard.height <= HoyiUi.dp(activity, 245) &&
+                                    bodyViewport.contains(standbyBounds) && standbyBounds.height() == standby.height) {
+                                    "Thermal card or standby outside density budget: ${thermalCard.height}, viewport=$bodyViewport standby=$standbyBounds"
+                                }
+                                check(rows.all { it.height <= HoyiUi.dp(activity, 72) })
                                 check(columns.getChildAt(0).top == columns.getChildAt(1).top &&
                                     columns.getChildAt(0).right <= columns.getChildAt(1).left)
                                 check(functions.childCount == 3 && functions.getChildAt(0).top == functions.getChildAt(1).top)
-                                for (i in 0 until temperature.childCount) {
-                                    val row = temperature.getChildAt(i)
+                                for ((i, row) in rows.withIndex()) {
                                     val minus = row.findViewWithTag<Button>("settings/machine/draft-step/-1")
                                     val plus = row.findViewWithTag<Button>("settings/machine/draft-step/1")
                                     check(listOf(minus, plus).all { it.isShown && it.width >= HoyiUi.dp(activity, 48) &&

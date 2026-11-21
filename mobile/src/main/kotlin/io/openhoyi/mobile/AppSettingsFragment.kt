@@ -167,7 +167,11 @@ class AppSettingsFragment : Fragment() {
         visual.divider(scale)
         machineState = state?.getBundle("machineControls") ?: machineState
         val machine = sections.getValue("machine")
-        val machineSummary=style.text("",TaskProductVisualStyle.auxiliary,"settings-machine-summary",true).also {style.add(machine,it,8)}
+        val machineSummary = style.text("", TaskProductVisualStyle.auxiliary, "settings-machine-summary").apply {
+            setPadding(style.dp(10), style.dp(4), style.dp(10), style.dp(4))
+            setTextColor(style.accent)
+            background = style.shape(style.selected, radius = 9)
+        }.also(root::machineStatus)
         machineControls=MachineSettingsControls(activity).also {
             it.statusChanged = { value ->
                 if (machineSummary.text.toString() != value) machineSummary.text = value
@@ -223,19 +227,17 @@ class AppSettingsFragment : Fragment() {
             }
             refreshShortcutChoice()
         }.apply { tag = "product/settings/shortcuts/retry"; visibility = View.GONE }
-        style.add(shortcutSection, style.text(getString(R.string.settings_category_shortcut_hint),
-            TaskProductVisualStyle.auxiliary, secondary = true), 8)
+        root.brewingRow("shortcuts", R.string.shortcut_start_setting, R.string.settings_category_shortcut_hint, requireNotNull(shortcutToggle))
         val chartSection = sections.getValue("chart")
         val chartPreferences = activity.getSharedPreferences(FixedChartAxes.PREFERENCES, android.content.Context.MODE_PRIVATE)
-        chartSection.addView(HoyiSwitch(activity).apply {
+        val chartToggle = HoyiSwitch(activity).apply {
             text = getString(R.string.fixed_chart_axes)
             isChecked = chartPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
             tag = "product/settings/chart/fixed-axes"
             visual.switch(this, 52)
             setOnCheckedChangeListener { _, checked -> chartPreferences.edit().putBoolean(FixedChartAxes.KEY, checked).apply() }
-        }, LinearLayout.LayoutParams(-1, -2))
-        style.add(chartSection, style.text(getString(R.string.settings_category_axes_hint),
-            TaskProductVisualStyle.auxiliary, secondary = true), 8)
+        }.also { chartSection.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+        root.brewingRow("chart", R.string.fixed_chart_axes, R.string.settings_category_axes_hint, chartToggle)
         val theme = sections.getValue("appearance")
         appearanceCard = AppThemePreferencesCard(activity, theme, visual, inlineSwatches = true) { activity.recreate() }
         addBackgroundSettingsRow(activity, theme, visual, inlinePresets = true)
@@ -248,7 +250,9 @@ class AppSettingsFragment : Fragment() {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
         fontSizeCard = AppFontSizePreferencesCard(activity, type, visual) { activity.recreate() }
-        feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual, grouped = true)
+        feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual, grouped = true).also {
+            root.brewingRow("feedback", R.string.settings_hig_feedback_complete, null, it.enabledSwitch)
+        }
         val info = sections.getValue("about")
         // Update controls remain immediately reachable from the existing about deep link.
         val aboutCard = style.column("product/settings/app/about/card").apply {
