@@ -290,8 +290,12 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             val batch = android.widget.FrameLayout(this).apply {
                 addView(allDays, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL))
             }
-            style.add(sleepCard, visual.pair(toggleRow, batch, "settings/machine/weekly-actions",
-                fillFirst = false, gapDp = 16), 2)
+            // SettingsPairLayout needs a finite measure width. Nesting it as the
+            // natural-size child of another pair gave it width 0 and made the
+            // weekly action label consume several invisible lines at the landing.
+            style.add(sleepCard, SettingsColumns(this, style, toggleRow, batch, org.json.JSONObject(),
+                firstFraction = .30f, minimumFirstWidth = { dp(190) }, minimumSecondWidth = { dp(96) },
+                gapDp = 16, stackGapDp = 4).apply { tag = "settings/machine/weekly-actions" }, 2)
         } else scheduleButtons += action(sleepCard, getString(R.string.machine_settings_schedule_every_day)) {
             editScheduleDay(null, getString(R.string.machine_settings_schedule_every_day))
         }

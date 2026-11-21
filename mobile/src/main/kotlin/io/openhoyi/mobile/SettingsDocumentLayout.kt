@@ -35,6 +35,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val disclosureKeys = state?.getStringArrayList("settings.disclosures").orEmpty().toMutableSet()
     private var brewingChapter: View? = null
     private var brewingCard: View? = null
+    private var brewingCardAnchor: LinearLayout? = null
+    private val brewingRows = mutableMapOf<String, View>()
     private var pairedDevices: View? = null
     private var scanning: View? = null
     private val headerBackdrop = Any()
@@ -145,7 +147,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         if (wide != rail) {
             wide = rail
             brewingChapter?.visibility = if (rail) VISIBLE else GONE
-            brewingCard?.background = settingsRaisedGroup(host, style, horizontalInsetDp = if (rail) 4 else 0)
+            styleBrewingLanding(rail)
             indexBody.removeAllViews()
             for (button in buttons.values) (button.parent as? ViewGroup)?.removeView(button)
             compact.removeAllViews()
@@ -251,14 +253,31 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         toggle.contentDescription = heading.text
         toggle.text = ""
         toggle.switchPadding = 0
+        toggle.minHeight = style.dp(48)
+        toggle.minimumHeight = toggle.minHeight
         val row = style.row("settings/brewing/row/$key").apply {
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = style.dp(if (hint == null) 56 else 64)
             addView(words, LayoutParams(0, -2, 1f).apply { marginEnd = style.dp(12) })
             addView(toggle, LayoutParams(-2, -2))
         }
+        brewingRows[key] = row
         content.addView(row, 0, LayoutParams(-1, -2))
         section.block.setPadding(style.dp(12), 0, style.dp(12), 0)
+    }
+
+    private fun styleBrewingLanding(rail: Boolean) {
+        brewingCard?.background = settingsRaisedGroup(host, style, horizontalInsetDp = if (rail) 4 else 0)
+        brewingCardAnchor?.setPadding(0, style.dp(if (rail) 0 else 6), 0, 0)
+        brewingRows.forEach { (key, row) ->
+            val height = when (key) {
+                "shortcuts" -> if (rail) 64 else 72
+                "chart" -> if (rail) 64 else 70
+                "feedback" -> if (rail) 56 else 50
+                else -> if (rail) 52 else 58
+            }
+            row.minimumHeight = style.dp(height)
+        }
     }
 
     /** Build each panel once; reorder before attachment so View identity survives category taps. */
@@ -285,7 +304,10 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                         ViewCompat.setAccessibilityHeading(this, true)
                         body.addView(this, LayoutParams(-1, -2))
                     }
-                    body.addView(brew, LayoutParams(-1, -2))
+                    brewingCardAnchor = style.column("settings/brewing/anchor").apply {
+                        addView(brew, LayoutParams(-1, -2))
+                        body.addView(this, LayoutParams(-1, -2))
+                    }
                 }
                 if (brew.childCount > 0) brew.addView(hairline(), LayoutParams(-1, style.dp(1)).apply {
                     marginStart = style.dp(12); marginEnd = style.dp(12)
@@ -424,7 +446,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         SettingsCategory.MAINTENANCE -> R.drawable.settings_category_maintenance
     }
     internal fun sectionAnchor(key: String): View = if (key == "shortcuts")
-        brewingChapter?.takeIf { it.visibility == VISIBLE } ?: brewingCard ?: sections.getValue(key).block
+        brewingChapter?.takeIf { it.visibility == VISIBLE } ?: brewingCardAnchor ?: sections.getValue(key).block
     else sections.getValue(key).block
     private fun top(section: Section): Int = Rect(0, 0, 1, 1).also {
         body.offsetDescendantRectToMyCoords(sectionAnchor(section.key), it)

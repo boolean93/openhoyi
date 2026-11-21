@@ -26,7 +26,7 @@ internal class SettingsBinaryChoice(
                 style.apply(this, TaskProductVisualStyle.auxiliary)
                 gravity = Gravity.CENTER
                 minHeight = style.dp(48); minimumHeight = minHeight
-                minimumWidth = style.dp(64)
+                minWidth = style.dp(64); minimumWidth = minWidth
                 setPaddingRelative(style.dp(6), style.dp(4), style.dp(6), style.dp(4))
                 setOnClickListener {
                     if (this@SettingsBinaryChoice.isEnabled && observed != null && observed != (index == 1))
