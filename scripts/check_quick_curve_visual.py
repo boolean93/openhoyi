@@ -178,7 +178,14 @@ def main():
             (output / f"{name}.json").write_text(json.dumps(geometry, ensure_ascii=False, indent=2) + "\n")
             validate_capture(image, geometry, width, height, dpi, theme, background, empty_recent)
             receipt["screenshots"][target.name] = digest(target)
-        require(len(set(receipt["screenshots"].values())) == 4, "Duplicate capture outputs")
+        expected_frames = {
+            f"{profile}-{theme}" + ("-solid" if background == "solid" else "") +
+            ("-empty-recent" if empty_recent else "") + ".png"
+            for background, theme, empty_recent in fixtures
+        }
+        require(set(receipt["screenshots"]) == expected_frames and
+                len(set(receipt["screenshots"].values())) == len(expected_frames),
+                "Missing or duplicate capture outputs")
         receipt["passed"] = True
     except (ValueError, KeyError, subprocess.SubprocessError, OSError):
         save_failure(adb, output, name)

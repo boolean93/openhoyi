@@ -270,9 +270,13 @@ internal class HomePresetGrid(
             visible.chunked(fit).forEachIndexed { rowIndex, entries ->
                 val strip = row()
                 addView(strip, LayoutParams(-1, -2).apply { if (rowIndex > 0) topMargin = dp(5) })
+                // In a sparse phone row the 1px alignment Space must not set the
+                // wrap-content height while every real tile requests MATCH_PARENT.
+                val tileHeight = if (portrait && resources.configuration.screenWidthDp in 1 until 600 &&
+                    entries.size < fit) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT
                 entries.forEachIndexed { column, index ->
                     tile(index).standalone(true)
-                    strip.addView(tile(index), LayoutParams(0, -1, 1f).withStart(if (column == 0) 0 else 7))
+                    strip.addView(tile(index), LayoutParams(0, tileHeight, 1f).withStart(if (column == 0) 0 else 7))
                 }
                 // Keep the history cell at the right edge when the optional lever is absent.
                 if (entries.size < fit) repeat(fit - entries.size) {
