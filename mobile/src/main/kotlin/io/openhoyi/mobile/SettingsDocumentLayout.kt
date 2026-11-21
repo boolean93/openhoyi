@@ -148,6 +148,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             wide = rail
             brewingChapter?.visibility = if (rail) VISIBLE else GONE
             styleBrewingLanding(rail)
+            styleScheduleLanding(rail)
             indexBody.removeAllViews()
             for (button in buttons.values) (button.parent as? ViewGroup)?.removeView(button)
             compact.removeAllViews()
@@ -183,6 +184,22 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         }
         if (previousWidth != MeasureSpec.getSize(widthMeasureSpec)) restoring = true
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
+    private fun styleScheduleLanding(rail: Boolean) {
+        val section = sections["schedule"] ?: return
+        val card = section.block.findViewWithTag<LinearLayout>("settings/machine/standby-and-plan") ?: return
+        val heading = section.heading as TextView
+        val parent = if (rail) card else section.block
+        if (heading.parent !== parent) {
+            (heading.parent as? ViewGroup)?.removeView(heading)
+            parent.addView(heading, 0, LayoutParams(-1, -2))
+        }
+        style.apply(heading, if (rail) TaskProductVisualStyle.Type(22, 700, 32) else TaskProductVisualStyle.settingsChapter)
+        heading.setPadding(0, style.dp(if (rail) 0 else 8), 0, style.dp(8))
+        sections["machine"]?.block?.apply {
+            setPadding(paddingLeft, paddingTop, paddingRight, style.dp(if (rail) 6 else 14))
+        }
     }
 
     fun section(key: String, title: String): LinearLayout {

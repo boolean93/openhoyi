@@ -188,6 +188,8 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 check(rows.size == 3 && rows.map { it.top }.distinct().size == 3)
                                 val thermalCard = settings().findViewWithTag<View>("settings/machine/temperature-card")
                                 val standby = settings().findViewWithTag<View>("settings/machine/standby-delay")
+                                val planCard = settings().findViewWithTag<View>("settings/machine/standby-and-plan")
+                                check(heading("schedule").parent === planCard) { "Wide standby and plan heading must be inside the group" }
                                 val bodyViewport = Rect().also { check(settings().scroll.getGlobalVisibleRect(it)) }
                                 val standbyBounds = Rect().also { check(standby.getGlobalVisibleRect(it)) }
                                 check(thermalCard.height <= HoyiUi.dp(activity, 245) &&
@@ -207,7 +209,9 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     check(tiles.map { it.height }.distinct().size == 1)
                                     check(tiles.all { tile ->
                                         val time = tile.getChildAt(1) as android.widget.TextView
-                                        time.lineCount == 1 && time.layout?.getEllipsisCount(0) == 0
+                                        time.lineCount == 1 && time.layout?.getEllipsisCount(0) == 0 &&
+                                            androidx.core.graphics.ColorUtils.calculateContrast(time.currentTextColor,
+                                                TaskProductVisualStyle(activity).selected) >= 4.5
                                     }) { "Normal tablet weekly labels must fit naturally on one line" }
                                 }
                                 check(columns.getChildAt(0).top == columns.getChildAt(1).top &&

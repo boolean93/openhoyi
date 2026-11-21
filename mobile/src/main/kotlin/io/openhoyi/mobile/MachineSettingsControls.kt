@@ -306,7 +306,11 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sleepCard.addView(scheduleGrid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val dayGrid = if (documentMode) SettingsWideGrid(this, style, 7, 88, 664, 8,
-            stackUntilWide = true, equalizeRowHeight = true).apply {
+            stackUntilWide = true, equalizeRowHeight = true) { columns ->
+            // The wide tile uses a tinted surface; ordinary body ink passes on it
+            // in both appearances. Narrow documents retain their existing projection.
+            scheduleCards.forEach { it.period.setTextColor(if (columns > 1) style.ink else style.muted) }
+        }.apply {
             tag = "settings/machine/weekly-grid"
             scheduleGrid.addView(this, LinearLayout.LayoutParams(-1, -2))
         } else null
