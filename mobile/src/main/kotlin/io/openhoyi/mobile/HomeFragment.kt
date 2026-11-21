@@ -75,6 +75,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private var lastCurveDirty = true
     private var previousCupActive = false
     private lateinit var quickRow: LinearLayout
+    private var quickBottomSpacer: View? = null
     private lateinit var brewPressure: TextView
     private lateinit var steamTemperature: TextView
     private lateinit var steamPressure: TextView
@@ -149,6 +150,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
         val shortHome = TaskLayoutPolicy.compactHome(resources.configuration.screenHeightDp, phoneHome)
         val shortWideHome = shortHome && resources.configuration.screenWidthDp >= 600
+        val anchorPhoneShortcuts = phoneHome && resources.configuration.screenWidthDp in 1 until 600
         // Redistribute the roomy landscape lead-in; keep the compact row budget
         // and portrait header unchanged. Portrait can scroll into its trailing inset.
         // Very short landscapes keep the existing one-dp inset so the entire
@@ -340,6 +342,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
         HomeViewportBudget.install(root, content, boilerRow, boilerDials, phoneHome, compactType, spaciousHome)
+        // FillViewport supplies an exact height only when the natural stack fits.
+        // Weighted empty space then absorbs the spare room, without moving the header.
+        // For an overflowing window the spacer measures zero; all controls scroll normally.
+        quickBottomSpacer = if (anchorPhoneShortcuts) android.widget.Space(host).also { spacer ->
+            spacer.tag = "product/home/quick-bottom-spacer"
+            content.addView(spacer, LinearLayout.LayoutParams(-1, 0, 1f))
+        } else null
         quickRow = productStyle.column("product/home/quick-extraction").apply { clipChildren = false; clipToPadding = false }
         content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply {
             marginStart = -shortcutOutset; marginEnd = -shortcutOutset
@@ -930,6 +939,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
+        quickBottomSpacer?.let { spacer ->
+            val visibility = if (cupActive) View.GONE else View.INVISIBLE
+            if (spacer.visibility != visibility) spacer.visibility = visibility
+        }
         if (!cupActive && (lastCurveDirty || previousCupActive)) {
             showLastCurve(resolveLastCurve())
             lastCurveDirty = false

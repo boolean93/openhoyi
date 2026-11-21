@@ -26,21 +26,23 @@ import java.util.UUID
 internal class QuickCurveVisualChecks(private val test: Instrumentation) {
     private fun <T> main(block: () -> T): T = BoundedInstrumentationMain.run("Home shortcut capture", 5000, block)
 
-    fun run(dark: Boolean, wallpaperEnabled: Boolean) {
+    fun run(dark: Boolean, wallpaperEnabled: Boolean, shortPortrait: Boolean = false, emptyRecent: Boolean = false) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
         val ids = listOf("factory-v3-050", "factory-v3-001", "factory-v3-002", "factory-v3-004", "factory-v3-005", "factory-v3-004")
-        val names = listOf("浅烘Slayer长预浸", "Espresso深烘", "SOE浅烘", "HOYI Limit Extraction", "Hyper Ex 超萃手冲", "HOYI Limit Extraction")
-        val tags = (0..4).map { "product/home/direct-preset/$it" } + "product/home/last-curve"
-        val titleTags = tags.take(5).map { "$it/name" } + "product/home/quick-recipe"
-        val labels = listOf("拨杆配方", "预设 A", "预设 B", "预设 C", "预设 D", "复用上一杯")
+        val fixtureNames = listOf("浅烘Slayer长预浸", "Espresso深烘", "SOE浅烘", "HOYI Limit Extraction", "Hyper Ex 超萃手冲", "HOYI Limit Extraction")
+        val tags = (if (emptyRecent) 1..4 else 0..4).map { "product/home/direct-preset/$it" } + "product/home/last-curve"
+        val titleTags = tags.dropLast(1).map { "$it/name" } + "product/home/quick-recipe"
+        val names = if (emptyRecent) fixtureNames.subList(1, 5) + "" else fixtureNames
+        val presetLabels = listOf("预设 A", "预设 B", "预设 C", "预设 D")
+        val labels = if (emptyRecent) presetLabels + "上一杯" else listOf("拨杆配方") + presetLabels + "复用上一杯"
         val presets = context.getSharedPreferences("presets", Context.MODE_PRIVATE)
         val storedFifth = "factory-v3-005"
         main {
             check(app.history.entries.isEmpty()) { "Refusing to seed application with existing shot history" }
             check(app.languagePreferences.select(AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
-            check(app.fontSizePreferences.select(AppFontSize.MEDIUM) != AppFontSizePreference.Selection.SAVE_FAILED)
+            check(app.fontSizePreferences.select(if (shortPortrait) AppFontSize.LARGE else AppFontSize.MEDIUM) != AppFontSizePreference.Selection.SAVE_FAILED)
             check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
             check(presets.all.isEmpty()) { "Expected fresh disposable Mock data" }
             var editor = presets.edit()
@@ -48,13 +50,15 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
             check(editor.putString(PresetSlots.key(5), storedFifth).commit())
             val usage = app.curveUsageResult.getOrThrow()
             check(usage.latest() == null)
-            check(usage.record("shortcut-visual-fixture", ids.last(), 1L))
-            val lever = app.leverRecipes
-            val address = "00:00:00:00:00:01"
-            check(lever.attemptFor(address) == null && !lever.blocked)
-            val token = requireNotNull(lever.begin(MachineLeverRecipeStore.Snapshot(address, ids.first(), names.first(),
-                "08825c0046031e5a0000009608019000000000d8", 1L, "1.1.5")))
-            check(lever.complete(token, MachineLeverRecipeStore.State.SENT))
+            if (!emptyRecent) {
+                check(usage.record("shortcut-visual-fixture", ids.last(), 1L))
+                val lever = app.leverRecipes
+                val address = "00:00:00:00:00:01"
+                check(lever.attemptFor(address) == null && !lever.blocked)
+                val token = requireNotNull(lever.begin(MachineLeverRecipeStore.Snapshot(address, ids.first(), fixtureNames.first(),
+                    "08825c0046031e5a0000009608019000000000d8", 1L, "1.1.5")))
+                check(lever.complete(token, MachineLeverRecipeStore.State.SENT))
+            }
         }
         if (wallpaperEnabled) {
             // An asymmetric high-/low-luminance fixture makes foreground materials and gaps observable.
@@ -109,19 +113,36 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
 
         val page = MainPageTestHost.launch(test, timeoutMs = 15000)
         val host = page.activity
+        fun titleAt(index: Int) =
+            if (emptyRecent && index == tags.lastIndex) host.getString(R.string.task_brew_usage_empty) else names[index]
         val out = File(context.filesDir, "quick-curve-visual").apply { check(mkdirs() || isDirectory) }
         try {
             val deadline = SystemClock.elapsedRealtime() + 12000
             while (!main {
                 val root = page.active("root:BREW").requireView()
                 host.currentService?.running == true && titleTags.indices.all { index ->
-                    root.findViewWithTag<TextView>(titleTags[index])?.let { it.text.toString() == names[index] && it.layout != null } == true
+                    root.findViewWithTag<TextView>(titleTags[index])?.let { it.text.toString() == titleAt(index) && it.layout != null } == true
                 }
             }) {
                 check(SystemClock.elapsedRealtime() < deadline) { "Populated quick-curve Home did not become ready" }
                 SystemClock.sleep(50)
             }
             SystemClock.sleep(300)
+            if (shortPortrait) main {
+                val content = page.active("root:BREW").requireView()
+                val scroll = requireNotNull(content.findViewWithTag<ScrollView>("product/home/page-scroll"))
+                val machine = requireNotNull(content.findViewWithTag<View>("product/home/machine-status"))
+                fun topReachable(): Boolean = Rect().let { machine.getGlobalVisibleRect(it) && it.height() == machine.height }
+                check(scroll.scrollY == 0 && scroll.canScrollVertically(1) && topReachable()) {
+                    "Short portrait must retain natural scrolling and the top device controls"
+                }
+                scroll.scrollTo(0, scroll.getChildAt(0).height)
+                check(scroll.scrollY > 0 && !scroll.canScrollVertically(1) && scroll.canScrollVertically(-1))
+                val end = scroll.scrollY
+                scroll.scrollTo(0, 0)
+                check(scroll.scrollY == 0 && scroll.canScrollVertically(1) && topReachable())
+                scroll.scrollTo(0, end)
+            }
             val proof = main {
                 val root = page.active("root:BREW").requireView()
                 check(root.findViewWithTag<View>("product/home/quick-title") == null &&
@@ -147,26 +168,31 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                     val layout = requireNotNull(title.layout)
                     val label = requireNotNull(root.findViewWithTag<TextView>("$tag/label"))
                     check(label.text.toString() == labels[index]) { "Unexpected slot label: ${label.text}" }
-                    check(layout.lineCount == 1 && layout.getEllipsisCount(0) == 0 &&
-                        layout.getLineWidth(0) <= (title.width - title.compoundPaddingLeft - title.compoundPaddingRight) + 1f) {
+                    check((shortPortrait || layout.lineCount == 1) &&
+                        layout.height <= title.height - title.compoundPaddingTop - title.compoundPaddingBottom &&
+                        (0 until layout.lineCount).all { line ->
+                            layout.getEllipsisCount(line) == 0 &&
+                                layout.getLineWidth(line) <= (title.width - title.compoundPaddingLeft - title.compoundPaddingRight) + 1f
+                        }) {
                         "Shortcut name wraps or clips: ${title.text}"
                     }
                     val preview = requireNotNull(root.findViewWithTag<View>("$tag/preview"))
-                    check(preview.isShown && preview.width > 0 && preview.height > 0)
+                    if (emptyRecent && index == tags.lastIndex) check(preview.visibility == View.GONE)
+                    else check(preview.isShown && preview.width > 0 && preview.height > 0)
                     val card = bounds[index]
                     val heightDp = card.height() / density
                     val expectedHeight = if (portrait) 59f else 66f
-                    check(kotlin.math.abs(heightDp - expectedHeight) <= 2f) {
+                    check(if (shortPortrait) heightDp >= 48f else kotlin.math.abs(heightDp - expectedHeight) <= 2f) {
                         "$tag height ${heightDp}dp, expected compact ${expectedHeight}dp on the actual viewport"
                     }
                     val titleBounds = Rect().also { check(title.getGlobalVisibleRect(it)) }
                     val labelBounds = Rect().also { check(label.getGlobalVisibleRect(it)) }
-                    val tapTag = if (index == 5) "product/home/quick-launch" else tag
+                    val tapTag = if (index == tags.lastIndex) "product/home/quick-launch" else tag
                     val control = requireNotNull(root.findViewWithTag<View>(tapTag))
                     check(control.isClickable && control.isEnabled && control.width >= 48 * density && control.height >= 48 * density) {
                         "$tapTag must be a direct action ≥48dp"
                     }
-                    items.put(JSONObject().put("name", names[index]).put("label", label.text.toString())
+                    items.put(JSONObject().put("name", titleAt(index)).put("label", label.text.toString())
                         .put("rect", JSONArray(listOf(card.left, card.top, card.right, card.bottom)))
                         .put("heightDp", heightDp.toDouble())
                         .put("nameSp", title.textSize / density).put("labelSp", label.textSize / density)
@@ -174,7 +200,11 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                         .put("labelOffsetPx", JSONArray(listOf(labelBounds.left - card.left, labelBounds.top - card.top)))
                         .put("previewPx", JSONArray(listOf(preview.width, preview.height))))
                 }
-                if (portrait) {
+                if (portrait && emptyRecent) {
+                    check(bounds[0].top == bounds[1].top && bounds[2].top == bounds[3].top &&
+                        bounds[0].top < bounds[2].top && bounds[2].top < bounds.last().top &&
+                        bounds.last().left == bounds[3].left)
+                } else if (portrait) {
                     check(bounds.indices.all { index ->
                         val even = index - index % 2
                         bounds[index].top == bounds[even].top &&
@@ -194,12 +224,28 @@ internal class QuickCurveVisualChecks(private val test: Instrumentation) {
                 check(host.currentService?.shotState == io.openhoyi.session.ExtractionState.IDLE && app.history.entries.isEmpty()) {
                     "Visual fixture must not initiate or record an extraction"
                 }
-                val viewport = Rect().also {
-                    check(root.findViewWithTag<ScrollView>("product/home/page-scroll").getGlobalVisibleRect(it))
-                }
+                val scroll = requireNotNull(root.findViewWithTag<ScrollView>("product/home/page-scroll"))
+                val spacer = root.findViewWithTag<View>("product/home/quick-bottom-spacer")
+                val viewport = Rect().also { check(scroll.getGlobalVisibleRect(it)) }
                 val bottomGap = (viewport.bottom - bounds.maxOf { it.bottom }) / density
                 check(bottomGap >= 10f) { "Expected breathing room inside the Home viewport, got ${bottomGap}dp" }
+                val tab = Rect()
+                if (portrait) {
+                    check(!emptyRecent || root.findViewWithTag<View>("product/home/direct-preset/0") == null)
+                    val homeTab = requireNotNull(host.findViewById<View>(android.R.id.content).findViewWithTag<View>("task-nav:BREW"))
+                    check(homeTab.getGlobalVisibleRect(tab))
+                    check(kotlin.math.abs(bottomGap - 12f) <= 1f && tab.top >= viewport.bottom &&
+                        (tab.top - viewport.bottom) <= density + 1) {
+                        "Portrait cards must sit 12dp above the visible bottom tabs: gap=$bottomGap, viewport=$viewport, tabs=$tab"
+                    }
+                    if (shortPortrait) check(spacer?.height == 0 && scroll.scrollY > 0 &&
+                        !scroll.canScrollVertically(1) && scroll.canScrollVertically(-1))
+                    else check((spacer?.height ?: 0) > 0 && scroll.scrollY == 0 && !scroll.canScrollVertically(1))
+                } else check(spacer == null)
                 JSONObject().put("portrait", portrait).put("dark", dark).put("wallpaper", wallpaperEnabled)
+                    .put("shortPortrait", shortPortrait).put("emptyRecent", emptyRecent).put("scrollY", scroll.scrollY)
+                    .put("bottomTabTopPx", if (portrait) tab.top else JSONObject.NULL)
+                    .put("spacerHeightPx", spacer?.height ?: 0).put("fontScale", host.resources.configuration.fontScale.toDouble())
                     .put("viewport", JSONArray(listOf(viewport.left, viewport.top, viewport.right, viewport.bottom)))
                     .put("bottomGapDp", bottomGap.toDouble()).put("density", density.toDouble()).put("items", items)
             }

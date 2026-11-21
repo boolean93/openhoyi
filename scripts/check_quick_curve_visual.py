@@ -11,7 +11,7 @@ import time
 from shared_mock_artifact import APP, TEST, DESTINATIONS, digest, inspect_apk, require, run
 
 
-PROFILES = {"phone": (720, 1560, 320), "tablet": (2560, 1600, 360)}
+PROFILES = {"phone": (720, 1560, 320), "phone-short": (720, 1120, 320), "tablet": (2560, 1600, 360)}
 RUNNER = TEST + "/io.openhoyi.mobile.BrewAudioInstrumentation"
 MARKER = "QUICK_CURVE_VISUAL_PASSED androidHome=true tap48=true noBle=true noShot=true"
 
@@ -33,14 +33,18 @@ def display_value(report, kind):
     return rows[-1]
 
 
-def validate_capture(image, geometry, width, height, dpi, theme, background="wallpaper"):
+def validate_capture(image, geometry, width, height, dpi, theme, background="wallpaper", empty_recent=False):
     require(png_size(image) == (width, height), "Wrong screenshot PNG geometry")
     require(geometry["density"] == dpi / 160 and geometry["dark"] == (theme == "dark") and
             geometry["portrait"] == (height > width), "Android view proof did not match expected configuration")
     require(geometry["wallpaper"] == (background == "wallpaper"), "Wrong captured backdrop")
     cards = geometry["items"]
-    require(len(cards) == 6 and cards[3]["name"] == cards[5]["name"] == "HOYI Limit Extraction",
-            "Expected six visible controls including both long titles")
+    if empty_recent:
+        require(geometry["emptyRecent"] and len(cards) == 5 and cards[2]["name"] == "HOYI Limit Extraction" and
+                cards[4]["label"] == "上一杯", "Expected A–D and the existing empty last-cup placeholder")
+    else:
+        require(len(cards) == 6 and cards[3]["name"] == cards[5]["name"] == "HOYI Limit Extraction",
+                "Expected six visible controls including both long titles")
 
 
 def save_failure(adb, output, name):
@@ -135,15 +139,20 @@ def main():
             require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "HOME_BOILER_LAYER_PROOF_PASSED" in report,
                     "Detached boiler layer checks failed")
             receipt["detachedBoilerViewAndFakeGattPassed"] = True
-        for background, theme in ((background, theme) for background in ("wallpaper", "solid")
-                                  for theme in ("light", "dark")):
-            name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "")
+        cases = [("wallpaper", "dark")] if profile == "phone-short" else [
+            (background, theme) for background in ("wallpaper", "solid") for theme in ("light", "dark")]
+        fixtures = [(background, theme, False) for background, theme in cases]
+        if profile == "phone":
+            fixtures.append(("wallpaper", "dark", True))
+        for background, theme, empty_recent in fixtures:
+            name = f"{profile}-{theme}" + ("-solid" if background == "solid" else "") + ("-empty-recent" if empty_recent else "")
             # All data in this exact ephemeral install is synthetic and fixture-owned.
             require(adb("shell", "pm", "clear", APP) == "Success", "Cannot reset isolated Mock fixture")
             try:
                 report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
                              "-e", "quickCurveVisualTheme", theme, "-e", "quickCurveVisualBackground",
-                             background, RUNNER, timeout=100)
+                             background, "-e", "quickCurveShortPortrait", str(profile == "phone-short").lower(),
+                             "-e", "quickCurveEmptyRecent", str(empty_recent).lower(), RUNNER, timeout=100)
             except (subprocess.SubprocessError, OSError) as failure:
                 # am instrument can disappear with a nonzero exit or a killed process.
                 output_text = getattr(failure, "output", None)
@@ -160,7 +169,7 @@ def main():
             target = output / f"{name}.png"
             target.write_bytes(image)
             (output / f"{name}.json").write_text(json.dumps(geometry, ensure_ascii=False, indent=2) + "\n")
-            validate_capture(image, geometry, width, height, dpi, theme, background)
+            validate_capture(image, geometry, width, height, dpi, theme, background, empty_recent)
             receipt["screenshots"][target.name] = digest(target)
         require(len(set(receipt["screenshots"].values())) == 4, "Duplicate capture outputs")
         receipt["passed"] = True
