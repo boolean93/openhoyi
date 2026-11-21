@@ -16,6 +16,11 @@ class CustomCurveStore(private val storage: Storage) {
                              val clearedBindings: Map<Int, String> = emptyMap())
     var revision = 0L
         private set
+    // A restored editor must not silently reacquire authority against a new store process.
+    private val manualEditEpoch = java.util.UUID.randomUUID().toString()
+    private val manualRevisions = mutableMapOf<String, Long>()
+    internal data class ManualEdit(val document: CustomCurveDocument, val epoch: String, val revision: Long)
+    internal enum class ManualSave { SAVED, STALE, IN_USE }
     private var state = storage.read()?.let(::decode) ?: State()
 
     @Synchronized fun list(): List<CustomCurveDocument> = state.documents.values.filter { it.id !in state.archived }
@@ -35,6 +40,21 @@ class CustomCurveStore(private val storage: Storage) {
         if (state.documents[safe.id] == safe) return
         commit(state.copy(documents = LinkedHashMap(state.documents).apply { put(safe.id, safe) }))
     }
+    @Synchronized internal fun manualEditSnapshot(id: String): ManualEdit? =
+        find(id)?.takeIf { it.isEditable }?.let { ManualEdit(it, manualEditEpoch, manualRevisions[id] ?: 0L) }
+
+    @Synchronized internal fun saveManualEdit(document: CustomCurveDocument, expected: ManualEdit,
+                                               permitted: () -> Boolean = { true }): ManualSave {
+        val safe = frozen(document)
+        require(safe.isEditable && safe.id == expected.document.id && expected.document.isEditable)
+        if (expected.epoch != manualEditEpoch || expected.revision != (manualRevisions[safe.id] ?: 0L) ||
+            find(safe.id) != expected.document) return ManualSave.STALE
+        if (safe == expected.document) return ManualSave.SAVED
+        if (!permitted()) return ManualSave.IN_USE
+        save(safe, expected.document)
+        return ManualSave.SAVED
+    }
+
     /** Native-confirmed AI proposals use a store-wide revision to reject changed-and-restored (ABA) targets. */
     @Synchronized internal fun aiWriteSnapshot(id: String?): Pair<Long, CustomCurveDocument?> =
         revision to id?.let(::find)
@@ -104,6 +124,11 @@ class CustomCurveStore(private val storage: Storage) {
         val root = JSONObject().put("storeVersion", version).put("documents", documents)
         if (version == 2) root.put("archived", archived).put("clearedBindings", cleared)
         storage.write(root.put("checksum", CurveDocumentJson.checksum(payload)).toString())
+        for (id in state.documents.keys + next.documents.keys) {
+            if (state.documents[id] != next.documents[id] || state.archived[id] != next.archived[id]) {
+                manualRevisions[id] = (manualRevisions[id] ?: 0L) + 1L
+            }
+        }
         state = next
         revision++
     }
