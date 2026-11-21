@@ -1,0 +1,15 @@
+<resources>
+    <string name="settings_category_device">设备</string>
+    <string name="settings_category_machine">机器</string>
+    <string name="settings_category_appearance">外观</string>
+    <string name="settings_category_ai">AI</string>
+    <string name="settings_category_maintenance">维护</string>
+    <string name="settings_category_expanded">已展开</string>
+    <string name="settings_category_collapsed">已收起</string>
+    <string name="settings_category_scan_nearby">扫描附近设备</string>
+    <string name="settings_category_update">应用更新</string>
+    <string name="settings_category_scale_capabilities">设备能力与使用说明</string>
+    <string name="settings_category_ai_hint">API Key、模型、思考强度及萃取后自动评价在 HOYI.AI 对话菜单中管理。</string>
+    <string name="settings_category_diagnostics">诊断存储与服务</string>
+    <string name="settings_category_brewing">萃取</string>
+</resources>

@@ -28,7 +28,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     var errorChanged:(Boolean)->Unit={}
     private fun connectedActionAllowed()=owner!=null && allowed()
     private fun allowed()=owner?.let { !it.manualShotActive && DeviceConnectionGate.mayChangeScale(it.shotState) } ?: true
-    fun create(body:LinearLayout) {
+    fun create(body:LinearLayout, scanBody:LinearLayout = body) {
         val card=visual.card(body,host.getString(R.string.home_device_connection),0)
         card.removeViewAt(0)
         listOf(DeviceRole.COFFEE to R.string.home_coffee_disconnect,DeviceRole.BOOKOO to R.string.home_scale_disconnect).forEachIndexed { index,(role,label) ->
@@ -36,32 +36,34 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             val words=style.column()
             style.add(words,style.text(host.getString(if(role==DeviceRole.COFFEE)R.string.home_coffee else R.string.scale_title),TaskProductVisualStyle.body))
             states[role]=style.text("—",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(words,it,4)}
-            val actions=LinearLayout(host).apply {orientation=LinearLayout.HORIZONTAL;isBaselineAligned=false}
-            if(role==DeviceRole.COFFEE)coffeeRetry=HoyiUi.button(host,actions,host.getString(R.string.coffee_connection_retry)) {
+            val buttons=LinearLayout(host)
+            val actions=SettingsWrappingActions(host, style.dp(6))
+            if(role==DeviceRole.COFFEE)coffeeRetry=HoyiUi.button(host,buttons,host.getString(R.string.coffee_connection_retry)) {
                 host.reconnectCoffee()
             }.apply {visual.action(this,outline=true);tag="product/devices/coffee/retry"}
-            HoyiUi.button(host,actions,host.getString(R.string.home_visual_change)) {
+            HoyiUi.button(host,buttons,host.getString(R.string.home_visual_change)) {
                 owner?.beginDeviceSelection();selection.showRole(role);rendered="";render(owner)
                 candidates.post {candidates.requestRectangleOnScreen(android.graphics.Rect(0,0,candidates.width,minOf(candidates.height,style.dp(120))),false)}
             }.apply {visual.action(this,outline=true)}
-            HoyiUi.button(host,actions,host.getString(label)) {
+            HoyiUi.button(host,buttons,host.getString(label)) {
                 if(connectedActionAllowed())owner?.disconnect(role) else error(host.getString(R.string.scale_active_guard))
             }.apply {visual.action(this,outline=true);disconnectActions+=this}
-            (0 until actions.childCount).forEach { index ->
-                (actions.getChildAt(index).layoutParams as LinearLayout.LayoutParams).apply {
-                    width=android.view.ViewGroup.LayoutParams.WRAP_CONTENT;topMargin=0;bottomMargin=0;marginEnd=if(index<actions.childCount-1)style.dp(8) else 0
-                }
+            while (buttons.childCount > 0) {
+                val button = buttons.getChildAt(0)
+                buttons.removeViewAt(0)
+                actions.addView(button)
             }
             style.add(card,visual.pair(words,actions,"settings/devices/${role.name}"))
         }
-        visual.divider(card)
+        val scanCard = if (scanBody === body) card.also { visual.divider(it) }
+            else visual.card(scanBody, host.getString(R.string.home_device_connection), 0).also { it.removeViewAt(0) }
         val scan=HoyiUi.button(host,LinearLayout(host),host.getString(R.string.home_scan)) {scan()}.apply {visual.action(this,outline=true)}
-        val scanWords=style.text(host.getString(R.string.home_device_connection),TaskProductVisualStyle.body)
+        val scanWords=style.text(host.getString(R.string.settings_category_scan_nearby),TaskProductVisualStyle.body)
         (scan.parent as android.view.ViewGroup).removeView(scan)
-        style.add(card,visual.pair(scanWords,scan,"settings/devices/scan"))
+        style.add(scanCard,visual.pair(scanWords,scan,"settings/devices/scan"))
         message=style.text("",TaskProductVisualStyle.auxiliary,"settings/devices/message",true).apply {accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE}
-        style.add(card,message,8)
-        candidates=style.column("settings/devices/candidates");style.add(card,candidates,8)
+        style.add(scanCard,message,4)
+        candidates=style.column("settings/devices/candidates");style.add(scanCard,candidates,4)
     }
     fun addShutdown(body:LinearLayout) {
         HoyiUi.button(host,body,host.getString(R.string.home_shutdown)) {

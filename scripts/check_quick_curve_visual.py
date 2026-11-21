@@ -136,6 +136,32 @@ def capture_boiler_warmup(adb, executable, output, receipt):
             adb("shell", "settings", "put", "global", "animator_duration_scale", previous)
 
 
+def capture_settings_categories(adb, output, receipt, profile, width, height):
+    require(profile in {"phone", "tablet"}, "Expected the fresh phone/tablet Settings profile")
+    report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
+                 "-e", "settingsCategoryProfile", profile, RUNNER, timeout=160)
+    (output / "settings-instrumentation.txt").write_text(report + "\n")
+    # Pull actual captured image(s) even on a later UI assertion failure.
+    for key in ("device", "machine", "brewing", "appearance", "ai", "maintenance"):
+        try:
+            frame = adb("exec-out", "run-as", APP, "cat", f"files/settings-categories/{key}.png", binary=True)
+        except subprocess.CalledProcessError:
+            continue
+        require(png_size(frame) == (width, height), "Wrong Settings screenshot geometry")
+        image = output / f"settings-{profile}-{key}.png"
+        image.write_bytes(frame)
+        receipt["screenshots"][image.name] = digest(image)
+    require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "SETTINGS_CATEGORIES_PASSED" in report,
+            "Settings UI checks failed; see instrumentation report")
+    proof = json.loads(adb("exec-out", "run-as", APP, "cat", "files/settings-categories/receipt.json"))
+    require(proof["wide"] == (profile == "tablet") and proof["dark"] == (profile == "phone") and
+            proof["sixCategories"] and proof["exactRoutes"] == 11 and proof["returnedToCaller"] and
+            proof["recreatedCategory"] and
+            len(receipt["screenshots"]) == 6 and len(set(receipt["screenshots"].values())) == 6,
+            "Incomplete Settings category evidence")
+    (output / "settings-geometry.json").write_text(json.dumps(proof, indent=2) + "\n")
+
+
 def main():
     require(os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
             and os.environ.get("QUICK_CURVE_VISUAL") == "true", "Manual CI runner required")
@@ -187,6 +213,11 @@ def main():
         for kind, source in DESTINATIONS.items():
             require(digest(source) == apks[kind]["sha256"], "APK changed before install")
             require(adb("install", source, timeout=120).splitlines()[-1] == "Success", "Mock fixture install failed")
+        if os.environ.get("SETTINGS_CATEGORIES") == "true":
+            name = "settings-categories"
+            capture_settings_categories(adb, output, receipt, profile, width, height)
+            receipt["passed"] = True
+            return
         if os.environ.get("BOILER_WARMUP") == "true":
             require(profile == "phone", "Boiler recording requires the dedicated phone viewport")
             name = "boiler-warmup"

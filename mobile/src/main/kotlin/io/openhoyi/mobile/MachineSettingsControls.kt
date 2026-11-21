@@ -293,10 +293,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             body.removeView(controlsPane)
             overview.visibility = View.GONE
             temperatureSection.removeView(controls); functionsSection.removeView(functionsCard)
-            controls.removeViewAt(0)
             controls.getChildAt(controls.childCount-1).visibility = View.GONE
             temperatureRows.take(3).forEach { row -> row.background=null; row.setPadding(0,dp(8),0,dp(8)); (row.layoutParams as LinearLayout.LayoutParams).topMargin=0 }
-            body.addView(controls,LinearLayout.LayoutParams(-1,-2))
             val pairs=listOf(brewHeatingButton to R.string.setting_brew_heating,steamHeatingButton to R.string.setting_steam_heating,
                 lightButton to R.string.setting_light,waterSupplyButton to R.string.machine_settings_supply_label,runModeButton to R.string.machine_settings_run_mode_label)
             pairs.forEach {(button,label)->
@@ -310,7 +308,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 }
                 render()
             }.also { functionsCard.addView(it, LinearLayout.LayoutParams(-1,-2)) }
-            body.addView(functionsCard,LinearLayout.LayoutParams(-1,-2))
+            body.addView(SettingsColumns(this, visual.palette, controls, functionsCard, org.json.JSONObject(),
+                firstFraction = .52f, minimumFirstWidth = { dp(315) }, minimumSecondWidth = { dp(270) }),
+                LinearLayout.LayoutParams(-1, -2))
             listOf(settingsToggle,settings).forEach { view -> (view.parent as? android.view.ViewGroup)?.removeView(view); body.addView(view) }
             listOf(standbySection,sleepSection).forEach { section -> controlsPane.removeView(section);section.visibility=View.VISIBLE;documentSections.getValue("schedule").addView(section) }
             controlsPane.removeView(maintenanceSection);maintenanceSection.visibility=View.VISIBLE;documentSections.getValue("maintenance").addView(maintenanceSection)

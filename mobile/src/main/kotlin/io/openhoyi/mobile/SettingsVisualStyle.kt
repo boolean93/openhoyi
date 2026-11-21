@@ -175,6 +175,49 @@ internal class SettingsPairLayout(context:Context,private val style:TaskProductV
     }
 }
 
+/** Keep action buttons intact, wrapping rather than clipping a narrow translated row. */
+internal class SettingsWrappingActions(context: Context, private val gap: Int) : ViewGroup(context) {
+    private val placements = mutableListOf<Pair<View, Rect>>()
+    override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val mode = MeasureSpec.getMode(widthMeasureSpec)
+        val available = if (mode == MeasureSpec.UNSPECIFIED) Int.MAX_VALUE else MeasureSpec.getSize(widthMeasureSpec)
+        val height = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        val width = MeasureSpec.makeMeasureSpec(if (mode == MeasureSpec.UNSPECIFIED) 0 else available,
+            if (mode == MeasureSpec.UNSPECIFIED) MeasureSpec.UNSPECIFIED else MeasureSpec.AT_MOST)
+        var lineWidth = 0
+        var lineHeight = 0
+        var bottom = 0
+        var maximum = 0
+        placements.clear()
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (child.visibility == GONE) continue
+            child.measure(width, height)
+            if (lineWidth > 0 && lineWidth + gap + child.measuredWidth > available) {
+                bottom += lineHeight + gap
+                lineWidth = 0
+                lineHeight = 0
+            }
+            val x = if (lineWidth == 0) 0 else lineWidth + gap
+            placements.add(child to Rect(x, bottom, x + child.measuredWidth, bottom + child.measuredHeight))
+            lineWidth = x + child.measuredWidth
+            maximum = maxOf(maximum, lineWidth)
+            lineHeight = maxOf(lineHeight, child.measuredHeight)
+        }
+        setMeasuredDimension(resolveSize(maximum, widthMeasureSpec), resolveSize(bottom + lineHeight, heightMeasureSpec))
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
+        placements.forEach { (child, bounds) ->
+            val start = if (rtl) width - bounds.right else bounds.left
+            child.layout(start, bounds.top, start + bounds.width(), bounds.bottom)
+        }
+    }
+}
+
 internal class SettingsColumns(context:Context,private val style:TaskProductVisualStyle,val first:View,val second:View,
     private val evidence:JSONObject, private val firstFraction:Float=.4f,
     private val minimumFirstWidth:(()->Int)?=null, private val minimumSecondWidth:(()->Int)?=null):ViewGroup(context) {

@@ -1,152 +1,333 @@
 package io.openhoyi.mobile
 
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
-import android.widget.*
+import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import androidx.core.view.ViewCompat
 
-/** One scroll owner. The index always refers to persistent document headings. */
+/** Category selection is independent of scroll; one existing instance of every section. */
 internal class SettingsDocumentLayout(private val host: MainActivity, state: Bundle?) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
-    private data class Section(val key: String, val title: String, val block: LinearLayout, val button: Button)
-    private val sections = mutableListOf<Section>()
-    private val pageHeaderBackdrop = Any()
-    internal val shortcutsBackdrop = Any()
-    private val picker = Spinner(host).apply {
-        tag = "settings/document/index-picker"
-        protectRoundedBackdropContent(style.surface, style.dp(12), group = pageHeaderBackdrop)
-    }
-    private val pickerLabels=mutableListOf<String>()
-    private val pickerAdapter=ArrayAdapter(host,android.R.layout.simple_spinner_dropdown_item,pickerLabels)
-    private val badges=mutableMapOf<String,String>()
-    private val indexBody = LinearLayout(host).apply { orientation = VERTICAL }
-    private val index = ScrollView(host).apply {
-        addView(indexBody); isFillViewport = false
-        protectRoundedBackdropContent(style.surface, style.dp(12))
-    }
+    private data class Section(val key: String, val heading: View, val block: LinearLayout)
+    private data class Position(val anchor: String, val offset: Int = 0, val end: Boolean = false)
+    private val sections = linkedMapOf<String, Section>()
+    private val positions = mutableMapOf<SettingsCategory, Position>()
+    private val statuses = mutableMapOf<String, String>()
+    private val buttons = linkedMapOf<SettingsCategory, Button>()
+    private val disclosureKeys = state?.getStringArrayList("settings.disclosures").orEmpty().toMutableSet()
+    private var pairedDevices: View? = null
+    private var scanning: View? = null
+    private val headerBackdrop = Any()
+    private val indexBody = style.column("settings/document/category-rail")
+    private val compact = style.column("settings/document/category-grid")
+    private val panel = style.row("settings/document/columns")
     private val divider = View(host).apply { setBackgroundColor(style.border) }
-    val body = LinearLayout(host).apply { orientation = VERTICAL; setPadding(style.dp(20), 0, style.dp(20), style.dp(24)) }
-    val scroll = ScrollView(host).apply { id = R.id.m8_settings_scroll; tag = "settings/document/scroll"; isFillViewport = true; addView(body) }
-    private val columns = LinearLayout(host).apply { orientation = HORIZONTAL }
-    private var anchor = state?.getString("settings.anchor") ?: "devices"
-    private var offset = state?.getInt("settings.offset") ?: 0
-    private var atEnd = state?.getBoolean("settings.atEnd") ?: false
-    private var applying = false
-    private var pickerUpdating = false
-    private var selected = -1
-    private var laidOut = false
-    private var restoredWidth = 0
-    private var restoredAnchorTop = 0
-    private var pendingNavigation: String? = null
+    val body = style.column("settings/document/body")
+    val scroll = ScrollView(host).apply {
+        id = R.id.m8_settings_scroll
+        tag = "settings/document/scroll"
+        isFillViewport = true
+        isSaveEnabled = false // Scroll restoration belongs to the active category, not Android's old absolute Y.
+        addView(body)
+    }
+    private var active = SettingsCategory.entries.firstOrNull { it.key == state?.getString("settings.category") }
+        ?: state?.getString("settings.anchor")?.let(SettingsCategory::forSection) ?: SettingsCategory.DEVICE
+    private var wide: Boolean? = null
+    private var restoring = true
+    private var requestedHeading = state?.getString("settings.requested")
+    private var resolvedTop = -1
+    private var previousWidth = 0
+
     init {
-        orientation = VERTICAL; setBackgroundColor(style.page)
+        SettingsCategory.entries.forEach { category ->
+            val saved = state?.getBundle("settings.category.${category.key}")
+            val anchor = saved?.getString("anchor")
+                ?: state?.getString("settings.anchor")?.takeIf { it in category.sections }
+            if (anchor != null) positions[category] = Position(anchor,
+                saved?.getInt("offset") ?: state?.getInt("settings.offset") ?: 0,
+                saved?.getBoolean("end") ?: state?.getBoolean("settings.atEnd") ?: false)
+            buttons[category] = Button(host).apply {
+                tag = "settings/category/${category.key}"
+                text = host.getString(label(category))
+                style.apply(this, TaskProductVisualStyle.action)
+                asTaskTextAction()
+                isAllCaps = false
+                minimumHeight = style.dp(48)
+                setOnClickListener { select(category) }
+            }
+        }
+        orientation = VERTICAL
+        setBackgroundColor(style.page)
         host.installPageBackdrop(this, style.page)
         setPadding(style.dp(16), style.dp(8), style.dp(16), 0)
         addView(style.text(host.getString(R.string.app_settings_title), TaskProductVisualStyle.section).apply {
             tag = "settings/document/title"
-            protectRoundedBackdropContent(style.surface, style.dp(12), group = pageHeaderBackdrop)
-            setPadding(style.dp(8), style.dp(8), 0, style.dp(16)); androidx.core.view.ViewCompat.setAccessibilityHeading(this,true)
+            protectRoundedBackdropContent(style.surface, style.dp(12), group = headerBackdrop)
+            setPadding(style.dp(8), style.dp(8), 0, style.dp(14))
+            ViewCompat.setAccessibilityHeading(this, true)
         }, LayoutParams(-1, -2))
-        picker.adapter=pickerAdapter
-        picker.minimumHeight = style.dp(48); picker.contentDescription = host.getString(R.string.app_settings_title)
-        addView(picker, LayoutParams(-1, style.dp(48)))
-        columns.addView(index, LayoutParams(style.dp(160), -1))
-        columns.addView(divider, LayoutParams(style.dp(1), -1).apply { marginStart=style.dp(8); marginEnd=style.dp(8) })
-        columns.addView(scroll, LayoutParams(0, -1, 1f)); addView(columns, LayoutParams(-1, 0, 1f))
-        scroll.setOnScrollChangeListener { _, _, _, _, _ ->
-            if (!applying && laidOut && pendingNavigation == null) rememberPosition()
-        }
-        picker.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (!pickerUpdating && laidOut && pendingNavigation == null && position != selected) navigate(sections[position].key)
-            }
-        }
+        compact.protectRoundedBackdropContent(style.surface, style.dp(12), group = headerBackdrop)
+        addView(compact, LayoutParams(-1, -2).apply { bottomMargin = style.dp(12) })
+        indexBody.protectRoundedBackdropContent(style.surface, style.dp(12))
+        panel.addView(ScrollView(host).apply {
+            tag = "settings/document/category-sidebar"
+            isVerticalScrollBarEnabled = false
+            addView(indexBody)
+        }, LayoutParams(style.dp(134), -1))
+        panel.addView(divider, LayoutParams(style.dp(1), -1).apply {
+            marginStart = style.dp(10); marginEnd = style.dp(14)
+        })
+        panel.addView(scroll, LayoutParams(0, -1, 1f))
+        addView(panel, LayoutParams(-1, 0, 1f))
+        scroll.setOnScrollChangeListener { _, _, _, _, _ -> if (!restoring) rememberPosition() }
         viewTreeObserver.addOnGlobalLayoutListener {
-            if (sections.isNotEmpty()) {
-                val requested = pendingNavigation
-                val target = sections.firstOrNull { it.key == (requested ?: anchor) } ?: sections.first()
-                if (!laidOut || restoredWidth != width || requested != null || target.block.top != restoredAnchorTop) {
-                    // A Handler post can run before layout. Resolve the heading only after
-                    // measuring, and preserve it if dynamic controls above it change height.
-                    applying = true
-                    if (requested != null) {
-                        val heading = target.block.getChildAt(0)
-                        heading.requestFocus()
-                        if (host.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isEnabled)
-                            heading.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
-                    }
-                    scroll.scrollTo(0, if (atEnd) maxScroll() else (target.block.top + offset).coerceAtLeast(0))
-                    pendingNavigation = null
-                    applying = false; laidOut = true; restoredWidth = width
-                    rememberPosition()
-                }
+            val position = position()
+            val target = sections[position.anchor] ?: return@addOnGlobalLayoutListener
+            if (!restoring && width == previousWidth && top(target) == resolvedTop) return@addOnGlobalLayoutListener
+            if (!ViewCompat.isLaidOut(scroll) || scroll.height == 0 || target.block.visibility != VISIBLE) return@addOnGlobalLayoutListener
+            restoring = true
+            val focus = requestedHeading?.let(sections::get)?.heading
+            if (focus != null) {
+                focus.requestFocus()
+                if (host.getSystemService(AccessibilityManager::class.java)?.isEnabled == true)
+                    focus.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
             }
+            scroll.scrollTo(0, if (position.end) maxScroll() else (top(target) + position.offset).coerceAtLeast(0))
+            previousWidth = width
+            if (focus != null) requestedHeading = null
+            restoring = false
+            rememberPosition()
         }
+        updateButtons()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val wide = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight >= style.dp(800)
-        index.visibility = if (wide) VISIBLE else GONE; divider.visibility = index.visibility
-        picker.visibility = if (wide) GONE else VISIBLE
+        val usable = ((MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight) /
+            resources.displayMetrics.density).toInt()
+        val rail = SettingsCategory.usesRail(usable)
+        if (wide != rail) {
+            wide = rail
+            indexBody.removeAllViews()
+            for (button in buttons.values) (button.parent as? LinearLayout)?.removeView(button)
+            compact.removeAllViews()
+            compact.visibility = if (rail) GONE else VISIBLE
+            panel.getChildAt(0).visibility = if (rail) VISIBLE else GONE
+            divider.visibility = panel.getChildAt(0).visibility
+            body.setPadding(style.dp(if (rail) 6 else 0), 0, style.dp(if (rail) 8 else 0), style.dp(16))
+            if (rail) {
+                buttons.values.forEachIndexed { i, button ->
+                    button.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                    button.setPaddingRelative(style.dp(9), style.dp(5), style.dp(9), style.dp(5))
+                    indexBody.addView(button, LayoutParams(-1, -2))
+                    if (i != buttons.size - 1) indexBody.addView(hairline(),
+                        LayoutParams(-1, style.dp(1)).apply { topMargin = style.dp(3); bottomMargin = style.dp(3) })
+                }
+            } else {
+                compact.background = style.shape(style.surface, true, 12)
+                buttons.values.chunked(3).forEachIndexed { i, cells ->
+                    if (i > 0) compact.addView(hairline(), LayoutParams(-1, style.dp(1)))
+                    val row = style.row().apply { gravity = Gravity.CENTER_VERTICAL }
+                    compact.addView(row, LayoutParams(-1, -2))
+                    cells.forEachIndexed { j, button ->
+                        // Compound controls can wrap at larger app sizes instead of clipping words.
+                        button.gravity = Gravity.CENTER
+                        button.setPaddingRelative(style.dp(3), style.dp(5), style.dp(3), style.dp(5))
+                        if (j > 0) row.addView(hairline(), LayoutParams(style.dp(1), style.dp(30)))
+                        row.addView(button, LayoutParams(0, -2, 1f))
+                    }
+                }
+            }
+            updateButtons()
+        }
+        if (previousWidth != MeasureSpec.getSize(widthMeasureSpec)) restoring = true
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
+
     fun section(key: String, title: String): LinearLayout {
-        val block = LinearLayout(host).apply {
-            orientation = VERTICAL; tag = "settings/section/$key"; setPadding(0, 0, 0, style.dp(24))
-            protectRoundedBackdropContent(style.surface, style.dp(12), horizontalBounds = body,
-                leaveBottomPaddingVisible = true)
+        val category = requireNotNull(SettingsCategory.forSection(key))
+        check(key !in sections)
+        val block = style.column("settings/section/$key").apply {
+            visibility = if (category == active) VISIBLE else GONE
+            setPadding(style.dp(10), 0, style.dp(10), style.dp(14))
+            protectRoundedBackdropContent(style.surface, style.dp(12), leaveBottomPaddingVisible = true)
         }
         val heading = style.text(title, TaskProductVisualStyle.section, "settings/heading/$key").apply {
-            androidx.core.view.ViewCompat.setAccessibilityHeading(this,true); isFocusable = true; setPadding(0, style.dp(8), 0, style.dp(8))
+            ViewCompat.setAccessibilityHeading(this, true)
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setPadding(0, style.dp(8), 0, style.dp(8))
         }
-        block.addView(heading); body.addView(block, LayoutParams(-1, -2))
-        val button = HoyiUi.button(host, indexBody, title) { navigate(key) }.apply {
-            asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            minimumHeight = style.dp(48); tag = "settings/index/$key"
-            setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(8))
+        block.addView(heading, LayoutParams(-1, -2))
+        body.addView(block, LayoutParams(-1, -2))
+        sections[key] = Section(key, heading, block)
+        return style.column().also { block.addView(it, LayoutParams(-1, -2)) }
+    }
+
+    /** Only structural reparenting at creation, before listeners ever run. */
+    fun arrangeDeviceOverview(): LinearLayout {
+        val devices = sections.getValue("devices").block
+        val scale = sections.getValue("scale").block
+        val at = body.indexOfChild(devices)
+        body.removeView(devices)
+        body.removeView(scale)
+        pairedDevices = SettingsColumns(host, style, devices, scale, org.json.JSONObject(), firstFraction = .5f,
+            minimumFirstWidth = { style.dp(300) }, minimumSecondWidth = { style.dp(250) }).apply {
+            tag = "settings/devices/overview"
+            visibility = if (active == SettingsCategory.DEVICE) VISIBLE else GONE
+            body.addView(this, at, LayoutParams(-1, -2))
         }
-        sections += Section(key, title, block, button)
-        pickerUpdating = true
-        pickerLabels.add(title);pickerAdapter.notifyDataSetChanged()
-        pickerUpdating = false
-        return LinearLayout(host).apply { orientation = VERTICAL; block.addView(this, LayoutParams(-1, -2)) }
+        return style.column("settings/devices/scan-section").apply {
+            setPadding(style.dp(10), 0, style.dp(10), style.dp(12))
+            visibility = if (active == SettingsCategory.DEVICE) VISIBLE else GONE
+            body.addView(this, at + 1, LayoutParams(-1, -2))
+            scanning = this
+        }
     }
-    fun setStatus(key:String,status:String?) {
-        val index=sections.indexOfFirst {it.key==key};if(index<0)return
-        val value=status.orEmpty();if(badges[key]==value)return
-        badges[key]=value
-        val label=sections[index].title+if(value.isEmpty())"" else "\n$value"
-        sections[index].button.text=label
-        pickerLabels[index]=label;pickerAdapter.notifyDataSetChanged()
+
+    fun disclosure(parent: LinearLayout, key: String, title: String): LinearLayout {
+        val header = Button(host).apply {
+            tag = "settings/details/$key/action"
+            style.button(this, outline = true)
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            setPaddingRelative(style.dp(12), style.dp(8), style.dp(12), style.dp(8))
+        }
+        val content = style.column("settings/details/$key/content")
+        fun render() {
+            val expanded = key in disclosureKeys
+            content.visibility = if (expanded) VISIBLE else GONE
+            header.text = title + if (expanded) "  ▾" else "  ›"
+            header.contentDescription = title
+            ViewCompat.setStateDescription(header, host.getString(
+                if (expanded) R.string.settings_category_expanded else R.string.settings_category_collapsed))
+        }
+        header.setOnClickListener {
+            if (!disclosureKeys.add(key)) disclosureKeys.remove(key)
+            render()
+        }
+        style.add(parent, header, 8)
+        style.add(parent, content, 4)
+        render()
+        return content
     }
+
+    fun setStatus(key: String, status: String?) {
+        val normalized = status.orEmpty()
+        if (statuses[key].orEmpty() == normalized) return
+        if (normalized.isEmpty()) statuses.remove(key) else statuses[key] = normalized
+        updateButtons()
+    }
+
     fun navigate(key: String) {
-        if (sections.none { it.key == key }) return
-        anchor = key; offset = 0; atEnd = false
-        pendingNavigation = key
-        // The next layout, not a posted read of stale coordinates, owns this navigation.
+        val category = SettingsCategory.forSection(key) ?: return
+        if (key !in sections) return
+        if (!restoring) rememberPosition()
+        positions[category] = Position(key)
+        requestedHeading = key
+        show(category)
+    }
+
+    private fun select(category: SettingsCategory) {
+        if (active == category) return
+        if (!restoring) rememberPosition()
+        requestedHeading = null
+        show(category)
+    }
+
+    private fun show(category: SettingsCategory) {
+        // No control/listener (or typed draft) is reconstructed when the index changes.
+        findFocus()?.takeIf { focused -> sections.values.any { it.block.hasFocus() && it.block.findFocus() === focused } }
+            ?.clearFocus()
+        active = category
+        pairedDevices?.visibility = if (category == SettingsCategory.DEVICE) VISIBLE else GONE
+        scanning?.visibility = if (category == SettingsCategory.DEVICE) VISIBLE else GONE
+        restoring = true
+        sections.values.forEach { it.block.visibility = if (it.key in category.sections) VISIBLE else GONE }
+        updateButtons()
         requestLayout()
     }
-    private fun maxScroll() = (body.height - scroll.height).coerceAtLeast(0)
-    private fun rememberPosition() {
-        if (sections.isEmpty()) return
-        atEnd = maxScroll() > 0 && scroll.scrollY >= maxScroll() - 2
-        val active = if (atEnd) sections.lastIndex else sections.indexOfLast { it.block.top <= scroll.scrollY + style.dp(12) }.coerceAtLeast(0)
-        anchor = sections[active].key; offset = scroll.scrollY - sections[active].block.top
-        restoredAnchorTop = sections[active].block.top
-        if (active != selected) {
-            selected = active
-            sections.forEachIndexed { i, section ->
-                section.button.isSelected = i == active
-                section.button.setTextColor(if (i == active) style.accent else style.muted)
-                section.button.background = if (i == active) style.shape(style.selected) else null
+
+    private fun updateButtons() {
+        buttons.forEach { (category, button) ->
+            val selected = category == active
+            val ink = if (selected) style.accent else style.ink
+            button.isSelected = selected
+            button.setTextColor(ink)
+            val icon = host.getDrawable(icon(category))?.mutate()?.apply {
+                setTint(ink)
+                val side = style.dp(if (wide == true) 20 else 16)
+                setBounds(0, 0, side, side)
             }
-            pickerUpdating = true; picker.setSelection(active, false); pickerUpdating = false
+            val badges = category.sections.mapNotNull(statuses::get).distinct()
+            val status = if (badges.isEmpty()) null else GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(style.accent)
+                setBounds(0, 0, style.dp(5), style.dp(5))
+            }
+            button.setCompoundDrawablesRelative(icon, null, status, null)
+            button.compoundDrawablePadding = style.dp(if (wide == true) 8 else 4)
+            button.background = RippleDrawable(ColorStateList.valueOf(style.selected),
+                if (selected) style.shape(style.selected, radius = 8) else null,
+                style.shape(Color.WHITE, radius = 8))
+            button.contentDescription = (listOf(button.text.toString()) + badges).joinToString(" · ")
         }
     }
+
+    private fun hairline() = View(host).apply {
+        setBackgroundColor(style.border)
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+    private fun label(category: SettingsCategory): Int = when (category) {
+        SettingsCategory.DEVICE -> R.string.settings_category_device
+        SettingsCategory.MACHINE -> R.string.settings_category_machine
+        SettingsCategory.BREWING -> R.string.settings_category_brewing
+        SettingsCategory.APPEARANCE -> R.string.settings_category_appearance
+        SettingsCategory.AI -> R.string.settings_category_ai
+        SettingsCategory.MAINTENANCE -> R.string.settings_category_maintenance
+    }
+    private fun icon(category: SettingsCategory): Int = when (category) {
+        SettingsCategory.DEVICE -> R.drawable.nav_scale
+        SettingsCategory.MACHINE -> R.drawable.nav_home
+        SettingsCategory.BREWING -> R.drawable.nav_extraction
+        SettingsCategory.APPEARANCE -> R.drawable.settings_category_appearance
+        SettingsCategory.AI -> R.drawable.settings_category_ai
+        SettingsCategory.MAINTENANCE -> R.drawable.settings_category_maintenance
+    }
+    private fun position(): Position = positions[active] ?: Position(active.sections.first())
+    private fun top(section: Section): Int = Rect(0, 0, 1, 1).also {
+        body.offsetDescendantRectToMyCoords(section.block, it)
+    }.top
+    private fun maxScroll() = (body.height - scroll.height).coerceAtLeast(0)
+    private fun rememberPosition() {
+        val candidates = active.sections.mapNotNull(sections::get)
+        if (candidates.isEmpty()) return
+        val end = maxScroll() > 0 && scroll.scrollY >= maxScroll() - 2
+        val current = candidates.filter { top(it) <= scroll.scrollY + style.dp(12) }.maxByOrNull(::top)
+            ?: candidates.first()
+        val top = top(current)
+        positions[active] = Position(current.key, scroll.scrollY - top, end)
+        resolvedTop = top
+    }
     fun save(state: Bundle) {
-        if (laidOut && pendingNavigation == null) rememberPosition()
-        state.putString("settings.anchor", anchor); state.putInt("settings.offset", offset); state.putBoolean("settings.atEnd", atEnd)
+        if (!restoring) rememberPosition()
+        state.putString("settings.category", active.key)
+        state.putString("settings.requested", requestedHeading)
+        state.putStringArrayList("settings.disclosures", ArrayList(disclosureKeys))
+        positions.forEach { (category, position) ->
+            state.putBundle("settings.category.${category.key}", Bundle().apply {
+                putString("anchor", position.anchor)
+                putInt("offset", position.offset)
+                putBoolean("end", position.end)
+            })
+        }
     }
 }

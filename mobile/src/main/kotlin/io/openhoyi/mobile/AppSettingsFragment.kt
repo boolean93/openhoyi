@@ -127,21 +127,22 @@ class AppSettingsFragment : Fragment() {
         val visual = SettingsVisualStyle(activity)
         val style = visual.palette
         val root = SettingsDocumentLayout(activity, state ?: documentState).also { document=it }
-        style.action(root.body, getString(R.string.ai_title), "settings/ai-assistant", top = 0) {
+        val ai = root.section("ai", getString(R.string.ai_title))
+        style.add(ai, style.text(getString(R.string.settings_category_ai_hint),
+            TaskProductVisualStyle.auxiliary, secondary = true), 4)
+        style.action(ai, getString(R.string.ai_title), "settings/ai-assistant", top = 0) {
             activity.startActivity(Intent(activity, AiChatActivity::class.java))
         }.apply {
             asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            protectRoundedBackdropContent(style.surface, style.dp(12), group = root.shortcutsBackdrop,
-                horizontalBounds = root.body)
+            protectRoundedBackdropContent(style.surface, style.dp(12))
         }
         if (BuildConfig.MOCK_MODE) {
-            style.action(root.body, getString(R.string.ai_preview_title), "settings/ai-chat-preview", top = 8) {
+            style.action(ai, getString(R.string.ai_preview_title), "settings/ai-chat-preview", top = 8) {
                 // Mock-only fixed destination. No Key, service, or live chat route is opened.
                 activity.startActivity(Intent().setClassName(activity, "io.openhoyi.mobile.AiChatPreviewActivity"))
             }.apply {
                 asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                protectRoundedBackdropContent(style.surface, style.dp(12), group = root.shortcutsBackdrop,
-                    horizontalBounds = root.body)
+                protectRoundedBackdropContent(style.surface, style.dp(12))
             }
         }
         val sections = linkedMapOf(
@@ -153,20 +154,25 @@ class AppSettingsFragment : Fragment() {
             "chart" to root.section("chart", getString(R.string.fixed_chart_section)),
             "appearance" to root.section("appearance", getString(R.string.settings_appearance_language)),
             "feedback" to root.section("feedback", getString(R.string.settings_section_feedback)),
-            "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)),
-            "about" to root.section("about", getString(R.string.settings_section_about)))
+            "about" to root.section("about", getString(R.string.settings_category_update)),
+            "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)))
+        val scanSection = root.arrangeDeviceOverview()
+        val diagnostics = sections.getValue("maintenance")
+        val cupDetails = root.disclosure(diagnostics, "cups", getString(R.string.machine_settings_cups_title))
+        val maintenanceDetails = root.disclosure(diagnostics, "maintenance", getString(R.string.settings_category_diagnostics))
+
         deviceControls = SettingsDeviceControls(activity, visual, { permissions.launch(it) }, {
             bluetooth.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))
         }).also { controls ->
             controls.errorChanged={ failed->document?.setStatus("devices",if(failed)getString(R.string.settings_state_unknown) else null) }
-            controls.create(sections.getValue("devices"))
+            controls.create(sections.getValue("devices"), scanSection)
         }
         machineState = state?.getBundle("machineControls") ?: machineState
         val machine = sections.getValue("machine")
         val machineSummary=style.text("",TaskProductVisualStyle.auxiliary,"settings-machine-summary",true).also {style.add(machine,it,8)}
         machineControls=MachineSettingsControls(activity).also {
             it.statusChanged={ value->if(machineSummary.text.toString()!=value)machineSummary.text=value }
-            it.create(machine,machineState,embedded=true,documentSections=sections)
+            it.create(machine,machineState,embedded=true,documentSections=sections + ("maintenance" to cupDetails))
         }
         val scale=sections.getValue("scale")
         scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),TaskProductVisualStyle.auxiliary,secondary=true)
@@ -178,13 +184,14 @@ class AppSettingsFragment : Fragment() {
             tag = "product/settings/scale/precision"
             setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("one_decimal", checked).apply() }
         })
-        scaleCapabilities?.let { scale.addView(it) }
-        style.add(scale, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
+        val scaleDetails = root.disclosure(scale, "scale", getString(R.string.settings_category_scale_capabilities))
+        scaleCapabilities?.let { style.add(scaleDetails, it) }
+        style.add(scaleDetails, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, scale, getString(R.string.scale_title)) { activity.openScaleFromSettings() }
         listOf(R.string.scale_timer_title to R.string.scale_timer_help, R.string.scale_operation_limits to R.string.scale_active_guard,
             R.string.scale_protocol_support to R.string.scale_offline_evidence).forEach { (title, detail) ->
-            style.add(scale,style.text(getString(title),TaskProductVisualStyle.action),16)
-            style.add(scale,style.text(getString(detail),TaskProductVisualStyle.auxiliary,secondary=true),8)
+            style.add(scaleDetails,style.text(getString(title),TaskProductVisualStyle.action),16)
+            style.add(scaleDetails,style.text(getString(detail),TaskProductVisualStyle.auxiliary,secondary=true),8)
         }
         val shortcutSection = sections.getValue("shortcuts")
         val shortcutPreferences = ShortcutStartPreferences(activity)
@@ -231,18 +238,24 @@ class AppSettingsFragment : Fragment() {
         appearanceCard = AppThemePreferencesCard(activity, theme, visual) { activity.recreate() }
         addBackgroundSettingsRow(activity, theme, visual)
         settingsDivider(activity, theme, visual)
-        languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
+        val language = style.column()
+        val type = style.column()
+        style.add(theme, SettingsColumns(activity, style, language, type, org.json.JSONObject(), firstFraction = .5f,
+            minimumFirstWidth = { style.dp(235) }, minimumSecondWidth = { style.dp(235) }))
+        languageCard = AppLanguagePreferencesCard(activity, language, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
-        fontSizeCard = AppFontSizePreferencesCard(activity, theme, visual) { activity.recreate() }
+        fontSizeCard = AppFontSizePreferencesCard(activity, type, visual) { activity.recreate() }
         feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual)
         val info = sections.getValue("about")
-        // Keep identity, link and updates in one aligned surface rather than floating blocks.
+        // Update controls remain immediately reachable from the existing about deep link.
         val aboutCard = style.column("product/settings/app/about/card").apply {
             setPadding(style.dp(16), style.dp(12), style.dp(16), style.dp(12))
             background = style.shape(style.surface, true, 16)
         }
         style.add(info, aboutCard, 4)
+        updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
+        val aboutDetails = root.disclosure(info, "about", getString(R.string.settings_section_about))
         val name = style.text(getString(R.string.app_name), TaskProductVisualStyle.section,
             "product/settings/app/info/name/value")
         val website = style.button(Button(activity)).apply {
@@ -258,8 +271,8 @@ class AppSettingsFragment : Fragment() {
                 }
             }
         }
-        style.add(aboutCard, visual.pair(name, website, "product/settings/app/about/identity"))
-        style.action(aboutCard, getString(R.string.settings_curve_import_guide),
+        style.add(aboutDetails, visual.pair(name, website, "product/settings/app/about/identity"))
+        style.action(aboutDetails, getString(R.string.settings_curve_import_guide),
             "product/settings/app/curve-import-guide", top = 0) {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(CURVE_IMPORT_GUIDE_URL)))
@@ -267,9 +280,6 @@ class AppSettingsFragment : Fragment() {
                 android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
             }
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
-        visual.divider(aboutCard)
-        updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
-        val diagnostics = sections.getValue("maintenance")
         diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/diagnostic-state",secondary=true).also {style.add(diagnostics,it,16)}
         style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, diagnostics, getString(R.string.app_settings_export)) {
@@ -280,8 +290,8 @@ class AppSettingsFragment : Fragment() {
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }.also { style.add(diagnostics, it, 8) }
-        diagnosticStorageCard = DiagnosticStorageCard(activity, diagnostics, visual)
-        deviceControls?.addShutdown(diagnostics)
+        diagnosticStorageCard = DiagnosticStorageCard(activity, maintenanceDetails, visual)
+        deviceControls?.addShutdown(maintenanceDetails)
         pendingSection?.let { root.navigate(it); pendingSection=null }
         return root
     }
