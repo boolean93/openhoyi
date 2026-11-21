@@ -276,7 +276,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             val switch = sleepScheduleButton.parent as SettingsObservedSwitch
             sleepCard.removeView(switch)
             val toggleRow = visual.pair(style.text(getString(R.string.settings_category_weekly_active),
-                TaskProductVisualStyle.Type(16, 600, 24)), switch, "settings/machine/weekly-enabled", gapDp = 12)
+                TaskProductVisualStyle.Type(16, 550, 24)), switch, "settings/machine/weekly-enabled", gapDp = 12)
             val allDays = action(sleepCard, getString(R.string.machine_settings_schedule_every_day)) {
                 editScheduleDay(null, getString(R.string.machine_settings_schedule_every_day))
             }.apply {
@@ -352,7 +352,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             controls.getChildAt(controls.childCount-1).visibility = View.GONE
             listOf(controls, functionsCard, standbyCard, sleepCard).forEach { it.markSettingsGroupMaterial(style) }
             controls.tag = "settings/machine/temperature-card"
-            style.apply(functionsCard.getChildAt(0) as TextView, TaskProductVisualStyle.Type(18, 650, 26))
+            style.apply(functionsCard.getChildAt(0) as TextView, TaskProductVisualStyle.Type(18, 700, 26))
             controls.getChildAt(0).visibility = View.GONE // The page heading already names this group.
             val grouped = temperatureRows.take(3)
             val temperatureGrid = style.column("settings/machine/temperature-grid")
@@ -411,7 +411,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     R.string.machine_settings_run_mode_label -> R.string.settings_hig_run_short
                     else -> label
                 }
-                val row = visual.pair(style.text(getString(caption),TaskProductVisualStyle.Type(16, 600, 24)), control,
+                val row = visual.pair(style.text(getString(caption),TaskProductVisualStyle.Type(16, 550, 24)), control,
                     "settings/machine/function/$label", gapDp = if (button is HoyiSwitch) 6 else 8)
                 row.setPadding(0, 0, 0, 0)
                 (if (button is HoyiSwitch) functionGrid else choiceGrid).addView(row)
@@ -877,7 +877,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 else -> labels[index]
             } else labels[index])
             label.setPadding(0,0,0,0)
-            visual.palette.apply(label,if(documentMode)TaskProductVisualStyle.Type(16, 600, 24) else TaskProductVisualStyle.body)
+            visual.palette.apply(label,if(documentMode)TaskProductVisualStyle.Type(16, 550, 24) else TaskProductVisualStyle.body)
             val words=visual.palette.column()
             visual.palette.add(words,label)
             if (!documentMode) {

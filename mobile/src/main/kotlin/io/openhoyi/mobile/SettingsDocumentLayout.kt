@@ -221,7 +221,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     fun machineStatus(status: TextView) {
         val section = sections.getValue("machine")
         section.block.removeView(section.heading)
-        style.apply(section.heading as TextView, TaskProductVisualStyle.Type(22, 650, 32))
+        style.apply(section.heading as TextView, TaskProductVisualStyle.Type(22, 700, 32))
         val row = SettingsVisualStyle(host).pair(section.heading, status, "settings/machine/header", gapDp = 12)
         section.block.addView(row, 0, LayoutParams(-1, -2))
     }
@@ -233,7 +233,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         content.removeView(toggle)
         section.block.removeView(heading)
         heading.text = host.getString(label)
-        style.apply(heading, TaskProductVisualStyle.Type(16, 650, 24))
+        style.apply(heading, TaskProductVisualStyle.Type(16, 550, 24))
         heading.setPadding(0, 0, 0, 0)
         val words = style.column().apply {
             addView(heading, LayoutParams(-1, -2))
@@ -270,7 +270,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             else {
                 if (brew.parent == null) {
                     brewingChapter = style.text(host.getString(R.string.settings_category_brewing),
-                        TaskProductVisualStyle.Type(22, 650, 32), "settings/brewing/title").apply {
+                        TaskProductVisualStyle.Type(22, 700, 32), "settings/brewing/title").apply {
                         setPadding(style.dp(10), style.dp(8), style.dp(10), style.dp(8))
                         ViewCompat.setAccessibilityHeading(this, true)
                         body.addView(this, LayoutParams(-1, -2))
