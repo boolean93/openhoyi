@@ -54,6 +54,9 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
         val shortcutDirect = shortcutPrefs.all["direct_start"] as? Boolean
         val selected = curvePrefs.getString("selected", null)
         val stored = slotPrefs.getString(PresetSlots.key(4), null)
+        val fifthKey = PresetSlots.key(5)
+        val priorFifth = slotPrefs.getString(fifthKey, null)
+        val fifthBinding = "factory-v3-005"
         val oldHistory = app.history.entries
         val file = File(context.filesDir, "custom_curves_v1.json")
         val originalBytes = if (file.exists()) file.readBytes() else null
@@ -73,6 +76,7 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
         }
         try {
             check(shortcutPrefs.edit().putBoolean("direct_start", false).commit())
+            check(slotPrefs.edit().putString(fifthKey, fifthBinding).commit())
             main { put(document) }
             val page = MainPageTestHost.launch(test, timeoutMs = 15000)
             val host = page.activity; activity = host
@@ -93,8 +97,26 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
             }
             await("direct slot action") { page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot")?.isShown == true }
             main { check(page.active("root:CURVES").requireView().findViewWithTag<View>("curve-assign-slot").performClick()) }
-            clickWindowText(host.getString(R.string.home_slot, "D"))
+            val choices = listOf("A", "B", "C", "D").map { host.getString(R.string.home_slot, it) }
+            val until = SystemClock.elapsedRealtime() + 10000
+            while (true) {
+                val window = test.uiAutomation.rootInActiveWindow
+                if (window?.packageName?.toString() == context.packageName && choices.all { label ->
+                    window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
+                }) {
+                    check(listOf("E", "5").none { suffix ->
+                        val label = host.getString(R.string.home_slot, suffix)
+                        window.findAccessibilityNodeInfosByText(label).any { it.text?.toString() == label && it.isVisibleToUser }
+                    })
+                    break
+                }
+                check(SystemClock.elapsedRealtime() < until) { "Main curve picker did not show A–D" }
+                SystemClock.sleep(40)
+            }
+            capture("assignment-ad")
+            clickWindowText(choices.last())
             await("assignment") { slotPrefs.getString(PresetSlots.key(4), null)?.substringBefore("#") == document.id }
+            check(slotPrefs.getString(fifthKey, null) == fifthBinding)
             check(curvePrefs.getString("selected", null) == selected)
             noShot()
             page.select(TaskDestination.BREW)
@@ -142,7 +164,11 @@ internal class CustomShortcutWindowChecks(private val test: Instrumentation) {
                     if (shortcutDirect == null) remove("direct_start") else putBoolean("direct_start", shortcutDirect)
                 }.commit())
                 check(curvePrefs.edit().apply { if (selected == null) remove("selected") else putString("selected", selected) }.commit())
-                check(slotPrefs.edit().apply { if (stored == null) remove(PresetSlots.key(4)) else putString(PresetSlots.key(4), stored) }.commit())
+                check(slotPrefs.edit().apply {
+                    if (stored == null) remove(PresetSlots.key(4)) else putString(PresetSlots.key(4), stored)
+                    if (priorFifth == null) remove(fifthKey) else putString(fifthKey, priorFifth)
+                }.commit())
+                check(slotPrefs.getString(fifthKey, null) == priorFifth)
                 check(curvePrefs.getString("selected", null) == selected)
                 check(slotPrefs.getString(PresetSlots.key(4), null) == stored)
                 check(if (originalBytes == null) !file.exists() else file.readBytes().contentEquals(originalBytes))

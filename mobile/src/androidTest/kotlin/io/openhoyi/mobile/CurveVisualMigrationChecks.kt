@@ -1587,6 +1587,10 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("allowedKeys",JSONArray((1..5).map(PresetSlots::key))).put("visualAcceptance","ASTRA_PENDING")
         var activity:Activity?=null; var primary:Throwable?=null
         try {
+            val fifthKey = PresetSlots.key(5)
+            val fifthBinding = "factory-v3-005"
+            check(prefs.edit().putString(fifthKey, fifthBinding).commit())
+            report.put("fifthBindingSeed", fifthBinding)
             val page=start(CurveActivity::class.java); activity=page; unfocus(page)
             librarySelect(page,scope,qualified)
             for(slot in 1..4) {
@@ -1694,6 +1698,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 val step=File(folder,"slot-$slot")
                 val captured=libraryCapture(page,step) {
                     libraryDisclosureState(page,qualified,scope,expectedAssignedSlot=slot) }
+                check(prefs.getString(fifthKey, null) == fifthBinding && diskPresetString(fifthKey) == fifthBinding)
                 val feedback=captured.getJSONObject("libraryDisclosure")
                 report.getJSONArray("steps").put(JSONObject().put("slot",slot).put("menu",JSONArray(menu))
                     .put("menuNodes",menuNodes)

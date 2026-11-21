@@ -464,6 +464,7 @@ def require_library_special(folder):
         assert step['menu']==step['menuNodes']['localizedAdapterChoices']
         assert step['menuNodes']['visibleNodes'] and step['menuNodes']['noIndependentWindowProtocolClaim']
         assert after[key]=={'type':'String','value':preset['qualifiedId']}
+        assert before['slot_5']==after['slot_5']=={'type':'String','value':preset['fifthBindingSeed']}
         assert {k:v for k,v in before.items() if k!=key}=={k:v for k,v in after.items() if k!=key}
         assert step['actualStoredId']==preset['qualifiedId']
     assert [item['case'] for item in preset['negative']]==['custom-pressure','readonly-flow']
@@ -530,3 +531,21 @@ assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in (
     'visualAcceptance':'ASTRA_PENDING','specimenImagesUsedAsProductEvidence':False},indent=2)+'\n')
 print('CURVE_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING libraryVisualCasesPerProfile=5 libraryBusinessCasesPerProfile=2')
 VERIFY_PY
+
+
+# The M3 matrix above targets standalone CurveActivity. Exercise the actual
+# MainActivity CurveFragment assignment separately on the same disposable AVD.
+adb shell am force-stop "$package"
+python3 - "$output_dir/main-curve-shortcut.txt" <<'MAIN_SHORTCUT_PY'
+from pathlib import Path
+import subprocess, sys
+path = Path(sys.argv[1])
+with path.open('w') as receipt:
+    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-e',
+        'customShortcutChecks', 'true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=receipt, stderr=subprocess.STDOUT, timeout=120)
+if result.returncode != 0 or 'CUSTOM_SHORTCUT_WINDOW_PASSED' not in path.read_text():
+    raise SystemExit(f'Main curve shortcut check failed: {path}')
+MAIN_SHORTCUT_PY
+adb pull "/sdcard/Android/data/$package/files/custom-shortcut-checks" "$output_dir/"
