@@ -638,6 +638,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     override fun onPause() {
         feedbackUi.leave(host.isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
+        boilerDials.forEach(BoilerTemperatureDial::suspendMotion)
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
         deviceDialog?.dismiss()
         presetDialog?.dismiss()

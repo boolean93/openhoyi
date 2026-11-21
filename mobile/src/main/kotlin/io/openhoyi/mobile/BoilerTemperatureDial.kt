@@ -133,12 +133,16 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         invalidate()
     }
 
-    override fun onDetachedFromWindow() {
+    fun suspendMotion() {
         warming?.cancel()
         warming = null
         lastSession = null
-        // Reattaching must start with the last actual sample, never the interrupted value.
+        // Restart from actual after a page pause or a reattach, never from a stale ramp.
         renderTemperature(lastReceivedTemperature)
+    }
+
+    override fun onDetachedFromWindow() {
+        suspendMotion()
         super.onDetachedFromWindow()
     }
 

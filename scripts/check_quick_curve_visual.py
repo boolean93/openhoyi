@@ -120,6 +120,7 @@ def capture_boiler_warmup(adb, executable, output, receipt):
                 "Actual Home warmup failed; see recorded MP4 and instrumentation log")
         proof = json.loads(adb("exec-out", "run-as", APP, "cat", "files/boiler-warmup.json"))
         require(proof["path"] == "real_home_guarded_mock_idle_telemetry" and proof["coolingSnaps"] and proof["retargetAndReset"] and
+                proof["sameViewResumeSnaps"] and
                 len(proof["samples"]) == 6 and proof["samples"][-1]["actual"] == proof["targets"],
                 "Missing actual Home warmup evidence")
         (output / "boiler-warmup.json").write_text(json.dumps(proof, indent=2) + "\n")

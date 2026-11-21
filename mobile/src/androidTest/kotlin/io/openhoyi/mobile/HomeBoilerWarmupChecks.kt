@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.lifecycle.Lifecycle
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.session.DeviceState
@@ -97,20 +98,35 @@ internal class HomeBoilerWarmupChecks(private val test: Instrumentation) {
                 SystemClock.sleep(if (index == 0 || index == steps.lastIndex) 850 else 380)
             }
             // After the recorded rising sequence, cooling must snap to actual rather than invent a downward ramp.
+            fun verifySnap(before: List<Float>, after: List<Float>, label: String) {
+                val snapUntil = SystemClock.elapsedRealtime() + 1800
+                while (true) {
+                    val shown = read()
+                    check(shown.indices.all { shown[it] == before[it] || shown[it] == after[it] }) { "$label animated: $shown" }
+                    if (shown == after) break
+                    check(SystemClock.elapsedRealtime() < snapUntil)
+                    SystemClock.sleep(9)
+                }
+            }
             val cool = targets.map { it - 2f }
             offer(cool[0], cool[1])
-            val snapUntil = SystemClock.elapsedRealtime() + 1800
-            while (true) {
-                val shown = read()
-                check(shown.indices.all { shown[it] == targets[it] || shown[it] == cool[it] }) { "Cooling animated: $shown" }
-                if (shown == cool) break
-                check(SystemClock.elapsedRealtime() < snapUntil)
-                SystemClock.sleep(9)
+            verifySnap(targets, cool, "Cooling")
+            // A covered/pause-only Activity can keep both Views attached to the same connection.
+            val fragment = main { host.active("root:BREW") }
+            fun lifecycle(state: Lifecycle.State) = main {
+                host.activity.supportFragmentManager.beginTransaction().setMaxLifecycle(fragment, state).commitNow()
+                check(temperatures.all { it.isAttachedToWindow })
             }
+            lifecycle(Lifecycle.State.STARTED)
+            offer(targets[0], targets[1])
+            SystemClock.sleep(320)
+            check(read() == cool) { "Paused Home must not process a new readout" }
+            lifecycle(Lifecycle.State.RESUMED)
+            verifySnap(cool, targets, "Same-View resume")
             verifyAttachedRetarget(host.activity)
             check(main { coffee.shotState == ExtractionState.IDLE && app.history.entries.isEmpty() })
             out.writeText(JSONObject().put("path", "real_home_guarded_mock_idle_telemetry")
-                .put("targets", JSONArray(targets)).put("samples", evidence).put("coolingSnaps", true).put("retargetAndReset", true)
+                .put("targets", JSONArray(targets)).put("samples", evidence).put("coolingSnaps", true).put("retargetAndReset", true).put("sameViewResumeSnaps", true)
                 .put("noPhysicalDevice", true).toString(2) + "\n")
         } finally {
             main {
