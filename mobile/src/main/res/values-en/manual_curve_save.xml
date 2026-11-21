@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manual_curve_save_changes">Save</string>
+    <string name="manual_curve_save_copy">Save as</string>
+    <string name="manual_curve_stale">This curve changed or the edit expired. Reopen it before making changes.</string>
+    <string name="manual_curve_in_use">This curve is in use. Save changes after it finishes.</string>
+</resources>

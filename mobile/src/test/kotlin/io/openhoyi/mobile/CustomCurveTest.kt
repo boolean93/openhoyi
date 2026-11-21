@@ -13,6 +13,60 @@ class CustomCurveTest {
     private fun doc(id: String = "draft-00000000-0000-0000-0000-000000000001") = CustomCurveDocument(id, "My curve", 93, 3600,
         CustomCurveDocument.ControlMode.PRESSURE, listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
     private fun rejects(block: () -> Unit) = assertTrue(runCatching(block).isFailure)
+    @Test fun manualSaveUpdatesSameIdAndPreservesAssignedSlots() {
+        val disk = Store()
+        val store = CustomCurveStore(disk)
+        val original = doc()
+        store.save(original)
+        val bindings = (1..4).associateWith { PresetSlots.bind(original.id) }
+        val baseline = requireNotNull(store.manualEditSnapshot(original.id))
+        val edited = original.copy(name = "Edited in place")
+        store.save(doc(CustomCurveDocument.newId())) // Another curve must not invalidate this edit.
+        assertEquals(CustomCurveStore.ManualSave.SAVED, store.saveManualEdit(edited, baseline))
+        assertEquals(edited, CustomCurveStore(disk).find(original.id))
+        assertEquals(2, store.list().size)
+        bindings.forEach { (slot, binding) ->
+            assertEquals(original.id, PresetSlots.curveId(slot, store.presetBinding(slot, binding)))
+        }
+    }
+
+    @Test fun manualSaveRejectsActiveStaleAndRestoredSourcesWithoutWriting() {
+        val disk = Store()
+        val store = CustomCurveStore(disk)
+        val original = doc()
+        store.save(original)
+        val baseline = requireNotNull(store.manualEditSnapshot(original.id))
+        val edited = original.copy(name = "Changed")
+        val bytes = disk.value
+        assertEquals(CustomCurveStore.ManualSave.IN_USE, store.saveManualEdit(edited, baseline) { false })
+        assertEquals(bytes, disk.value)
+        rejects { store.saveManualEdit(edited.copy(id = CustomCurveDocument.newId()), baseline) }
+        assertEquals(CustomCurveStore.ManualSave.STALE, CustomCurveStore(disk).saveManualEdit(edited, baseline))
+        store.save(edited)
+        store.save(original)
+        assertEquals(CustomCurveStore.ManualSave.STALE, store.saveManualEdit(edited, baseline))
+        val beforeDelete = requireNotNull(store.manualEditSnapshot(original.id))
+        val deletion = store.delete(original.id, emptyMap())
+        assertEquals(CustomCurveStore.ManualSave.STALE, store.saveManualEdit(edited, beforeDelete))
+        assertTrue(store.undo(deletion))
+        assertEquals(CustomCurveStore.ManualSave.STALE, store.saveManualEdit(edited, beforeDelete))
+        assertEquals(original, store.find(original.id))
+    }
+
+    @Test fun failedManualSaveCanRetryWithoutChangingRevisionOrDocument() {
+        val disk = Store()
+        val store = CustomCurveStore(disk)
+        val original = doc()
+        store.save(original)
+        val baseline = requireNotNull(store.manualEditSnapshot(original.id))
+        val edited = original.copy(name = "Changed")
+        disk.fail = true
+        rejects { store.saveManualEdit(edited, baseline) }
+        assertEquals(original, store.find(original.id))
+        disk.fail = false
+        assertEquals(CustomCurveStore.ManualSave.SAVED, store.saveManualEdit(edited, baseline))
+    }
+
     @Test fun documentRoundTripContainsOnlyParametersAndVersionsAreStrict() {
         val document = doc()
         val json = document.encode()

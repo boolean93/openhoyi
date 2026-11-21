@@ -124,22 +124,45 @@ internal class CurveEditorBChecks(private val test: Instrumentation) {
             val originalDoc = created.single()
             val binding = PresetSlots.bind(originalDoc.id)
             check(presets.edit().putString(PresetSlots.key(1), binding).commit())
-            val copyEditor = start(originalDoc.id)
+            val existingEditor = start(originalDoc.id)
             main {
-                check((tag(copyEditor, "save") as TextView).text == copyEditor.getString(R.string.curve_editor_save_copy))
+                check((tag(existingEditor, "save") as TextView).text == existingEditor.getString(R.string.manual_curve_save_changes))
+                field(existingEditor, "name").setText("Editor B same curve")
+                tag(existingEditor, "save").performClick(); tag(existingEditor, "save").performClick()
+            }
+            await("existing curve saved in place") { existingEditor.isDestroyed }
+            val updated = requireNotNull(store.find(originalDoc.id))
+            check(updated.name == "Editor B same curve" && store.list().size == original.size + 1)
+            check(presets.getString(PresetSlots.key(1), null) == binding)
+            check(PresetSlots.curveId(1, binding) == originalDoc.id)
+
+            val staleEditor = start(originalDoc.id)
+            val newer = updated.copy(name = "Updated elsewhere")
+            main {
+                store.save(newer, updated)
+                field(staleEditor, "name").setText("Must not overwrite")
+                tag(staleEditor, "save").performClick()
+                check(!staleEditor.isFinishing && !tag(staleEditor, "save").isEnabled)
+                staleEditor.finish()
+            }
+            await("stale editor closed") { staleEditor.isDestroyed }
+            check(store.find(originalDoc.id) == newer && store.list().size == original.size + 1)
+
+            val factory = app.curves.items.first { it.factoryCurve != null }
+            val copyEditor = start(factory.id)
+            main {
+                check((tag(copyEditor, "save") as TextView).text == copyEditor.getString(R.string.manual_curve_save_copy))
                 field(copyEditor, "name").setText("Editor B new copy")
                 tag(copyEditor, "save").performClick(); tag(copyEditor, "save").performClick()
             }
-            await("copy saved") { copyEditor.isDestroyed }
+            await("factory copy saved") { copyEditor.isDestroyed }
             val copies = store.list().filter { it.id !in ids && original.none { old -> old.id == it.id } }
-            check(copies.size == 1 && copies.single().id != originalDoc.id); ids += copies.single().id
-            check(store.find(originalDoc.id) == originalDoc)
-            check(presets.getString(PresetSlots.key(1), null) == binding)
-            check(PresetSlots.curveId(1, binding) == originalDoc.id)
+            check(copies.size == 1 && copies.single().id != factory.id); ids += copies.single().id
+            check(app.curves.find(factory.id) == factory && store.find(originalDoc.id) == newer)
             val cancel = start(originalDoc.id)
             main { field(cancel, "name").setText("Cancelled change"); tag(cancel, "cancel").performClick() }
             await("cancelled") { cancel.isDestroyed }
-            check(store.find(originalDoc.id) == originalDoc)
+            check(store.find(originalDoc.id) == newer)
             check(store.list().filter { it.id !in ids } == original)
             check(context.getSharedPreferences("curves", Context.MODE_PRIVATE).all == selected)
             check(app.history.entries == history)

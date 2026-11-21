@@ -19,6 +19,7 @@ class CurveEditorActivity : ThemedActivity() {
     private var pressureLogic = false
     private var pressureBeforeFlow = false
     private var modeSwitchTouched = false
+    private var manualEdit: CustomCurveStore.ManualEdit? = null
     private var sourceDocument: CustomCurveDocument? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,12 +33,26 @@ class CurveEditorActivity : ThemedActivity() {
         aiDraftKind = aiDraft?.card?.kind ?: savedInstanceState?.getString("aiDraftKind")?.let { runCatching { AiCurveCard.Kind.valueOf(it) }.getOrNull() }
         val sourceId = if (aiRequested) aiDraft?.card?.before?.id else intent.getStringExtra(CURVE_ID)
         draftId = savedInstanceState?.getString("draftId") ?: draftId
-        val source = savedInstanceState?.getString("sourceDocument")?.let { runCatching { CustomCurveDocument.decode(it) }.getOrNull() }
-            ?: aiDraft?.seed ?: if (aiRequested) null else if (sourceId == null) CustomCurveDocument(draftId, getString(R.string.profiles_default_name), 93, 3600,
-            CustomCurveDocument.ControlMode.PRESSURE, listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
-        else runCatching {
-            store.find(sourceId) ?: (application as MobileApplication).curves.find(sourceId)?.let { CustomCurveDocument.fromLibraryItem(it, draftId) }
-        }.getOrNull()
+        val restoredSource = savedInstanceState?.getString("sourceDocument")?.let {
+            runCatching { CustomCurveDocument.decode(it) }.getOrNull()
+        }
+        val localSource = !aiRequested && sourceId?.startsWith("draft-") == true
+        if (localSource && sourceId != null) {
+            manualEdit = if (savedInstanceState == null) store.manualEditSnapshot(sourceId)
+            else if (restoredSource?.id == sourceId && savedInstanceState.containsKey("manualEditRevision")) {
+                savedInstanceState.getString("manualEditEpoch")?.let {
+                    CustomCurveStore.ManualEdit(restoredSource, it, savedInstanceState.getLong("manualEditRevision"))
+                }
+            } else null
+        }
+        val source = restoredSource ?: aiDraft?.seed ?: when {
+            aiRequested -> null
+            sourceId == null -> CustomCurveDocument(draftId, getString(R.string.profiles_default_name), 93, 3600,
+                CustomCurveDocument.ControlMode.PRESSURE, listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400)))
+            localSource -> manualEdit?.document ?: store.find(sourceId)
+            else -> (application as MobileApplication).curves.find(sourceId)?.takeIf { it.factoryCurve != null }
+                ?.let { item -> runCatching { CustomCurveDocument.fromLibraryItem(item, draftId) }.getOrNull() }
+        }
         if (source == null) { HoyiUi.label(this, body, getString(if (aiRequested) R.string.ai_curve_editor_expired else R.string.profiles_missing), 17); return }
         if (aiRequested && aiDraft?.available() != true) HoyiUi.label(this, body, getString(R.string.ai_curve_editor_expired), 17)
         sourceDocument = source
@@ -506,7 +521,11 @@ class CurveEditorActivity : ThemedActivity() {
             AiCurveCard.Kind.REPLACE -> R.string.ai_curve_editor_save_changes
             AiCurveCard.Kind.COPY_FACTORY -> R.string.curve_editor_save_copy
             else -> R.string.curve_editor_create
-        } else if (sourceId == null) R.string.curve_editor_create else R.string.curve_editor_save_copy
+        } else when {
+            localSource -> R.string.manual_curve_save_changes
+            sourceId == null -> R.string.curve_editor_create
+            else -> R.string.manual_curve_save_copy
+        }
         val save = style.visual.action(actionRow, getString(saveLabel),
             "product/form/curve-editor/save", primary = true, top = 0) {}
         save.layoutParams = LinearLayout.LayoutParams(-2, -2)
@@ -518,6 +537,25 @@ class CurveEditorActivity : ThemedActivity() {
             val available = (application as MobileApplication).customCurvesResult.getOrNull()
             if (available == null) { error.setText(R.string.profiles_unavailable); save.isEnabled = false; return@setOnClickListener }
             save.isEnabled = false
+            if (localSource) {
+                val baseline = manualEdit
+                val result = runCatching {
+                    if (baseline == null) CustomCurveStore.ManualSave.STALE
+                    else available.saveManualEdit(doc, baseline) {
+                        (application as MobileApplication).curveDeletionGuards.values.none { it(doc.id) }
+                    }
+                }.getOrNull()
+                if (result == CustomCurveStore.ManualSave.SAVED) finish()
+                else {
+                    error.setText(when (result) {
+                        CustomCurveStore.ManualSave.STALE -> R.string.manual_curve_stale
+                        CustomCurveStore.ManualSave.IN_USE -> R.string.manual_curve_in_use
+                        else -> R.string.profiles_save_failed
+                    })
+                    save.isEnabled = result != CustomCurveStore.ManualSave.STALE
+                }
+                return@setOnClickListener
+            }
             if (runCatching {
                 if (aiRequested) requireNotNull(aiDraft).saveFromEditor(doc, available) { id ->
                     (application as MobileApplication).curveDeletionGuards.values.none { it(id) }
@@ -535,6 +573,10 @@ class CurveEditorActivity : ThemedActivity() {
         aiDraftKind?.let { outState.putString("aiDraftKind", it.name) }
         outState.putString("draftId", draftId); outState.putInt("stageCount", stageCount)
         sourceDocument?.let { outState.putString("sourceDocument", it.encode()) }
+        manualEdit?.let {
+            outState.putString("manualEditEpoch", it.epoch)
+            outState.putLong("manualEditRevision", it.revision)
+        }
         outState.putBoolean("flowMode", flowMode); outState.putBoolean("firstFlow", firstFlow); outState.putBoolean("pressureLogic", pressureLogic)
         outState.putBoolean("pressureBeforeFlow", pressureBeforeFlow)
         outState.putBoolean("modeSwitchTouched", modeSwitchTouched)

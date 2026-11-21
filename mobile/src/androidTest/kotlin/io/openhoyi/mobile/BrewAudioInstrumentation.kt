@@ -164,7 +164,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             editorBArguments?.let { args ->
                 CurveEditorBChecks(this).run(args)
-                report.putString("stream", "EDITOR_B_CHECKS_PASSED copy=true referencesUnchanged=true livePreview=true invalidRecovery=true repeatedSave=true cancel=true noBle=true\n")
+                report.putString("stream", "EDITOR_B_CHECKS_PASSED inPlace=true builtinCopy=true staleRejected=true referencesUnchanged=true livePreview=true invalidRecovery=true repeatedSave=true cancel=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (downloadRoutingChecks) {
