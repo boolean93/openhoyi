@@ -16,15 +16,24 @@ internal object AiSettingsCard {
         val refresh = mutableListOf<() -> Unit>()
         var observedModel: String? = null
         var requestGeneration = 0
+        var cachedRevision: Long? = null
+        fun invalidateModel() {
+            requestGeneration++
+            cachedRevision = null
+            observedModel = null
+        }
         fun refreshModel() {
+            val revision = AiKeyStore(activity).revision()
+            if (cachedRevision == revision) return
+            cachedRevision = revision
+            observedModel = null
             val generation = ++requestGeneration
             activity.lifecycleScope.launch {
                 val model = withContext(Dispatchers.IO) {
                     val epoch = AiKeyStore(activity).credentialEpoch() ?: return@withContext null
-                    val stored = AiSessionStore(activity).load(epoch) as? AiSessionLoad.Ready
-                        ?: return@withContext null
+                    val result = settingsObservedModel(AiSessionStore(activity).load(epoch))
                     if (AiKeyStore(activity).credentialEpoch() != epoch) return@withContext null
-                    AiModelPolicy.models.firstOrNull { it.id == stored.session.modelId }?.label
+                    result
                 }
                 if (generation == requestGeneration) {
                     observedModel = model
@@ -36,9 +45,8 @@ internal object AiSettingsCard {
             override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
                 super.onWindowFocusChanged(hasWindowFocus)
                 if (hasWindowFocus) {
-                    observedModel = null
-                    refresh.forEach { it() }
                     refreshModel()
+                    refresh.forEach { it() }
                 }
             }
         }.apply {
@@ -49,10 +57,12 @@ internal object AiSettingsCard {
             markSettingsGroupMaterial(style)
         }
         fun openChat(action: String? = null) {
+            invalidateModel()
             activity.startActivity(Intent(activity, AiChatActivity::class.java)
                 .apply { action?.let { putExtra(AiChatActivity.SETTINGS_ENTRY, it) } })
         }
         fun openKey(review: Boolean = false) {
+            invalidateModel()
             activity.startActivity(Intent(activity, AiKeyActivity::class.java)
                 .apply { if (review) putExtra(AiKeyActivity.SETTINGS_REVIEW, true) })
         }
@@ -96,7 +106,8 @@ internal object AiSettingsCard {
             AiKeyStatus.UNAVAILABLE -> R.string.settings_ai_key_unavailable
         }) }) { openKey() }
         row(R.string.settings_ai_model, "settings/ai/model",
-            { observedModel ?: activity.getString(R.string.settings_ai_key_unavailable) }) {
+            { observedModel ?: activity.getString(if (keyStore.status() == AiKeyStatus.MISSING)
+                R.string.settings_ai_not_set else R.string.settings_ai_key_unavailable) }) {
             openChat(AiChatActivity.SETTINGS_MODEL)
         }
         row(R.string.ai_reasoning_title, "settings/ai/reasoning",
@@ -120,4 +131,14 @@ internal object AiSettingsCard {
         }
         return card
     }
+}
+
+/** Matches the fresh conversation's actual model; unreadable history is not empty. */
+internal fun settingsObservedModel(session: AiSessionLoad): String? {
+    val id = when (session) {
+        AiSessionLoad.Empty -> AiProtocolHistory.empty().modelId
+        is AiSessionLoad.Ready -> session.session.modelId
+        AiSessionLoad.Unavailable -> return null
+    }
+    return AiModelPolicy.models.firstOrNull { it.id == id }?.label
 }

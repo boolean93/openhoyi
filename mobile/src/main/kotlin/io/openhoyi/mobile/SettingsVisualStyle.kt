@@ -248,12 +248,32 @@ internal class SettingsColumns(context:Context,private val style:TaskProductVisu
     }
 }
 
+internal object SettingsTemperatureDraft {
+    fun differs(value: Int?, observedTenths: Int?, range: IntRange): Boolean =
+        value != null && value in range && observedTenths != null && value * 10 != observedTenths
+
+    fun stepped(value: Int?, observedTenths: Int?, range: IntRange, direction: Int): Int? {
+        require(direction == 1 || direction == -1)
+        if (value != null && value !in range) return null
+        val base = value?.times(10) ?: observedTenths ?: return null
+        if (base < range.first * 10 || base > range.last * 10) return null
+        val floor = base / 10
+        val candidate = when {
+            base % 10 != 0 && direction < 0 -> floor
+            base % 10 != 0 -> floor + 1
+            else -> floor + direction
+        }
+        return candidate.takeIf { it in range }
+    }
+}
+
 /** Original numeric editor/action objects are attached once; measurement only changes their rectangles. */
 internal class SettingsTemperatureRow(context:Context,private val style:TaskProductVisualStyle,private val words:View,
     private val quantity:View,private val input:EditText,private val action:Button,private val evidence:JSONObject):ViewGroup(context) {
     private var inline=false
     private var compactField = false
     private var compactActionsInline = false
+    private var stackedDraft = false
     private val originalAction = action.text
     fun setGroupedField(grouped: Boolean, apply: CharSequence) {
         if (compactField == grouped) return
@@ -263,10 +283,10 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     }
     private var draftRange: IntRange? = null
     private var editAvailable = false
-    private var currentReadback: Int? = null
+    private var currentReadbackTenths: Int? = null
     private val draftSteppers = mutableListOf<Button>()
-    fun presentDraftBaseline(value: Int?, editable: Boolean) {
-        currentReadback = value
+    fun presentDraftBaseline(valueTenths: Int?, editable: Boolean) {
+        currentReadbackTenths = valueTenths
         renderDraft(editable)
     }
     fun bindDraftAction(label: String, range: IntRange) {
@@ -282,13 +302,11 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
                 minWidth = style.dp(48); minimumWidth = minWidth
                 minHeight = style.dp(48); minimumHeight = minHeight
                 setPadding(0, 0, 0, 0)
+                tag = "settings/machine/draft-step/$delta"
                 visibility = GONE
                 setOnClickListener {
-                    val prior = input.text.toString().toIntOrNull() ?: currentReadback
-                    if (prior != null && prior in range) {
-                        val next = (prior + delta).coerceIn(range)
-                        if (next != prior) input.setText(next.toString())
-                    }
+                    SettingsTemperatureDraft.stepped(input.text.toString().toIntOrNull(),
+                        currentReadbackTenths, range, delta)?.let { input.setText(it.toString()) }
                 }
             }
             if (delta < 0) field.addView(button, 0, LinearLayout.LayoutParams(-2, -2))
@@ -306,13 +324,11 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val range = draftRange ?: return
         editAvailable = editable
         val draft = input.text.toString().toIntOrNull()
-        val validChange = draft != null && draft in range && currentReadback != null && draft != currentReadback
-        action.isEnabled = editable && validChange
+        action.isEnabled = editable && SettingsTemperatureDraft.differs(draft, currentReadbackTenths, range)
         action.alpha = if (action.isEnabled) 1f else .55f
-        val shown = draft ?: currentReadback
         draftSteppers.forEachIndexed { index, button ->
-            button.isEnabled = editable && shown != null && shown in range &&
-                (if (index == 0) shown > range.first else shown < range.last)
+            button.isEnabled = editable && SettingsTemperatureDraft.stepped(draft, currentReadbackTenths,
+                range, if (index == 0) -1 else 1) != null
         }
     }
     init {setPadding(style.dp(16),style.dp(16),style.dp(16),style.dp(16));background=style.shape(style.surface,true);addView(words);addView(quantity);addView(action)}
@@ -329,14 +345,23 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val width=MeasureSpec.getSize(widthMeasureSpec);val available=(width-paddingLeft-paddingRight).coerceAtLeast(0)
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
         val shown=if(input.text.isNullOrEmpty())input.hint?.toString().orEmpty() else input.text.toString()
-        draftSteppers.forEach { it.visibility = if (available >= style.dp(388)) VISIBLE else GONE }
+        // Reserve ordinary compact phones for direct entry; then measure the actual,
+        // localized editor and drop the steppers only if the field itself cannot fit.
+        val roomForSteppers = context.resources.configuration.screenWidthDp >= 600 &&
+            available >= style.dp(196)
+        draftSteppers.forEach { it.visibility = if (roomForSteppers) VISIBLE else GONE }
         val inputNaturalWidth=maxOf(style.dp(if (compactField || draftRange != null) 72 else 96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
         input.layoutParams.width=inputNaturalWidth
         listOf(words,quantity,action).forEach {force(it);it.measure(free,free)}
+        if (roomForSteppers && draftSteppers.isNotEmpty() && quantity.measuredWidth > available) {
+            draftSteppers.forEach { it.visibility = GONE }
+            force(quantity); quantity.measure(free, free)
+        }
         val wordsWidth=words.measuredWidth;val actionWidth=action.measuredWidth;val quantityWidth=quantity.measuredWidth
         inline=wordsWidth+quantityWidth+actionWidth+style.dp(32)<=available
-        compactActionsInline = compactField && quantityWidth + actionWidth + style.dp(8) <= available
-        if (compactField) {
+        stackedDraft = compactField || (draftRange != null && !inline)
+        compactActionsInline = stackedDraft && quantityWidth + actionWidth + style.dp(8) <= available
+        if (stackedDraft) {
             inline = false
             val quantityDecorationWidth = (quantityWidth - input.measuredWidth).coerceAtLeast(0)
             input.layoutParams.width = minOf(inputNaturalWidth, (available - quantityDecorationWidth).coerceAtLeast(0))
@@ -375,7 +400,7 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     }
     override fun onLayout(changed:Boolean,l:Int,t:Int,r:Int,b:Int) {
         val content=height-paddingTop-paddingBottom
-        if (compactField) {
+        if (stackedDraft) {
             fun place(view: View, x: Int, y: Int) {
                 val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - paddingRight - x - view.measuredWidth
                     else paddingLeft + x

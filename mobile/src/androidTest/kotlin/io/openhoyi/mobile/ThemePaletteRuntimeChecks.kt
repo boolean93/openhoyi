@@ -319,7 +319,10 @@ internal class ThemePaletteRuntimeChecks(private val test: Instrumentation) {
                 check(!fragment().themeCheckBox.isChecked)
             }
             val previous = screen
-            screen = activityAfter(MainActivity::class.java, previous) { fragment().themeCheckBox.performClick() }
+            screen = activityAfter(MainActivity::class.java, previous) {
+                val target = requireNotNull(fragment().requireView().findViewWithTag<Button>("settings/appearance/mode/dark"))
+                check(target.isShown && target.isEnabled && !target.isSelected && target.performClick())
+            }
             waitFor("dark mode rebuilt without changing palette") {
                 Unit.takeIf { HoyiUi.dark(screen) && screen.currentService === service && screen.hasWindowFocus() }
             }

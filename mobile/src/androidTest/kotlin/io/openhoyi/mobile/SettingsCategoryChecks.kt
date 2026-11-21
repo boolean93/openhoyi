@@ -33,6 +33,17 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
         val receipts = JSONObject()
         try {
             if (wide) receipts.put("modeAccentContrast", JSONObject(main { settingsAccentContrast(context) }))
+            check(SettingsTemperatureDraft.differs(3, 25, 0..5))
+            check(!SettingsTemperatureDraft.differs(3, 30, 0..5))
+            check(!SettingsTemperatureDraft.differs(3, null, 0..5))
+            check(SettingsTemperatureDraft.stepped(null, 25, 0..5, -1) == 2)
+            check(SettingsTemperatureDraft.stepped(null, 25, 0..5, 1) == 3)
+            check(SettingsTemperatureDraft.stepped(5, 25, 0..5, 1) == null)
+            check(settingsObservedModel(AiSessionLoad.Empty) == AiModelPolicy.known(AiProtocolHistory.empty().modelId).label)
+            check(settingsObservedModel(AiSessionLoad.Unavailable) == null)
+            check(settingsObservedModel(AiSessionLoad.Ready(AiSession("fixture", emptyList(),
+                AiProtocolHistory.empty(AiModelPolicy.PRO), "", AiUsageSnapshot()))) ==
+                AiModelPolicy.known(AiModelPolicy.PRO).label)
             main {
                 check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
                 check(app.languagePreferences.select(if (short) AppLanguage.ENGLISH else AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
@@ -152,6 +163,13 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 check(columns.getChildAt(0).top == columns.getChildAt(1).top &&
                                     columns.getChildAt(0).right <= columns.getChildAt(1).left)
                                 check(functions.childCount == 3 && functions.getChildAt(0).top == functions.getChildAt(1).top)
+                                for (i in 0 until temperature.childCount) {
+                                    val row = temperature.getChildAt(i)
+                                    val minus = row.findViewWithTag<Button>("settings/machine/draft-step/-1")
+                                    val plus = row.findViewWithTag<Button>("settings/machine/draft-step/1")
+                                    check(listOf(minus, plus).all { it.isShown && it.width >= HoyiUi.dp(activity, 48) &&
+                                        it.height >= HoyiUi.dp(activity, 48) }) { "Tablet draft steppers must be present" }
+                                }
                                 val summary = settings().findViewWithTag<android.widget.TextView>("settings-machine-summary")
                                 check(!summary.text.contains(activity.getString(R.string.machine_settings_unchanged)))
                                 check(listOf("brew", "steam", "light", "schedule").all {

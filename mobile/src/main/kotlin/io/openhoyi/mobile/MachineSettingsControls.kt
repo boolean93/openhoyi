@@ -603,10 +603,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         val editable = MachineSettingsEditGate.allowed(owner, snapshot, now)
         controlButtons.forEach { it.isEnabled = editable }
         if (documentMode) {
-            val observed = listOf(reported?.brewTemperatureC,
-                reported?.brewCompensationTenthsC?.takeIf { it % 10 == 0 }?.div(10),
-                reported?.steamTemperatureC, reported?.standbyTemperatureC)
-            temperatureRows.forEachIndexed { index, row -> row.presentDraftBaseline(observed[index], editable) }
+            val observedTenths = listOf(reported?.brewTemperatureC?.times(10),
+                reported?.brewCompensationTenthsC, reported?.steamTemperatureC?.times(10),
+                reported?.standbyTemperatureC?.times(10))
+            temperatureRows.forEachIndexed { index, row -> row.presentDraftBaseline(observedTenths[index], editable) }
         }
         cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
             owner?.cupResetState != CupResetTracker.State.UNKNOWN &&
