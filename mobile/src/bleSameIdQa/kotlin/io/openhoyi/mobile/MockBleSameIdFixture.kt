@@ -11,14 +11,14 @@ internal object MockBleSameIdFixture {
     data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int)
     class Result(private val outcomes: List<Outcome>, private val edges: List<Outcome>) {
         fun render(zh: Boolean): String {
-            val intents = outcomes.filterNot { it.row.startsWith("detached-") }
+            val intents = outcomes.filterNot { it.row.startsWith("detached-") || it.row.endsWith("/active-sync") || it.row.endsWith("/rebind") }
             val header = if (zh) "命令行为用例（部分阶段）：${intents.count { it.passed }}/${intents.size}，拒绝用例：${edges.count { it.passed }}/${edges.size}\n非实机测试"
                 else "Intent cases (partial stages): ${intents.count { it.passed }}/${intents.size}; deny cases: ${edges.count { it.passed }}/${edges.size}\nNot a hardware test"
             return (listOf(header) + outcomes.map {
                 "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})"
             } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})" } +
-                if (zh) "未测：主动同步、条件重连、真实进程恢复和版本回退。"
-                else "NOT RUN: active sync, conditional reconnect, process restore and app downgrade.")
+                if (zh) "未测：重连完成后的回读、真实进程恢复和版本回退。"
+                else "NOT RUN: post-rebind readback, process restore and app downgrade.")
                 .joinToString("\n")
         }
     }
@@ -91,6 +91,44 @@ internal object MockBleSameIdFixture {
             check(settingState == CONFIRMED)
             check(writeCount() == 2)
             check(calls.count { (it.operation as? GattOperation.Write)?.bytes?.contentEquals(requested) == true } == 1)
+        }
+        val refreshable = settings.filter { SettingsReadbackPolicy.supports(it.change) }
+        for ((row, change, target) in refreshable) case("$row/active-sync") {
+            bootstrap()
+            val command = CoffeeCommands.setting(change).frame.toByteArray()
+            check(apply(change) == null)
+            expectLastWrite(command)
+            complete()
+            advance(249)
+            check(writeCount() == 2)
+            advance(1)
+            check(lastWriteOpcode() == 1 && writeCount() == 3)
+            complete()
+            check(settingState == WAITING_READBACK)
+            advance(1000)
+            check(lastWriteOpcode() == 1 && writeCount() == 4)
+            complete()
+            check(settingState == WAITING_READBACK)
+            advance(1); observe(target)
+            check(settingState == CONFIRMED && writeCount() == 4)
+            check(calls.count { it.operation is GattOperation.Connect } == 1)
+        }
+        for ((row, change) in refreshable.filter { SettingsReadbackPolicy.isBoiler(it.change) }) case("$row/rebind") {
+            bootstrap()
+            val initial = calls.count { it.operation is GattOperation.Connect }
+            val original = calls.first().operation as GattOperation.Connect
+            check(initial == 1 && apply(change) == null)
+            complete()
+            advance(250); check(lastWriteOpcode() == 1); complete()
+            advance(1000); check(lastWriteOpcode() == 1); complete()
+            val priorGeneration = generation
+            advance(1749); observe(idle())
+            check(calls.count { it.operation is GattOperation.Connect } == initial)
+            advance(1); observe(idle())
+            val connect = calls.last()
+            check(connect.operation == original && connect.generation != priorGeneration)
+            check(calls.count { it.operation is GattOperation.Connect } == 2 && writeCount() == 4)
+            check(settingState != CONFIRMED)
         }
         case("09") {
             bootstrap()
@@ -244,6 +282,9 @@ internal object MockBleSameIdFixture {
         } catch (_: Exception) { false } catch (_: AssertionError) { false }
         return Outcome("detached-owner-dispose/no-replay", passed, writes)
     }
+
+    private fun MobileService.DetachedCorePort.lastWriteOpcode() =
+        (calls.last().operation as GattOperation.Write).bytes.first().toInt() and 255
 
     private fun MobileService.DetachedCorePort.writeCount() = calls.count { it.operation is GattOperation.Write }
 
