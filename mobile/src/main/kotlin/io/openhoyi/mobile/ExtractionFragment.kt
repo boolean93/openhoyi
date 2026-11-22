@@ -341,11 +341,11 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         }
         plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f))
         workspace.onPrimarySpaceAvailable = { width, height ->
-            if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT)
+            if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+                val minimum = chart.minimumLiveHeight(width)
                 chart.liveHeightForPlotAspect(width,if(width<dp(480)) 1.4f else 1.6f)
-                    .coerceAtLeast(chart.minimumLiveHeight())
-                    .coerceAtMost(height.coerceAtLeast(chart.minimumLiveHeight()))
-            else maxOf((dp(260) * resources.configuration.fontScale).toInt(), (height * .70f).toInt())
+                    .coerceIn(minimum, height.coerceAtLeast(minimum))
+            } else maxOf((dp(260) * resources.configuration.fontScale).toInt(), (height * .70f).toInt())
         }
         val toolbar = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL

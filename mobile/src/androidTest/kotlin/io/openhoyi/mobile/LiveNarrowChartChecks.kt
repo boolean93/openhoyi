@@ -5,8 +5,12 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import android.view.View
 import java.io.File
+import java.util.Locale
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Isolated Android live-view probe; does not change device display settings. */
@@ -15,6 +19,7 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
         var failure: Throwable? = null
         test.runOnMainSync {
             try {
+                verifyStackedHeadingGeometry(base, directory)
                 val context = android.view.ContextThemeWrapper(base.createConfigurationContext(Configuration(base.resources.configuration).apply { fontScale = 1.3f }), R.style.MobileTheme)
                 val density = context.resources.displayMetrics.density
                 // 360dp total chart height was an exploratory unsupported case; preserved failure evidence documents its 53dp plot view.
@@ -94,4 +99,129 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
         }
         failure?.let { throw it }
     }
+
+    private fun verifyStackedHeadingGeometry(base: Context, directory: File) {
+        val names = mapOf(
+            ChartMetric.TEMPERATURE to R.string.task_chart_temperature,
+            ChartMetric.PRESSURE to R.string.task_chart_pressure,
+            ChartMetric.FLOW to R.string.task_chart_flow,
+            ChartMetric.YIELD to R.string.chart_series_yield,
+            ChartMetric.WATER to R.string.task_chart_water
+        )
+        val samples = (0..40).map { i ->
+            ShotPoint(i * 1_025L, minOf(i * 18, 93), 0, i * 28, 9_300 + i, i * 101,
+                brewing = true, beverageHundredthsGram = i * 101)
+        }
+        val series = FourMetricChartProjection.build(samples, emptyList(), liveFlow = true, includeLiveWeight = true)
+        data class Case(val id: String, val language: AppLanguage, val font: AppFontSize, val widthDp: Int,
+            val heightDp: Int, val count: Int, val dark: Boolean = false)
+        val cases = listOf(
+            Case("square-four", AppLanguage.CHINESE, AppFontSize.MEDIUM, 640, 250, 4, dark = true),
+            Case("square-five", AppLanguage.CHINESE, AppFontSize.MEDIUM, 640, 250, 5, dark = true),
+            Case("short-small", AppLanguage.CHINESE, AppFontSize.SMALL, 328, 200, 5),
+            Case("short-large", AppLanguage.ENGLISH, AppFontSize.LARGE, 300, 230, 5)
+        )
+        fun JSONObject.glyph() = getJSONArray("glyphBoundsPx")
+        fun JSONArray.coord(i: Int) = getDouble(i)
+        var firstFailure: Throwable? = null
+        for (case in cases) {
+            val context = android.view.ContextThemeWrapper(
+                AppLanguageContext.wrap(base, case.language, case.dark, case.font), R.style.MobileTheme)
+            val density = context.resources.displayMetrics.density
+            val width = (case.widthDp * density).toInt()
+            val height = (case.heightDp * density).toInt()
+            val visual = ExtractionHistoryVisualStyle(context)
+            val renderer = ProductHistoryChartRenderer(context, visual, liveMode = true)
+            val data = series.copy(series = series.series.filter {
+                it.metric in names && (case.count == 5 || it.metric != ChartMetric.YIELD)
+            })
+            check(data.series.size == case.count)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val receipt = JSONObject()
+                .put("rendering", "native Canvas component in hosted Mock, not hardware or whole window")
+                .put("widthPx", width).put("heightPx", height).put("density", density)
+                .put("appFont", case.font.key).put("dark", case.dark).put("axisCount", data.series.size)
+            try {
+                bitmap.eraseColor(visual.palette.surface)
+                val plot = renderer.draw(Canvas(bitmap), width, height, data, ChartMetric.PRESSURE, null, comparison = false)
+                receipt.put("afterWidthPxFromCanvas", plot.width()).put("geometry", renderer.evidence)
+                File(directory, "axis-stack-${case.id}.png").outputStream().use {
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+                check(plot.width() >= 96 * density && plot.height() >= 96 * density) { "${case.id}: $plot" }
+                val ops = (0 until renderer.evidence.length()).map(renderer.evidence::getJSONObject)
+                val texts = ops.filter { it.optString("operation") == "text" }
+                fun get(role: String, metric: ChartMetric) = texts.filter {
+                    it.optString("role") == role && it.optString("metric") == metric.name
+                }
+                fun unit(metric: ChartMetric) = if (metric == ChartMetric.WATER) "mL" else metric.unit
+                for (item in data.series) {
+                    val name = get("axis-name", item.metric).single()
+                    val u = get("axis-unit", item.metric).single()
+                    check(name.getString("text") == context.getString(names.getValue(item.metric)))
+                    check(u.getString("text") == unit(item.metric))
+                    check(name.getJSONArray("positionPx").coord(0) == u.getJSONArray("positionPx").coord(0) &&
+                        name.glyph().coord(3) <= u.glyph().coord(1) && u.glyph().coord(3) < plot.top)
+                    val ticks = get("axis-tick", item.metric)
+                    val numbers = ticks.map { it.getString("text").toFloat() }
+                    check(numbers.first() == item.range.low && numbers.last() == item.range.high)
+                    check(ticks.all {
+                        val ink = it.glyph()
+                        if (item.metric == ChartMetric.TEMPERATURE || item.metric == ChartMetric.PRESSURE) ink.coord(2) < plot.left
+                        else ink.coord(0) > plot.right
+                    })
+                }
+                val time = texts.filter { it.optString("role") == "time-tick" }
+                check(time.any { it.getString("text") == "0" } &&
+                    time.any { it.getString("text") == String.format(Locale.ROOT, "%.1f s", data.timeEndMs / 1000.0) })
+                val labels = texts.filter { it.optString("role") in setOf("axis-name", "axis-unit", "axis-tick", "time-tick") }
+                labels.forEachIndexed { index, text ->
+                    val a = text.glyph()
+                    check(a.coord(0) >= 0 && a.coord(1) >= 0 && a.coord(2) <= width && a.coord(3) <= height) {
+                        "${case.id}: clipped ${text.getString("text")}: $a"
+                    }
+                    check(labels.drop(index + 1).none {
+                        val b = it.glyph()
+                        minOf(a.coord(2), b.coord(2)) - maxOf(a.coord(0), b.coord(0)) > 1 &&
+                            minOf(a.coord(3), b.coord(3)) - maxOf(a.coord(1), b.coord(1)) > 1
+                    }) { "${case.id}: overlaps ${text.getString("text")}: $a" }
+                }
+                // Same-frame legacy renderer gutter formula on the same Android Paint
+                // and projection. This is a numeric baseline, not a before screenshot.
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = TaskTypography.face(context, 400); textSize = visual.palette.sp(14)
+                }
+                fun oldExtent(text: String): Float {
+                    val ink = Rect()
+                    paint.getTextBounds(text, 0, text.length, ink)
+                    return maxOf(paint.measureText(text), ink.right.toFloat()) - minOf(0f, ink.left.toFloat())
+                }
+                fun oldTick(value: Float) = if (value == value.toLong().toFloat()) value.toLong().toString()
+                    else String.format(Locale.ROOT, "%.1f", value)
+                fun oldColumn(item: MetricChartSeries, compact: Boolean): Float =
+                    (ChartAxisScale.majorTicks(item.range, item.step).map(::oldTick) +
+                        if (compact) unit(item.metric) else context.getString(names.getValue(item.metric)) + " · " + unit(item.metric))
+                        .maxOf(::oldExtent) + 12 * density
+                val oldCompact = case.widthDp <= 600 || width -
+                    data.series.sumOf { oldColumn(it, false).toDouble() } - 24 * density < 96 * density
+                val oldAll = case.count <= 4 || width -
+                    data.series.sumOf { oldColumn(it, true).toDouble() } - 16 * density >= 120 * density
+                val oldPlotWidth = width - 16 * density -
+                    data.series.filter { oldAll || it.metric == ChartMetric.PRESSURE }.sumOf { oldColumn(it, oldCompact).toDouble() }
+                if (case.id == "square-four") check(plot.width() - oldPlotWidth >= 80 * density) {
+                    "Expected meaningful gain in the same four-axis plot: $oldPlotWidth → ${plot.width()}"
+                }
+                receipt.put("beforeWidthPxFromPriorFormula", oldPlotWidth).put("beforeAllAxes", oldAll).put("passed", true)
+            } catch (error: Exception) {
+                receipt.put("passed", false).put("failure", error.stackTraceToString())
+                val prior = firstFailure
+                if (prior == null) firstFailure = error else prior.addSuppressed(error)
+            } finally {
+                bitmap.recycle()
+                File(directory, "axis-stack-${case.id}.json").writeText(receipt.toString())
+            }
+        }
+        firstFailure?.let { throw it }
+    }
+
 }

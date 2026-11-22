@@ -98,7 +98,9 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         private set
     private fun dp(value: Float) = value * context.resources.displayMetrics.density
     private val line get() = labels.fontMetrics.descent - labels.fontMetrics.ascent
-    fun minimumAxisHeight() = kotlin.math.ceil(if (liveMode) line * 4.5f + dp(32f) else line * 5 + dp(48f)).toInt()
+    fun minimumAxisHeight(width: Int, data: FourMetricChartData, focused: ChartMetric) =
+        kotlin.math.ceil(if (liveMode) line * 4.5f + dp(32f) + liveCaptionExtra(width, data, focused)
+            else line * 5 + dp(48f)).toInt()
     // Non-comparison bounds reserve 1.5 lines + 16dp above and 2.5 lines + 24dp below the real plot.
     fun minimumEmbeddedHistoryHeight() = kotlin.math.ceil(dp(96f) + line * 4 + dp(40f)).toInt()
     fun minimumComparisonHeight(plotMinimumDp: Float = 96f) = kotlin.math.ceil(dp(plotMinimumDp) + line * 3 + dp(24f)).toInt()
@@ -119,14 +121,12 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     })
     private fun displayUnit(metric: ChartMetric) = if (liveMode && metric == ChartMetric.WATER) "mL" else metric.unit
-    private fun axisTitle(metric: ChartMetric) = if (!liveMode) metric.unit else context.getString(when (metric) {
-        ChartMetric.PRESSURE -> R.string.task_chart_pressure
-        ChartMetric.WATER -> R.string.task_chart_water
-        ChartMetric.YIELD -> R.string.chart_series_yield
-        ChartMetric.WEIGHT -> R.string.task_extraction_scale
-        ChartMetric.FLOW -> R.string.task_chart_flow
-        ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
-    }) + " · " + displayUnit(metric)
+    private fun axisTitle(metric: ChartMetric) = if (!liveMode) metric.unit else metricName(metric) + " · " + displayUnit(metric)
+    // The live renderer is also reused in full-screen History. Leave that chart's
+    // separately governed headings and historical/comparison geometry unchanged.
+    private val stackedLiveAxes get() = liveMode && !standaloneAxes
+    private val liveOuter get() = dp(6f)
+    private val liveTickGap get() = dp(6f)
     /**
      * Target layout state while the realtime axis animates. Tick labels still interpolate, but the
      * axis column width stays on the final labels so the gutter does not jitter horizontally.
@@ -144,7 +144,9 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
             ChartAxisScale.majorTicks(range, layoutAxis?.steps?.get(series.metric) ?: series.step)
                 .map { tickText(series, it) }
         }.orEmpty()
-        return (current + target + (if (compact || standaloneAxes) displayUnit(series.metric) else axisTitle(series.metric)))
+        val ticks = current + target
+        if (stackedLiveAxes) return ticks.maxOf(::extent) + liveTickGap
+        return (ticks + (if (compact || standaloneAxes) displayUnit(series.metric) else axisTitle(series.metric)))
             .maxOf(::extent) + dp(if (liveMode) 12f else 16f)
     }
     private fun tickText(series: MetricChartSeries, value: Float): String =
@@ -152,9 +154,48 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode &&
         (width <= dp(600f) || width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f))
     fun allAxes(width: Int, data: FourMetricChartData) = width - data.series.sumOf { column(it).toDouble() } - dp(16f) >= dp(96f)
-    private fun showAllAxes(width: Int, data: FourMetricChartData): Boolean =
-        if (liveMode && data.series.size > 4) width - data.series.sumOf { column(it, true).toDouble() } - dp(16f) >= dp(120f)
-        else liveMode || allAxes(width, data)
+    private fun showAllAxes(width: Int, data: FourMetricChartData): Boolean = when {
+        liveMode && data.series.size > 4 -> width - data.series.sumOf { column(it, true).toDouble() } - dp(16f) >= dp(120f)
+        else -> liveMode || allAxes(width, data)
+    }
+    private data class LiveAxis(val series: MetricChartSeries, val x: Float, val align: Paint.Align,
+        val captionCenter: Float, val captionBand: Int)
+    private data class LiveAxes(val left: Float, val right: Float, val axes: List<LiveAxis>, val all: Boolean)
+    private fun liveAxes(width: Int, data: FourMetricChartData, focused: ChartMetric): LiveAxes {
+        val columns = data.series.associate { it.metric to column(it) }
+        val all = width - columns.values.sum() - 2 * liveOuter >= dp(96f)
+        fun axes(order: List<ChartMetric>) = order.mapNotNull { metric -> data.series.firstOrNull { it.metric == metric } }
+        val leftAxes = if (all) axes(listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE)) else axes(listOf(focused))
+        val rightAxes = if (all) axes(listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WATER)) else emptyList()
+        val right = (width - liveOuter) - rightAxes.sumOf { columns.getValue(it.metric).toDouble() }.toFloat()
+        val planned = mutableListOf<LiveAxis>()
+        var x = liveOuter
+        leftAxes.forEach { series ->
+            val size = columns.getValue(series.metric)
+            x += size
+            planned += LiveAxis(series, x - liveTickGap, Paint.Align.RIGHT, x - size / 2, 0)
+        }
+        val left = x
+        x = right
+        rightAxes.forEach { series ->
+            val size = columns.getValue(series.metric)
+            planned += LiveAxis(series, x + liveTickGap, Paint.Align.LEFT, x + size / 2, 0)
+            x += size
+        }
+        if (right - left < dp(96f)) return LiveAxes(left, right, emptyList(), all)
+        val placements = LiveAxisHeaders.pack(planned.map { axis ->
+            LiveAxisHeaders.Caption(axis.captionCenter, maxOf(extent(metricName(axis.series.metric)),
+                extent(displayUnit(axis.series.metric))) + dp(2f))
+        }, liveOuter, width - liveOuter, dp(6f))
+        return LiveAxes(left, right, planned.zip(placements) { axis, caption ->
+            axis.copy(captionCenter = caption.center, captionBand = caption.band)
+        }, all)
+    }
+    private val liveCaptionBandHeight get() = line * 2 + dp(2f)
+    private fun liveCaptionExtra(axes: LiveAxes): Float =
+        if (axes.axes.isEmpty()) 0f else line + (axes.axes.maxOf { it.captionBand } * liveCaptionBandHeight)
+    fun liveCaptionExtra(width: Int, data: FourMetricChartData, focused: ChartMetric): Float =
+        if (stackedLiveAxes) liveCaptionExtra(liveAxes(width, data, focused)) else 0f
     private data class AxisCaption(val metric: ChartMetric, val text: String, val x: Float, val row: Int)
     private fun captions(width: Int, data: FourMetricChartData): List<AxisCaption> {
         val half = (width / 2f - dp(16f)).coerceAtLeast(dp(1f))
@@ -198,7 +239,11 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         dp(52f) + line / 2 - HistoryPlotBudget.top(line, context.resources.displayMetrics.density, liveMode)) else 0f
     fun standaloneTitleExtra(width: Int, data: FourMetricChartData): Float =
         if (standaloneAxes) (captions(width, data).maxOfOrNull { it.row } ?: 0) * line else 0f
+    private fun liveBounds(axes: LiveAxes, height: Int) = RectF(axes.left,
+        HistoryPlotBudget.top(line, context.resources.displayMetrics.density, true) + liveCaptionExtra(axes),
+        axes.right, height - HistoryPlotBudget.bottom(line, context.resources.displayMetrics.density, true))
     fun bounds(width: Int, height: Int, data: FourMetricChartData, focused: ChartMetric, comparison: Boolean): RectF {
+        if (stackedLiveAxes && !comparison) return liveBounds(liveAxes(width, data, focused), height)
         val compactAxes = compactAxes(width, data)
         val selected = data.series.filter { comparison && it.metric == focused || !comparison }
         val all = !comparison && showAllAxes(width, data)
@@ -231,14 +276,13 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         if (liveMode && data.pauseBaselineMs.isNotEmpty()) evidence.put(JSONObject()
             .put("operation","phase-zero-baseline").put("timesMs",JSONArray(data.pauseBaselineMs.toList()))
             .put("meaning","closed-valve pause phase, not measured zero pressure"))
-        val compactAxes = compactAxes(width, data)
         val timeEnd = data.timeEndMs
-        val box = bounds(width, height, data, focused, comparison)
+        val liveAxes = if (stackedLiveAxes && !comparison) liveAxes(width, data, focused) else null
+        val box = if (liveAxes != null) liveBounds(liveAxes, height) else bounds(width, height, data, focused, comparison)
         if (box.width() < dp(96f) || box.height() < line + dp(8f)) return RectF()
-        val all = !comparison && showAllAxes(width, data)
+        val all = liveAxes?.all ?: (!comparison && showAllAxes(width, data))
         val series = if (comparison || !all) data.series.filter { it.metric == focused } else data.series
-        val leftAxes = if (all) listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE).mapNotNull { m -> series.firstOrNull { it.metric == m } } else series
-        val rightAxes = if (all) (if (liveMode) listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WATER) else listOf(ChartMetric.WEIGHT, ChartMetric.YIELD, ChartMetric.WATER)).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
+        val compactAxes = liveAxes == null && compactAxes(width, data)
         val texts = mutableListOf<Label>()
         val fm = labels.fontMetrics
         // Main rows are labeled only where the number still fits; extra minor grid lines keep
@@ -253,23 +297,34 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
             result += ticks.last()
             return result
         }
-        fun planAxis(item: MetricChartSeries, x: Float) {
+        fun planAxis(item: MetricChartSeries, x: Float, align: Paint.Align = Paint.Align.LEFT, stacked: LiveAxis? = null) {
             val metricInk = if (liveMode) style.liveMetric(item.metric) else style.metric(item.metric)
-            if (!standaloneAxes) texts += Label(if (compactAxes) displayUnit(item.metric) else axisTitle(item.metric), x, dp(4f) - fm.ascent, Paint.Align.LEFT, metricInk, "axis-unit", metric = item.metric)
+            if (stacked != null) {
+                val nameBaseline = dp(4f) - fm.ascent + stacked.captionBand * liveCaptionBandHeight
+                texts += Label(metricName(item.metric), stacked.captionCenter, nameBaseline, Paint.Align.CENTER,
+                    metricInk, "axis-name", metric = item.metric)
+                texts += Label(displayUnit(item.metric), stacked.captionCenter, nameBaseline + line, Paint.Align.CENTER,
+                    metricInk, "axis-unit", metric = item.metric)
+            } else if (!standaloneAxes) texts += Label(if (compactAxes) displayUnit(item.metric) else axisTitle(item.metric), x, dp(4f) - fm.ascent, Paint.Align.LEFT, metricInk, "axis-unit", metric = item.metric)
             // The first and last labeled ticks always equal range.low and range.high.
             for (value in labeled(ChartAxisScale.majorTicks(item.range, item.step))) {
                 val py = box.bottom - box.height() * (value - item.range.low) / (item.range.high - item.range.low)
-                texts += Label(tickText(item, value), x, py - (fm.ascent + fm.descent) / 2, Paint.Align.LEFT, metricInk, "axis-tick", metric = item.metric)
+                texts += Label(tickText(item, value), x, py - (fm.ascent + fm.descent) / 2, align, metricInk, "axis-tick", metric = item.metric)
             }
         }
         if (standaloneAxes) captions(width, data).forEach { caption ->
             texts += Label(caption.text, caption.x, dp(4f) - fm.ascent + caption.row * line,
                 Paint.Align.LEFT, style.liveMetric(caption.metric), "axis-unit", metric = caption.metric)
         }
-        var x = dp(8f)
-        leftAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
-        x = box.right + dp(8f)
-        rightAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
+        if (liveAxes != null) liveAxes.axes.forEach { planAxis(it.series, it.x, it.align, it) }
+        else {
+            val leftAxes = if (all) listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE).mapNotNull { m -> series.firstOrNull { it.metric == m } } else series
+            val rightAxes = if (all) (if (liveMode) listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WATER) else listOf(ChartMetric.WEIGHT, ChartMetric.YIELD, ChartMetric.WATER)).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
+            var x = dp(8f)
+            leftAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
+            x = box.right + dp(8f)
+            rightAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
+        }
         val timeBaseline = box.bottom + line / 2 + dp(8f) - fm.ascent
         // Shared time grid on a nice seconds step; the final tick keeps the established
         // "<seconds> s" endpoint contract in live/comparison charts.
