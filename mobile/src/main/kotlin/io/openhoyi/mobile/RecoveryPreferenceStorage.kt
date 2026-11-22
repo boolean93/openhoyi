@@ -57,17 +57,19 @@ internal object RecoveryPreferenceStorage {
         val namespace=if(backgroundTemperature) "temperature_confirmation" else "machine_write_safety"
         val marker=if(backgroundTemperature) "pending_temperature_confirmation.json" else "pending_machine_write.json"
         val prefs=context.getSharedPreferences(namespace,Context.MODE_PRIVATE)
+        val markerFile=File(context.noBackupFilesDir,marker)
         val pending:(MachineWriteRecoveryState.Record)->Boolean={ it.pending || it.address!=null }
         val barrier=RecoveryPersistenceBarrier(object:RecoveryPersistenceBarrier.RecordStorage<MachineWriteRecoveryState.Record> {
             override fun read()=MachineWriteRecoveryState.Record(machineKind(prefs.getString("pending_kind",null)),prefs.getString("pending_address",null))
             override fun write(value:MachineWriteRecoveryState.Record)=prefs.edit().putString("pending_kind",value.kind?.name)
                 .putString("pending_address",value.address).commit()
-        },JsonMarker(File(context.noBackupFilesDir,marker),
+        },JsonMarker(markerFile,
             { value->JSONObject().put("kind",value.kind?.name ?: JSONObject.NULL).put("address",value.address ?: JSONObject.NULL) },
             ::decodeMachineMarker,pending),pending)
         return object:MachineWriteRecoveryState.Storage {
             override fun read()=barrier.read()
-            override fun write(record:MachineWriteRecoveryState.Record)=barrier.write(record)
+            override fun write(record:MachineWriteRecoveryState.Record) = if (backgroundTemperature) barrier.write(record)
+            else MachineRecoveryMarkerLease.withLegacyWrite(markerFile) { barrier.write(record) }
         }
     }
 }

@@ -9,10 +9,10 @@ import java.io.FileOutputStream
 
 /**
  * Candidate Android marker backend. Do not wire into the existing service until the legacy
- * writer shares the same lifecycle/exclusive lease and the host's Android integration is tested.
+ * service takes the shared lease across the control lifetime and Android integration is tested.
  */
 internal class SplitMachineWriteFileStore private constructor(
-    private val marker: File,
+    private val lease: MachineRecoveryMarkerLease.Lease,
     private val cachedLegacyPending: () -> Boolean,
     private val clearCachedLegacy: () -> Boolean,
     private val ops: FileOps,
@@ -26,6 +26,7 @@ internal class SplitMachineWriteFileStore private constructor(
         fun unlink(file: File)
     }
 
+    private val marker = lease.marker
     private var active = true
     private val initial = inspect()
     private var lastWritten: ByteArray? = null
@@ -73,19 +74,22 @@ internal class SplitMachineWriteFileStore private constructor(
     @Synchronized override fun close() {
         if (!active) return
         active = false
-        synchronized(leased) { leased.remove(marker.path) }
+        lease.close()
     }
 
     companion object {
         private const val MARKER = "pending_machine_write.json"
-        private val leased = mutableSetOf<String>()
 
         /** The caller must own an Android app-private directory (normally noBackupFilesDir). */
         fun tryOpen(directory: File, cachedLegacyPending: () -> Boolean, clearCachedLegacy: () -> Boolean,
             ops: FileOps = AndroidFileOps): SplitMachineWriteFileStore? {
-            val marker = runCatching { File(directory.canonicalFile, MARKER) }.getOrNull() ?: return null
-            if (!synchronized(leased) { leased.add(marker.path) }) return null
-            return SplitMachineWriteFileStore(marker, cachedLegacyPending, clearCachedLegacy, ops)
+            val lease = MachineRecoveryMarkerLease.tryAcquire(File(directory, MARKER)) ?: return null
+            return try {
+                SplitMachineWriteFileStore(lease, cachedLegacyPending, clearCachedLegacy, ops)
+            } catch (error: Throwable) {
+                lease.close()
+                throw error
+            }
         }
     }
 
