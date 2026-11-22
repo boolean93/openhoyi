@@ -22,14 +22,17 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
                 token:SplitMachineWriteJournal.Ownership)=Send(entry,binding,token)
         }
     }
+    class RecoveryChoice internal constructor(val entry:SplitMachineWriteJournal.Entry)
     private class Epoch(val view:SplitMachineWriteFileStore) {
         val journal=SplitMachineWriteJournal(view)
         val live=mutableMapOf<SplitMachineWriteJournal.Kind,Send>()
         val restored=journal.pending is SplitMachineWriteJournal.Snapshot.Pending
         var boilerOverlapConsumed=false
+        val choices=mutableMapOf<SplitMachineWriteJournal.Kind,RecoveryChoice>()
     }
 
     val legacyStorage get()=pinned.storage
+    fun legacyShapeTrusted():Boolean=pinned.legacyShapeTrusted()
     val canStartHub:Boolean get()=transport.mayStartOrDispatch && pinned.held
     val legacyMayDispatch:Boolean get()=canStartHub && pinned.hasLegacyAuthority
     private var epoch:Epoch?=null
@@ -47,6 +50,51 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         val view=pinned.openSplitViewForV2(legacyDispatchIdle,ops) ?: return@mutate false
         epoch=Epoch(view)
         true
+    }
+
+    fun restoreSplit(ops:SplitMachineWriteFileStore.FileOps?=null):Boolean=mutate(false) {
+        if(!legacyMayDispatch || epoch!=null)return@mutate false
+        val view=pinned.openSplitViewForV2({true},ops,restoreOnly=true) ?: return@mutate false
+        epoch=Epoch(view)
+        true
+    }
+
+    val splitRecoveryBlocked:Boolean get()=epoch?.journal?.pending==SplitMachineWriteJournal.Snapshot.Blocked
+
+    val restoredAndResolved:Boolean get()=epoch?.let {
+        it.restored && it.journal.pending==SplitMachineWriteJournal.Snapshot.Empty
+    }==true
+
+    fun canObserveOriginal(address:String):Boolean {
+        val current=epoch?.takeIf { !mutating && active(it) } ?: return false
+        val pending=current.journal.pending as? SplitMachineWriteJournal.Snapshot.Pending ?: return false
+        return pending.entries.all { it.target!=null && it.address.equals(address,ignoreCase=true) } &&
+            (current.restored || current.live.values.all { it.phase==Phase.UNKNOWN })
+    }
+
+    fun recoveryChoices():List<RecoveryChoice> {
+        val current=epoch?.takeIf { !mutating && active(it) } ?: return emptyList()
+        val pending=current.journal.pending as? SplitMachineWriteJournal.Snapshot.Pending ?: return emptyList()
+        return pending.entries.filter { entry -> entry.target!=null &&
+            (current.restored || current.live[entry.kind]?.phase==Phase.UNKNOWN)
+        }.map { entry -> current.choices.getOrPut(entry.kind){ RecoveryChoice(entry) } }
+    }
+
+    /** An explicit, proven observation resolves exactly one record; this never grants send authority. */
+    fun resolveObserved(choice:RecoveryChoice,binding:Binding,verified:()->Boolean):Boolean=mutate(false) {
+        val current=epoch?.takeIf { active(it) && isCurrent(binding) } ?: return@mutate false
+        val entry=choice.entry
+        if(current.choices[entry.kind]!==choice || !entry.address.equals(binding.source.address,ignoreCase=true) ||
+            !verified() || !isCurrent(binding)) return@mutate false
+        val ok=if(current.restored) {
+            val owner=current.journal.recoveryOwner(entry) ?: return@mutate false
+            current.journal.settleRecovered(owner)
+        } else {
+            val send=current.live[entry.kind]?.takeIf {it.phase==Phase.UNKNOWN && it.entry==entry} ?: return@mutate false
+            current.journal.settle(send.durable)
+        }
+        if(ok) { current.live.remove(entry.kind);current.choices.remove(entry.kind) }
+        ok
     }
 
     fun acceptsBoilerAfterWeek(binding:Binding):Boolean {
@@ -97,6 +145,7 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         if(send.phase!=Phase.WAITING_READBACK && send.phase!=Phase.UNKNOWN)return@mutate false
         if(!current.journal.settle(send.durable))return@mutate false
         current.live.remove(send.entry.kind)
+        current.choices.remove(send.entry.kind)
         true
     }
 
@@ -106,6 +155,7 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         if(result !is OperationResult.Failed && result !is OperationResult.Cancelled ||
             send.phase!=Phase.QUEUED || !current.journal.settle(send.durable))return@mutate false
         current.live.remove(send.entry.kind)
+        current.choices.remove(send.entry.kind)
         true
     }
 

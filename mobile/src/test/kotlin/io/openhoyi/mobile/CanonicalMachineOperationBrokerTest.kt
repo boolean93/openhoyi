@@ -124,6 +124,80 @@ class CanonicalMachineOperationBrokerTest {
         }
     }
 
+    @Test fun rawClassificationRejectsMalformedLegacyLookingMarkerBeforeAnyConnection() {
+        val marker=File(root.newFolder(),"pending_machine_write.json")
+        val fence=MachineServiceWriterFence()
+        val pin=RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),null,{false})
+        val broker=CanonicalMachineOperationBroker(pin,fence){null}
+        try {
+            assertTrue(broker.legacyShapeTrusted())
+            marker.writeText("""{"kind":"SETTING","address":"$address"}""")
+            assertTrue(broker.legacyShapeTrusted())
+            marker.writeText("""{"kind":"SETTING","address":"$address","ownership_v2":{"version":9}}""")
+            assertFalse(broker.legacyShapeTrusted())
+            marker.writeText("""{"kind":"UNKNOWN","kind":"SETTING","address":"$address"}""")
+            assertFalse(broker.legacyShapeTrusted())
+        } finally {
+            fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
+        }
+    }
+
+    @Test fun untypedAndCorruptMarkersAreNeverAdoptedForRecoveryOrAuthorization() {
+        val marker=File(root.newFolder(),"pending_machine_write.json")
+        val fence=MachineServiceWriterFence()
+        val pin=RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),null,{false})
+        val source=binding()
+        val broker=CanonicalMachineOperationBroker(pin,fence){source}
+        val inputs=listOf(SplitMachineWriteMarkerCodec.encode(listOf(week.copy(target=null))).toString().toByteArray(),
+            "{not-json".toByteArray())
+        try {
+            for(input in inputs) {
+                val ops=Mem().apply {data=input}
+                assertFalse(broker.restoreSplit(ops))
+                assertTrue(broker.recoveryChoices().isEmpty())
+                assertFalse(broker.canObserveOriginal(address))
+                assertNull(broker.reserve(boiler,source))
+                assertArrayEquals(input,ops.data)
+            }
+        } finally {
+            fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
+        }
+    }
+
+    @Test fun restoredChoiceAcknowledgesOneRecordAndNeverRestoresLegacyOrSendAuthority() {
+        val marker=File(root.newFolder(),"pending_machine_write.json")
+        val fence=MachineServiceWriterFence()
+        val pin=RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),null,{false})
+        val ops=Mem().apply {data=SplitMachineWriteMarkerCodec.encode(listOf(week,boiler)).toString().toByteArray()}
+        val original=binding()
+        val replacement=binding()
+        var current=original
+        val broker=CanonicalMachineOperationBroker(pin,fence){current}
+        try {
+            assertFalse(broker.openSplit({true},ops))
+            assertTrue(broker.restoreSplit(ops))
+            assertFalse(broker.canObserveOriginal("00:11:22:33:44:55"))
+            assertTrue(broker.canObserveOriginal(address))
+            val (weekChoice,boilerChoice)=broker.recoveryChoices()
+            current=replacement
+            assertFalse(broker.resolveObserved(weekChoice,original){true})
+            assertFalse(broker.resolveObserved(weekChoice,replacement){false})
+            assertTrue(broker.resolveObserved(weekChoice,replacement){true})
+            assertFalse(broker.resolveObserved(weekChoice,replacement){true})
+            assertEquals(listOf(boiler), (SplitMachineWriteMarkerCodec.decode(requireNotNull(ops.data))
+                as SplitMachineWriteJournal.Snapshot.Pending).entries)
+            assertEquals(listOf(boilerChoice),broker.recoveryChoices())
+            assertTrue(broker.resolveObserved(boilerChoice,replacement){true})
+            assertNull(ops.data)
+            assertTrue(broker.restoredAndResolved)
+            assertFalse(broker.legacyMayDispatch)
+            assertFalse(broker.returnToLegacy())
+            assertNull(broker.reserve(boiler,replacement))
+        } finally {
+            fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
+        }
+    }
+
     @Test fun recoveredAndUncertainEpochsDoNotAuthorizeAnySendOrLegacyReturn() {
         val marker=File(root.newFolder(),"pending_machine_write.json")
         val fence=MachineServiceWriterFence()
@@ -132,7 +206,7 @@ class CanonicalMachineOperationBrokerTest {
         val live=binding()
         val broker=CanonicalMachineOperationBroker(pin,fence) {live}
         try {
-            assertTrue(broker.openSplit({true},ops))
+            assertTrue(broker.restoreSplit(ops))
             assertFalse(broker.legacyMayDispatch)
             assertNull(broker.reserve(boiler,binding()))
             assertFalse(broker.returnToLegacy())

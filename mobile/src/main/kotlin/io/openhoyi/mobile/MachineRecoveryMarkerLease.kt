@@ -18,6 +18,8 @@ internal object MachineRecoveryMarkerLease {
         val isOwnerThread:Boolean get()=Thread.currentThread()===creator
         val held:Boolean @Synchronized get()=!closed
         @Synchronized fun <T> readWhileHeld(read:()->T):T? = if(closed) null else read()
+        @Synchronized fun legacyShapeTrusted():Boolean = isOwnerThread && !closed &&
+            runCatching { permitsLegacy(marker) }.getOrDefault(false)
         @Synchronized fun writeLegacy(write:()->Boolean):Boolean =
             !closed && runCatching { permitsLegacy(marker) && write() }.getOrDefault(false)
         @Synchronized override fun close() {

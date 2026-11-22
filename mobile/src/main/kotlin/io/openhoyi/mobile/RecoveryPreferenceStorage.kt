@@ -64,6 +64,7 @@ internal object RecoveryPreferenceStorage {
         private var split:SplitMachineWriteFileStore?=null
         val held:Boolean get()=lease?.let {it.isOwnerThread && it.held}==true
         val hasLegacyAuthority:Boolean get()=held && phase==Phase.LEGACY
+        fun legacyShapeTrusted():Boolean = hasLegacyAuthority && lease?.legacyShapeTrusted()==true
         fun holdsSplit(view:SplitMachineWriteFileStore):Boolean = held && phase==Phase.SPLIT && split===view
         val storage=object:MachineWriteRecoveryState.Storage {
             override fun read():MachineWriteRecoveryState.Record {
@@ -82,7 +83,7 @@ internal object RecoveryPreferenceStorage {
         private fun fenced()=MachineWriteRecoveryState.Record(MachineWriteRecoveryState.Kind.UNKNOWN,null)
         /** Irreversible for this owner epoch. Do not mix old writers and a split view. */
         fun openSplitViewForV2(legacyDispatchIdle:()->Boolean,
-            ops:SplitMachineWriteFileStore.FileOps?=null):SplitMachineWriteFileStore? {
+            ops:SplitMachineWriteFileStore.FileOps?=null,restoreOnly:Boolean=false):SplitMachineWriteFileStore? {
             val owner=lease ?: return null
             if(!held || phase!=Phase.LEGACY)return null
             phase=Phase.OPENING_SPLIT
@@ -93,7 +94,11 @@ internal object RecoveryPreferenceStorage {
                 val view=if(ops!=null) SplitMachineWriteFileStore.fromPinnedLease(owner,cachedLegacyPending,verifyEmpty,ops)
                     else SplitMachineWriteFileStore.fromPinnedLease(owner,cachedLegacyPending,verifyEmpty)
                 if(view==null)return null
-                if(view.read()==io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Blocked) {
+                val observed=view.read()
+                val typed=(observed as? io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Pending)?.entries
+                    ?.all { it.target!=null }==true
+                if(observed==io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Blocked || restoreOnly && !typed ||
+                    !restoreOnly && observed!=io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Empty) {
                     view.close()
                     return null
                 }

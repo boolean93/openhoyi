@@ -193,6 +193,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
         acknowledgeManual = button(content, getString(R.string.home_recovery_button)) {
+            val active=service
+            if(active!=null && active.manualSafetyMessage==null && active.splitRecoveryChoices.isNotEmpty()) {
+                showSplitRecovery(active)
+                return@button
+            }
             val recoveryKind = if (service?.manualSafetyMessage == null)
                 service?.machineWriteRecoveryKind else null
             val title = when (recoveryKind) {
@@ -701,6 +706,53 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         AppDialog.show(dialog)
         transientDialogs += dialog
     }
+    private fun showSplitRecovery(owner:MobileService) {
+        val choices=owner.splitRecoveryChoices
+        if(choices.isEmpty())return
+        fun title(choice:CanonicalMachineOperationBroker.RecoveryChoice):String =
+            when(val target=choice.entry.target) {
+                is io.openhoyi.session.SplitMachineWriteJournal.Target.Weekly -> getString(R.string.home_recovery_schedule_title)
+                is io.openhoyi.session.SplitMachineWriteJournal.Target.Boiler ->
+                    getString(if(target.boiler==io.openhoyi.session.SplitMachineWriteJournal.Target.BoilerId.BREW)
+                        R.string.home_brew_boiler else R.string.home_steam_boiler)
+                null -> getString(R.string.home_recovery_button)
+            }
+        AlertDialog.Builder(host).setTitle(R.string.home_recovery_button)
+            .setItems(choices.map(::title).toTypedArray()) { _,index ->
+                val choice=choices[index]
+                val observed=owner.takeIf {service===it}?.splitObservation(choice)
+                if(observed==null) {
+                    toast(getString(R.string.service_v2_split_recovery_wait))
+                } else {
+                    val evidence=if(choice.entry.target==observed.observed) R.string.service_v2_split_observed_match
+                        else R.string.service_v2_split_observed_different
+                    AlertDialog.Builder(host).setTitle(title(choice)).setMessage(
+                        splitObservationText(observed.observed) + "\n\n" + getString(evidence))
+                        .setPositiveButton(R.string.home_recovery_clear) { _,_ ->
+                            if(service!==owner || !owner.resolveSplitObservation(observed))
+                                toast(getString(R.string.service_v2_split_recovery_wait))
+                            render()
+                        }.setNegativeButton(R.string.machine_settings_cancel,null).let(::showTransient)
+                }
+            }.setNegativeButton(R.string.machine_settings_cancel,null).let(::showTransient)
+    }
+
+    private fun splitObservationText(observed:io.openhoyi.session.SplitMachineWriteJournal.Target):String =
+        when(observed) {
+            is io.openhoyi.session.SplitMachineWriteJournal.Target.Boiler ->
+                getString(if(observed.enabled) R.string.setting_on else R.string.setting_off)
+            is io.openhoyi.session.SplitMachineWriteJournal.Target.Weekly -> {
+                val names=listOf(R.string.machine_settings_sunday,R.string.machine_settings_monday,
+                    R.string.machine_settings_tuesday,R.string.machine_settings_wednesday,R.string.machine_settings_thursday,
+                    R.string.machine_settings_friday,R.string.machine_settings_saturday)
+                observed.days.mapIndexed { index,day ->
+                    val at=day.time
+                    "${getString(names[index])} · ${getString(if(day.enabled) R.string.setting_on else R.string.setting_off)} · " +
+                        "%02d:%02d–%02d:%02d".format(at.sleepHour,at.sleepMinute,at.wakeHour,at.wakeMinute)
+                }.joinToString("\n")
+            }
+        }
+
     private fun changeMachineMode(change: MachineSettingChange.LeverMode) {
         if (!MachineSettingsEditGate.allowed(service)) { render(); return }
         service?.changeMachineSetting(change)?.let(::toast)
@@ -757,10 +809,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {localWriteProgress}
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
-        acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
+        val splitRecovery=owner?.splitRecoveryChoices?.isNotEmpty()==true
+        acknowledgeManual.visibility = if (!splitRecovery && owner?.manualSafetyMessage == null &&
             (owner?.machineWriteAcknowledgementAvailable != true || localWriteProgress)) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
-            owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
+            owner.shotRecoveryClearBlock == null else splitRecovery || owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)
         prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
         prominentAlarm.show(alarmBanner?.message.orEmpty())
