@@ -172,7 +172,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 .put("contentHeightPx", text.height - text.compoundPaddingTop - text.compoundPaddingBottom)
                 .put("contentWidthPx", text.width - text.compoundPaddingLeft - text.compoundPaddingRight)
                 .put("horizontalLayoutLines",layout?.let { actual -> JSONArray((0 until actual.lineCount).map { index ->
-                    JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
+                    // A centered single-line EditText uses a very wide backing layout. Convert
+                    // to the actual content viewport just as Android draws it, without weakening bounds.
+                    JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index) - text.scrollX)
+                        .put("rightPx",actual.getLineRight(index) - text.scrollX)
                 }) } ?: JSONObject.NULL)
     }
     private fun observation(view: View, textCache:IdentityHashMap<TextView,JSONObject>?=null): JSONObject {
@@ -436,7 +439,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                                     !(parentField("handler") as Handler).hasCallbacks(parentField("refresh") as Runnable)) {"M8 ScaleOwner binding/refresh survived destruction"}
                             }
                             tracked.filter {it is MainActivity || it is MachineSettingsActivity}.forEach {activity->
-                                check(field(activity,"service")==null && field(activity,"bound")==false) {"M8 settings binding survived destruction"}
+                                val stillBound = if (activity is MainActivity) {
+                                    val lease = field(activity, "serviceBinding\$delegate") as Lazy<*>
+                                    (lease.value as VisibleServiceBinding).bound
+                                } else field(activity, "bound") == true
+                                check(field(activity,"service")==null && !stillBound) {"M8 settings binding survived destruction"}
                                 if(activity is MachineSettingsActivity)check(field(activity,"visible")==false && !(field(activity,"handler") as Handler).hasCallbacks(field(activity,"refresh") as Runnable))
                             }
                             if(serviceBound) { context.unbindService(serviceConnection); serviceBound=false }
