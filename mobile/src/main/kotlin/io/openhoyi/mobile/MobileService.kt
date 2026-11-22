@@ -969,6 +969,7 @@ class MobileService : Service() {
                 },
                 rememberedScaleSuppressed=autoConnect.paused(DeviceRole.BOOKOO),
                 automaticAllowed=::automaticAllowed,
+                trackCoffeeDelivery=BuildConfig.BLE_V2_DELIVERY,
             )
             running = true
             event(ResourceMessage(R.string.service_event_started))
@@ -2354,6 +2355,8 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.dose_start_unavailable), "bean.shot_claim_failed")
         }.getOrNull()
     }
+    internal val coffeeDeliveries get() = hub?.coffeeDeliveries.orEmpty()
+
     fun stopShot() {
         interruptUpdateInstallation()
         if (mock != null) {

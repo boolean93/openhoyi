@@ -40,6 +40,33 @@ class MachineDispatchFreshnessTest {
             Control.SCHEDULE -> plan().let { f.session.writeSleepSchedule(target(it), it, done) }
         }
     }
+    @Test fun stopOwnsAdmissionDuringReentrantScheduleCancellation() {
+        val f = CoffeeSessionFixture()
+        freshOtherReadbacks(f, 10); idle(f, 10)
+        var scheduleResult: OperationResult? = null
+        var reentrantResult: OperationResult? = null
+        var refreshResult: OperationResult? = null
+        submit(f, Control.SCHEDULE) {
+            scheduleResult = it
+            f.session.enterSleep { result -> reentrantResult = result }
+            f.session.refreshStaleSettings({ true },forceFreshReadback=true) { refreshResult = it }
+        }
+        f.complete() // Between the two schedule writes: there is no in-flight GATT operation.
+        val beforeStop = f.calls.size
+        var stopResult: OperationResult? = null
+        f.session.stopExtraction(7) { stopResult = it }
+        assertTrue(scheduleResult is OperationResult.Unknown)
+        assertTrue(reentrantResult is OperationResult.Failed)
+        assertTrue(refreshResult is OperationResult.Failed)
+        assertEquals(beforeStop + 1, f.calls.size)
+        val next = f.calls.last().third as GattOperation.Write
+        assertArrayEquals(CoffeeCommands.stop(7).frame.toByteArray(), next.bytes)
+        f.complete()
+        assertTrue(stopResult is OperationResult.Success)
+        f.now = 510; f.session.tick()
+        assertEquals(beforeStop + 1, f.calls.size)
+    }
+
     @Test fun everyControlRejectsInvalidIdleBeforeAnyWrite() {
         for (control in Control.entries) for ((at, now) in badClocks) {
             val f = CoffeeSessionFixture()

@@ -24,7 +24,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     customCurveStartPermit:(StartParameters)->Boolean={false},
     private val onCoffeeReconnect:(String)->Boolean={false},
     rememberedScaleSuppressed:Boolean=false,
-    private val automaticAllowed:(DeviceRole)->Boolean={true}) : AutoCloseable {
+    private val automaticAllowed:(DeviceRole)->Boolean={true},
+    trackCoffeeDelivery:Boolean=false) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=ScaleSelectionPolicy.remembered(rememberedScaleAddress,rememberedScaleProtocolId)
@@ -68,7 +69,9 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
         customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,
-        synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)}) }
+        synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)},
+        trackCoffeeDelivery=trackCoffeeDelivery) }
+    val coffeeDeliveries: List<CoffeeDelivery> get() = if (closed) emptyList() else coffee.session.coffeeDeliveries
     // Compatibility-preserving sidecar. No existing callback or control permit consumes it.
     val coffeeReadbackCursor get() = if (closed) null else coffee.session.coffeeReadbackCursor
     val latestCoffeeReadbackFrame get() = if (closed) null else coffee.session.latestCoffeeReadbackFrame

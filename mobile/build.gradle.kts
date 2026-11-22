@@ -94,12 +94,16 @@ val mockOptimizationControl = providers.gradleProperty("hoyiMockOptimizationCont
 if (mockOptimizationControl && (optimizeMock || updateChecks)) {
     throw GradleException("Mock optimization control cannot be combined with optimization or update fixtures")
 }
+val bleV2Delivery = providers.gradleProperty("hoyiBleV2Delivery").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiBleV2Delivery must be true or false") }
+} ?: false
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
     testBuildType = if (updateChecks) "updateFixture" else "mock"
     defaultConfig {
         applicationId = "io.openhoyi.mobile"
+        buildConfigField("boolean", "BLE_V2_DELIVERY", "false")
         minSdk = 26
         targetSdk = 35
         // Filter transitive AndroidX locales as well as application translations.
@@ -118,7 +122,10 @@ android {
         }
     }
     buildTypes {
-        getByName("debug") { buildConfigField("boolean", "MOCK_MODE", "false") }
+        getByName("debug") {
+            buildConfigField("boolean", "MOCK_MODE", "false")
+            buildConfigField("boolean", "BLE_V2_DELIVERY", bleV2Delivery.toString())
+        }
         getByName("release") {
             buildConfigField("boolean", "MOCK_MODE", "false")
             if (externalSigningComplete) signingConfig = signingConfigs.getByName("externalRelease")
@@ -126,6 +133,7 @@ android {
         create("mock") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".mock"
+            buildConfigField("boolean", "BLE_V2_DELIVERY", "false")
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "MOCK_MODE", "true")
             if (mockOptimizationControl) {
