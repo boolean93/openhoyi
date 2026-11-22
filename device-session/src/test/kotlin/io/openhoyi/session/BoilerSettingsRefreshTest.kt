@@ -15,17 +15,22 @@ class BoilerSettingsRefreshTest {
         override fun close(generation:Long) { }
         val writes get()=calls.mapNotNull {it.third as? GattOperation.Write}
     }
-    private inner class Fixture {
+    private inner class Fixture(val v2:Boolean=false) {
         val driver=Driver()
         var now=0L
         var wallTime=LocalDateTime.of(2026,11,11,10,20,30)
         val tracker=SettingsWriteTracker()
         var serial=0L
+        var lastSettings:Settings?=null
         val session:DeviceSession=DeviceSession(DeviceRole.COFFEE,driver,{now},stateChanged={state->
             if(state!=DeviceState.READY)tracker.disconnected(serial)
         },coffeeFrame={frame,_->
-            if(frame is Settings)tracker.observe(++serial,frame,session.boilerReconciliationReady)
-        },wallClock={wallTime})
+            if(frame is Settings) {
+                lastSettings=frame
+                serial++
+                if(!v2) tracker.observe(serial,frame,session.boilerReconciliationReady)
+            }
+        },wallClock={wallTime},trackCoffeeDelivery=v2)
         val initial=hex("830113FD5C007D0F350019006E")
         init { connect() }
         fun connect(address:String="device") {
@@ -52,7 +57,7 @@ class BoilerSettingsRefreshTest {
         fun complete(result:OperationResult=OperationResult.Success()) {
             val(g,t,_)=driver.calls.last();session.onComplete(g,t,result)
         }
-        fun receive(bytes:ByteArray)=session.onNotification(session.generation,KnownGatt.coffeeNotify,bytes)
+        fun receive(bytes:ByteArray,capturedAt:Long=now)=session.onNotification(session.generation,KnownGatt.coffeeNotify,bytes,capturedAt)
         fun disabled(change:MachineSettingChange):ByteArray=initial.copyOf().also {
             it[3]=(it[3].toInt() and (if(change is MachineSettingChange.BrewHeating)0x20 else 0x10).inv()).toByte()
             it[it.lastIndex]=it.dropLast(1).fold(0){a,v->a xor (v.toInt() and 255)}.toByte()
@@ -282,6 +287,75 @@ class BoilerSettingsRefreshTest {
         f.now=18000;f.session.tick()
         assertEquals(DeviceState.READY,f.session.state);assertEquals("user-selected",f.session.address)
         assertEquals(count,f.driver.calls.size)
+    }
+
+    @Test fun v2SameConnectionMismatchRequiresFreshReportAfterActualSyncResult() {
+        val f=Fixture(v2=true)
+        val intent=MachineSettingChange.BrewHeating(false)
+        f.begin(intent);f.complete()
+        f.advance(250)
+        f.now=251;f.receive(f.initial)
+        assertFalse(f.session.qualifiesBoilerSyncedSettings(intent,requireNotNull(f.lastSettings)))
+        f.now=252;f.complete()
+        f.now=253;f.receive(f.initial,capturedAt=251)
+        assertFalse(f.session.qualifiesBoilerSyncedSettings(intent,requireNotNull(f.lastSettings)))
+        f.now=254;f.receive(f.initial)
+        val observed=requireNotNull(f.lastSettings)
+        assertTrue(f.session.qualifiesBoilerSyncedSettings(intent,observed))
+        assertFalse(f.session.qualifiesBoilerSyncedSettings(MachineSettingChange.SteamHeating(false),observed))
+        assertFalse(f.session.qualifiesBoilerSyncedSettings(intent,observed.copy()))
+        f.now=6000;f.receive(f.initial)
+        assertFalse(f.session.qualifiesBoilerSyncedSettings(intent,requireNotNull(f.lastSettings)))
+    }
+
+    @Test fun v2AuthorizedReplacementOnlyReconcilesCurrentConfigurationAndNeverResends() {
+        for(intent in listOf(MachineSettingChange.BrewHeating(false),MachineSettingChange.SteamHeating(false))) {
+            val f=Fixture(v2=true)
+            val original=requireNotNull(f.session.coffeeReadbackCursor).source
+            val token=f.begin(intent);f.complete()
+            f.advance(250);f.complete();f.advance(1250);f.complete();f.advance(3000)
+            assertTrue(f.session.canReconnectBoilerSettings)
+            assertTrue(f.session.reconnectBoilerSettings({true},{true}))
+            assertFalse(f.session.reconnectBoilerSettings({true},{true}))
+            f.now=3100;f.finishConnect(f.disabled(intent))
+            val observed=requireNotNull(f.lastSettings)
+            assertTrue(intent.matches(observed))
+            assertTrue(f.session.qualifiesBoilerReboundSettings(original,intent,observed))
+            assertFalse(f.session.qualifiesBoilerReboundSettings(f.session.coffeeReadbackCursor?.source,intent,observed))
+            assertTrue(f.tracker.observeReboundBoiler(token,intent,f.serial))
+            assertEquals(SettingsWriteTracker.State.RECONCILED,f.tracker.state)
+            assertEquals(1,f.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(intent).frame.toByteArray())})
+            f.now=18000
+            assertFalse(f.session.qualifiesBoilerReboundSettings(original,intent,observed))
+            f.connect("device") // Normal same-address connection does not inherit the special lease.
+            assertFalse(f.session.qualifiesBoilerReboundSettings(original,intent,requireNotNull(f.lastSettings)))
+        }
+    }
+
+    @Test fun v2ReconnectRequiresTwoDeliveredSyncsAndLiveOriginalScope() {
+        val intent=MachineSettingChange.SteamHeating(false)
+        val denied=Fixture(v2=true)
+        denied.begin(intent);denied.complete()
+        denied.advance(250);denied.complete(OperationResult.Failed("fixture never sent sync"))
+        denied.advance(1250);denied.complete();denied.advance(3000)
+        assertFalse(denied.session.canReconnectBoilerSettings)
+
+        val changed=Fixture(v2=true)
+        changed.begin(intent);changed.complete();changed.advance(250);changed.complete();changed.advance(1250);changed.complete();changed.advance(3000)
+        assertTrue(changed.session.canReconnectBoilerSettings)
+        changed.now=3001
+        changed.receive(hex("400024BF2F1C770B01000000000000190321AF")) // Native now reports sleep.
+        changed.now=3002
+        changed.receive(hex("400024BF2F1C770B00000000000000190321AF"),capturedAt=3000)
+        assertFalse(changed.session.canReconnectBoilerSettings) // Late awake must not outrank it.
+        changed.advance(3003)
+        assertTrue(changed.session.canReconnectBoilerSettings)
+        assertFalse(changed.session.reconnectBoilerSettings({
+            changed.connect("second-device")
+            true
+        },{true}))
+        assertEquals("second-device",changed.session.address)
+        assertEquals(1,changed.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(intent).frame.toByteArray())})
     }
 
     @Test fun manualRecoveryIsSingleSyncAfterSettingsExpiryWithDebounceAndNoControl() {

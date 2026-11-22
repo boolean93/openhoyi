@@ -184,14 +184,46 @@ class MobileService : Service() {
     )
     private var standbyCompanionAnchor: StandbyCompanionAnchor? = null
 
+    private fun observedSetting(intent:MachineSettingChange?,cut:CoffeeReadbackEvidence.Setting?,
+        frame:Settings):CoffeeReadbackEvidence.Setting.Observation? {
+        val native=hub?.latestOrdinaryCoffeeSettings ?: return null
+        return cut?.evaluate(intent,frame,native,native.cursor,MobileMonotonicClock.elapsedRealtime())
+    }
     private fun acceptsSettingEvidence(intent:MachineSettingChange?,cut:CoffeeReadbackEvidence.Setting?,
-        frame:Settings):Boolean {
-        // The two boiler-specific, conditional reconnect paths have different admissible provenance.
-        // They retain their prior recovery until explicit rebind is implemented.
-        if (!v2SettingEvidence || SettingsReadbackPolicy.isBoiler(intent)) return true
-        val current = hub ?: return false
-        val native=current.latestOrdinaryCoffeeSettings ?: return false
-        return cut?.evaluate(intent,frame,native,native.cursor,MobileMonotonicClock.elapsedRealtime()) != null
+        frame:Settings):Boolean = !v2SettingEvidence || observedSetting(intent,cut,frame)!=null
+
+    private fun observeOrdinarySettings(frame:Settings):Boolean {
+        val current=hub
+        val intent=settingsWrite.change
+        val ownsRecord=machineWriteRecovery.owns(settingRecoveryOwner) &&
+            current?.coffeeAddress?.equals(machineWriteRecovery.address,ignoreCase=true)==true
+        val intendedBoiler=SettingsReadbackPolicy.isBoiler(intent)
+        fun publish(feedback:OrdinaryWriteReadback.Event) {
+            when(feedback) {
+                OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
+                OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
+                OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
+            }
+        }
+        val clear={ machineWriteRecovery.clear(settingRecoveryOwner) }
+        if (!v2SettingEvidence) return OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,
+            settingsSampleSerial,frame,clear,ownsRecord && current?.boilerReconciliationReady==true,::publish)
+        if (!ownsRecord || current==null) return false
+
+        val fallback=boilerFallback
+        if (intendedBoiler && fallback!=null && fallback.used && current===fallback.hub &&
+            current.coffeeGeneration==fallback.generation+1 &&
+            current.coffeeAddress?.equals(fallback.address,ignoreCase=true)==true &&
+            machineWriteRecovery.owns(fallback.owner) && boilerRecoveryProductSafe() &&
+            current.qualifiesBoilerReboundSettings(ordinarySettingRequestedSource,intent,frame)) {
+            return OrdinaryWriteReadback.reboundBoiler(settingsWrite,machineWriteRecovery,fallback.token,intent,
+                settingsSampleSerial,clear,::publish)
+        }
+        val result=observedSetting(intent,ordinarySettingEvidence,frame) ?: return false
+        val syncedBoiler=intendedBoiler && current.qualifiesBoilerSyncedSettings(intent,frame)
+        if(intendedBoiler && result==CoffeeReadbackEvidence.Setting.Observation.DIFFERENT && !syncedBoiler) return false
+        return OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,settingsSampleSerial,
+            frame,clear,syncedBoiler,::publish)
     }
     private var cupRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
     private var scheduleRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
@@ -783,16 +815,7 @@ class MobileService : Service() {
                     }
                 }
                 settingsSampleSerial++
-                if (acceptsSettingEvidence(settingsWrite.change,ordinarySettingEvidence,frame) &&
-                    OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,settingsSampleSerial,frame,{ machineWriteRecovery.clear(settingRecoveryOwner) },
-                    machineWriteRecovery.owns(settingRecoveryOwner) && hub?.boilerReconciliationReady==true &&
-                        hub?.coffeeAddress?.equals(machineWriteRecovery.address,ignoreCase=true)==true) { feedback ->
-                    when(feedback) {
-                        OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
-                        OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
-                        OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
-                    }
-                }) refreshSafetyNotification()
+                if(observeOrdinarySettings(frame)) refreshSafetyNotification()
                 if(!lastSettingWasTemperature && settingsWrite.state in setOf(SettingsWriteTracker.State.CONFIRMED,SettingsWriteTracker.State.RECONCILED) &&
                     !machineWriteRecovery.pending) {
                     boilerFallback=null
@@ -2763,27 +2786,42 @@ class MobileService : Service() {
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
             val now = MobileMonotonicClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
-            val strict = v2SettingEvidence && !SettingsReadbackPolicy.isBoiler(settingsWrite.change)
+            val strict = v2SettingEvidence
             val expectedOwner=if(strict) machineWriteRecovery.captureOwnership() else null
             val unknownToken=if(strict) settingsWrite.unknownAcknowledgementToken() else null
-            val native=if(strict) hub?.latestOrdinaryCoffeeSettings else null
+            val current=hub
             val originalSource=ordinarySettingRequestedSource
+            val ownFallback=boilerFallback?.takeIf {
+                strict && current===it.hub && it.owner===settingRecoveryOwner && machineWriteRecovery.owns(it.owner)
+            }
+            val ordinary=if(strict) current?.latestOrdinaryCoffeeSettings else null
+            val reassessed=if (ownFallback?.used==true) current?.preheatSettingsBaseline?.takeIf {
+                current.qualifiesBoilerReboundSettings(originalSource,settingsWrite.change,it.value)
+            } else null
+            val report=ordinary?.value ?: reassessed?.value
+            val source=ordinary?.cursor?.source ?: reassessed?.cursor?.source
+            val captured=ordinary?.receivedAtMs ?: reassessed?.capturedAtMs
             val settingsPresent = if (!strict) snapshot.settings != null else
                 expectedOwner!=null && (unknownToken==null || machineWriteRecovery.owns(settingRecoveryOwner)) &&
-                    native!=null && native.value === snapshot.settings &&
-                    SettingsFreshness.isFresh(native.receivedAtMs,now) &&
-                    (originalSource !== native.cursor.source ||
-                        acceptsSettingEvidence(settingsWrite.change,ordinarySettingEvidence,native.value))
-            val evidence = MachineWriteRecoveryState.SettingEvidence(hub?.coffeeAddress,
+                    report!=null && report === snapshot.settings && source!=null &&
+                    SettingsFreshness.isFresh(captured,now) &&
+                    (originalSource !== source || acceptsSettingEvidence(settingsWrite.change,ordinarySettingEvidence,report))
+            val nativeIdle=if(strict) current?.latestNativeIdle?.takeIf { it.value === idle } else null
+            val evidence = MachineWriteRecoveryState.SettingEvidence(current?.coffeeAddress,
                 settingsPresent, settingsSampleSerial,
-                idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
-                snapshot.coffeeAt, now,
+                (!strict || nativeIdle!=null) &&
+                    idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
+                if(strict) nativeIdle?.capturedAtMs else snapshot.coffeeAt, now,
                 MachineRecoveryActivity.isBusy(settingsWrite.state))
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Setting(evidence, recoveryAfterSettingsSerial),
                 R.string.recovery_event_settings_recovery_waiting,
                 R.string.recovery_event_settings_recovery_clear_failed,
                 R.string.recovery_event_settings_recovery_acknowledged, "settings",
                 expectedOwner=expectedOwner,onAcknowledged={
+                    if (ownFallback!=null && boilerFallback===ownFallback && hub===ownFallback.hub) {
+                        boilerFallback=null
+                        ownFallback.hub.completeBoilerReadbackRecovery()
+                    }
                     if (unknownToken!=null && settingsWrite.acknowledgeUnknown(unknownToken)) {
                         settingRecoveryOwner=null
                         ordinarySettingEvidence=null

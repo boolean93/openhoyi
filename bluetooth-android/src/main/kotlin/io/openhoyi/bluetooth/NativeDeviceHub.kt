@@ -345,6 +345,10 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         coffee.session.refreshBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},outcome)
     }
     val boilerReconciliationReady get()=coffee.session.boilerReconciliationReady
+    fun qualifiesBoilerSyncedSettings(intent:MachineSettingChange?,frame:Settings):Boolean =
+        !closed && coffee.session.qualifiesBoilerSyncedSettings(intent,frame)
+    fun qualifiesBoilerReboundSettings(original:CoffeeReadbackSource?,intent:MachineSettingChange?,frame:Settings):Boolean =
+        !closed && boilerReadbackReconnectLease.held && coffee.session.qualifiesBoilerReboundSettings(original,intent,frame)
     val boilerReadbackReconnecting get()=coffee.session.boilerReadbackReconnecting
     val canReconnectBoilerSettings get()=!boilerReadbackReconnectLease.held && coffee.session.canReconnectBoilerSettings &&
         !DeviceConnectionGate.unsettled(extraction.state)
@@ -353,8 +357,10 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         if(!canReconnectBoilerSettings || !beforeDispatch())return false
         // Scoped suppression survives FAILED/UNKNOWN, and never changes the user's preferences.
         check(boilerReadbackReconnectLease.claim())
-        return coffee.session.reconnectBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},
+        val started=coffee.session.reconnectBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},
             {mayExpire() && !DeviceConnectionGate.unsettled(extraction.state)})
+        if(!started)boilerReadbackReconnectLease.release()
+        return started
     }
     fun completeBoilerReadbackRecovery(){usable();boilerReadbackReconnectLease.release()}
     val boilerSettingsRecoveryBusy get()=coffee.session.boilerSettingsRecoveryBusy
