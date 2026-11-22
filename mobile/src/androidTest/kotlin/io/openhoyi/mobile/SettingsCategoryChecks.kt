@@ -82,7 +82,9 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     } finally { bitmap.recycle() }
                 }
                 val landingDebug = JSONObject()
-                fun checkRenderedLanding(category: SettingsCategory, phase: String) {
+                data class LandingFrame(val selected: Boolean, val atAnchor: Boolean, val visible: Boolean,
+                    val scrollY: Int, val viewport: Rect, val heading: Rect, val titleTop: Int, val anchorTop: Int)
+                fun inspectRenderedLanding(category: SettingsCategory, phase: String): LandingFrame {
                     val doc = settings()
                     val view = heading(category.sections.first())
                     val viewport = rect(doc.scroll)
@@ -94,14 +96,17 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     val precedingBounds = Rect()
                     val precedingVisible = preceding != null && preceding.isShown &&
                         preceding.getGlobalVisibleRect(precedingBounds) && Rect.intersects(viewport, precedingBounds)
+                    val anchor = IntArray(2).also(doc.sectionAnchor(category.sections.first())::getLocationOnScreen)
+                    val frame = LandingFrame(button(category).isSelected,
+                        doc.isAtSectionLanding(category.sections.first()), allVisible,
+                        doc.scroll.scrollY, viewport, visible, title[1], anchor[1])
                     landingDebug.put("${category.key}/$phase", JSONObject()
                         .put("viewport", viewport.toShortString()).put("heading", title[1])
+                        .put("selected", frame.selected).put("atAnchor", frame.atAnchor)
+                        .put("allVisible", frame.visible).put("anchorTop", frame.anchorTop)
                         .put("visibleHeading", visible.toShortString()).put("scrollY", doc.scroll.scrollY)
                         .put("precedingMachine", precedingBounds.toShortString()).put("machineVisible", precedingVisible))
                     File(out, "landing-debug.json").writeText(landingDebug.toString(2))
-                    check(button(category).isSelected && doc.isAtSectionLanding(category.sections.first()) && allVisible) {
-                        "Unstable category at $phase: ${category.key}, y=${doc.scroll.scrollY}, heading=$visible, body=$viewport"
-                    }
                     if (category == SettingsCategory.BREWING) {
                         val chapter = doc.sectionAnchor("shortcuts")
                         val chapterPosition = IntArray(2).also(chapter::getLocationOnScreen)
@@ -109,6 +114,36 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                             "Brewing must begin at the viewport top with no previous Machine card: title=${chapterPosition[1]}, body=$viewport, machine=$precedingBounds"
                         }
                     }
+                    return frame
+                }
+                fun requireStableLanding(category: SettingsCategory, phase: String, frame: LandingFrame) {
+                    check(frame.selected && frame.atAnchor && frame.visible) {
+                        "Unstable category at $phase: ${category.key}, $frame"
+                    }
+                }
+                fun captureStableLanding(category: SettingsCategory) {
+                    test.waitForIdleSync()
+                    val before = main { inspectRenderedLanding(category, "before") }
+                    requireStableLanding(category, "before", before)
+                    capture(category.key)
+                    var after = main { inspectRenderedLanding(category, "after") }
+                    // Window frame synchronization can briefly coincide with a new layout traversal.
+                    // Only allow bookkeeping to settle; a change in actual pixels/viewport, focus
+                    // highlight, or visible content before or after the capture is a hard failure.
+                    fun checkSameFrame(frame: LandingFrame) {
+                        check(frame.copy(atAnchor = before.atAnchor) == before) {
+                            "Settings category drifted during capture: ${category.key}, before=$before after=$frame"
+                        }
+                    }
+                    checkSameFrame(after)
+                    val cutoff = android.os.SystemClock.uptimeMillis() + 250L
+                    var sample = 0
+                    while (!after.atAnchor && android.os.SystemClock.uptimeMillis() < cutoff) {
+                        android.os.SystemClock.sleep(16)
+                        after = main { inspectRenderedLanding(category, "settle-${++sample}") }
+                        checkSameFrame(after)
+                    }
+                    requireStableLanding(category, "after", after)
                 }
                 fun select(category: SettingsCategory) {
                     main { check(button(category).performClick()) }
@@ -227,7 +262,8 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         fragment.renderMockNearby(rescanned.copy(scaleState = io.openhoyi.session.DeviceState.CONNECTING,
                             candidates = rescanned.candidates + injected))
                         check(candidates().findViewWithTag<View>("settings/devices/candidate-group/BOOKOO") == null)
-                        fragment.renderMockNearby(rescanned.copy(candidates = rescanned.candidates + injected))
+                        fragment.renderMockNearby(rescanned.copy(candidates = rescanned.candidates +
+                            injected.filterNot { it.address == badScale }))
                         check(candidates().findViewWithTag<View>("settings/devices/candidate-group/COFFEE")?.isShown == true &&
                             candidates().findViewWithTag<View>("settings/devices/candidate-group/BOOKOO")?.isShown == true &&
                             rescanned.candidates.all { candidates().findViewWithTag<View>(
@@ -236,6 +272,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     captureDevice("results", "平板附近设备：Mock 测试候选按设备类型分组")
                     main {
                         val rescanned = requireNotNull(activity.currentService).snapshot
+                        fragment.renderMockNearby(rescanned.copy(candidates = injected))
                         check(candidates().findViewWithTag<Button>("product/devices/candidate/$badScale/connect").performClick())
                         check(caption().text.toString() == activity.getString(R.string.scale_protocol_unsupported))
                         fragment.renderMockNearby(rescanned.copy(candidates = injected))
@@ -279,10 +316,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     select(category)
                     if (!short || category in listOf(SettingsCategory.DEVICE, SettingsCategory.BREWING,
                             SettingsCategory.APPEARANCE)) {
-                        test.waitForIdleSync()
-                        main { checkRenderedLanding(category, "before") }
-                        capture(category.key)
-                        main { checkRenderedLanding(category, "after") }
+                        captureStableLanding(category)
                     }
                     if (!wide && !short && category == SettingsCategory.BREWING) main {
                         val doc = settings()

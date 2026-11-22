@@ -67,6 +67,9 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     private lateinit var scanSpinner: ProgressBar
     private lateinit var scanProgress: TextView
     private val phoneBackgrounds = mutableMapOf<Button, android.graphics.drawable.Drawable?>()
+    private var phoneToolInk: android.content.res.ColorStateList? = null
+    private var phoneToolIcons: Array<android.graphics.drawable.Drawable?>? = null
+    private var phoneToolIconGap = 0
 
     private fun returnToPhone(view: View) {
         val original = placements[view] ?: return
@@ -111,6 +114,23 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             words.getChildAt(0).visibility = View.VISIBLE
         }
         tool.text = host.getString(if (wide) R.string.settings_device_scale_tool_short else R.string.settings_category_scale_tool)
+        if (wide) {
+            phoneToolInk = tool.textColors
+            phoneToolIcons = tool.compoundDrawablesRelative
+            phoneToolIconGap = tool.compoundDrawablePadding
+            tool.setTextColor(style.accent)
+            val size = style.dp(16)
+            val chevron = HomeVisualIcon.drawable(host, "chevron", style.accent).apply {
+                setBounds(0, 0, size, size)
+                isAutoMirrored = true
+            }
+            tool.setCompoundDrawablesRelative(null, null, chevron, null)
+            tool.compoundDrawablePadding = style.dp(4)
+        } else {
+            phoneToolInk?.let(tool::setTextColor)
+            phoneToolIcons?.let { tool.setCompoundDrawablesRelative(it[0], it[1], it[2], it[3]) }
+            tool.compoundDrawablePadding = phoneToolIconGap
+        }
         scaleCard.findViewWithTag<View>("settings/devices/scale-separator")?.visibility = if (wide) View.GONE else View.VISIBLE
         cards.values.forEach { card ->
             // The containing group owns the single shared surface on tablet.
@@ -121,6 +141,11 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         disconnectLabels.forEach { (button, original) ->
             button.text = if (wide) host.getString(R.string.settings_device_disconnect_short) else original
             button.contentDescription = original
+            if (button !in phoneBackgrounds) phoneBackgrounds[button] = button.background
+            button.background = if (wide) android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(style.selected),
+                style.shape(android.graphics.Color.TRANSPARENT, true, 10),
+                style.shape(android.graphics.Color.WHITE, radius = 10)) else phoneBackgrounds[button]
         }
         rendered = ""
         render(owner)
