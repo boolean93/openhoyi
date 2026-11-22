@@ -18,24 +18,42 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     private data class Placement(val parent: android.view.ViewGroup, val index: Int,
         val params: android.view.ViewGroup.LayoutParams)
     private var tablet = false
-    private var scanStartedAfter: Long? = null
+    private var scanIntent: Any? = null
+    private var displayedMockSnapshot: MobileSnapshot? = null
+    private fun ownsScan(snapshot: MobileSnapshot?): Boolean =
+        scanIntent != null && snapshot?.nearbyScanOwner === scanIntent
+    private fun canSubmitCandidate(role: DeviceRole, address: String, scan: Any?): Boolean {
+        val live = owner?.snapshot ?: return false
+        val shown = if (BuildConfig.MOCK_MODE) displayedMockSnapshot ?: live else live
+        return scan != null && live.nearbyScanOwner === scan && ownsScan(live) &&
+            shown.nearbyScanOwner === scan && localError == null &&
+            (shown.scanning || shown.nearbyScanPhase == NearbyScanPhase.COMPLETE) &&
+            shown.candidates.any { it.candidateRole == role && it.address.equals(address, ignoreCase = true) } &&
+            candidateIsAvailable(role, address, shown)
+    }
     private var candidateFeedback: SnapshotMessage? = null
-    private fun reportCandidateOutcome(operation: () -> Unit) {
+    private var candidateFeedbackRole: DeviceRole? = null
+    private var candidateFeedbackState: io.openhoyi.session.DeviceState? = null
+    private fun roleState(snapshot: MobileSnapshot?, role: DeviceRole) =
+        if (role == DeviceRole.COFFEE) snapshot?.coffeeState else snapshot?.scaleState
+    private fun reportCandidateOutcome(role: DeviceRole, operation: () -> Unit) {
         if (!tablet) { operation(); return }
         val before = owner?.snapshot?.message
         candidateFeedback = null
         operation()
         candidateFeedback = owner?.snapshot?.message?.takeIf { it !== before }
+        candidateFeedbackRole = role
+        candidateFeedbackState = roleState(owner?.snapshot, role)
         render(owner)
     }
     private fun candidateIsAvailable(role: DeviceRole, address: String, snapshot: MobileSnapshot?): Boolean {
-        val state = if (role == DeviceRole.COFFEE) snapshot?.coffeeState else snapshot?.scaleState
+        val state = roleState(snapshot, role)
         if (state != null && TaskShellDeviceStatus.connecting(state)) return false
         return !address.equals(owner?.readyNearbyAddress(role), ignoreCase = true)
     }
     private fun markTabletScanIntent() {
         if (tablet) {
-            scanStartedAfter = owner?.snapshot?.nearbyScanGeneration ?: 0L
+            scanIntent = Any()
             candidateFeedback = null
         }
     }
@@ -137,7 +155,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             val words=style.column().also { roleWords[role] = it }
             style.add(words,
                 style.text(host.getString(if (role == DeviceRole.COFFEE) R.string.home_coffee else R.string.scale_title), TaskProductVisualStyle.body))
-            states[role]=style.text("—",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(words,it,4)}
+            states[role]=style.text("—",TaskProductVisualStyle.auxiliary, "settings/devices/status/${role.name}", secondary=true).also {style.add(words,it,4)}
             val buttons=LinearLayout(host)
             val actions=SettingsWrappingActions(host, style.dp(6)).also { roleActions[role] = it }
             if(role==DeviceRole.COFFEE)coffeeRetry=HoyiUi.button(host,buttons,host.getString(R.string.coffee_connection_retry)) {
@@ -227,13 +245,19 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 if(!adapter.isEnabled){enableBluetooth();return}
             }catch(_:SecurityException){error(host.getString(R.string.home_permission_expired));return}
         }
-        if(!host.ensureServiceForScan())error(host.getString(R.string.home_bind_failed))
+        if(!host.ensureServiceForScan(scanIntent.takeIf { tablet }))error(host.getString(R.string.home_bind_failed))
     }
     fun render(service:MobileService?, snapshot: MobileSnapshot? = service?.snapshot) {
         owner=service
         if(!::message.isInitialized)return
         disconnectActions.forEach {it.isEnabled=connectedActionAllowed()}
-        val currentScan = scanStartedAfter?.let { after -> snapshot != null && snapshot.nearbyScanGeneration > after } == true
+        if (BuildConfig.MOCK_MODE) displayedMockSnapshot = snapshot
+        val currentScan = ownsScan(snapshot)
+        // The role row follows live connection states (and the coffee failure reason), not the
+        // latest unscoped service message. Retire any synchronous caption as the role moves on.
+        candidateFeedbackRole?.let { role ->
+            if (!currentScan || roleState(snapshot, role) != candidateFeedbackState) candidateFeedback = null
+        }
         val visibleCandidates = if (tablet) snapshot?.candidates.orEmpty().filter {
             currentScan && localError == null &&
                 (snapshot?.scanning == true || snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE) &&
@@ -244,16 +268,16 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         scanButton?.apply {
             val scanning = snapshot?.scanning == true
             val caption = host.getString(when {
-                scanning -> R.string.settings_hig_scanning
+                scanning && (!tablet || currentScan) -> R.string.settings_hig_scanning
                 tablet && currentScan && snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE -> R.string.settings_device_scan_again
                 else -> R.string.home_scan
             })
             tag = "settings/devices/scan-button"
             if (text.toString() != caption) text = caption
             isEnabled = !scanning && allowed()
-            visibility = if (tablet && scanning) View.INVISIBLE else View.VISIBLE
+            visibility = if (tablet && currentScan && scanning) View.INVISIBLE else View.VISIBLE
         }
-        val showProgress = tablet && snapshot?.scanning == true
+        val showProgress = tablet && currentScan && snapshot?.scanning == true
         scanSpinner.visibility = if (showProgress) View.VISIBLE else View.GONE
         scanProgress.visibility = if (showProgress) View.VISIBLE else View.GONE
         scanTitle.text = host.getString(if (tablet) R.string.settings_device_nearby else R.string.settings_category_scan_nearby)
@@ -294,7 +318,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             if(text.text.toString()!=value)text.text=value
         }
         val display = localError ?: if (tablet) when {
-            snapshot?.scanning == true -> host.getString(R.string.settings_device_nearby_hint)
+            currentScan && snapshot?.scanning == true -> host.getString(R.string.settings_device_nearby_hint)
             candidateFeedback != null -> candidateFeedback?.render { id,args -> host.getString(id,*args) }.orEmpty()
             currentScan && snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE && values.isEmpty() && !anyConnecting ->
                 host.getString(R.string.settings_device_nearby_empty)
@@ -303,7 +327,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         } else snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()
         if(message.text.toString()!=display)message.text=display
         message.visibility=if(message.text.isNullOrEmpty())View.GONE else View.VISIBLE
-        val key=values.toString()+allowed()
+        val key=values.toString()+allowed()+currentScan+snapshot?.nearbyScanGeneration
         if(key==rendered)return
         rendered=key;candidates.removeAllViews()
         var renderedRole: DeviceRole? = null
@@ -327,20 +351,21 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             ScaleCandidateStatus.resource(candidate.scaleProtocolId)?.let { status ->
                 style.add(words,style.text(host.getString(status),TaskProductVisualStyle.auxiliary,secondary=true),4)
             }
+            val candidateScan = snapshot?.nearbyScanOwner
             val connect=HoyiUi.button(host,LinearLayout(host),host.getString(R.string.home_connect)) {
                 if(!connectedActionAllowed()){error(host.getString(R.string.scale_active_guard));return@button}
-                if(tablet && !candidateIsAvailable(candidate.candidateRole, candidate.address, owner?.snapshot)) {
+                if(tablet && !canSubmitCandidate(candidate.candidateRole, candidate.address, candidateScan)) {
                     rendered="";render(owner);return@button
                 }
                 localError=null
-                reportCandidateOutcome {
+                reportCandidateOutcome(candidate.candidateRole) {
                     if(candidate.candidateRole==DeviceRole.BOOKOO) {
                         val protocol = candidate.scaleProtocolId ?: if(BuildConfig.MOCK_MODE)
                             io.openhoyi.session.BookooScaleProtocolAdapter.id else null
                         if (protocol != null) owner?.connectScale(candidate.address, protocol)
                         else if (tablet) error(host.getString(R.string.scale_protocol_unsupported))
                     } else if(owner?.connectRememberedCoffee(candidate.address)==RememberedCoffeeConnection.PASSWORD_REQUIRED) {
-                        showPassword(candidate.address)
+                        showPassword(candidate.address, candidateScan)
                     }
                 }
             }.apply {visual.action(this,outline=true);isEnabled=connectedActionAllowed();tag="product/devices/candidate/${candidate.address}/connect"}
@@ -354,8 +379,8 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                         PopupMenu(host, button).apply {
                             menu.add(R.string.home_connect_with_password)
                             setOnMenuItemClickListener {
-                                if (connectedActionAllowed() && candidateIsAvailable(candidate.candidateRole, candidate.address, owner?.snapshot))
-                                    showPassword(candidate.address)
+                                if (connectedActionAllowed() && canSubmitCandidate(candidate.candidateRole, candidate.address, candidateScan))
+                                    showPassword(candidate.address, candidateScan)
                                 else if (!connectedActionAllowed()) error(host.getString(R.string.scale_active_guard))
                                 true
                             }
@@ -367,13 +392,13 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             else style.add(actions,connect)
             if(!tablet && candidate.candidateRole==DeviceRole.COFFEE && !BuildConfig.MOCK_MODE) {
                 HoyiUi.button(host,actions,host.getString(R.string.home_connect_with_password)) {
-                    if(connectedActionAllowed())showPassword(candidate.address) else error(host.getString(R.string.scale_active_guard))
+                    if(connectedActionAllowed())showPassword(candidate.address, candidateScan) else error(host.getString(R.string.scale_active_guard))
                 }.apply {visual.action(this,outline=true);isEnabled=connectedActionAllowed();tag="product/devices/candidate/${candidate.address}/password"}
             }
             style.add(candidates,visual.pair(words,actions,"settings/devices/candidate/${candidate.address}"));visual.divider(candidates)
         }
     }
-    private fun showPassword(address:String) {
+    private fun showPassword(address:String, scan: Any? = null) {
         val input=EditText(host).apply {
             inputType=android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
             filters=arrayOf(android.text.InputFilter.LengthFilter(6));hint=host.getString(R.string.home_password_hint)
@@ -385,10 +410,10 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                     val password=input.text.toString()
                     if(!password.matches(Regex("[0-9]{6}")))input.error=host.getString(R.string.home_password_error)
                     else if(connectedActionAllowed()){
-                        if (tablet && !candidateIsAvailable(DeviceRole.COFFEE, address, owner?.snapshot)) {
+                        if (tablet && !canSubmitCandidate(DeviceRole.COFFEE, address, scan)) {
                             window.dismiss();render(owner);return@setOnClickListener
                         }
-                        reportCandidateOutcome { owner?.connectCoffee(address,password) }
+                        reportCandidateOutcome(DeviceRole.COFFEE) { owner?.connectCoffee(address,password) }
                         window.dismiss()
                     }
                 }}

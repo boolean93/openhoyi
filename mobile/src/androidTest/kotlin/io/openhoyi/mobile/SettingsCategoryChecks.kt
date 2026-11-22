@@ -241,13 +241,35 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         fragment.renderMockNearby(rescanned.copy(candidates = injected))
                         check(candidates().findViewWithTag<Button>("product/devices/candidate/$alternative/connect").performClick())
                         check(caption().text.toString() == activity.getString(R.string.service_scale_mock))
+                        val deviceState = io.openhoyi.session.DeviceState.FAILED
+                        fragment.renderMockNearby(rescanned.copy(scaleState = deviceState))
+                        check(settings().findViewWithTag<android.widget.TextView>("settings/devices/status/BOOKOO").text.toString() ==
+                            DeviceStatusText.label(activity, deviceState))
+                        check(caption().text.toString() != activity.getString(R.string.service_scale_mock))
+                        fragment.renderMockNearby(rescanned.copy(candidates = injected))
+                        val stale = candidates().findViewWithTag<Button>("product/devices/candidate/$alternative/connect")
+                        val owner = requireNotNull(activity.currentService)
+                        owner.scan() // a different entrance supersedes the page-owned result
+                        val foreign = owner.snapshot
+                        val before = foreign.message
+                        stale.performClick()
+                        check(owner.snapshot.message === before)
+                        fragment.renderMockNearby(foreign.copy(candidates = injected))
+                        check(candidates().childCount == 0 && !caption().isShown)
+                        fragment.renderMockNearby(foreign.copy(scanning = true))
+                        check(!settings().findViewWithTag<View>("settings/devices/scan-progress").isShown &&
+                            !scan().isEnabled && !caption().isShown)
+                        fragment.renderMockNearby(foreign.copy(nearbyScanPhase = NearbyScanPhase.FAILED,
+                            nearbyScanFailure = SnapshotMessage.raw("foreign-fixture")))
+                        check(candidates().childCount == 0 && !caption().isShown)
                         fragment.renderMockNearby(null)
                     }
                     receipts.put("deviceCompact", JSONObject().put("singleTwoRowSurface", true)
                         .put("scaleActionsSingleBand", true).put("narrowMeasuredWrap", true)
                         .put("scanningAndFailureDistinct", true).put("emptyRetryDispatched", true)
                         .put("hidesPriorAndCurrentDevice", true).put("candidateErrorRendered", true)
-                        .put("rolesGrouped", true).put("mockScaleConnectRoute", true))
+                        .put("rolesGrouped", true).put("mockScaleConnectRoute", true)
+                        .put("scanOwnerIsolation", true).put("roleFailureProjection", true))
                 }
                 val savedText = main { settings().findViewsByClass(EditText::class.java).first() }
                 val previous = main { savedText.text.toString().also { savedText.setText("94") } }
