@@ -44,7 +44,16 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
         fun open(): android.app.AlertDialog {
             var dialog: android.app.AlertDialog? = null
             onMain {
-                check(card(current).button.performClick())
+                val category = requireNotNull(settings(current).requireView().findViewWithTag<android.widget.Button>(
+                    "settings/category/appearance"))
+                check(category.isShown && category.isEnabled && category.performClick())
+            }
+            test.waitForIdleSync()
+            onMain {
+                val action = card(current).button
+                action.requestRectangleOnScreen(android.graphics.Rect(0, 0, action.width, action.height), true)
+                check(action.isShown && action.isEnabled && action.getGlobalVisibleRect(android.graphics.Rect()))
+                check(action.performClick())
                 dialog = requireNotNull(card(current).dialog)
                 check(dialog!!.isShowing && dialog!!.listView.adapter.count == 2)
                 for (index in AppLanguage.entries.indices)
@@ -97,7 +106,8 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
                     val currentMode = if (previousTheme) "dark" else "light"
                     val next = requireNotNull(fragment.requireView().findViewWithTag<android.widget.Button>(
                         "settings/appearance/mode/$target"))
-                    check(next.isShown && next.isEnabled && next.performClick())
+                    next.requestRectangleOnScreen(android.graphics.Rect(0, 0, next.width, next.height), true)
+                    check(next.isShown && next.isEnabled && next.getGlobalVisibleRect(android.graphics.Rect()) && next.performClick())
                     check(!next.isSelected && fragment.requireView().findViewWithTag<View>(
                         "settings/appearance/mode/$currentMode").isSelected)
                     check(fragment.themeCheckBox.isChecked == previousTheme)

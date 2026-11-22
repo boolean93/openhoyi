@@ -738,12 +738,6 @@ class BrewAudioInstrumentation : Instrumentation() {
         val lazy = field.get(owner) as Lazy<*>
         return if (lazy.isInitialized()) lazy.value as BrewFeedbackAudio else null
     }
-    private fun button(root: android.view.View, label: String): android.widget.Button? {
-        if (root is android.widget.Button && root.text.toString() == label) return root
-        if (root is android.view.ViewGroup) for (index in 0 until root.childCount)
-            button(root.getChildAt(index), label)?.let { return it }
-        return null
-    }
     /** Calls only the guarded Mock service's real product start/stop APIs. */
     private fun verifyFeedbackService(initialHome: MainActivity) {
         var home = initialHome
@@ -783,11 +777,25 @@ class BrewAudioInstrumentation : Instrumentation() {
             val settings = MainPageTestHost(this, home).select(TaskDestination.SETTINGS) as AppSettingsFragment
             waitForIdleSync()
             runOnMainSync {
+                val category = requireNotNull(settings.requireView().findViewWithTag<android.widget.Button>(
+                    "settings/category/brewing"))
+                check(category.isShown && category.isEnabled && category.performClick())
+            }
+            fun audition() {
+                val preview = requireNotNull(settings.requireView().findViewWithTag<android.widget.Button>(
+                    "product/settings/app/feedback/preview"))
+                check(preview.text.toString() == settings.getString(R.string.settings_category_preview))
+                preview.requestRectangleOnScreen(android.graphics.Rect(0, 0, preview.width, preview.height), true)
+                check(preview.isShown && preview.isEnabled && preview.getGlobalVisibleRect(android.graphics.Rect()))
+                check(preview.performClick())
+            }
+            waitForIdleSync()
+            runOnMainSync {
                 check(!settingsCard(settings).enabledSwitch.isChecked)
                 settingsCard(settings).enabledSwitch.performClick()
                 check(feedbackPrefs.enabled)
                 check(targetContext.getSharedPreferences("brew_feedback", Context.MODE_PRIVATE).getBoolean("enabled", false))
-                requireNotNull(button(requireNotNull(settings.view), settings.getString(R.string.feedback_preview))).performClick()
+                audition()
                 check(playback(settingsCard(settings))?.playing == true)
             }
             awaitMusic(true)
@@ -798,7 +806,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             awaitMusic(false, 1000)
             runOnMainSync {
                 settingsCard(settings).enabledSwitch.performClick()
-                requireNotNull(button(requireNotNull(settings.view), settings.getString(R.string.feedback_preview))).performClick()
+                audition()
                 check(playback(settingsCard(settings))?.playing == true)
             }
             awaitMusic(true)
