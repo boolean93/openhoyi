@@ -85,7 +85,9 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var pageProfile: String? = null
     private var languageChecks = false
     private var upgradeChecks: String? = null
+    private var splitMachineWriteFileChecks = false
     override fun onCreate(arguments: Bundle?) {
+        splitMachineWriteFileChecks = arguments?.getString("splitMachineWriteFileChecks") == "true"
         aiSafetyArguments = arguments?.takeIf { it.getString("aiSafetyChecks") == "true" }?.let(::Bundle)
         aiPreviewArguments = arguments?.takeIf { it.getString("aiPreviewOnly") == "true" }?.let(::Bundle)
         downloadRoutingChecks = arguments?.getString("downloadRoutingChecks") == "true"
@@ -499,6 +501,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                     "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=2 themes=2 curveKinds=5 manualWarnings=3 cancelledLowTemperaturePreparation=true\n" +
                     "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=2 themes=2 choices=2 switched=true restored=true unchanged=true saveFailure=true sameService=true\n" +
                     "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=2 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (splitMachineWriteFileChecks) {
+                SplitMachineWriteFileChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "SPLIT_MACHINE_WRITE_FILE_CHECKS_PASSED androidAtomic=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
