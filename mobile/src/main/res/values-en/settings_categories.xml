@@ -1,0 +1,24 @@
+<resources>
+    <string name="settings_category_device">Devices</string>
+    <string name="settings_category_machine">Machine</string>
+    <string name="settings_category_appearance">Appearance</string>
+    <string name="settings_category_ai">AI</string>
+    <string name="settings_category_maintenance">Maintenance</string>
+    <string name="settings_category_expanded">Expanded</string>
+    <string name="settings_category_collapsed">Collapsed</string>
+    <string name="settings_category_scan_nearby">Scan nearby devices</string>
+    <string name="settings_category_update">App updates</string>
+    <string name="settings_category_scale_capabilities">Capabilities and help</string>
+    <string name="settings_category_ai_hint">Manage the API key, model, reasoning effort and automatic shot review from the HOYI.AI chat menu.</string>
+    <string name="settings_category_diagnostics">Diagnostic storage and service</string>
+    <string name="settings_category_brewing">Brewing</string>
+    <string name="settings_category_project_details">Project and import guide</string>
+    <string name="settings_category_scale_tool">Open scale tool</string>
+    <string name="settings_category_apply">Apply</string>
+    <string name="settings_category_preview">Preview</string>
+    <string name="settings_category_shortcut_hint">Studio mode requires target temperature.</string>
+    <string name="settings_category_axes_hint">Display only</string>
+    <string name="settings_category_feedback_hint">Show feedback and play a prompt at completion.</string>
+    <string name="settings_category_diagnostics_label">Diagnostic log</string>
+    <string name="settings_category_weekly_active">Enable weekly schedule</string>
+</resources>

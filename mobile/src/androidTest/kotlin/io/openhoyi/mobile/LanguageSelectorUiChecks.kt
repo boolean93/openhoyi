@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 import android.app.Instrumentation
 import android.content.Context
 import android.os.SystemClock
+import android.view.View
 import android.widget.LinearLayout
 
 /** Actual local preference widget; no machine command or positive extraction confirmation. */
@@ -92,9 +93,13 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
                 val writer = fragment.appearanceWrite
                 try {
                     fragment.appearanceWrite = { false }
-                    // CompoundButton toggles before super.performClick(); its Boolean only
-                    // reports an OnClickListener, not the OnCheckedChangeListener used here.
-                    fragment.themeCheckBox.performClick()
+                    val target = if (previousTheme) "light" else "dark"
+                    val currentMode = if (previousTheme) "dark" else "light"
+                    val next = requireNotNull(fragment.requireView().findViewWithTag<android.widget.Button>(
+                        "settings/appearance/mode/$target"))
+                    check(next.isShown && next.isEnabled && next.performClick())
+                    check(!next.isSelected && fragment.requireView().findViewWithTag<View>(
+                        "settings/appearance/mode/$currentMode").isSelected)
                     check(fragment.themeCheckBox.isChecked == previousTheme)
                     check(appearance.getBoolean("dark", false) == storedTheme)
                     check(fragment.themeError.text.toString() == current.getString(R.string.app_settings_theme_failed))

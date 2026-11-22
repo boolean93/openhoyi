@@ -54,6 +54,8 @@ import io.openhoyi.session.SleepScheduleFreshness
 import io.openhoyi.trace.TraceStore
 import java.time.LocalDateTime
 
+enum class NearbyScanPhase { IDLE, COMPLETE, FAILED }
+
 data class MobileSnapshot(
     val coffeeState: DeviceState = DeviceState.DISCONNECTED,
     val scaleState: DeviceState = DeviceState.DISCONNECTED,
@@ -71,6 +73,10 @@ data class MobileSnapshot(
     val scaleCapabilities: ScaleCapabilities? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
+    val nearbyScanPhase: NearbyScanPhase = NearbyScanPhase.IDLE,
+    val nearbyScanGeneration: Long = 0L,
+    val nearbyScanOwner: Any? = null,
+    val nearbyScanFailure: SnapshotMessage? = null,
     val message: SnapshotMessage? = null,
     /** Display-only reason for the last coffee FAILED state; never a control permit. */
     val coffeeFailure: CoffeeSessionFailure? = null,
@@ -363,7 +369,9 @@ class MobileService : Service() {
     private fun refreshMock(runtime: MockDeviceRuntime, now: Long = MobileMonotonicClock.elapsedRealtime()) {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,
-            scanning = previous.scanning, message = previous.message)
+            scanning = previous.scanning, nearbyScanPhase = previous.nearbyScanPhase,
+            nearbyScanFailure = previous.nearbyScanFailure, nearbyScanGeneration = previous.nearbyScanGeneration,
+            nearbyScanOwner = previous.nearbyScanOwner, message = previous.message)
         if (mockScaleVisualInput.isInstalled) {
             applyScaleVisualInput() // Injected visual input ticks never create observations.
         } else {
@@ -630,7 +638,10 @@ class MobileService : Service() {
             }
             else -> Unit
         }
-        if (role == DeviceRole.COFFEE && state != DeviceState.READY) temperatureWrite.disconnected(settingsSampleSerial)
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY) {
+            temperatureWrite.disconnected(settingsSampleSerial)
+            boilerTargetSteps.sessionChanged(null)
+        }
         // The controller consumes idle synchronously; a link loss between that proof and
         // watchShot finalization cannot undo it. A passive cup has its own end boundary.
         if (role == DeviceRole.COFFEE && state != DeviceState.READY)
@@ -990,13 +1001,25 @@ class MobileService : Service() {
             handler.postDelayed(leaveForeground, 500)
         }
     }
-    fun scan() {
+    private val mockNearbyCoffee = "02:00:00:00:00:01"
+    private val mockNearbyScale = "02:00:00:00:00:02"
+    internal fun readyNearbyAddress(role: DeviceRole): String? =
+        if (mock != null) when (role) {
+            DeviceRole.COFFEE -> mockNearbyCoffee.takeIf { snapshot.coffeeState == DeviceState.READY }
+            DeviceRole.BOOKOO -> mockNearbyScale.takeIf { snapshot.scaleState == DeviceState.READY }
+        } else when (role) {
+            DeviceRole.COFFEE -> hub?.coffeeAddress
+            DeviceRole.BOOKOO -> hub?.scaleAddress
+        }
+
+    fun scan(owner: Any? = null) {
         if (mock != null) {
             snapshot = snapshot.copy(candidates = listOf(
-                DiscoveredDevice("02:00:00:00:00:01", "HOYI Mock", -42, DeviceRole.COFFEE),
-                DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO,
+                DiscoveredDevice(mockNearbyCoffee, "HOYI Mock", -42, DeviceRole.COFFEE),
+                DiscoveredDevice(mockNearbyScale, "BOOKOO Mock", -45, DeviceRole.BOOKOO,
                     io.openhoyi.session.BookooScaleProtocolAdapter.id)),
-                scanning = false)
+                scanning = false, nearbyScanPhase = NearbyScanPhase.COMPLETE, nearbyScanFailure = null,
+                nearbyScanGeneration = snapshot.nearbyScanGeneration + 1, nearbyScanOwner = owner)
             event(ResourceMessage(R.string.service_scan_mock), "mock.scan")
             return
         }
@@ -1004,13 +1027,20 @@ class MobileService : Service() {
         manualDeviceUse()
         beginDeviceSelection()
         if (snapshot.scanning) return
-        snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = resolvedMessage(ResourceMessage(R.string.service_scanning)))
+        val generation = snapshot.nearbyScanGeneration + 1
+        snapshot = snapshot.copy(scanning = true, nearbyScanPhase = NearbyScanPhase.IDLE, nearbyScanFailure = null,
+            nearbyScanGeneration = generation, nearbyScanOwner = owner,
+            candidates = emptyList(), message = resolvedMessage(ResourceMessage(R.string.service_scanning)))
         Log.i(TAG, "scan start")
-        current.scanner.start(onDevice = { candidate ->
+        current.scanner.start(onDevice = device@{ candidate ->
+            if (hub !== current || snapshot.nearbyScanGeneration != generation) return@device
             snapshot = snapshot.copy(candidates = (snapshot.candidates.filterNot { it.address == candidate.address } + candidate)
                 .sortedWith(compareBy({ it.candidateRole.name }, { it.advertisedName })).take(64))
-        }, onFinished = { error ->
-            snapshot = snapshot.copy(scanning = false)
+        }, onFinished = finished@{ error ->
+            if (hub !== current || snapshot.nearbyScanGeneration != generation) return@finished
+            snapshot = snapshot.copy(scanning = false, nearbyScanPhase =
+                if (error == null) NearbyScanPhase.COMPLETE else NearbyScanPhase.FAILED,
+                nearbyScanFailure = error?.let(SnapshotMessage::raw))
             if (error == null) event(ResourceMessage(R.string.service_scan_finished, snapshot.candidates.size.toString()))
             else event(error)
         })
@@ -1271,7 +1301,84 @@ class MobileService : Service() {
         return null
     }
 
+    private val boilerTargetSteps = BoilerTargetSteps()
+    private val boilerTargetPump = Runnable { pumpBoilerTargets() }
+    private fun boilerTargetSession(): Any? {
+        if (snapshot.coffeeState != DeviceState.READY) return null
+        mock?.let { return it }
+        val current = hub ?: return null
+        val address = current.coffeeAddress ?: return null
+        return Triple(current, address, current.coffeeGeneration)
+    }
+    private fun measuredTarget(boiler: BoilerTargetSteps.Boiler): Int? = snapshot.settings?.let {
+        if (boiler == BoilerTargetSteps.Boiler.BREW) it.brewTemperatureC else it.steamTemperatureC
+    }
+    internal fun boilerTargetDisplay(boiler: BoilerTargetSteps.Boiler) =
+        boilerTargetSteps.target(boiler, measuredTarget(boiler))
+    internal fun boilerTargetFeedback(boiler: BoilerTargetSteps.Boiler) = boilerTargetSteps.feedback(boiler)
+    internal fun boilerTargetNeedsReadback(): Boolean = mock == null &&
+        boilerTargetSteps.needsReadback(temperatureWrite.state)
+    internal fun canRefreshBoilerTarget(): Boolean = boilerTargetNeedsReadback() &&
+        !staleSettingsRefreshBusy && settingsRefreshSafe() && hub?.canRefreshStaleSettings == true
+    internal fun refreshBoilerTargetBaseline(): Boolean {
+        val identity = boilerTargetSession() ?: return false
+        val current = hub ?: return false
+        if (!canRefreshBoilerTarget()) return false
+        boilerTargetSteps.sessionChanged(identity)
+        val serialBefore = settingsSampleSerial
+        staleSettingsRefreshBusy = true
+        current.refreshStaleSettings({ boilerTargetSession() == identity && settingsRefreshSafe() },
+            forceFreshReadback = true) { result ->
+            staleSettingsRefreshBusy = false
+            if (result is OperationResult.Success && boilerTargetSession() == identity && snapshot.settings != null)
+                boilerTargetSteps.proveNewBaseline(identity, serialBefore, settingsSampleSerial)
+        }
+        return true
+    }
+
+    internal fun mayStepBoilerTarget(): Boolean = appVisibility.visible && boilerTargetSession() != null &&
+        boilerTargetSteps.acceptsAlongsideTemperature(temperatureWrite.state) &&
+        (MachineSettingsEditGate.allowed(this) ||
+            boilerTargetSteps.active && temperatureWrite.busy && machineControlSafetyMessage == null &&
+            boilerRecoveryProductSafe())
+
+    internal fun stepBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int) {
+        boilerTargetSteps.sessionChanged(boilerTargetSession())
+        if (!mayStepBoilerTarget()) return
+        if (boilerTargetSteps.step(boiler, delta, measuredTarget(boiler))) pumpBoilerTargets()
+    }
+    private fun pumpBoilerTargets() {
+        handler.removeCallbacks(boilerTargetPump)
+        boilerTargetSteps.sessionChanged(boilerTargetSession())
+        if (!boilerTargetSteps.active) return
+        if (boilerTargetSteps.inFlight != null) {
+            boilerTargetSteps.observe(if (mock != null) pendingSetting else temperatureWrite.change,
+                if (mock != null) settingWriteState else temperatureWrite.state)
+        }
+        if (boilerTargetSteps.inFlight == null && boilerTargetSteps.active) {
+            if (!appVisibility.visible || !MachineSettingsEditGate.allowed(this)) {
+                boilerTargetSteps.stop(BoilerTargetSteps.Feedback.NOT_SENT)
+                return
+            }
+            val next = boilerTargetSteps.next() ?: return
+            val change = next.boiler.change(next.value)
+            if (measuredTarget(next.boiler) == next.value) {
+                boilerTargetSteps.observe(change, SettingsWriteTracker.State.CONFIRMED)
+            } else if (applyMachineSetting(change) != null) {
+                boilerTargetSteps.stop(BoilerTargetSteps.Feedback.NOT_SENT)
+            } else if (mock != null) {
+                boilerTargetSteps.observe(pendingSetting, settingWriteState)
+            }
+        }
+        if (boilerTargetSteps.active) handler.postDelayed(boilerTargetPump, 100L)
+    }
+
     fun changeMachineSetting(change: MachineSettingChange): String? {
+        if (boilerTargetSteps.active && io.openhoyi.session.SettingsReadbackPolicy.isTemperature(change))
+            return getString(R.string.service_write_setting_pending)
+        return applyMachineSetting(change)
+    }
+    private fun applyMachineSetting(change: MachineSettingChange): String? {
         interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.changeSetting(change)
@@ -1376,6 +1483,7 @@ class MobileService : Service() {
         val replacingObserver=temperatureWrite.requiresExplicitRetry
         val token=temperatureWrite.begin(change,address,settingsSampleSerial)
             ?: return getString(R.string.service_write_setting_record_failed)
+        boilerTargetSteps.invalidateProof()
         lastSettingWasTemperature=true
         if(replacingObserver) logs.record("settings.temperature_observer_replaced",mapOf("ownerId" to ownerId,
             "previousOutcome" to "unconfirmed","automaticReplay" to "false"))
@@ -2610,6 +2718,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        handler.removeCallbacks(boilerTargetPump)
         manualPresentation.disconnected(requireIdle = passiveCommitted, points = terminalManualPoints())
         settleLeverWriteUnknown()
         (application as MobileApplication).releaseUpdates.serviceDestroyed(this)

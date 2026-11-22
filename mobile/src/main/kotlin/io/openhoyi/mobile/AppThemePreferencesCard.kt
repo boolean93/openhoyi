@@ -18,6 +18,7 @@ internal class AppThemePreferencesCard(
     private val activity: ThemedActivity,
     parent: LinearLayout,
     private val visual: SettingsVisualStyle,
+    private val inlineSwatches: Boolean = false,
     private val onApplied: () -> Unit,
 ) {
     private val preferences = (activity.application as MobileApplication).appearancePreferences
@@ -36,17 +37,76 @@ internal class AppThemePreferencesCard(
     val themeError = errorLabel("product/settings/app/theme/error")
 
     init {
-        style.add(parent, themeCheckBox)
-        val paletteName = activity.getString(preferences.current.palette.label)
-        val choose = visual.action(Button(activity).apply {
-            text = paletteName
-            contentDescription = activity.getString(R.string.theme_palette_current, paletteName)
-            tag = "product/settings/app/palette/current"
-            setOnClickListener { choosePalette() }
-        }, icon = "chevron", atEnd = true)
-        style.add(parent, visual.pair(style.text(activity.getString(R.string.theme_palette_title)), choose,
-            "product/settings/app/palette/row"), 8)
-        style.add(parent, style.text(activity.getString(R.string.app_settings_subtitle),
+        if (inlineSwatches) {
+            val modes = style.row().apply {
+                tag = "settings/appearance/modes"
+                val pad = style.dp(3)
+                setPadding(pad, pad, pad, pad)
+                background = style.shape(style.surface, outline = true, radius = 10)
+            }
+            for ((dark, name) in listOf(false to R.string.theme_palette_light_preview, true to R.string.theme_palette_dark_preview)) {
+                val selected = preferences.current.dark == dark
+                modes.addView(settingsPreviewButton(activity, style, activity.getString(name), selected).apply {
+                    minimumWidth = style.dp(64)
+                    minWidth = minimumWidth
+                    tag = "settings/appearance/mode/" + if (dark) "dark" else "light"
+                    if (selected) {
+                        background = style.shape(style.accent, radius = 8)
+                        setTextColor(style.onAccent)
+                    }
+                    setOnClickListener {
+                        // Own no second preference: invoke the exact narrow switch validation/save path.
+                        if (themeCheckBox.isChecked != dark) themeCheckBox.isChecked = dark
+                    }
+                }, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    if (!dark) marginEnd = style.dp(4)
+                })
+            }
+            val modePanel = SettingsAppearanceSurface(activity, style,
+                activity.getString(R.string.settings_appearance_mode), modes, minWideDp = 460,
+                maxContentDp = 192).apply {
+                tag = "settings/appearance/mode-surface"
+                // The wrapper must remain measurable to re-enable the mode on resize.
+                minimumHeight = 0
+            }
+            themeCheckBox.visibility = View.GONE // Original validation remains the owner of the mode change.
+            style.add(parent, themeCheckBox)
+            style.add(parent, modePanel)
+
+            val choices = SettingsPreviewOptions(activity, AppThemePalette.entries.size, style).apply {
+                tag = "settings/appearance/palette-swatches"
+            }
+            for (palette in AppThemePalette.entries) {
+                val selected = preferences.current.palette == palette
+                val name = activity.getString(palette.label)
+                choices.addView(settingsPreviewButton(activity, style, name, selected).apply {
+                    tag = if (selected) "product/settings/app/palette/current" else "settings/appearance/palette/${palette.key}"
+                    if (selected) contentDescription = activity.getString(R.string.theme_palette_current, name)
+                    setCompoundDrawablesRelative(GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(AppPalette(activity, palette).accent)
+                        val side = style.dp(16)
+                        setBounds(0, 0, side, side)
+                    }, null, null, null)
+                    compoundDrawablePadding = style.dp(4)
+                    setOnClickListener { choosePalette(palette) }
+                })
+            }
+            style.add(parent, SettingsAppearanceSurface(activity, style,
+                activity.getString(R.string.theme_palette_title), choices), 8)
+        } else {
+            style.add(parent, themeCheckBox)
+            val paletteName = activity.getString(preferences.current.palette.label)
+            val choose = visual.action(Button(activity).apply {
+                text = paletteName
+                contentDescription = activity.getString(R.string.theme_palette_current, paletteName)
+                tag = "product/settings/app/palette/current"
+                setOnClickListener { choosePalette() }
+            }, icon = "chevron", atEnd = true)
+            style.add(parent, visual.pair(style.text(activity.getString(R.string.theme_palette_title)), choose,
+                "product/settings/app/palette/row"), 8)
+        }
+        if (!inlineSwatches) style.add(parent, style.text(activity.getString(R.string.app_settings_subtitle),
             TaskProductVisualStyle.auxiliary, secondary = true), 8)
         style.add(parent, themeError, 8)
         themeCheckBox.setOnCheckedChangeListener { button, dark ->
@@ -76,10 +136,10 @@ internal class AppThemePreferencesCard(
         view.post { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), false) }
     }
 
-    private fun choosePalette() {
+    private fun choosePalette(initial: AppThemePalette? = null) {
         close()
         val applied = preferences.current
-        var selected = applied.palette
+        var selected = initial ?: applied.palette
         val content = style.column().apply { setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(8)) }
         val choices = RadioGroup(activity).apply {
             orientation = RadioGroup.VERTICAL

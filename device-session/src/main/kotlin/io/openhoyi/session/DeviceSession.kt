@@ -107,7 +107,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
      * requires both transport completion and a post-dispatch authenticated SETTINGS report.
      * The host predicate rejects unsafe app operations and preheating; this readback
      * never clears an app write journal or grants a control permit. */
-    fun refreshStaleSettings(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
+    fun refreshStaleSettings(beforeDispatch:()->Boolean,forceFreshReadback:Boolean=false,done:(OperationResult)->Unit) {
         val authentication=coffeeAuthentication
         val target=address
         val expected=generation
@@ -117,7 +117,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(generation!=expected || address!=target || coffeeAuthentication!==authentication || !canControlFromIdle()) {
             done(OperationResult.Failed("settings refresh owner changed"));return
         }
-        if(SettingsFreshness.isFresh(lastSettingsAtMs,clock())) {done(OperationResult.Success());return}
+        if(!forceFreshReadback && SettingsFreshness.isFresh(lastSettingsAtMs,clock())) {done(OperationResult.Success());return}
         val task=StaleSettingsRefresh(generation,target,authentication,clock()+5000,beforeDispatch,done)
         staleSettingsRefresh=task
         queue.enqueue(GattOperation.Write(requireNotNull(writeEndpoint),authentication.encodeAt(wallClock()).frame.toByteArray(),withResponse),

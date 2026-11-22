@@ -1,0 +1,34 @@
+<resources>
+    <string name="settings_hig_feedback_sound">提示音</string>
+    <string name="settings_hig_ai_configure_key">先配置 Key</string>
+    <string name="settings_hig_export_zip">导出 ZIP</string>
+    <string name="settings_hig_scanning">正在扫描</string>
+    <string name="settings_hig_machine_extracting">萃取中</string>
+    <string name="settings_hig_feedback_complete">完成反馈</string>
+    <string name="settings_hig_decrease">降低%1$s</string>
+    <string name="settings_hig_increase">调高%1$s</string>
+    <string name="settings_hig_diagnostic_storage">诊断存储</string>
+    <string name="settings_hig_supply_short">供水</string>
+    <string name="settings_hig_run_short">运行</string>
+    <string name="settings_hig_brew_temp">冲泡温度</string>
+    <string name="settings_hig_steam_temp">蒸汽温度</string>
+    <string name="settings_hig_machine_read_back">已读回</string>
+    <string name="settings_hig_readback_details">读回详情</string>
+    <string name="settings_hig_readback_hide">收起详情</string>
+    <string name="settings_hig_brew_heat">冲泡加热</string>
+    <string name="settings_target_queued">等待发送</string>
+    <string name="settings_target_not_sent">未发送，请重试</string>
+    <string name="settings_target_refresh">刷新读回</string>
+    <string name="settings_target_refresh_needed">先刷新读回，再调整温度</string>
+    <string name="settings_target_unknown_unsent">上次回读未确认，后续调整未发送</string>
+    <string name="settings_target_failed_unsent">这次写入失败，后续调整未发送</string>
+    <string name="settings_device_disconnect_short">断开</string>
+    <string name="settings_device_scale_tool_short">秤工具</string>
+    <string name="settings_device_guide_short">使用说明</string>
+    <string name="settings_device_nearby">附近设备</string>
+    <string name="settings_device_scan_again">重新扫描</string>
+    <string name="settings_device_nearby_hint">请让设备靠近并处于可连接状态</string>
+    <string name="settings_device_nearby_empty">未找到设备</string>
+    <string name="settings_device_address_suffix">识别码末四位 %1$s</string>
+    <string name="settings_device_candidate_more">更多连接操作</string>
+</resources>

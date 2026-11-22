@@ -436,8 +436,12 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 test.runOnMainSync { settings.openSection("machine") }
                 test.waitForIdleSync()
                 test.runOnMainSync {
-                    val scroll = requireNotNull(settings.view).findViewWithTag<android.widget.ScrollView>("settings/document/scroll")
-                    check(scroll.scrollY > 0) { "Machine section did not move away from devices before repeated entry" }
+                    val root = requireNotNull(settings.view)
+                    val machine = root.findViewWithTag<View>("settings/heading/machine")
+                    val devices = root.findViewWithTag<View>("settings/heading/devices")
+                    check(machine.getGlobalVisibleRect(Rect()) && !devices.getGlobalVisibleRect(Rect())) {
+                        "Machine deep link must switch the active category before repeated Device entry"
+                    }
                 }
                 test.runOnMainSync {
                     check(descendants(activity.window.decorView).single { it.tag == "task-shell-$device-facts" }.performClick())
@@ -474,9 +478,21 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             test.runOnMainSync {
                 val settings = page.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
                 val root = requireNotNull(settings.view)
-                val machineIndex = descendants(root).single { it.tag == "settings/index/machine" }
-                val scaleIndex = descendants(root).single { it.tag == "settings/index/scale" }
+                val machineIndex = descendants(root).single { it.tag == "settings/category/machine" }
+                val scaleIndex = descendants(root).single { it.tag == "settings/category/device" }
                 val summary = descendants(root).single { it.tag == "settings-machine-summary" }
+                check(SettingsCategory.entries.all { root.findViewWithTag<View>("settings/category/${it.key}").isShown })
+                for (boiler in listOf("brew", "steam")) {
+                    val row = root.findViewWithTag<View>("product/settings/machine/$boiler/row") as SettingsBoilerTargetRow
+                    val controls = descendants(row)
+                    check(controls.none { it is EditText })
+                    check(controls.count { it.tag == "settings/machine/target-step/-1" } == 1 &&
+                        controls.count { it.tag == "settings/machine/target-step/1" } == 1)
+                }
+                val explanation = root.findViewWithTag<Button>("settings/details/scale/action")
+                val tablet = root.findViewWithTag<View>("settings/document/category-sidebar").isShown &&
+                    page.resources.configuration.smallestScreenWidthDp >= 600
+                check(explanation.text.isEmpty() == tablet && !explanation.contentDescription.isNullOrBlank())
                 val input = descendants(root).filterIsInstance<EditText>().first()
                 val originalDraft = input.text.toString()
                 input.setText("94")
@@ -648,8 +664,8 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             test.runOnMainSync {
                 val settings = activity.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
                 val root = requireNotNull(settings.view)
-                val machineIndex = descendants(root).single { it.tag == "settings/index/machine" }
-                val scaleIndex = descendants(root).single { it.tag == "settings/index/scale" }
+                val machineIndex = descendants(root).single { it.tag == "settings/category/machine" }
+                val scaleIndex = descendants(root).single { it.tag == "settings/category/device" }
                 val machineSummary = descendants(root).single { it.tag == "settings-machine-summary" }
                 val inputs = descendants(root).filterIsInstance<EditText>()
                 check(inputs.isNotEmpty())
