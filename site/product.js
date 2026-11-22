@@ -1,6 +1,46 @@
 (() => {
   'use strict';
 
+  // Pages publishes the verified Develop index with this site. Leave the static
+  // Releases link usable even when the index, network or JavaScript is unavailable.
+  const directApk = document.querySelector('[data-direct-apk]');
+  const downloadRelease = document.querySelector('[data-download-release]');
+  if (directApk && downloadRelease && typeof fetch === 'function' && typeof AbortController === 'function') {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    fetch('./updates/dev.json', { signal: controller.signal, cache: 'no-cache', redirect: 'error' })
+      .then(response => {
+        if (!response.ok) throw new Error('No verified Develop index');
+        return response.json();
+      })
+      .then(index => {
+        const repository = 'boolean93/openhoyi';
+        if (!index || index.schemaVersion !== 1 || index.repository !== repository ||
+            index.channel !== 'develop-test' || index.packageName !== 'io.openhoyi.mobile' ||
+            !Number.isSafeInteger(index.versionCode) || index.versionCode < 1 ||
+            typeof index.versionName !== 'string' || index.versionName.length > 100 ||
+            !/^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$/.test(index.versionName) ||
+            !index.versionName.endsWith(`-dev.${index.versionCode}`) ||
+            !Number.isSafeInteger(index.apkSize) || index.apkSize < 1 || index.apkSize > 256 * 1024 * 1024 ||
+            typeof index.apkSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(index.apkSha256)) return;
+
+        const tag = `dev-${index.versionCode}`;
+        const filename = `OpenHOYI-${index.versionName}.apk`;
+        const origin = `https://github.com/${repository}/releases`;
+        const apkUrl = `${origin}/download/${tag}/${filename}`;
+        const releaseUrl = `${origin}/tag/${tag}`;
+        if (index.releaseTag !== tag || index.apkFile !== filename ||
+            index.downloadUrl !== apkUrl || index.releaseUrl !== releaseUrl) return;
+
+        directApk.href = apkUrl;
+        downloadRelease.href = releaseUrl;
+        downloadRelease.classList.replace('button-primary', 'button-outline');
+        directApk.hidden = false;
+      })
+      .catch(() => { /* The existing Releases link is the fallback. */ })
+      .finally(() => clearTimeout(timeout));
+  }
+
   const nav = document.querySelector('[data-nav]');
   if (nav) {
     let ticking = false;
