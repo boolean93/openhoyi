@@ -237,12 +237,15 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 }
                             }
                         }
-                        receipts.put("deviceIndent", JSONObject().put("overviewLeft", overview.left)
+                        val indent = JSONObject().put("overviewLeft", overview.left)
                             .put("nearbyLeft", nearby.left).put("coffeeLead", coffeeLead.left)
                             .put("scaleLead", scaleLead.left).put("scanLead", scanLead.left)
                             .put("scaleActions", JSONArray(normal.map {
                                 JSONObject().put("left", it.left).put("center", it.centerX()).put("right", it.right)
-                            })).put("horizontalActionGaps", horizontalGaps.toString()))
+                            })).put("horizontalActionGaps", horizontalGaps.toString())
+                        receipts.put("deviceIndent", indent)
+                        landingDebug.put("deviceIndent", indent)
+                        File(out, "landing-debug.json").writeText(landingDebug.toString(2))
                         val min = HoyiUi.dp(activity, 48)
                         check(controls.size == 4 && normal.all { it.height() >= min && it.width() >= min })
                         check(normal.maxOf { it.centerY() } - normal.minOf { it.centerY() } <= HoyiUi.dp(activity, 2))
@@ -591,24 +594,41 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     input(MotionEvent.ACTION_UP, high)
                 }
                 main { (page.active("root:SETTINGS") as AppSettingsFragment).openSection("machine") }
-                await("machine focus before scroll gesture") { heading("machine").hasFocus() }
-                val boundary = main {
+                await("machine focus before scroll gesture") {
+                    heading("machine").hasFocus() && settings().isAtSectionLanding("machine")
+                }
+                val (boundary, nextBoundary) = main {
                     val document = settings()
-                    val box = Rect()
-                    document.body.offsetDescendantRectToMyCoords(document.sectionAnchor("shortcuts"), box)
-                    document.scroll.scrollTo(0, box.top - minOf(HoyiUi.dp(activity, 70), document.scroll.height / 4))
-                    box.top
+                    fun anchorTop(key: String) = Rect().also {
+                        document.body.offsetDescendantRectToMyCoords(document.sectionAnchor(key), it)
+                    }.top
+                    val start = anchorTop("shortcuts")
+                    val next = anchorTop("appearance")
+                    document.scroll.scrollTo(0, start - minOf(HoyiUi.dp(activity, 70), document.scroll.height / 4))
+                    start to next
                 }
                 val (before, viewport) = main {
                     val document = settings()
-                    check(button(SettingsCategory.MACHINE).isSelected)
+                    check(button(SettingsCategory.MACHINE).isSelected && document.scroll.scrollY < boundary)
                     document.scroll.scrollY to rect(document.scroll)
                 }
+                val distance = viewport.height() * .45f
                 dragUp(viewport)
-                await("continuous drag into adjacent category") {
-                    val newY = settings().scroll.scrollY
-                    newY > before && newY > boundary && button(SettingsCategory.BREWING).isSelected &&
-                        heading("machine").hasFocus()
+                try {
+                    await("continuous drag into adjacent category") {
+                        val newY = settings().scroll.scrollY
+                        newY > before && newY > boundary && newY < nextBoundary &&
+                            button(SettingsCategory.BREWING).isSelected && heading("machine").hasFocus()
+                    }
+                } finally {
+                    main {
+                        landingDebug.put("machineToBrewingDrag", JSONObject().put("before", before)
+                            .put("boundary", boundary).put("nextBoundary", nextBoundary)
+                            .put("dragDistance", distance.toDouble()).put("after", settings().scroll.scrollY)
+                            .put("selected", SettingsCategory.entries.firstOrNull { button(it).isSelected }?.key)
+                            .put("machineFocused", heading("machine").hasFocus()))
+                        File(out, "landing-debug.json").writeText(landingDebug.toString(2))
+                    }
                 }
                 val settled = main { settings().scroll.scrollY }
                 SystemClock.sleep(280)
