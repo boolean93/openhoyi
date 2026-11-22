@@ -789,6 +789,7 @@
 
     <!-- Machine write feedback: permissions, recovery records and readback remain unchanged. -->
     <string name="service_write_mock_setting">"Mock 设置已更新：%1$s；未发送蓝牙命令"</string>
+    <string name="service_v2_split_pending">还有咖啡机操作待确认，请查看状态。</string>
     <string name="service_write_setting_queued">"机器设置命令已排队：%1$s"</string>
     <string name="service_write_setting_manual_block">"手动萃取期间不能修改机器设置"</string>
     <string name="service_write_cups_waiting">"正在等待累计杯数归零回报"</string>

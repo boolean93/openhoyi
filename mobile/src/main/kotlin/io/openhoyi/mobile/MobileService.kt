@@ -47,6 +47,7 @@ import io.openhoyi.session.CoffeeReadbackSource
 import io.openhoyi.session.PassiveCoffeeReadback
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.session.SettingsReadbackPolicy
+import io.openhoyi.session.SplitMachineWriteJournal
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
@@ -147,14 +148,28 @@ class MobileService : Service() {
     }
     private fun holdsMachineWriter():Boolean =
         !BuildConfig.BLE_V2_DELIVERY || machineOperations?.legacyMayDispatch==true
-    private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
-        machineWriteRecovery.kind, brewPreparation.state)
+    private var splitAdmissionEnabled=BuildConfig.BLE_V2_SPLIT_ADMISSION
+    private class SplitPending(val send:CanonicalMachineOperationBroker.Send,
+        val binding:CanonicalMachineOperationBroker.Binding,val trackerToken:Long) {
+        var passiveCut:PassiveCoffeeReadback?=null
+        var settingCut:CoffeeReadbackEvidence.Setting?=null
+    }
+    private var splitWeek:SplitPending?=null
+    private var splitBoiler:SplitPending?=null
+    private fun splitBinding():CanonicalMachineOperationBroker.Binding? {
+        val current=hub ?: return null
+        return current.coffeeReadbackCursor?.source?.let { CanonicalMachineOperationBroker.Binding(current,it) }
+    }
+    private val machineWriteSafetyResource: Int? get() =
+        if(machineOperations?.splitOwned==true) R.string.service_v2_split_pending
+        else MachineRecoveryText.resource(machineWriteRecovery.kind,brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
     /** Display-only update gate. The service remains the sole machine-control authority. */
     internal val updateInterruptionBlocked: Boolean get() = releaseUpdateInterruptionBlocked(
         shotState, manualShotActive, scalePreflight, brewPreparation.active, tareState,
         shotRecovery.pending, machineWriteRecovery.pending, blockingSettingWriteState,
         cupResetBusy, scheduleBusy, sleepNow.state, leverInFlight != null, leverStore.blocked) ||
+        machineOperations?.splitOwned == true ||
         (hub == null && io.openhoyi.bluetooth.SharedPreferenceTareStorage(this).read())
     val machineControlSafetyMessage: String? get() = leverWriteBlock ?: MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
@@ -733,6 +748,8 @@ class MobileService : Service() {
         }
         snapshot = if (role == DeviceRole.COFFEE) {
             if (state != DeviceState.READY) {
+                splitWeek?.send?.let {machineOperations?.markUnknown(it)}
+                splitBoiler?.send?.let {machineOperations?.markUnknown(it)}
                 finishBrewFeedback(false)
                 saveSeriesCheckpoint(force = true)
                 writeDisconnection.apply(MachineWriteDisconnection.Samples(settingsSampleSerial,
@@ -821,7 +838,7 @@ class MobileService : Service() {
                     }
                 }
                 settingsSampleSerial++
-                if(observeOrdinarySettings(frame)) refreshSafetyNotification()
+                if(observeOrdinarySettings(frame) || observeSplitBoiler(frame)) refreshSafetyNotification()
                 if(!lastSettingWasTemperature && settingsWrite.state in setOf(SettingsWriteTracker.State.CONFIRMED,SettingsWriteTracker.State.RECONCILED) &&
                     !machineWriteRecovery.pending) {
                     boilerFallback=null
@@ -846,6 +863,7 @@ class MobileService : Service() {
                     first?.value === snapshot.sleepFirst && second?.value === frame &&
                         request.cut?.weeklyPair(first,second,MobileMonotonicClock.elapsedRealtime()) != null
                 }==true
+                if (observeSplitWeek(frame)) refreshSafetyNotification()
                 if (qualifies && OrdinaryWriteReadback.schedule(scheduleWrite,machineWriteRecovery,sleepScheduleFresh,
                         firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond,{ machineWriteRecovery.clear(scheduleRecoveryOwner) }) { feedback ->
                     when(feedback) {
@@ -1041,10 +1059,7 @@ class MobileService : Service() {
             // Pin before the first lazy marker read or any eager app observer can grant control.
             val pin=runCatching { RecoveryPreferenceStorage.pinMachine(this) }
                 .getOrElse { RecoveryPreferenceStorage.PinnedMachine(null,null) }
-            machineOperations=CanonicalMachineOperationBroker(pin,machineWriterFence) {
-                val current=hub
-                current?.coffeeReadbackCursor?.source?.let { CanonicalMachineOperationBroker.Binding(current,it) }
-            }
+            machineOperations=CanonicalMachineOperationBroker(pin,machineWriterFence,::splitBinding)
         }
         val app = application as MobileApplication
         app.releaseUpdates.serviceCreated(this)
@@ -1268,7 +1283,7 @@ class MobileService : Service() {
         if (!shotRecovery.matchesDevice(address)) {
             event(ResourceMessage(R.string.service_connection_shot_device_mismatch), "shot.device_mismatch"); return false
         }
-        if (!machineWriteRecovery.matchesDevice(address)) {
+        if (machineOperations?.splitOwned == true || !machineWriteRecovery.matchesDevice(address)) {
             event(ResourceMessage(R.string.service_connection_write_device_mismatch), "machine_write.device_mismatch"); return false
         }
         if(!automatic)manualDeviceUse()
@@ -1334,7 +1349,7 @@ class MobileService : Service() {
         if (role == DeviceRole.COFFEE && cupResetBusy) {
             event(ResourceMessage(R.string.service_disconnect_cups_busy)); return
         }
-        if (role == DeviceRole.COFFEE && scheduleBusy) {
+        if (role == DeviceRole.COFFEE && (scheduleBusy || machineOperations?.splitOwned == true)) {
             event(ResourceMessage(R.string.service_disconnect_schedule_busy)); return
         }
         if (role == DeviceRole.COFFEE && brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
@@ -1431,8 +1446,10 @@ class MobileService : Service() {
         val address = active.coffeeAddress ?: return null
         return Triple(active, address, active.coffeeGeneration)
     }
-    internal val ownsBoilerDisplayWrite: Boolean get() = machineWriteRecovery.owns(settingRecoveryOwner) &&
-        boilerDisplayAddress?.let(machineWriteRecovery::matchesDevice) == true
+    internal val ownsBoilerDisplayWrite: Boolean get() =
+        splitBoiler?.let { splitBinding()?.source === it.binding.source } == true ||
+        (machineWriteRecovery.owns(settingRecoveryOwner) &&
+            boilerDisplayAddress?.let(machineWriteRecovery::matchesDevice) == true)
     val boilerReadbackRecoveryActive:Boolean get()=HomeBoilerSwitchPresentation.localProgress(
         machineWriteRecovery.owns(settingRecoveryOwner),settingsWrite.change,settingsWrite.state,
         boilerReadbackReconnecting,boilerSettingsRecoveryBusy)
@@ -1556,13 +1573,15 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return getString(R.string.service_write_setting_manual_block)
-        machineControlSafetyMessage?.let { return it }
+        val overlap = SettingsReadbackPolicy.isBoiler(change) && allowsSplitBoiler()
+        if(!overlap) machineControlSafetyMessage?.let { return it }
         val current = hub ?: return getString(R.string.service_unavailable)
         if (temperatureWrite.busy) return getString(R.string.service_write_setting_pending)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
         if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
-        if (scheduleBusy) return getString(R.string.service_write_schedule_waiting)
+        if (scheduleBusy && !overlap) return getString(R.string.service_write_schedule_waiting)
+        if(overlap && (leverWriteBlock!=null || shotRecovery.pending)) return getString(R.string.service_v2_split_pending)
         if (ShotGate.active(shotState)) return getString(R.string.service_write_setting_shot_block)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
             return getString(R.string.service_write_sleep_waiting)
@@ -1589,6 +1608,7 @@ class MobileService : Service() {
             temperatureWrite.requiresExplicitRetry))
             return getString(R.string.service_write_setting_already_observed)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_setting_identity_missing)
+        if(overlap)return requestSplitBoiler(current,change)
         if(io.openhoyi.session.SettingsReadbackPolicy.isTemperature(change))
             return changeTemperatureInBackground(current,coffeeAddress,change)
         lastSettingWasTemperature=false
@@ -1984,6 +2004,7 @@ class MobileService : Service() {
         if (changedDays == 0) return getString(R.string.service_write_schedule_already_observed)
         if (!SleepScheduleEdit.accepts(expected, target, allDays)) return getString(R.string.service_write_schedule_one_day_only)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_schedule_identity_missing)
+        if(splitAdmissionEnabled)return requestSplitWeek(current,expected,target)
         val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
             coffeeAddress, MachineWriteRegistration.Request.Schedule(scheduleWrite, target, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))) {
             MachineWriteRegistration.Result.Busy -> return getString(R.string.service_write_schedule_pending)
@@ -2033,6 +2054,164 @@ class MobileService : Service() {
         }
         return null
     }
+    /** This exception is intentionally specific to the two physical boiler switches. */
+    internal fun allowsSplitBoiler():Boolean {
+        val binding=splitBinding() ?: return false
+        return splitAdmissionEnabled && splitWriteSafe() && splitBoilerSettingsFresh() && !manualShotActive && leverWriteBlock==null && !shotRecovery.pending &&
+            !ShotGate.active(shotState) && !brewPreparation.active &&
+            scheduleWrite.state==SleepScheduleWriteTracker.State.WAITING_READBACK &&
+            !temperatureWrite.busy && splitBoiler==null &&
+            settingsWrite.state !in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK,
+                SettingsWriteTracker.State.UNKNOWN) && machineOperations?.acceptsBoilerAfterWeek(binding)==true
+    }
+
+    private fun splitBoilerSettingsFresh():Boolean {
+        val native=hub?.latestOrdinaryCoffeeSettings ?: return false
+        return machineSettingsFresh && snapshot.settings === native.value &&
+            SettingsFreshness.isFresh(native.receivedAtMs,MobileMonotonicClock.elapsedRealtime())
+    }
+
+    private fun splitWriteSafe():Boolean {
+        val current=hub ?: return false
+        val idle=current.latestNativeIdle ?: return false
+        return snapshot.coffeeState==DeviceState.READY && snapshot.coffee === idle.value &&
+            TelemetryFreshness.isFresh(idle.capturedAtMs,MobileMonotonicClock.elapsedRealtime()) &&
+            idle.value.sleepStateRaw==0 && io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.value.alarmBits) &&
+            !manualShotActive && !shotRecovery.pending && !ShotGate.active(shotState) && !brewPreparation.active &&
+            !cupResetBusy && !temperatureWrite.busy && !sleepNowUnresolved &&
+            sleepNow.state !in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) &&
+            leverWriteBlock==null
+    }
+
+    private fun requestSplitWeek(current:NativeDeviceHub,expected:WeeklySleepSchedule,target:WeeklySleepSchedule):String? {
+        val broker=machineOperations ?: return getString(R.string.service_unavailable)
+        val binding=splitBinding() ?: return getString(R.string.service_unavailable)
+        if (!splitWriteSafe() || !broker.openSplit({
+                splitWriteSafe() && !machineWriteRecovery.pending && !scheduleBusy &&
+                    !temperatureWrite.requiresExplicitRetry && settingRecoveryOwner?.let(machineWriteRecovery::owns)!=true
+            })) return getString(R.string.service_write_schedule_record_failed)
+        val entry=SplitMachineWriteJournal.Entry(SplitMachineWriteJournal.Kind.SCHEDULE,
+            binding.source.address.uppercase(java.util.Locale.ROOT),SplitMachineWriteJournal.Target.Weekly(target.days))
+        val send=broker.reserve(entry,binding)
+        if(send==null) {
+            broker.returnToLegacy()
+            return getString(R.string.service_write_schedule_record_failed)
+        }
+        val token=scheduleWrite.begin(target,firstSleepSerial,secondSleepSerial)
+        if(token==null) {
+            broker.abortUnsent(send,binding,OperationResult.Cancelled("tracker refused before queue"))
+            broker.returnToLegacy()
+            return getString(R.string.service_write_schedule_pending)
+        }
+        val item=SplitPending(send,binding,token)
+        splitWeek=item
+        event(ResourceMessage(R.string.service_write_schedule_queued),"v2.week.queued")
+        refreshSafetyNotification()
+        current.writeSleepSchedule(target,expected,{
+            splitWeek===item && splitWriteSafe() && broker.mayDispatch(send,binding)
+        }) done@{ result ->
+            if(splitWeek!==item)return@done
+            val outcome=MachineWriteResult.apply(token,result,MachineWriteResult.Request.Schedule(
+                scheduleWrite,firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond))
+            if(outcome==MachineWriteResult.Outcome.WAITING && broker.enteredReadback(send,binding,result)) {
+                item.passiveCut=PassiveCoffeeReadback.after(binding.source,current.coffeeReadbackCursor,MobileMonotonicClock.elapsedRealtime())
+                event(ResourceMessage(R.string.service_write_schedule_written),"v2.week.written")
+                writeWatchdog.await(token,MachineWriteWatchdog.Request.Schedule(scheduleWrite)) {
+                    broker.markUnknown(send)
+                    event(ResourceMessage(R.string.service_write_schedule_no_readback),"v2.week.unknown")
+                }
+            } else if(outcome==MachineWriteResult.Outcome.FAILED && broker.abortUnsent(send,binding,result)) {
+                splitWeek=null;broker.returnToLegacy()
+                event(ResourceMessage(R.string.service_write_schedule_first_not_written),"v2.week.not_sent")
+            } else {
+                broker.markUnknown(send)
+                event(ResourceMessage(R.string.service_write_schedule_partial_unknown),"v2.week.unknown")
+            }
+            refreshSafetyNotification()
+        }
+        return null
+    }
+
+    private fun requestSplitBoiler(current:NativeDeviceHub,intent:MachineSettingChange):String? {
+        val broker=machineOperations ?: return getString(R.string.service_unavailable)
+        val binding=splitBinding() ?: return getString(R.string.service_unavailable)
+        if(!allowsSplitBoiler() || !splitWriteSafe())return getString(R.string.service_v2_split_pending)
+        val target=when(intent) {
+            is MachineSettingChange.BrewHeating -> SplitMachineWriteJournal.Target.Boiler(
+                SplitMachineWriteJournal.Target.BoilerId.BREW,intent.enabled)
+            is MachineSettingChange.SteamHeating -> SplitMachineWriteJournal.Target.Boiler(
+                SplitMachineWriteJournal.Target.BoilerId.STEAM,intent.enabled)
+            else -> return getString(R.string.service_v2_split_pending)
+        }
+        val entry=SplitMachineWriteJournal.Entry(SplitMachineWriteJournal.Kind.BOILER,
+            binding.source.address.uppercase(java.util.Locale.ROOT),target)
+        val send=broker.reserve(entry,binding) ?: return getString(R.string.service_write_setting_record_failed)
+        val token=settingsWrite.begin(intent)
+        if(token==null) {
+            broker.abortUnsent(send,binding,OperationResult.Cancelled("tracker refused before queue"))
+            return getString(R.string.service_write_setting_pending)
+        }
+        val item=SplitPending(send,binding,token)
+        splitBoiler=item
+        lastSettingWasTemperature=false
+        event(ResourceMessage(R.string.service_write_setting_queued,settingsPresentation.changeMessage(intent)),"v2.boiler.queued")
+        current.writeSettingWithEvidence(intent,{
+            splitBoiler===item && splitWriteSafe() && splitBoilerSettingsFresh() && broker.mayDispatch(send,binding)
+        }) done@{ result,evidence ->
+            if(splitBoiler!==item)return@done
+            val outcome=MachineWriteResult.apply(token,result,MachineWriteResult.Request.Setting(settingsWrite,settingsSampleSerial))
+            if(outcome==MachineWriteResult.Outcome.WAITING && broker.enteredReadback(send,binding,result)) {
+                item.settingCut=evidence
+                event(ResourceMessage(R.string.service_write_setting_written),"v2.boiler.written")
+                // Unlike the exclusive 8E path: never issue sync/reconnect to obtain overlap evidence.
+                writeWatchdog.await(token,MachineWriteWatchdog.Request.Setting(settingsWrite)) {
+                    broker.markUnknown(send)
+                    event(ResourceMessage(R.string.service_write_setting_no_readback),"v2.boiler.unknown")
+                }
+            } else if(outcome==MachineWriteResult.Outcome.FAILED && broker.abortUnsent(send,binding,result)) {
+                splitBoiler=null;broker.returnToLegacy()
+                event(ResourceMessage(R.string.service_write_setting_not_written),"v2.boiler.not_sent")
+            } else {
+                broker.markUnknown(send)
+                event(ResourceMessage(R.string.service_write_setting_unknown),"v2.boiler.unknown")
+            }
+            refreshSafetyNotification()
+        }
+        return null
+    }
+
+    private fun observeSplitWeek(frame:SleepPart):Boolean {
+        val item=splitWeek ?: return false
+        if(scheduleWrite.state!=SleepScheduleWriteTracker.State.WAITING_READBACK)return false
+        val broker=machineOperations ?: return false
+        val current=hub ?: return false
+        val first=current.latestNativeWeeklyFirst
+        val second=current.latestNativeWeeklySecond
+        if(first?.value!==snapshot.sleepFirst || second?.value!==frame)return false
+        val plan=item.passiveCut?.weeklyPair(first,second,MobileMonotonicClock.elapsedRealtime()) ?: return false
+        val target=item.send.entry.target as? SplitMachineWriteJournal.Target.Weekly ?: return false
+        if(plan.days!=target.days || !broker.settleVerified(item.send,item.binding))return false
+        scheduleWrite.observe(firstSleepSerial,secondSleepSerial,first?.value,second?.value)
+        splitWeek=null
+        broker.returnToLegacy()
+        event(ResourceMessage(R.string.service_write_schedule_confirmed),"v2.week.confirmed")
+        return true
+    }
+
+    private fun observeSplitBoiler(frame:Settings):Boolean {
+        val item=splitBoiler ?: return false
+        if(settingsWrite.state!=SettingsWriteTracker.State.WAITING_READBACK)return false
+        val broker=machineOperations ?: return false
+        val change=settingsWrite.change
+        if(observedSetting(change,item.settingCut,frame)!=CoffeeReadbackEvidence.Setting.Observation.MATCH ||
+            !broker.settleVerified(item.send,item.binding))return false
+        settingsWrite.observe(settingsSampleSerial,frame)
+        splitBoiler=null
+        broker.returnToLegacy()
+        event(ResourceMessage(R.string.service_event_setting_confirmed),"v2.boiler.confirmed")
+        return true
+    }
+
     fun enterSleepNow(): String? {
         interruptUpdateInstallation()
         if (mock != null) {
@@ -2974,7 +3153,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_shot_recovery_shutdown_block), "service.stop_deferred")
             return
         }
-        if (machineWriteRecovery.pending) {
+        if (machineWriteRecovery.pending || machineOperations?.splitOwned == true) {
             event(ResourceMessage(R.string.service_event_write_shutdown_block), "service.stop_deferred")
             return
         }

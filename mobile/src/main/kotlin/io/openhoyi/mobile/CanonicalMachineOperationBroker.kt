@@ -26,12 +26,14 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         val journal=SplitMachineWriteJournal(view)
         val live=mutableMapOf<SplitMachineWriteJournal.Kind,Send>()
         val restored=journal.pending is SplitMachineWriteJournal.Snapshot.Pending
+        var boilerOverlapConsumed=false
     }
 
     val legacyStorage get()=pinned.storage
     val canStartHub:Boolean get()=transport.mayStartOrDispatch && pinned.held
     val legacyMayDispatch:Boolean get()=canStartHub && pinned.hasLegacyAuthority
     private var epoch:Epoch?=null
+    val splitOwned:Boolean get()=epoch!=null
     private var mutating=false
     private inline fun <T> mutate(refused:T,action:()->T):T {
         if(mutating || !pinned.held)return refused
@@ -47,6 +49,13 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         true
     }
 
+    fun acceptsBoilerAfterWeek(binding:Binding):Boolean {
+        val current=epoch?.takeIf { !mutating && active(it) && !it.restored && !it.boilerOverlapConsumed && isCurrent(binding) } ?: return false
+        val weekly=current.live.values.singleOrNull() ?: return false
+        return weekly.entry.kind==SplitMachineWriteJournal.Kind.SCHEDULE && weekly.phase==Phase.WAITING_READBACK &&
+            weekly.binding.same(binding) && current.journal.owns(weekly.durable)
+    }
+
     /** Readback-only recovery tokens are never converted to this send token. */
     fun reserve(entry:SplitMachineWriteJournal.Entry,binding:Binding):Send? = mutate(null) {
         val current=epoch?.takeIf{active(it) && !it.restored} ?: return@mutate null
@@ -54,17 +63,23 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
             current.live.values.any { !it.binding.same(binding) } || entry.kind in current.live) return@mutate null
         val existing=current.live.values.singleOrNull()
         if(current.live.size>1 || existing!=null && (entry.kind!=SplitMachineWriteJournal.Kind.BOILER ||
-            existing.entry.kind!=SplitMachineWriteJournal.Kind.SCHEDULE || existing.phase!=Phase.WAITING_READBACK)) return@mutate null
+            existing.entry.kind!=SplitMachineWriteJournal.Kind.SCHEDULE || existing.phase!=Phase.WAITING_READBACK ||
+            current.boilerOverlapConsumed)) return@mutate null
         val token=current.journal.reserve(entry) ?: return@mutate null
+        if(existing!=null)current.boilerOverlapConsumed=true
         Send.issue(entry,binding,token).also { current.live[entry.kind]=it }
     }
 
-    fun mayDispatch(send:Send,binding:Binding):Boolean =
-        !mutating && exact(send,binding)!=null && send.phase==Phase.QUEUED
+    fun mayDispatch(send:Send,binding:Binding):Boolean {
+        val current=exact(send,binding) ?: return false
+        return !mutating && send.phase==Phase.QUEUED &&
+            (send.entry.kind!=SplitMachineWriteJournal.Kind.BOILER ||
+                current.live[SplitMachineWriteJournal.Kind.SCHEDULE]?.phase==Phase.WAITING_READBACK)
+    }
 
     /** Called only from the logical transport callback, after schedule packet two if applicable. */
     fun enteredReadback(send:Send,binding:Binding,result:OperationResult):Boolean {
-        if(result !is OperationResult.Success || !mayDispatch(send,binding))return false
+        if(result !is OperationResult.Success || mutating || exact(send,binding)==null || send.phase!=Phase.QUEUED)return false
         send.phase=Phase.WAITING_READBACK
         return true
     }

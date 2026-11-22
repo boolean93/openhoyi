@@ -89,11 +89,36 @@ class CanonicalMachineOperationBrokerTest {
             assertTrue(broker.enteredReadback(heat,source,OperationResult.Success()))
             assertTrue(broker.settleVerified(heat,source))
             assertNotNull(ops.data)
+            assertFalse(broker.acceptsBoilerAfterWeek(source))
+            assertNull(broker.reserve(boiler,source))
             assertTrue(broker.settleVerified(weekly,source))
             assertNull(ops.data)
             assertTrue(broker.returnToLegacy())
             assertTrue(broker.legacyMayDispatch)
             assertFalse(broker.mayDispatch(heat,source))
+        } finally {
+            fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
+        }
+    }
+
+    @Test fun delayedBoilerDoesNotDispatchAfterWeeklyReceiptBecomesUnknown() {
+        val marker=File(root.newFolder(),"pending_machine_write.json")
+        val fence=MachineServiceWriterFence()
+        val pin=RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),null,{false})
+        val source=binding()
+        val broker=CanonicalMachineOperationBroker(pin,fence) {source}
+        val ops=Mem()
+        try {
+            assertTrue(broker.openSplit({true},ops))
+            val weekly=requireNotNull(broker.reserve(week,source))
+            assertTrue(broker.enteredReadback(weekly,source,OperationResult.Success()))
+            val heat=requireNotNull(broker.reserve(boiler,source))
+            assertTrue(broker.mayDispatch(heat,source))
+            assertTrue(broker.markUnknown(weekly))
+            assertFalse(broker.mayDispatch(heat,source))
+            assertTrue(broker.abortUnsent(heat,source,OperationResult.Cancelled("denied before handoff")))
+            assertNotNull(ops.data)
+            assertFalse(broker.returnToLegacy())
         } finally {
             fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
         }

@@ -890,6 +890,7 @@
     <string name="service_write_setting_not_written">"Machine setting command not written"</string>
     <string name="service_write_setting_pending">"Waiting for previous setting outcome"</string>
     <string name="service_write_setting_previous_pending">"Waiting for previous machine settings readback"</string>
+    <string name="service_v2_split_pending">A coffee machine operation is awaiting confirmation. Check its status.</string>
     <string name="service_write_setting_queued">"Machine setting command queued: %1$s"</string>
     <string name="service_write_setting_record_failed">"Cannot reliably save settings safety state; sending blocked"</string>
     <string name="service_write_setting_shot_block">"Cannot change machine settings during extraction"</string>

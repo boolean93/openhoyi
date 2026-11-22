@@ -2,7 +2,7 @@ package io.openhoyi.mobile
 
 import io.openhoyi.session.SleepScheduleWriteTracker
 
-/** Home heating shares the exclusive durable machine-write slot. This projection neither grants
+/** Home heating normally shares the exclusive durable machine-write slot. This projection neither grants
  * transport permission nor stores a user intent to replay. */
 internal enum class BoilerHeatingAdmission(val reason: Int? = null) {
     AVAILABLE,
@@ -15,7 +15,8 @@ internal enum class BoilerHeatingAdmission(val reason: Int? = null) {
     companion object {
         fun evaluate(owner: MobileService?, snapshot: MobileSnapshot = owner?.snapshot ?: MobileSnapshot(),
             now: Long = android.os.SystemClock.elapsedRealtime()): BoilerHeatingAdmission =
-            resolve(MachineSettingsEditGate.allowed(owner, snapshot, now), owner?.scheduleWriteState)
+            resolve(MachineSettingsEditGate.allowed(owner, snapshot, now) || owner?.allowsSplitBoiler() == true,
+                owner?.scheduleWriteState)
 
         // These phases may be more specific than the shared durable recovery warning, but
         // no display classification may override the original admission predicate.
