@@ -217,6 +217,17 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         val controls = (0 until scaleActions.childCount).map(scaleActions::getChildAt).filter { it.isShown }
                         val normal = controls.map(::rect)
                         val overview = rect(group)
+                        val scaleStatus = settings().findViewWithTag<android.widget.TextView>("settings/devices/status/BOOKOO")
+                        val lastTextLine = requireNotNull(scaleStatus.layout).let { layout ->
+                            check(layout.lineCount > 0)
+                            scaleStatus.totalPaddingTop + layout.getLineBottom(layout.lineCount - 1)
+                        }
+                        check(lastTextLine <= scaleStatus.height)
+                        val statusLocation = IntArray(2).also(scaleStatus::getLocationOnScreen)
+                        val statusToCard = overview.bottom - (statusLocation[1] + lastTextLine)
+                        check(statusToCard >= HoyiUi.dp(activity, 12)) {
+                            "Scale status has only ${statusToCard}px to the shared card bottom"
+                        }
                         val nearby = rect(settings().findViewWithTag<View>("settings/devices/scan-section"))
                         val scanLead = rect((settings().findViewWithTag<android.view.ViewGroup>("settings/devices/scan")).getChildAt(0))
                         val coffeeLead = rect((coffee as android.view.ViewGroup).getChildAt(0))
@@ -240,6 +251,8 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         val indent = JSONObject().put("overviewLeft", overview.left)
                             .put("nearbyLeft", nearby.left).put("coffeeLead", coffeeLead.left)
                             .put("scaleLead", scaleLead.left).put("scanLead", scanLead.left)
+                            .put("dark", dark).put("scaleStatusToCardBottomPx", statusToCard)
+                            .put("scaleStatusToCardBottomDp", statusToCard / activity.resources.displayMetrics.density.toDouble())
                             .put("scaleActions", JSONArray(normal.map {
                                 JSONObject().put("left", it.left).put("center", it.centerX()).put("right", it.right)
                             })).put("horizontalActionGaps", horizontalGaps.toString())

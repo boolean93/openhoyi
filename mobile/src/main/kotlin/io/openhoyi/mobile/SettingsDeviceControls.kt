@@ -140,7 +140,10 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             // The containing group owns the single shared surface on tablet.
             card.background = if (wide) null else style.shape(style.surface, true, 16)
             val inset = style.dp(if (wide) 4 else 16)
-            card.setPadding(style.dp(16), inset, style.dp(16), inset)
+            // The last row owns the shared card's bottom breathing room; keep the
+            // divider and the earlier row's density unchanged.
+            val bottomInset = if (wide && card === scaleCard) style.dp(13) else inset
+            card.setPadding(style.dp(16), inset, style.dp(16), bottomInset)
         }
         disconnectLabels.forEach { (button, original) ->
             button.text = if (wide) host.getString(R.string.settings_device_disconnect_short) else original
