@@ -140,7 +140,13 @@ class MobileService : Service() {
     val automaticScaleWaiting: Boolean get() = hub?.automaticScaleWaiting == true
     private val shotRecovery by lazy { ShotRecoveryState(RecoveryPreferenceStorage.shot(this)) }
     private val restartShotWarning: String get() = getString(R.string.machine_recovery_shot_restart)
-    private val machineWriteRecovery by lazy { MachineWriteRecoveryState(RecoveryPreferenceStorage.machine(this)) }
+    private var pinnedMachineWrites:RecoveryPreferenceStorage.PinnedMachine?=null
+    private val machineWriterFence=MachineServiceWriterFence()
+    private val machineWriteRecovery by lazy {
+        MachineWriteRecoveryState(pinnedMachineWrites?.storage ?: RecoveryPreferenceStorage.machine(this))
+    }
+    private fun holdsMachineWriter():Boolean =
+        !BuildConfig.BLE_V2_DELIVERY || machineWriterFence.mayStartOrDispatch && pinnedMachineWrites?.held==true
     private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
         machineWriteRecovery.kind, brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
@@ -548,7 +554,7 @@ class MobileService : Service() {
         hub?.scanner?.cancel(io.openhoyi.bluetooth.ScanCoordinator.Owner.MANUAL)
         snapshot=snapshot.copy(scanning=false)
     }
-    private fun automaticAllowed(role:DeviceRole):Boolean = io.openhoyi.session.AutomaticConnectionGate.allows(
+    private fun automaticAllowed(role:DeviceRole):Boolean = holdsMachineWriter() && io.openhoyi.session.AutomaticConnectionGate.allows(
         role,autoConnect.enabled(role),autoConnect.paused(role),appVisibility.visible,
         selectingDevice || snapshot.scanning,manualShotActive,shotState,shotRecovery.pending,
         machineWriteRecovery.kind!=null,cupResetBusy || scheduleBusy || brewPreparation.active)
@@ -1031,6 +1037,11 @@ class MobileService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.BLE_V2_DELIVERY && mock==null) {
+            // Pin before the first lazy marker read or any eager app observer can grant control.
+            pinnedMachineWrites=runCatching { RecoveryPreferenceStorage.pinMachine(this) }
+                .getOrElse { RecoveryPreferenceStorage.PinnedMachine(null,null) }
+        }
         val app = application as MobileApplication
         app.releaseUpdates.serviceCreated(this)
         app.curveDeletionGuards[ownerId] = { id ->
@@ -1049,6 +1060,10 @@ class MobileService : Service() {
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
+        if (!holdsMachineWriter()) {
+            event(ResourceMessage(R.string.service_unavailable), "service.machine_writer_fenced")
+            return START_NOT_STICKY
+        }
         if (running) {
             if (intent?.action !in setOf(AUTO_SCALE,AUTO_KNOWN_DEVICES)) manualDeviceUse()
             refreshAutomaticIntent()
@@ -1373,11 +1388,11 @@ class MobileService : Service() {
         return null
     }
     private fun permitsOrdinaryWrite(current:NativeDeviceHub,address:String,token:Long,
-        request:MachineWriteDispatchPermit.Request):Boolean = hub === current && snapshot.coffeeState == DeviceState.READY &&
+        request:MachineWriteDispatchPermit.Request):Boolean = holdsMachineWriter() && hub === current && snapshot.coffeeState == DeviceState.READY &&
         MachineWriteDispatchPermit.allows(token,request,MachineWriteDispatchPermit.Context(machineWriteRecovery,
             address,current.coffeeAddress,manualShotActive,shotRecovery.pending,ShotGate.active(shotState),brewPreparation.active))
 
-    private fun boilerRecoveryProductSafe():Boolean = !manualShotActive && !shotRecovery.pending &&
+    private fun boilerRecoveryProductSafe():Boolean = holdsMachineWriter() && !manualShotActive && !shotRecovery.pending &&
         !io.openhoyi.session.DeviceConnectionGate.unsettled(shotState) && !brewPreparation.active && !cupResetBusy && !scheduleBusy &&
         sleepNow.state !in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN)
     private fun attemptBoilerFallback() {
@@ -1692,6 +1707,7 @@ class MobileService : Service() {
     private val settingsRefreshBudget = SettingsRefreshBudget()
     private var staleSettingsRefreshBusy = false
     private fun settingsRefreshSafe(): Boolean {
+        if(!holdsMachineWriter())return false
         val idle = snapshot.coffee as? IdleTelemetry ?: return false
         return SettingsRefreshEligibility.allowed(
             foreground = running && mock == null && appVisibility.visible,
@@ -1750,6 +1766,7 @@ class MobileService : Service() {
         return blocked
     }
     private fun leverRecipeConditions(): String? {
+        if(!holdsMachineWriter())return getString(R.string.service_unavailable)
         MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)?.let { return it }
         if (manualShotActive || ShotGate.active(shotState) || brewPreparation.active || cupResetBusy || scheduleBusy ||
             blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
@@ -1808,7 +1825,7 @@ class MobileService : Service() {
             if (persisted && state == MachineLeverRecipeStore.State.SENT && mock == null && current != null) {
                 // Read fresh mode/settings once. 0x83 is NOT stored-recipe verification.
                 current.refreshStoredRecipeSettings({
-                    hub === current && current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
+                    holdsMachineWriter() && hub === current && current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
                         snapshot.coffeeState == DeviceState.READY && !leverStore.blocked &&
                         !manualShotActive && !ShotGate.active(shotState) && !brewPreparation.active &&
                         !machineWriteRecovery.pending && !cupResetBusy && !scheduleBusy &&
@@ -2277,7 +2294,7 @@ class MobileService : Service() {
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested")
         current.setBrewWait(profile.temperatureC, {
-            (automaticPermit?.invoke() != false) && BrewWriteDispatchPermit.allows(token,brewPreparation,profile.temperatureC,
+            holdsMachineWriter() && (automaticPermit?.invoke() != false) && BrewWriteDispatchPermit.allows(token,brewPreparation,profile.temperatureC,
                 BrewWriteDispatchPermit.Context(machineWriteRecovery,recoveryOwner,coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,manualShotActive,shotRecovery.pending,
                     ShotGate.active(current.extraction.state),selectedCurve(profileId,slot)==profile && library.validated(profile)))
@@ -2498,7 +2515,7 @@ class MobileService : Service() {
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
                     blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
                 callerPermits() && shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
-                ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
+                holdsMachineWriter() && ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,
                     selected==profile && library.validated(profile),manualShotActive,busy,
                     shotRecovery.pending,shotRecovery.address,originalMachineIntent,
@@ -2909,11 +2926,16 @@ class MobileService : Service() {
     }
     private fun closeDeviceOwner() {
         check(Looper.myLooper() == Looper.getMainLooper()) { "Device owner close must use main looper" }
-        try { hub?.close() }
+        machineWriterFence.beginDrain()
+        var closedSafely=false
+        try { hub?.close();closedSafely=true }
         catch (error: Exception) {
             Log.w(TAG, "device owner close failed: ${error.javaClass.simpleName}; suppressed=${error.suppressed.size}")
         }
-        finally { hub = null; hubForeground = false; scaleTrend.clear() }
+        finally {
+            hub = null; hubForeground = false; scaleTrend.clear()
+            machineWriterFence.finishDrain(closedSafely)
+        }
     }
     fun shutdown() {
         if (mock != null) {
@@ -2972,6 +2994,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        machineWriterFence.beginDrain(retire=true)
         handler.removeCallbacks(boilerTargetPump)
         manualPresentation.disconnected(requireIdle = passiveCommitted, points = terminalManualPoints())
         settleLeverWriteUnknown()
@@ -3021,6 +3044,9 @@ class MobileService : Service() {
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
         closeDeviceOwner()
+        // All transport callbacks settle while the old writer remains exclusive. Do not wake
+        // another writer in this process when driver teardown itself was uncertain.
+        if (machineWriterFence.mayReleaseWriter) pinnedMachineWrites?.close()
         autoConnect.onChanged=null
         super.onDestroy()
     }

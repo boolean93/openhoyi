@@ -14,6 +14,10 @@ internal object MachineRecoveryMarkerLease {
 
     internal class Lease internal constructor(val marker: File, private val release: () -> Unit) : Closeable {
         private var closed = false
+        val held:Boolean @Synchronized get()=!closed
+        @Synchronized fun <T> readWhileHeld(read:()->T):T? = if(closed) null else read()
+        @Synchronized fun writeLegacy(write:()->Boolean):Boolean =
+            !closed && runCatching { permitsLegacy(marker) && write() }.getOrDefault(false)
         @Synchronized override fun close() {
             if (closed) return
             closed = true
@@ -32,9 +36,7 @@ internal object MachineRecoveryMarkerLease {
 
     /** Legacy writer may not replace a split/unknown-schema marker even after a split lease closes. */
     fun withLegacyWrite(marker: File, write: () -> Boolean): Boolean =
-        tryAcquire(marker)?.use { lease ->
-            runCatching { permitsLegacy(lease.marker) && write() }.getOrDefault(false)
-        } ?: false
+        tryAcquire(marker)?.use { it.writeLegacy(write) } ?: false
 
     // The legacy writer emits exactly these ASCII fields. Do not trust JSONObject's
     // last-key-wins or trailing-data behavior on the marker claimed by another writer.

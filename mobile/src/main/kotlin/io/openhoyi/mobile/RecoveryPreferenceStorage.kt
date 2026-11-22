@@ -53,11 +53,47 @@ internal object RecoveryPreferenceStorage {
     internal fun decodeMachineMarker(json: JSONObject): MachineWriteRecoveryState.Record =
         MachineWriteRecoveryState.Record(machineKind(if (json.isNull("kind")) null else json.getString("kind")), json.address())
 
+    private const val MachineMarker="pending_machine_write.json"
+
+    /** Exclusive, process-local service writer; contention is an UNKNOWN fence, not empty state. */
+    internal class PinnedMachine internal constructor(private val lease:MachineRecoveryMarkerLease.Lease?,
+        private val delegate:MachineWriteRecoveryState.Storage?) : java.io.Closeable {
+        val held:Boolean get()=lease?.held==true
+        val storage=object:MachineWriteRecoveryState.Storage {
+            override fun read():MachineWriteRecoveryState.Record =
+                lease?.readWhileHeld { delegate?.read() } ?: fenced()
+            override fun write(record:MachineWriteRecoveryState.Record):Boolean =
+                lease?.writeLegacy { delegate?.write(record)==true }==true
+        }
+        private fun fenced()=MachineWriteRecoveryState.Record(MachineWriteRecoveryState.Kind.UNKNOWN,null)
+        override fun close(){lease?.close()}
+    }
+
+    fun pinMachine(context:Context):PinnedMachine {
+        val lease=MachineRecoveryMarkerLease.tryAcquire(File(context.noBackupFilesDir,MachineMarker))
+            ?: return PinnedMachine(null,null)
+        return try {
+            PinnedMachine(lease,machineBarrier(context,false,lease.marker))
+        } catch (error:Exception) {
+            lease.close()
+            throw error
+        }
+    }
+
     fun machine(context:Context, backgroundTemperature:Boolean=false):MachineWriteRecoveryState.Storage {
+        val markerFile=File(context.noBackupFilesDir,
+            if(backgroundTemperature) "pending_temperature_confirmation.json" else MachineMarker)
+        val barrier=machineBarrier(context,backgroundTemperature,markerFile)
+        return if(backgroundTemperature) barrier else object:MachineWriteRecoveryState.Storage {
+            override fun read()=barrier.read()
+            override fun write(record:MachineWriteRecoveryState.Record) =
+                MachineRecoveryMarkerLease.withLegacyWrite(markerFile) { barrier.write(record) }
+        }
+    }
+
+    private fun machineBarrier(context:Context,backgroundTemperature:Boolean,markerFile:File):MachineWriteRecoveryState.Storage {
         val namespace=if(backgroundTemperature) "temperature_confirmation" else "machine_write_safety"
-        val marker=if(backgroundTemperature) "pending_temperature_confirmation.json" else "pending_machine_write.json"
         val prefs=context.getSharedPreferences(namespace,Context.MODE_PRIVATE)
-        val markerFile=File(context.noBackupFilesDir,marker)
         val pending:(MachineWriteRecoveryState.Record)->Boolean={ it.pending || it.address!=null }
         val barrier=RecoveryPersistenceBarrier(object:RecoveryPersistenceBarrier.RecordStorage<MachineWriteRecoveryState.Record> {
             override fun read()=MachineWriteRecoveryState.Record(machineKind(prefs.getString("pending_kind",null)),prefs.getString("pending_address",null))
@@ -68,8 +104,7 @@ internal object RecoveryPreferenceStorage {
             ::decodeMachineMarker,pending),pending)
         return object:MachineWriteRecoveryState.Storage {
             override fun read()=barrier.read()
-            override fun write(record:MachineWriteRecoveryState.Record) = if (backgroundTemperature) barrier.write(record)
-            else MachineRecoveryMarkerLease.withLegacyWrite(markerFile) { barrier.write(record) }
+            override fun write(record:MachineWriteRecoveryState.Record) = barrier.write(record)
         }
     }
 }
