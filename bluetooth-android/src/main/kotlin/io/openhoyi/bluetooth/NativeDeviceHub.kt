@@ -69,6 +69,9 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
         customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,
         synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)}) }
+    // Compatibility-preserving sidecar. No existing callback or control permit consumes it.
+    val coffeeReadbackCursor get() = if (closed) null else coffee.session.coffeeReadbackCursor
+    val latestCoffeeReadbackFrame get() = if (closed) null else coffee.session.latestCoffeeReadbackFrame
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()},{scaleSampleSerial})

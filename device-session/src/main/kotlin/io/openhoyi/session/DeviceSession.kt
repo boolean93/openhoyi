@@ -347,6 +347,33 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     fun onComplete(generation:Long,token:Long,result:OperationResult)=queue.complete(generation,token,result)
     fun onDisconnected(generation:Long,reason:String){if(this.generation==generation&&queue.active)fail(reason)}
+    private var readbackSource: CoffeeReadbackSource? = null
+    private var readbackSequence = 0L
+    private var lastReadback: CoffeeReadbackFrame? = null
+
+    private fun currentReadbackSource(): CoffeeReadbackSource? {
+        if (role != DeviceRole.COFFEE || state != DeviceState.READY || !queue.active || coffeeAuthentication == null) return null
+        val currentAddress = address ?: return null
+        return readbackSource?.takeIf { it.generation == generation && it.address == currentAddress }
+            ?: CoffeeReadbackSource(currentAddress, generation).also { readbackSource = it }
+    }
+
+    val coffeeReadbackCursor: CoffeeReadbackCursor? get() =
+        currentReadbackSource()?.let { CoffeeReadbackCursor(it, readbackSequence) }
+    val latestCoffeeReadbackFrame: CoffeeReadbackFrame? get() =
+        lastReadback?.takeIf { it.cursor.source === currentReadbackSource() }
+
+    private fun recordLiveReadback(frame: HoyiMessage, now: Long) {
+        // Called at ingress only, never on buffered initialization/replayed packets.
+        if (frame !is Settings && frame !is SleepPart) return
+        val source = currentReadbackSource() ?: return
+        val cursor = CoffeeReadbackCursor(source, ++readbackSequence)
+        lastReadback = when (frame) {
+            is Settings -> CoffeeReadbackFrame.OrdinarySettings(cursor, now, frame)
+            is SleepPart -> CoffeeReadbackFrame.WeeklyPart(cursor, now, frame)
+        }
+    }
+
     fun onNotification(generation:Long,endpoint:Endpoint,bytes:ByteArray) {
         if(this.generation!=generation||!queue.active||endpoint!=notifyEndpoint)return
         val now=clock()
@@ -370,6 +397,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     initialSynchronization?.settings=frame to now
                     return
                 }
+                recordLiveReadback(frame,now)
                 processCoffeeFrame(generation,frame,now)
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
