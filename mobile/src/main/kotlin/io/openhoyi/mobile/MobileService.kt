@@ -54,6 +54,8 @@ import io.openhoyi.session.SleepScheduleFreshness
 import io.openhoyi.trace.TraceStore
 import java.time.LocalDateTime
 
+enum class NearbyScanPhase { IDLE, COMPLETE, FAILED }
+
 data class MobileSnapshot(
     val coffeeState: DeviceState = DeviceState.DISCONNECTED,
     val scaleState: DeviceState = DeviceState.DISCONNECTED,
@@ -71,6 +73,8 @@ data class MobileSnapshot(
     val scaleCapabilities: ScaleCapabilities? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
+    val nearbyScanPhase: NearbyScanPhase = NearbyScanPhase.IDLE,
+    val nearbyScanFailure: SnapshotMessage? = null,
     val message: SnapshotMessage? = null,
     /** Display-only reason for the last coffee FAILED state; never a control permit. */
     val coffeeFailure: CoffeeSessionFailure? = null,
@@ -363,7 +367,8 @@ class MobileService : Service() {
     private fun refreshMock(runtime: MockDeviceRuntime, now: Long = MobileMonotonicClock.elapsedRealtime()) {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,
-            scanning = previous.scanning, message = previous.message)
+            scanning = previous.scanning, nearbyScanPhase = previous.nearbyScanPhase,
+            nearbyScanFailure = previous.nearbyScanFailure, message = previous.message)
         if (mockScaleVisualInput.isInstalled) {
             applyScaleVisualInput() // Injected visual input ticks never create observations.
         } else {
@@ -999,7 +1004,7 @@ class MobileService : Service() {
                 DiscoveredDevice("02:00:00:00:00:01", "HOYI Mock", -42, DeviceRole.COFFEE),
                 DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO,
                     io.openhoyi.session.BookooScaleProtocolAdapter.id)),
-                scanning = false)
+                scanning = false, nearbyScanPhase = NearbyScanPhase.COMPLETE)
             event(ResourceMessage(R.string.service_scan_mock), "mock.scan")
             return
         }
@@ -1007,13 +1012,16 @@ class MobileService : Service() {
         manualDeviceUse()
         beginDeviceSelection()
         if (snapshot.scanning) return
-        snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = resolvedMessage(ResourceMessage(R.string.service_scanning)))
+        snapshot = snapshot.copy(scanning = true, nearbyScanPhase = NearbyScanPhase.IDLE, nearbyScanFailure = null,
+            candidates = emptyList(), message = resolvedMessage(ResourceMessage(R.string.service_scanning)))
         Log.i(TAG, "scan start")
         current.scanner.start(onDevice = { candidate ->
             snapshot = snapshot.copy(candidates = (snapshot.candidates.filterNot { it.address == candidate.address } + candidate)
                 .sortedWith(compareBy({ it.candidateRole.name }, { it.advertisedName })).take(64))
         }, onFinished = { error ->
-            snapshot = snapshot.copy(scanning = false)
+            snapshot = snapshot.copy(scanning = false, nearbyScanPhase =
+                if (error == null) NearbyScanPhase.COMPLETE else NearbyScanPhase.FAILED,
+                nearbyScanFailure = error?.let(SnapshotMessage::raw))
             if (error == null) event(ResourceMessage(R.string.service_scan_finished, snapshot.candidates.size.toString()))
             else event(error)
         })

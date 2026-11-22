@@ -22,4 +22,13 @@
     <string name="settings_target_refresh_needed">Refresh machine settings before adjusting the temperature</string>
     <string name="settings_target_unknown_unsent">Readback unconfirmed. Subsequent changes were not sent.</string>
     <string name="settings_target_failed_unsent">Write failed. Subsequent changes were not sent.</string>
+    <string name="settings_device_disconnect_short">Disconnect</string>
+    <string name="settings_device_scale_tool_short">Scale tools</string>
+    <string name="settings_device_guide_short">Guide</string>
+    <string name="settings_device_nearby">Nearby devices</string>
+    <string name="settings_device_scan_again">Scan again</string>
+    <string name="settings_device_nearby_hint">Bring devices closer and make sure they are ready to connect</string>
+    <string name="settings_device_nearby_empty">No devices found</string>
+    <string name="settings_device_address_suffix">ID ending in %1$s</string>
+    <string name="settings_device_candidate_more">More connection actions</string>
 </resources>

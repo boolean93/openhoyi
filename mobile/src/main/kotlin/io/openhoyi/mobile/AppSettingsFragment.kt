@@ -132,6 +132,12 @@ class AppSettingsFragment : Fragment() {
         }
     }
 
+    @androidx.annotation.VisibleForTesting
+    internal fun renderMockNearby(snapshot: MobileSnapshot?) {
+        check(BuildConfig.MOCK_MODE)
+        deviceControls?.let { if (snapshot == null) it.render(service) else it.render(service, snapshot) }
+    }
+
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         val activity = requireActivity() as MainActivity
         val visual = SettingsVisualStyle(activity)
@@ -165,6 +171,7 @@ class AppSettingsFragment : Fragment() {
         deviceControls = connectionControls
         val scale = connectionControls.create(sections.getValue("devices"), scanSection, sections.getValue("scale"))
         visual.divider(scale)
+        scale.getChildAt(scale.childCount - 1).tag = "settings/devices/scale-separator"
         machineState = state?.getBundle("machineControls") ?: machineState
         val machine = sections.getValue("machine")
         val machineSummary = style.text("", TaskProductVisualStyle.auxiliary, "settings-machine-summary").apply {
@@ -185,17 +192,21 @@ class AppSettingsFragment : Fragment() {
         scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),
             TaskProductVisualStyle.auxiliary, "settings/devices/scale-capabilities", secondary = true)
         val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
-        scale.addView(HoyiSwitch(activity).apply {
+        val scalePrecision = HoyiSwitch(activity).apply {
             text = getString(R.string.scale_precision_short)
             isChecked = prefs.getBoolean("one_decimal", false)
             visual.switch(this, 48)
             tag = "product/settings/scale/precision"
             setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("one_decimal", checked).apply() }
-        })
+        }.also(scale::addView)
         val scaleDetails = root.disclosure(scale, "scale", getString(R.string.settings_category_scale_capabilities))
         scaleCapabilities?.let { style.add(scaleDetails, it) }
         style.add(scaleDetails, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
-        HoyiUi.button(activity, scale, getString(R.string.settings_category_scale_tool)) { activity.openScaleFromSettings() }
+        val scaleTool = HoyiUi.button(activity, scale, getString(R.string.settings_category_scale_tool)) { activity.openScaleFromSettings() }
+        val scaleGuide = scale.findViewWithTag<android.widget.Button>("settings/details/scale/action")
+        root.presentDeviceWidth = { wide, heading ->
+            connectionControls.presentTablet(wide, heading, scalePrecision, scaleGuide, scaleTool)
+        }
         listOf(R.string.scale_timer_title to R.string.scale_timer_help, R.string.scale_operation_limits to R.string.scale_active_guard,
             R.string.scale_protocol_support to R.string.scale_offline_evidence).forEach { (title, detail) ->
             style.add(scaleDetails,style.text(getString(title),TaskProductVisualStyle.action),16)

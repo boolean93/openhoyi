@@ -22,4 +22,13 @@
     <string name="settings_target_refresh_needed">先刷新读回，再调整温度</string>
     <string name="settings_target_unknown_unsent">上次回读未确认，后续调整未发送</string>
     <string name="settings_target_failed_unsent">这次写入失败，后续调整未发送</string>
+    <string name="settings_device_disconnect_short">断开</string>
+    <string name="settings_device_scale_tool_short">秤工具</string>
+    <string name="settings_device_guide_short">使用说明</string>
+    <string name="settings_device_nearby">附近设备</string>
+    <string name="settings_device_scan_again">重新扫描</string>
+    <string name="settings_device_nearby_hint">请让设备靠近并处于可连接状态</string>
+    <string name="settings_device_nearby_empty">未找到设备</string>
+    <string name="settings_device_address_suffix">识别码末四位 %1$s</string>
+    <string name="settings_device_candidate_more">更多连接操作</string>
 </resources>

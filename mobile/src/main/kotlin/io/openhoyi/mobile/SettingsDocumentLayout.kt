@@ -37,7 +37,10 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private var brewingCard: LinearLayout? = null
     private var brewingCardAnchor: LinearLayout? = null
     private val brewingRows = mutableMapOf<String, View>()
-    private var pairedDevices: View? = null
+    private var pairedDevices: SettingsColumns? = null
+    var presentDeviceWidth: (Boolean, View) -> Unit = { _, _ -> }
+    private var compactDevices = false
+    private var deviceRowDivider: View? = null
     private var scanning: View? = null
     private val headerBackdrop = Any()
     private val indexBody = style.column("settings/document/category-rail")
@@ -180,6 +183,20 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 }
             }
             body.applySettingsWideMaterial(rail)
+            val compactDevice = rail && resources.configuration.smallestScreenWidthDp >= 600
+            compactDevices = compactDevice
+            deviceRowDivider?.visibility = if (compactDevice) VISIBLE else GONE
+            pairedDevices?.apply {
+                compactDeviceStack = compactDevice
+                background = if (compactDevice) settingsRaisedGroup(host, style) else null
+            }
+            sections.getValue("devices").block.apply {
+                setPadding(style.dp(10), 0, style.dp(10), style.dp(if (compactDevice) 0 else 14))
+            }
+            val scale = sections.getValue("scale")
+            scale.block.apply { setPadding(style.dp(10), 0, style.dp(10), style.dp(if (compactDevice) 0 else 14)) }
+            presentDeviceWidth(compactDevice, scale.heading)
+            disclosureRenders["scale"]?.invoke()
             updateButtons()
         }
         if (previousWidth != MeasureSpec.getSize(widthMeasureSpec)) restoring = true
@@ -242,6 +259,12 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         val at = body.indexOfChild(devices)
         body.removeView(devices)
         body.removeView(scale)
+        deviceRowDivider = hairline().apply {
+            visibility = GONE
+            devices.addView(this, LayoutParams(-1, style.dp(1)).apply {
+                marginStart = style.dp(8); marginEnd = style.dp(8)
+            })
+        }
         pairedDevices = SettingsColumns(host, style, devices, scale, org.json.JSONObject(), firstFraction = .5f,
             minimumFirstWidth = { style.dp(300) }, minimumSecondWidth = { style.dp(250) }, stackGapDp = 3).apply {
             tag = "settings/devices/overview"
@@ -362,7 +385,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             val expanded = key in disclosureKeys
             content.visibility = if (expanded) VISIBLE else GONE
             val value = disclosureValues[key]?.takeIf { !expanded && it.isNotBlank() }
-            val caption = if (value != null) "$title   $value" else title
+            val label = if (compactDevices && key == "scale") host.getString(R.string.settings_device_guide_short) else title
+            val caption = if (value != null) "$label   $value" else label
             val rendered = caption + if (expanded) "  ▾" else "  ›"
             if (header.text.toString() != rendered) header.text = rendered
             if (header.contentDescription != caption) header.contentDescription = caption

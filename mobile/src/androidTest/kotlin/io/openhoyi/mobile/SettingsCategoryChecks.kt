@@ -147,6 +147,72 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         }
                     }
                 }
+                if (wide && activity.resources.configuration.smallestScreenWidthDp >= 600) {
+                    check(BuildConfig.MOCK_MODE)
+                    fun scan() = settings().findViewWithTag<Button>("settings/devices/scan-button")
+                    fun caption() = settings().findViewWithTag<android.widget.TextView>("settings/devices/message")
+                    fun candidates() = settings().findViewWithTag<android.view.ViewGroup>("settings/devices/candidates")
+                    val fragment = page.active("root:SETTINGS") as AppSettingsFragment
+                    await("Mock device rows ready") {
+                        activity.currentService?.snapshot?.let {
+                            it.coffeeState == io.openhoyi.session.DeviceState.READY &&
+                                it.scaleState == io.openhoyi.session.DeviceState.READY
+                        } == true
+                    }
+                    main {
+                        val group = settings().findViewWithTag<android.view.ViewGroup>("settings/devices/overview")
+                        val coffee = settings().findViewWithTag<View>("settings/devices/COFFEE")
+                        val scale = settings().findViewWithTag<android.view.ViewGroup>("settings/devices/BOOKOO")
+                        check(group.background != null && group.childCount == 2 && rect(coffee).bottom <= rect(scale).top)
+                        val scaleActions = scale.getChildAt(1) as android.view.ViewGroup
+                        val controls = (0 until scaleActions.childCount).map(scaleActions::getChildAt).filter { it.isShown }
+                        val normal = controls.map(::rect)
+                        val min = HoyiUi.dp(activity, 48)
+                        check(controls.size == 4 && normal.all { it.height() >= min && it.width() >= min })
+                        check(normal.maxOf { it.centerY() } - normal.minOf { it.centerY() } <= HoyiUi.dp(activity, 2))
+                        val narrowWidth = HoyiUi.dp(activity, 260)
+                        // Exercise the same live control strip's reflow without changing device/window settings.
+                        scaleActions.measure(View.MeasureSpec.makeMeasureSpec(narrowWidth, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                        scaleActions.layout(0, 0, narrowWidth, scaleActions.measuredHeight)
+                        check(controls.map { it.top }.distinct().size > 1 &&
+                            controls.all { it.width >= min && it.height >= min && it.left >= 0 && it.right <= narrowWidth })
+                        scaleActions.requestLayout()
+                        val live = checkNotNull(activity.currentService?.snapshot)
+                        fragment.renderMockNearby(live.copy(scanning = true, nearbyScanPhase = NearbyScanPhase.IDLE,
+                            candidates = emptyList()))
+                        check(!scan().isEnabled && settings().findViewWithTag<View>("settings/devices/scan-progress").isShown)
+                        check(candidates().childCount == 0 && caption().text.toString() == activity.getString(R.string.settings_device_nearby_hint))
+                        val mockError = activity.getString(R.string.home_permission_expired)
+                        fragment.renderMockNearby(live.copy(scanning = false, nearbyScanPhase = NearbyScanPhase.FAILED,
+                            nearbyScanFailure = SnapshotMessage.raw(mockError), candidates = emptyList()))
+                        check(caption().text.toString() == mockError && scan().isEnabled)
+                        fragment.renderMockNearby(live.copy(scanning = false, nearbyScanPhase = NearbyScanPhase.COMPLETE,
+                            nearbyScanFailure = null, candidates = emptyList()))
+                        check(caption().text.toString() == activity.getString(R.string.settings_device_nearby_empty) &&
+                            scan().text == activity.getString(R.string.settings_device_scan_again))
+                        check(scan().performClick()) // The original scan button drives the original Mock service action.
+                        fragment.renderMockNearby(null)
+                    }
+                    await("grouped Mock coffee and scale results") {
+                        candidates().findViewWithTag<View>("settings/devices/candidate-group/COFFEE")?.isShown == true &&
+                            candidates().findViewWithTag<View>("settings/devices/candidate-group/BOOKOO")?.isShown == true
+                    }
+                    main {
+                        val scaleAddress = checkNotNull(activity.currentService?.snapshot?.candidates
+                            ?.firstOrNull { it.candidateRole == io.openhoyi.session.DeviceRole.BOOKOO }).address
+                        val connect = candidates().findViewWithTag<Button>("product/devices/candidate/$scaleAddress/connect")
+                        check(connect.isShown && connect.isEnabled && connect.performClick())
+                    }
+                    await("original Mock scale connection route") {
+                        activity.currentService?.snapshot?.messageForDisplay { id, args -> activity.getString(id, *args) } ==
+                            activity.getString(R.string.service_scale_mock)
+                    }
+                    receipts.put("deviceCompact", JSONObject().put("singleTwoRowSurface", true)
+                        .put("scaleActionsSingleBand", true).put("narrowMeasuredWrap", true)
+                        .put("scanningAndFailureDistinct", true).put("emptyRetryDispatched", true)
+                        .put("rolesGrouped", true).put("mockScaleConnectRoute", true))
+                }
                 val savedText = main { settings().findViewsByClass(EditText::class.java).first() }
                 val previous = main { savedText.text.toString().also { savedText.setText("94") } }
                 val precision = context.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)

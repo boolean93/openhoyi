@@ -178,6 +178,7 @@ internal class SettingsPairLayout(context:Context,private val style:TaskProductV
 /** Keep action buttons intact, wrapping rather than clipping a narrow translated row. */
 internal class SettingsWrappingActions(context: Context, private val gap: Int) : ViewGroup(context) {
     private val placements = mutableListOf<Pair<View, Rect>>()
+    var centerRows = false
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -211,9 +212,12 @@ internal class SettingsWrappingActions(context: Context, private val gap: Int) :
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
+        val heights = if (centerRows) placements.groupBy { it.second.top }
+            .mapValues { (_, line) -> line.maxOf { it.second.height() } } else emptyMap()
         placements.forEach { (child, bounds) ->
             val start = if (rtl) width - bounds.right else bounds.left
-            child.layout(start, bounds.top, start + bounds.width(), bounds.bottom)
+            val dy = heights[bounds.top]?.let { (it - bounds.height()) / 2 } ?: 0
+            child.layout(start, bounds.top + dy, start + bounds.width(), bounds.bottom + dy)
         }
     }
 }
@@ -223,20 +227,21 @@ internal class SettingsColumns(context:Context,private val style:TaskProductVisu
     private val minimumFirstWidth:(()->Int)?=null, private val minimumSecondWidth:(()->Int)?=null,
     private val stackGapDp: Int = 24, private val gapDp: Int = 24, private val onMeasuredSplit: (Boolean) -> Unit = {}):ViewGroup(context) {
     private var split=false
+    var compactDeviceStack = false
     init {addView(first);addView(second)}
     override fun generateDefaultLayoutParams()=LayoutParams(-1,-2)
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
         val width=MeasureSpec.getSize(widthMeasureSpec);val gap=style.dp(gapDp)
         val firstRequired=minimumFirstWidth?.invoke() ?: style.dp(280)
         val secondRequired=minimumSecondWidth?.invoke() ?: style.dp(400)
-        split=width>=firstRequired+secondRequired+gap
+        split=!compactDeviceStack && width>=firstRequired+secondRequired+gap
         onMeasuredSplit(split)
         val firstWidth=if(split)((width-gap)*firstFraction).toInt().coerceIn(firstRequired,width-gap-secondRequired) else width
         val secondWidth=if(split)width-gap-firstWidth else width
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
         first.measure(MeasureSpec.makeMeasureSpec(firstWidth,MeasureSpec.EXACTLY),free)
         second.measure(MeasureSpec.makeMeasureSpec(secondWidth,MeasureSpec.EXACTLY),free)
-        val natural=if(split)maxOf(first.measuredHeight,second.measuredHeight) else first.measuredHeight+style.dp(stackGapDp)+second.measuredHeight
+        val natural=if(split)maxOf(first.measuredHeight,second.measuredHeight) else first.measuredHeight+style.dp(if (compactDeviceStack) 0 else stackGapDp)+second.measuredHeight
         evidence.put("split",split).put("actualWidthPx",width).put("leftWidthPx",firstWidth).put("rightWidthPx",secondWidth).put("naturalHeightPx",natural)
         setMeasuredDimension(resolveSize(width,widthMeasureSpec),resolveSize(natural,heightMeasureSpec))
     }
@@ -245,7 +250,7 @@ internal class SettingsColumns(context:Context,private val style:TaskProductVisu
             val left=if(layoutDirection==LAYOUT_DIRECTION_RTL)width-start-view.measuredWidth else start
             view.layout(left,top,left+view.measuredWidth,top+view.measuredHeight)
         }
-        place(first,0,0);place(second,if(split)first.measuredWidth+style.dp(24) else 0,if(split)0 else first.measuredHeight+style.dp(stackGapDp))
+        place(first,0,0);place(second,if(split)first.measuredWidth+style.dp(24) else 0,if(split)0 else first.measuredHeight+style.dp(if (compactDeviceStack) 0 else stackGapDp))
     }
 }
 
