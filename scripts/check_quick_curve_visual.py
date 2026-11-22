@@ -216,7 +216,8 @@ def capture_settings_categories(adb, output, receipt, profile, width, height):
     if profile == "tablet":
         keys += ("extra-standby", "extra-weekly", "extra-weekly-editor", "extra-scale-capabilities",
                  "extra-appearance-lower", "extra-cups", "extra-diagnostics", "extra-updates",
-                 "extra-ai-chat", "extra-ai-model", "extra-ai-reasoning", "extra-ai-usage", "extra-ai-key")
+                 "extra-ai-chat", "extra-ai-model", "extra-ai-reasoning", "extra-ai-usage", "extra-ai-key",
+                 "extra-device-scanning", "extra-device-empty", "extra-device-results")
     for key in keys:
         try:
             frame = adb("exec-out", "run-as", APP, "cat", f"files/settings-categories/{key}.png", binary=True)

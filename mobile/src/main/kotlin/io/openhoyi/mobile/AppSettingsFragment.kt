@@ -73,9 +73,10 @@ class AppSettingsFragment : Fragment() {
         override fun run() { serviceObserver(service); refreshHandler.postDelayed(this, 500) }
     }
     private var scaleCapabilities: TextView? = null
+    private var mockNearbyProjection: MobileSnapshot? = null
     private val serviceObserver: (MobileService?) -> Unit = {
         service = it
-        deviceControls?.render(it)
+        deviceControls?.render(it, mockNearbyProjection ?: it?.snapshot)
         fun badge(state:String?):String?=when(state) {
             "UNKNOWN"->getString(R.string.task_shell_machine_unknown)
             "FAILED"->getString(R.string.home_setting_failed)
@@ -135,7 +136,8 @@ class AppSettingsFragment : Fragment() {
     @androidx.annotation.VisibleForTesting
     internal fun renderMockNearby(snapshot: MobileSnapshot?) {
         check(BuildConfig.MOCK_MODE)
-        deviceControls?.let { if (snapshot == null) it.render(service) else it.render(service, snapshot) }
+        mockNearbyProjection = snapshot
+        deviceControls?.render(service, snapshot ?: service?.snapshot)
     }
 
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -369,6 +371,7 @@ class AppSettingsFragment : Fragment() {
         super.onStop()
     }
     override fun onDestroyView() {
+        mockNearbyProjection = null
         stopShortcutPreferenceObserver?.invoke(); stopShortcutPreferenceObserver = null
         feedbackCard?.stop(); languageCard?.close(); fontSizeCard?.close(); appearanceCard?.close()
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }

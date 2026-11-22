@@ -147,6 +147,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         }
                     }
                 }
+                val deviceFrames = JSONObject()
                 if (wide && activity.resources.configuration.smallestScreenWidthDp >= 600) {
                     check(BuildConfig.MOCK_MODE)
                     fun scan() = settings().findViewWithTag<Button>("settings/devices/scan-button")
@@ -159,6 +160,19 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 it.scaleState == io.openhoyi.session.DeviceState.READY
                         } == true
                     }
+                    fun captureDevice(key: String, label: String) {
+                        capture("extra-device-$key")
+                        deviceFrames.put("extra-device-$key.png", label)
+                    }
+                    val cRole = io.openhoyi.session.DeviceRole.COFFEE
+                    val sRole = io.openhoyi.session.DeviceRole.BOOKOO
+                    val alternative = "02:00:00:00:CA:23"
+                    val badScale = "02:00:00:00:CA:24"
+                    val injected = listOf(
+                        io.openhoyi.bluetooth.DiscoveredDevice("02:00:00:00:CA:22", "New Mock Coffee", -42, cRole),
+                        io.openhoyi.bluetooth.DiscoveredDevice(alternative, "New Mock Scale", -45, sRole,
+                            io.openhoyi.session.BookooScaleProtocolAdapter.id),
+                        io.openhoyi.bluetooth.DiscoveredDevice(badScale, "Unsupported Mock Scale", -45, sRole, "unsupported-fixture"))
                     main {
                         val group = settings().findViewWithTag<android.view.ViewGroup>("settings/devices/overview")
                         val coffee = settings().findViewWithTag<View>("settings/devices/COFFEE")
@@ -180,15 +194,6 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         scaleActions.requestLayout()
                         val owner = checkNotNull(activity.currentService)
                         val old = owner.snapshot
-                        val cRole = io.openhoyi.session.DeviceRole.COFFEE
-                        val sRole = io.openhoyi.session.DeviceRole.BOOKOO
-                        val alternative = "02:00:00:00:CA:23"
-                        val badScale = "02:00:00:00:CA:24"
-                        val injected = listOf(
-                            io.openhoyi.bluetooth.DiscoveredDevice("02:00:00:00:CA:22", "New Mock Coffee", -42, cRole),
-                            io.openhoyi.bluetooth.DiscoveredDevice(alternative, "New Mock Scale", -45, sRole,
-                                io.openhoyi.session.BookooScaleProtocolAdapter.id),
-                            io.openhoyi.bluetooth.DiscoveredDevice(badScale, "Unsupported Mock Scale", -45, sRole, "unsupported-fixture"))
                         // List from before this screen's scan may not appear or be called "empty".
                         fragment.renderMockNearby(old.copy(nearbyScanPhase = NearbyScanPhase.COMPLETE, candidates = injected))
                         check(candidates().childCount == 0 && !caption().isShown)
@@ -199,6 +204,10 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                             candidates = emptyList()))
                         check(!scan().isEnabled && settings().findViewWithTag<View>("settings/devices/scan-progress").isShown)
                         check(candidates().childCount == 0 && caption().text.toString() == activity.getString(R.string.settings_device_nearby_hint))
+                    }
+                    captureDevice("scanning", "平板附近设备：Mock 扫描中")
+                    main {
+                        val scanned = requireNotNull(activity.currentService).snapshot
                         val mockError = activity.getString(R.string.home_permission_expired)
                         fragment.renderMockNearby(scanned.copy(scanning = false, nearbyScanPhase = NearbyScanPhase.FAILED,
                             nearbyScanFailure = SnapshotMessage.raw(mockError), candidates = injected))
@@ -206,7 +215,13 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         fragment.renderMockNearby(scanned)
                         check(candidates().childCount == 0 && caption().text.toString() ==
                             activity.getString(R.string.settings_device_nearby_empty))
-                        check(scan().text == activity.getString(R.string.settings_device_scan_again) && scan().performClick())
+                        check(scan().text == activity.getString(R.string.settings_device_scan_again))
+                    }
+                    captureDevice("empty", "平板附近设备：Mock 无新候选")
+                    main {
+                        val owner = requireNotNull(activity.currentService)
+                        val scanned = owner.snapshot
+                        check(scan().performClick())
                         val rescanned = owner.snapshot
                         check(rescanned.nearbyScanGeneration > scanned.nearbyScanGeneration)
                         fragment.renderMockNearby(rescanned.copy(scaleState = io.openhoyi.session.DeviceState.CONNECTING,
@@ -217,11 +232,16 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                             candidates().findViewWithTag<View>("settings/devices/candidate-group/BOOKOO")?.isShown == true &&
                             rescanned.candidates.all { candidates().findViewWithTag<View>(
                                 "product/devices/candidate/${it.address}/connect") == null })
+                    }
+                    captureDevice("results", "平板附近设备：Mock 测试候选按设备类型分组")
+                    main {
+                        val rescanned = requireNotNull(activity.currentService).snapshot
                         check(candidates().findViewWithTag<Button>("product/devices/candidate/$badScale/connect").performClick())
                         check(caption().text.toString() == activity.getString(R.string.scale_protocol_unsupported))
                         fragment.renderMockNearby(rescanned.copy(candidates = injected))
                         check(candidates().findViewWithTag<Button>("product/devices/candidate/$alternative/connect").performClick())
                         check(caption().text.toString() == activity.getString(R.string.service_scale_mock))
+                        fragment.renderMockNearby(null)
                     }
                     receipts.put("deviceCompact", JSONObject().put("singleTwoRowSurface", true)
                         .put("scaleActionsSingleBand", true).put("narrowMeasuredWrap", true)
@@ -689,7 +709,10 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     test.removeMonitor(monitor)
                     restored?.let { main { it.finish() } }
                 }
-                supplemental?.getOrThrow()?.let { receipts.put("supplemental", it) }
+                supplemental?.getOrThrow()?.let { details ->
+                    deviceFrames.keys().forEach { key -> details.put(key, deviceFrames.getString(key)) }
+                    receipts.put("supplemental", details)
+                }
                 receipts.put("wide", wide).put("dark", dark).put("shortEnglishLarge", short).put("sixCategories", true).put("exactRoutes", 11)
                     .put("categoryRailFixed", true).put("continuousDrag", true).put("recreatedCategory", true).put("appearancePreviewNoWrite", !short).put("wideDark", wide).put("draftRetained", true).put("returnedToCaller", true).put("scaleToolReturned", true)
                     .put("rects", JSONArray(originalIndex.map { JSONArray(listOf(it.left, it.top, it.right, it.bottom)) }))
