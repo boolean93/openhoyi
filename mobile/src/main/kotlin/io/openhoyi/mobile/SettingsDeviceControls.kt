@@ -92,6 +92,10 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             button.background = if (wide) null else phoneBackgrounds[button]
         }
         roleActions.values.forEach { it.centerRows = wide }
+        // The approved wide control band gives the precision switch its own breathing room
+        // ahead of the two related links, with a closer visual link to the trailing stop action.
+        roleActions.getValue(DeviceRole.BOOKOO).preferredHorizontalGaps =
+            if (wide) listOf(60, 38, 28).map(style::dp) else emptyList()
         if (wide) {
             val actions = roleActions.getValue(DeviceRole.BOOKOO)
             helpers.forEachIndexed { index, view ->
@@ -136,7 +140,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             // The containing group owns the single shared surface on tablet.
             card.background = if (wide) null else style.shape(style.surface, true, 16)
             val inset = style.dp(if (wide) 4 else 16)
-            card.setPadding(style.dp(if (wide) 8 else 16), inset, style.dp(if (wide) 8 else 16), inset)
+            card.setPadding(style.dp(16), inset, style.dp(16), inset)
         }
         disconnectLabels.forEach { (button, original) ->
             button.text = if (wide) host.getString(R.string.settings_device_disconnect_short) else original
@@ -367,7 +371,9 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                     androidx.core.view.ViewCompat.setAccessibilityHeading(this, true)
                 }, 4)
             }
-            val words=style.column()
+            val words=style.column().apply {
+                if (tablet) setPaddingRelative(style.dp(16), 0, 0, 0)
+            }
             style.add(words,style.text(candidate.advertisedName,TaskProductVisualStyle.body))
             val identity = if (tablet) host.getString(R.string.settings_device_address_suffix,
                 candidate.address.filter(Char::isLetterOrDigit).takeLast(4)) else candidate.address

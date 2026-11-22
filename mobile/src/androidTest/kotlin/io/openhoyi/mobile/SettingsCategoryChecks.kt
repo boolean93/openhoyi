@@ -216,6 +216,33 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         val scaleActions = scale.getChildAt(1) as android.view.ViewGroup
                         val controls = (0 until scaleActions.childCount).map(scaleActions::getChildAt).filter { it.isShown }
                         val normal = controls.map(::rect)
+                        val overview = rect(group)
+                        val nearby = rect(settings().findViewWithTag<View>("settings/devices/scan-section"))
+                        val scanLead = rect((settings().findViewWithTag<android.view.ViewGroup>("settings/devices/scan")).getChildAt(0))
+                        val coffeeLead = rect((coffee as android.view.ViewGroup).getChildAt(0))
+                        val scaleLead = rect(scale.getChildAt(0))
+                        val rowInset = HoyiUi.dp(activity, 16)
+                        check(overview.left == nearby.left && overview.right == nearby.right &&
+                            listOf(scanLead, coffeeLead, scaleLead).all { it.left == overview.left + rowInset })
+                        val horizontalGaps = normal.zipWithNext { first, second -> second.left - first.right }
+                        if (overview.width() >= HoyiUi.dp(activity, 735)) {
+                            check(horizontalGaps == listOf(60, 38, 28).map { HoyiUi.dp(activity, it) })
+                        }
+                        if (overview.width() in HoyiUi.dp(activity, 800)..HoyiUi.dp(activity, 825)) {
+                            val designCenters = listOf(.392, .615, .777, .930)
+                            normal.zip(designCenters).forEach { (actual, fraction) ->
+                                val target = overview.left + overview.width() * fraction
+                                check(kotlin.math.abs(actual.centerX() - target) <= HoyiUi.dp(activity, 22)) {
+                                    "Tablet action center x=${actual.centerX()} is not aligned near approved x=$target"
+                                }
+                            }
+                        }
+                        receipts.put("deviceIndent", JSONObject().put("overviewLeft", overview.left)
+                            .put("nearbyLeft", nearby.left).put("coffeeLead", coffeeLead.left)
+                            .put("scaleLead", scaleLead.left).put("scanLead", scanLead.left)
+                            .put("scaleActions", JSONArray(normal.map {
+                                JSONObject().put("left", it.left).put("center", it.centerX()).put("right", it.right)
+                            })).put("horizontalActionGaps", horizontalGaps.toString()))
                         val min = HoyiUi.dp(activity, 48)
                         check(controls.size == 4 && normal.all { it.height() >= min && it.width() >= min })
                         check(normal.maxOf { it.centerY() } - normal.minOf { it.centerY() } <= HoyiUi.dp(activity, 2))

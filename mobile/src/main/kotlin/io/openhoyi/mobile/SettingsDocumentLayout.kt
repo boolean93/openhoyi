@@ -191,10 +191,19 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 background = if (compactDevice) settingsRaisedGroup(host, style) else null
             }
             sections.getValue("devices").block.apply {
-                setPadding(style.dp(10), 0, style.dp(10), style.dp(if (compactDevice) 0 else 14))
+                val inset = style.dp(if (compactDevice) 0 else 10)
+                setPadding(inset, 0, inset, style.dp(if (compactDevice) 0 else 14))
+                if (compactDevice) sections.getValue("devices").heading.setPaddingRelative(
+                    style.dp(16), style.dp(8), style.dp(16), style.dp(8))
+                else sections.getValue("devices").heading.setPaddingRelative(0, style.dp(8), 0, style.dp(8))
+            }
+            (deviceRowDivider?.layoutParams as? LayoutParams)?.apply {
+                marginStart = style.dp(16); marginEnd = style.dp(16)
             }
             val scale = sections.getValue("scale")
-            scale.block.apply { setPadding(style.dp(10), 0, style.dp(10), style.dp(if (compactDevice) 0 else 14)) }
+            val deviceInset = style.dp(if (compactDevice) 0 else 10)
+            scale.block.setPadding(deviceInset, 0, deviceInset, style.dp(if (compactDevice) 0 else 14))
+            scanning?.setPadding(deviceInset, 0, deviceInset, style.dp(12))
             presentDeviceWidth(compactDevice, scale.heading)
             disclosureRenders["scale"]?.invoke()
             updateButtons()

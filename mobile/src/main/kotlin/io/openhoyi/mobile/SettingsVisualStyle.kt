@@ -153,8 +153,16 @@ internal class SettingsPairLayout(context:Context,private val style:TaskProductV
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
         val available=(MeasureSpec.getSize(widthMeasureSpec)-paddingLeft-paddingRight).coerceAtLeast(0)
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
+        val flexible = (second as? SettingsWrappingActions)?.takeIf { it.preferredHorizontalGaps.isNotEmpty() }
+        flexible?.inlineBudget = 0
         force(first);force(second);first.measure(free,free);second.measure(free,free)
-        val firstNatural=first.measuredWidth;val secondNatural=second.measuredWidth
+        val firstNatural=first.measuredWidth
+        if (flexible != null) {
+            flexible.inlineBudget = (available - firstNatural - style.dp(gapDp)).coerceAtLeast(0)
+            flexible.forceLayout()
+            flexible.measure(free, free)
+        }
+        val secondNatural=second.measuredWidth
         inline=firstNatural+style.dp(gapDp)+secondNatural<=available
         force(first);force(second)
         first.measure(MeasureSpec.makeMeasureSpec(if(inline)if(fillFirst)available-style.dp(gapDp)-secondNatural else firstNatural else available,MeasureSpec.EXACTLY),free)
@@ -179,6 +187,8 @@ internal class SettingsPairLayout(context:Context,private val style:TaskProductV
 internal class SettingsWrappingActions(context: Context, private val gap: Int) : ViewGroup(context) {
     private val placements = mutableListOf<Pair<View, Rect>>()
     var centerRows = false
+    var preferredHorizontalGaps = emptyList<Int>()
+    var inlineBudget = 0
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -187,21 +197,29 @@ internal class SettingsWrappingActions(context: Context, private val gap: Int) :
         val height = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
         val width = MeasureSpec.makeMeasureSpec(if (mode == MeasureSpec.UNSPECIFIED) 0 else available,
             if (mode == MeasureSpec.UNSPECIFIED) MeasureSpec.UNSPECIFIED else MeasureSpec.AT_MOST)
+        val visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
+        visible.forEach { it.measure(width, height) }
+        val gaps = visible.size - 1
+        val preferred = preferredHorizontalGaps.takeIf { gaps > 0 && it.size == gaps }
+        val extra = preferred?.sumOf { it - gap } ?: 0
+        val extraBudget = (minOf(available, inlineBudget) - visible.sumOf { it.measuredWidth } -
+            gap * gaps.coerceAtLeast(0)).coerceIn(0, extra)
+        val inlineGaps = preferred?.takeIf { extra > 0 }?.map {
+            gap + (it - gap) * extraBudget / extra
+        }.orEmpty()
         var lineWidth = 0
         var lineHeight = 0
         var bottom = 0
         var maximum = 0
         placements.clear()
-        for (i in 0 until childCount) {
-            val child = getChildAt(i)
-            if (child.visibility == GONE) continue
-            child.measure(width, height)
-            if (lineWidth > 0 && lineWidth + gap + child.measuredWidth > available) {
+        for ((index, child) in visible.withIndex()) {
+            val inlineGap = inlineGaps.getOrElse(index - 1) { gap }
+            if (lineWidth > 0 && lineWidth + inlineGap + child.measuredWidth > available) {
                 bottom += lineHeight + gap
                 lineWidth = 0
                 lineHeight = 0
             }
-            val x = if (lineWidth == 0) 0 else lineWidth + gap
+            val x = if (lineWidth == 0) 0 else lineWidth + inlineGap
             placements.add(child to Rect(x, bottom, x + child.measuredWidth, bottom + child.measuredHeight))
             lineWidth = x + child.measuredWidth
             maximum = maxOf(maximum, lineWidth)
