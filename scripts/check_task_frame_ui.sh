@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 profile=${1:?Expected tablet-user-landscape, tablet-user-portrait or phone}
+mode=${2:-default}
+case "$mode" in default|live-axes-only) ;; *) exit 2 ;; esac
 case "$profile" in
   tablet-user-landscape) size=2560x1600; density=360 ;;
   tablet-user-portrait) size=1600x2560; density=360 ;;
@@ -31,6 +33,24 @@ adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+run_chart_checks() {
+python3 - "$output_dir/chart-result.txt" <<'CHART_PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','fourMetricChartChecks','true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=capture,stderr=subprocess.STDOUT,timeout=180)
+if result.returncode or 'FOUR_METRIC_CHART_CHECKS_PASSED fixtures=4 nativeComponent=true shortHeight=true noBle=true' not in output.read_text():
+    print(output.read_text())
+    raise SystemExit('Four-metric native component checks failed; evidence retained')
+CHART_PY
+}
+if [[ "$mode" == live-axes-only ]]; then
+  run_chart_checks
+  exit
+fi
 python3 - "$output_dir/result.txt" <<'CHECK_PY'
 from pathlib import Path
 import subprocess,sys
@@ -44,18 +64,7 @@ if result.returncode or 'TASK_FRAME_CHECKS_PASSED pages=24 noBle=true' not in ou
     raise SystemExit('Task frame checks failed; evidence retained')
 CHECK_PY
 
-python3 - "$output_dir/chart-result.txt" <<'CHART_PY'
-from pathlib import Path
-import subprocess,sys
-output=Path(sys.argv[1])
-with output.open('w') as capture:
-    result=subprocess.run(['adb','shell','am','instrument','-w','-e','fourMetricChartChecks','true',
-        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
-        stdout=capture,stderr=subprocess.STDOUT,timeout=180)
-if result.returncode or 'FOUR_METRIC_CHART_CHECKS_PASSED fixtures=4 nativeComponent=true shortHeight=true noBle=true' not in output.read_text():
-    print(output.read_text())
-    raise SystemExit('Four-metric native component checks failed; evidence retained')
-CHART_PY
+run_chart_checks
 
 # Real Home views at normal and accessibility font scales. Emulator guard above is mandatory.
 for font_scale in 1.0 1.3; do
