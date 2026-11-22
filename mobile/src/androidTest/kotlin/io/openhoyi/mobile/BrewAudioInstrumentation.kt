@@ -60,6 +60,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var expectedHomeFontScale = 1f
     private var homeWorkbenchChecks = false
     private var fourMetricChartChecks = false
+    private var liveAxisStackChecks = false
     private var chartSeriesSelectorChecks = false
     private var liveStatusChromeChecks = false
     private var taskFrameChecks = false
@@ -116,6 +117,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         homeWorkbenchChecks = arguments?.getString("homeWorkbenchChecks") == "true"
         chartSeriesSelectorChecks = arguments?.getString("chartSeriesSelectorChecks") == "true"
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
+        liveAxisStackChecks = arguments?.getString("liveAxisStackChecks") == "true"
         liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
         homeModeVisualArguments = arguments?.takeIf { it.getString("homeModeVisual") == "true" }?.let(::Bundle)
@@ -389,6 +391,15 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ChartSeriesSelectorChecks(this).run()
                 FixedChartAxesChecks(this).run()
                 report.putString("stream", "CHART_SERIES_SELECTOR_CHECKS_PASSED noBle=true drawing=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (liveAxisStackChecks) {
+                check(disposableCiEmulator && android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
+                val directory = java.io.File(targetContext.getExternalFilesDir(null), "four-metric-chart-checks")
+                    .apply { check(isDirectory || mkdirs()) }
+                LiveNarrowChartChecks(this).runStacked(targetContext, directory)
+                report.putString("stream", "LIVE_AXIS_STACK_CHECKS_PASSED fixtures=4 nativeCanvas=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -673,7 +684,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (fontSizeChecks) "FONT_SIZE_CHECKS_FAILED" else if (formVisualArguments != null) "FORM_VISUAL_MIGRATION_FAILED" else if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (mainNavigationChecks) "MAIN_NAVIGATION_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (historyFooterArguments != null) "HISTORY_FOOTER_FOCUSED_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (fontSizeChecks) "FONT_SIZE_CHECKS_FAILED" else if (formVisualArguments != null) "FORM_VISUAL_MIGRATION_FAILED" else if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (liveAxisStackChecks) "LIVE_AXIS_STACK_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (mainNavigationChecks) "MAIN_NAVIGATION_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (historyFooterArguments != null) "HISTORY_FOOTER_FOCUSED_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }

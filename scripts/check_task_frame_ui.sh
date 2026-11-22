@@ -34,17 +34,21 @@ adb shell settings put system user_rotation 0
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 run_chart_checks() {
-python3 - "$output_dir/chart-result.txt" <<'CHART_PY'
+python3 - "$output_dir/chart-result.txt" "$mode" <<'CHART_PY'
 from pathlib import Path
 import subprocess,sys
 output=Path(sys.argv[1])
+stacked_only = sys.argv[2] == 'live-axes-only'
+args = ['-e','liveAxisStackChecks','true','-e','disposableCiEmulator','true'] if stacked_only else ['-e','fourMetricChartChecks','true']
+expected = ('LIVE_AXIS_STACK_CHECKS_PASSED fixtures=4 nativeCanvas=true noBle=true' if stacked_only else
+    'FOUR_METRIC_CHART_CHECKS_PASSED fixtures=4 nativeComponent=true shortHeight=true noBle=true')
 with output.open('w') as capture:
-    result=subprocess.run(['adb','shell','am','instrument','-w','-e','fourMetricChartChecks','true',
+    result=subprocess.run(['adb','shell','am','instrument','-w', *args,
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=capture,stderr=subprocess.STDOUT,timeout=180)
-if result.returncode or 'FOUR_METRIC_CHART_CHECKS_PASSED fixtures=4 nativeComponent=true shortHeight=true noBle=true' not in output.read_text():
+if result.returncode or expected not in output.read_text():
     print(output.read_text())
-    raise SystemExit('Four-metric native component checks failed; evidence retained')
+    raise SystemExit('Native live chart component checks failed; evidence retained')
 CHART_PY
 }
 if [[ "$mode" == live-axes-only ]]; then
