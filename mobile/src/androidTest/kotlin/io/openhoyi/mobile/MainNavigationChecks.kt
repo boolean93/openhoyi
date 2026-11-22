@@ -591,14 +591,29 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 override fun afterTextChanged(text: android.text.Editable?) = Unit
             }.also { watcher -> test.runOnMainSync { view.addTextChangedListener(watcher) } }
         }
+        val contentEvents = java.util.concurrent.atomic.AtomicInteger()
+        var layouts = 0
+        val layoutListener = android.view.ViewTreeObserver.OnGlobalLayoutListener { layouts++ }
+        val automation = test.uiAutomation
         try {
+            test.runOnMainSync { root.viewTreeObserver.addOnGlobalLayoutListener(layoutListener) }
+            automation.setOnAccessibilityEventListener { event ->
+                if (event.packageName?.toString() == test.targetContext.packageName &&
+                    event.eventType == android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                    contentEvents.incrementAndGet()
+                }
+            }
             // The visible Settings observer polls at 500 ms. Wait through at least two callbacks.
             SystemClock.sleep(1200)
             test.runOnMainSync { check(sameValueWrites == 0) { "Idle Settings rewrote unchanged label text $sameValueWrites times" } }
         } finally {
-            test.runOnMainSync { watched.zip(watchers).forEach { (view, watcher) -> view.removeTextChangedListener(watcher) } }
+            automation.setOnAccessibilityEventListener(null)
+            test.runOnMainSync {
+                root.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+                watched.zip(watchers).forEach { (view, watcher) -> view.removeTextChangedListener(watcher) }
+            }
         }
-        test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_IDLE_LABELS_PASSED sameValueWrites=0\n") })
+        test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_IDLE_LABELS_PASSED sameValueWrites=0 contentEvents=${contentEvents.get()} globalLayouts=$layouts windowMs=1200\n") })
     }
 
     fun run() {
