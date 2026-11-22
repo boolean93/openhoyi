@@ -250,11 +250,20 @@ class ProductPagesTest(unittest.TestCase):
                           "官方 App 没有", "比官方", "最佳萃取", "自动找出最佳"):
             self.assertTrue(forbidden not in self.html, forbidden)
 
-    def test_download_entry_points_at_releases_and_risk_is_prominent(self):
+    def test_download_has_verified_progressive_link_and_static_release_fallback(self):
         self.assertEqual([link for link in self.page.links if link.endswith(".apk")], [])
         self.assertEqual(self.page.links.count(RELEASES), 1)
         self.assertNotIn("/releases/latest", self.html)
         self.assertNotIn("download=", self.html)
+        direct, = [a for tag, a in self.page.tags if tag == "a" and "data-direct-apk" in a]
+        fallback, = [a for tag, a in self.page.tags if tag == "a" and "data-download-release" in a]
+        self.assertIn("hidden", direct)
+        self.assertEqual(direct["href"], "#download")
+        self.assertNotIn("hidden", fallback)
+        self.assertEqual(fallback["href"], RELEASES)
+        self.assertIn("index.downloadUrl !== apkUrl", self.js)
+        self.assertIn("index.releaseUrl !== releaseUrl", self.js)
+        self.assertIn("directApk.hidden = false", self.js)
         download = self.section("download")
         before_button = download.split(f'href="{RELEASES}"', 1)[0]
         self.assertNotIn("<details", before_button)
@@ -304,9 +313,16 @@ class ProductPagesTest(unittest.TestCase):
             self.assertNotIn(tag, ("iframe", "form"))
             self.assertFalse(any(key.startswith("on") for key in attrs))
         self.assertLess(len(self.js.encode()), 9000)
+        # One same-origin update read is allowed. No extra network requests or
+        # arbitrary outbound links may be added to the progressive enhancement.
+        request = "fetch('./updates/dev.json', { signal: controller.signal, cache: 'no-cache', redirect: 'error' })"
+        github = "https://github.com/${repository}/releases"
+        self.assertEqual(self.js.count(request), 1)
+        self.assertEqual(self.js.count(github), 1)
+        local_js = self.js.replace(request, "", 1).replace(github, "", 1)
         for forbidden in ("fetch(", "XMLHttpRequest", "WebSocket", "navigator.bluetooth",
                           "sendBeacon", "eval(", "https://", "clipboard"):
-            self.assertNotIn(forbidden, self.js)
+            self.assertNotIn(forbidden, local_js)
         self.assertIn("showModal", self.js)
         self.assertIn("preventScroll: true", self.js)
         self.assertTrue(any(tag == "dialog" and a.get("aria-labelledby") == "viewer-title"
