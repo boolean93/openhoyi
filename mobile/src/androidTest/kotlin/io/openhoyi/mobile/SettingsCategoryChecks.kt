@@ -721,48 +721,62 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 val settled = main { settings().scroll.scrollY }
                 SystemClock.sleep(280)
                 main { check(settings().scroll.scrollY == settled && SettingsCategory.entries.map { rect(button(it)) } == originalIndex) }
-                val end = main {
-                    val doc = settings()
-                    val limit = (doc.body.height - doc.scroll.height + doc.scroll.paddingTop +
-                        doc.scroll.paddingBottom).coerceAtLeast(0)
-                    // ScrollView clamps using viewport + requestedY; MAX_VALUE overflows there.
-                    doc.scroll.scrollTo(0, limit)
-                    limit
-                }
-                fun inspectEnd(sample: String): Boolean {
-                    val doc = settings()
-                    val y = doc.scroll.scrollY
-                    val canScrollDown = doc.scroll.canScrollVertically(1)
-                    val selected = SettingsCategory.entries.firstOrNull { button(it).isSelected }
-                    val finalAction = doc.findViewWithTag<View>("product/settings/app/curve-import-guide")
-                    val finalRect = Rect()
-                    val finalFullyVisible = finalAction.isShown && finalAction.getGlobalVisibleRect(finalRect) &&
-                        finalRect.height() == finalAction.height && finalRect.width() == finalAction.width
-                    landingDebug.put("trueEnd/$sample", JSONObject().put("expected", end).put("y", y)
-                        .put("canScrollDown", canScrollDown).put("selected", selected?.key)
-                        .put("finalActionFullyVisible", finalFullyVisible))
-                    File(out, "landing-debug.json").writeText(landingDebug.toString(2))
-                    check(y == end) { "Programmatic end drifted ($sample): ${landingDebug.optJSONObject("trueEnd/$sample")}" }
-                    return !canScrollDown && selected == SettingsCategory.MAINTENANCE && finalFullyVisible
-                }
-                var atEnd = main { inspectEnd("initial") }
-                // A programmatic scroll and a width-driven layout traversal can occur in the
-                // same frame. Both snapshots must remain physically pinned within that frame.
-                repeat(2) { index ->
-                    if (!atEnd) {
+                // Preserve independently rendered evidence if this end-of-document test fails;
+                // the captured error is still mandatory and rethrown before a passing receipt.
+                val endResult = runCatching {
+                    fun inspectEnd(sample: String): Pair<Int, Boolean> {
+                        val doc = settings()
+                        val y = doc.scroll.scrollY
+                        val canScrollDown = doc.scroll.canScrollVertically(1)
+                        val selected = SettingsCategory.entries.firstOrNull { button(it).isSelected }
+                        val finalAction = doc.findViewWithTag<View>("product/settings/app/curve-import-guide")
+                        val finalRect = Rect()
+                        val finalFullyVisible = finalAction.isShown && finalAction.getGlobalVisibleRect(finalRect) &&
+                            finalRect.height() == finalAction.height && finalRect.width() == finalAction.width
+                        landingDebug.put("trueEnd/$sample", JSONObject().put("y", y)
+                            .put("canScrollDown", canScrollDown).put("selected", selected?.key)
+                            .put("finalActionFullyVisible", finalFullyVisible))
+                        File(out, "landing-debug.json").writeText(landingDebug.toString(2))
+                        return y to (!canScrollDown && selected == SettingsCategory.MAINTENANCE && finalFullyVisible)
+                    }
+                    val buttonBounds = main { rect(button(SettingsCategory.MAINTENANCE)) }
+                    val time = SystemClock.uptimeMillis()
+                    for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                        val event = MotionEvent.obtain(time, SystemClock.uptimeMillis(), action,
+                            buttonBounds.exactCenterX(), buttonBounds.exactCenterY(), 0)
+                        try {
+                            event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                            check(test.uiAutomation.injectInputEvent(event, true))
+                        } finally { event.recycle() }
+                    }
+                    await("Maintenance directory touch landing") {
+                        settings().isAtSectionLanding("about") && button(SettingsCategory.MAINTENANCE).isSelected
+                    }
+                    var (endY, atEnd) = main { inspectEnd("after-directory-touch") }
+                    for (attempt in 1..4) {
+                        if (atEnd) break
+                        val before = endY
+                        dragUp(main { rect(settings().scroll) })
                         val frame = CountDownLatch(1)
                         main { settings().scroll.postOnAnimation { frame.countDown() } }
                         check(frame.await(1, TimeUnit.SECONDS))
-                        atEnd = main { inspectEnd("frame-${index + 1}") }
+                        val probe = main { inspectEnd("drag-$attempt") }
+                        endY = probe.first
+                        atEnd = probe.second
+                        check(endY >= before) { "Real subsequent drag moved away from the end: $landingDebug" }
+                    }
+                    check(atEnd) { "Last action did not become fully visible by directory and swipes: $landingDebug" }
+                    val pinned = endY
+                    dragUp(main { rect(settings().scroll) })
+                    await("end remains pinned after upward motion") {
+                        settings().scroll.scrollY == pinned && !settings().scroll.canScrollVertically(1) &&
+                            button(SettingsCategory.MAINTENANCE).isSelected
+                    }
+                    main {
+                        val after = inspectEnd("after-extra-drag")
+                        check(after.first == pinned && after.second) { "Real drag unpinned: $landingDebug" }
                     }
                 }
-                check(atEnd) { "Expected last action, Maintenance highlight, and true pinned end: $landingDebug" }
-                dragUp(viewport)
-                await("end remains pinned after upward motion") {
-                    settings().scroll.scrollY == end && !settings().scroll.canScrollVertically(1) &&
-                        button(SettingsCategory.MAINTENANCE).isSelected
-                }
-                main { check(inspectEnd("after-touch")) { "Dragged end not pinned: $landingDebug" } }
                 if (!short) {
                     val fragment = main { page.active("root:SETTINGS") as AppSettingsFragment }
                     main { fragment.openSection("appearance") }
@@ -922,6 +936,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                     test.removeMonitor(monitor)
                     restored?.let { main { it.finish() } }
                 }
+                endResult.getOrThrow()
                 supplemental?.getOrThrow()?.let { details ->
                     deviceFrames.keys().forEach { key -> details.put(key, deviceFrames.getString(key)) }
                     receipts.put("supplemental", details)
