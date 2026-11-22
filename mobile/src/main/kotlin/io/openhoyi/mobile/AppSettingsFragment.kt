@@ -94,14 +94,24 @@ class AppSettingsFragment : Fragment() {
         diagnosticState?.let { view -> if(view.text.toString()!=diagnosticText)view.text=diagnosticText }
         val snapshot = it?.snapshot
         val actual = snapshot?.scaleCapabilities?.takeIf { snapshot.scaleState == io.openhoyi.session.DeviceState.READY && !BuildConfig.MOCK_MODE }
-        val capabilitiesText = if (actual == null) getString(R.string.scale_capability_no_device) else
-            listOf(R.string.scale_capability_weight to actual.weight, R.string.scale_capability_tare to actual.tare,
-                R.string.scale_capability_flow to actual.deviceFlow, R.string.scale_capability_battery to actual.battery,
-                R.string.scale_capability_timer to actual.deviceTimer).joinToString("\n") { (label, available) ->
-                getString(R.string.scale_capability_format, getString(label), getString(if (!available) R.string.scale_capability_no
-                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY) R.string.scale_capability_read_only
-                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.DOCUMENTED_TRANSPORT) R.string.scale_capability_documented else R.string.scale_capability_yes))
+        val capabilitiesText = listOf(
+            R.string.scale_capability_weight to actual?.weight,
+            R.string.scale_capability_tare to actual?.tare,
+            R.string.scale_capability_flow to actual?.deviceFlow,
+            R.string.scale_capability_battery to actual?.battery,
+            R.string.scale_capability_timer to actual?.deviceTimer,
+        ).joinToString("\n") { (label, available) ->
+            val value = when {
+                available == null -> R.string.settings_unknown
+                !available -> R.string.scale_capability_no
+                snapshot?.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY ->
+                    R.string.scale_capability_read_only
+                snapshot?.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.DOCUMENTED_TRANSPORT ->
+                    R.string.scale_capability_documented
+                else -> R.string.scale_capability_yes
             }
+            getString(R.string.scale_capability_format, getString(label), getString(value))
+        }
         scaleCapabilities?.let {view->if(view.text.toString()!=capabilitiesText)view.text=capabilitiesText}
     }
     private val export = registerForActivityResult(object : ActivityResultContracts.CreateDocument("application/zip") {
@@ -127,23 +137,8 @@ class AppSettingsFragment : Fragment() {
         val visual = SettingsVisualStyle(activity)
         val style = visual.palette
         val root = SettingsDocumentLayout(activity, state ?: documentState).also { document=it }
-        style.action(root.body, getString(R.string.ai_title), "settings/ai-assistant", top = 0) {
-            activity.startActivity(Intent(activity, AiChatActivity::class.java))
-        }.apply {
-            asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            protectRoundedBackdropContent(style.surface, style.dp(12), group = root.shortcutsBackdrop,
-                horizontalBounds = root.body)
-        }
-        if (BuildConfig.MOCK_MODE) {
-            style.action(root.body, getString(R.string.ai_preview_title), "settings/ai-chat-preview", top = 8) {
-                // Mock-only fixed destination. No Key, service, or live chat route is opened.
-                activity.startActivity(Intent().setClassName(activity, "io.openhoyi.mobile.AiChatPreviewActivity"))
-            }.apply {
-                asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                protectRoundedBackdropContent(style.surface, style.dp(12), group = root.shortcutsBackdrop,
-                    horizontalBounds = root.body)
-            }
-        }
+        val ai = root.section("ai", getString(R.string.ai_title))
+        style.add(ai, AiSettingsCard.create(activity, style))
         val sections = linkedMapOf(
             "devices" to root.section("devices", getString(R.string.home_device_connection)),
             "machine" to root.section("machine", getString(R.string.settings_section_machine)),
@@ -153,38 +148,63 @@ class AppSettingsFragment : Fragment() {
             "chart" to root.section("chart", getString(R.string.fixed_chart_section)),
             "appearance" to root.section("appearance", getString(R.string.settings_appearance_language)),
             "feedback" to root.section("feedback", getString(R.string.settings_section_feedback)),
-            "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)),
-            "about" to root.section("about", getString(R.string.settings_section_about)))
-        deviceControls = SettingsDeviceControls(activity, visual, { permissions.launch(it) }, {
+            "about" to root.section("about", getString(R.string.settings_section_about)),
+            "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)))
+        val scanSection = root.arrangeDeviceOverview()
+        val diagnostics = sections.getValue("maintenance")
+        val cupGroup = style.column()
+        val serviceGroup = style.column()
+        val cupDetails = root.disclosure(cupGroup, "cups", getString(R.string.machine_settings_cups_title))
+        val maintenanceDetails = root.disclosure(serviceGroup, "maintenance", getString(R.string.settings_hig_diagnostic_storage))
+
+        val connectionControls = SettingsDeviceControls(activity, visual, { permissions.launch(it) }, {
             bluetooth.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))
         }).also { controls ->
             controls.errorChanged={ failed->document?.setStatus("devices",if(failed)getString(R.string.settings_state_unknown) else null) }
-            controls.create(sections.getValue("devices"))
         }
+        deviceControls = connectionControls
+        val scale = connectionControls.create(sections.getValue("devices"), scanSection, sections.getValue("scale"))
+        visual.divider(scale)
+        scale.getChildAt(scale.childCount - 1).tag = "settings/devices/scale-separator"
         machineState = state?.getBundle("machineControls") ?: machineState
         val machine = sections.getValue("machine")
-        val machineSummary=style.text("",TaskProductVisualStyle.auxiliary,"settings-machine-summary",true).also {style.add(machine,it,8)}
-        machineControls=MachineSettingsControls(activity).also {
-            it.statusChanged={ value->if(machineSummary.text.toString()!=value)machineSummary.text=value }
-            it.create(machine,machineState,embedded=true,documentSections=sections)
+        val machineSummary = style.text("", TaskProductVisualStyle.auxiliary, "settings-machine-summary").apply {
+            setPadding(style.dp(10), style.dp(4), style.dp(10), style.dp(4))
+            setTextColor(style.accent)
+            background = style.shape(style.selected, radius = 9)
         }
-        val scale=sections.getValue("scale")
-        scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),TaskProductVisualStyle.auxiliary,secondary=true)
+        val machineHeaderActions = root.machineStatus(machineSummary)
+        machineControls=MachineSettingsControls(activity).also {
+            it.statusChanged = { value ->
+                if (machineSummary.text.toString() != value) machineSummary.text = value
+                machineSummary.visibility = if (value.isBlank()) View.GONE else View.VISIBLE
+            }
+            it.cupCountChanged = { value -> root.setDisclosureValue("cups", value) }
+            it.create(machine,machineState,embedded=true,documentSections=sections + ("maintenance" to cupDetails))
+            it.attachReadbackAction(machineHeaderActions)
+        }
+        scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),
+            TaskProductVisualStyle.auxiliary, "settings/devices/scale-capabilities", secondary = true)
         val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
-        scale.addView(HoyiSwitch(activity).apply {
+        val scalePrecision = HoyiSwitch(activity).apply {
             text = getString(R.string.scale_precision_short)
             isChecked = prefs.getBoolean("one_decimal", false)
             visual.switch(this, 48)
             tag = "product/settings/scale/precision"
             setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("one_decimal", checked).apply() }
-        })
-        scaleCapabilities?.let { scale.addView(it) }
-        style.add(scale, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
-        HoyiUi.button(activity, scale, getString(R.string.scale_title)) { activity.openScaleFromSettings() }
+        }.also(scale::addView)
+        val scaleDetails = root.disclosure(scale, "scale", getString(R.string.settings_category_scale_capabilities))
+        scaleCapabilities?.let { style.add(scaleDetails, it) }
+        style.add(scaleDetails, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
+        val scaleTool = HoyiUi.button(activity, scale, getString(R.string.settings_category_scale_tool)) { activity.openScaleFromSettings() }
+        val scaleGuide = scale.findViewWithTag<android.widget.Button>("settings/details/scale/action")
+        root.presentDeviceWidth = { wide, heading ->
+            connectionControls.presentTablet(wide, heading, scalePrecision, scaleGuide, scaleTool)
+        }
         listOf(R.string.scale_timer_title to R.string.scale_timer_help, R.string.scale_operation_limits to R.string.scale_active_guard,
             R.string.scale_protocol_support to R.string.scale_offline_evidence).forEach { (title, detail) ->
-            style.add(scale,style.text(getString(title),TaskProductVisualStyle.action),16)
-            style.add(scale,style.text(getString(detail),TaskProductVisualStyle.auxiliary,secondary=true),8)
+            style.add(scaleDetails,style.text(getString(title),TaskProductVisualStyle.action),16)
+            style.add(scaleDetails,style.text(getString(detail),TaskProductVisualStyle.auxiliary,secondary=true),8)
         }
         val shortcutSection = sections.getValue("shortcuts")
         val shortcutPreferences = ShortcutStartPreferences(activity)
@@ -214,37 +234,43 @@ class AppSettingsFragment : Fragment() {
             }
             refreshShortcutChoice()
         }.apply { tag = "product/settings/shortcuts/retry"; visibility = View.GONE }
-        style.add(shortcutSection, style.text(getString(R.string.shortcut_start_settings_hint),
-            TaskProductVisualStyle.auxiliary, secondary = true), 8)
+        root.brewingRow("shortcuts", R.string.shortcut_start_setting, R.string.settings_category_shortcut_hint, requireNotNull(shortcutToggle))
         val chartSection = sections.getValue("chart")
         val chartPreferences = activity.getSharedPreferences(FixedChartAxes.PREFERENCES, android.content.Context.MODE_PRIVATE)
-        chartSection.addView(HoyiSwitch(activity).apply {
+        val chartToggle = HoyiSwitch(activity).apply {
             text = getString(R.string.fixed_chart_axes)
             isChecked = chartPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
             tag = "product/settings/chart/fixed-axes"
             visual.switch(this, 52)
             setOnCheckedChangeListener { _, checked -> chartPreferences.edit().putBoolean(FixedChartAxes.KEY, checked).apply() }
-        }, LinearLayout.LayoutParams(-1, -2))
-        style.add(chartSection, style.text(getString(R.string.fixed_chart_axes_hint),
-            TaskProductVisualStyle.auxiliary, secondary = true), 8)
+        }.also { chartSection.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+        root.brewingRow("chart", R.string.fixed_chart_axes, R.string.settings_category_axes_hint, chartToggle)
         val theme = sections.getValue("appearance")
-        appearanceCard = AppThemePreferencesCard(activity, theme, visual) { activity.recreate() }
-        addBackgroundSettingsRow(activity, theme, visual)
+        appearanceCard = AppThemePreferencesCard(activity, theme, visual, inlineSwatches = true) { activity.recreate() }
+        addBackgroundSettingsRow(activity, theme, visual, inlinePresets = true)
         settingsDivider(activity, theme, visual)
-        languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
+        val language = settingsAppearanceSurface(style)
+        val type = settingsAppearanceSurface(style)
+        style.add(theme, SettingsColumns(activity, style, language, type, org.json.JSONObject(), firstFraction = .5f,
+            minimumFirstWidth = { style.dp(235) }, minimumSecondWidth = { style.dp(235) }))
+        languageCard = AppLanguagePreferencesCard(activity, language, embedded = true, visual = visual, noteBelowRow = false) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
-        fontSizeCard = AppFontSizePreferencesCard(activity, theme, visual) { activity.recreate() }
-        feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual)
+        fontSizeCard = AppFontSizePreferencesCard(activity, type, visual) { activity.recreate() }
+        feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual, grouped = true).also {
+            root.brewingRow("feedback", R.string.settings_hig_feedback_complete, null, it.enabledSwitch)
+        }
         val info = sections.getValue("about")
-        // Keep identity, link and updates in one aligned surface rather than floating blocks.
+        // Update controls remain immediately reachable from the existing about deep link.
         val aboutCard = style.column("product/settings/app/about/card").apply {
             setPadding(style.dp(16), style.dp(12), style.dp(16), style.dp(12))
             background = style.shape(style.surface, true, 16)
+            markSettingsGroupMaterial(style)
         }
         style.add(info, aboutCard, 4)
-        val name = style.text(getString(R.string.app_name), TaskProductVisualStyle.section,
-            "product/settings/app/info/name/value")
+        style.add(aboutCard, style.text(getString(R.string.settings_category_update), TaskProductVisualStyle.action))
+        updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
+        val aboutDetails = style.column()
         val website = style.button(Button(activity)).apply {
             text = getString(R.string.settings_project_home)
             tag = "product/settings/app/project-home"
@@ -258,8 +284,7 @@ class AppSettingsFragment : Fragment() {
                 }
             }
         }
-        style.add(aboutCard, visual.pair(name, website, "product/settings/app/about/identity"))
-        style.action(aboutCard, getString(R.string.settings_curve_import_guide),
+        val guide = style.action(aboutDetails, getString(R.string.settings_curve_import_guide),
             "product/settings/app/curve-import-guide", top = 0) {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(CURVE_IMPORT_GUIDE_URL)))
@@ -267,21 +292,46 @@ class AppSettingsFragment : Fragment() {
                 android.widget.Toast.makeText(activity, R.string.settings_project_open_failed, android.widget.Toast.LENGTH_LONG).show()
             }
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
-        visual.divider(aboutCard)
-        updateCard = ReleaseUpdateCard(activity, aboutCard, visual)
-        val diagnostics = sections.getValue("maintenance")
-        diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/diagnostic-state",secondary=true).also {style.add(diagnostics,it,16)}
-        style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))
-        HoyiUi.button(activity, diagnostics, getString(R.string.app_settings_export)) {
-            exportGeneration++
-            exportStatus?.visibility = View.GONE
-            export.launch("openhoyi-diagnostics-${System.currentTimeMillis()}.zip")
-        }.apply { tag = "product/settings/app/export/action"; visual.maintenanceAction(this) }
+        aboutDetails.removeView(guide)
+        val projectLinks = SettingsColumns(activity, style, website, guide, org.json.JSONObject(),
+            firstFraction = .5f, minimumFirstWidth = { style.dp(160) }, minimumSecondWidth = { style.dp(160) },
+            stackGapDp = 0).apply { tag = "settings/maintenance/project-links" }
+        val diagnosticsCard = style.column("settings/maintenance/diagnostics-card").apply {
+            background = style.shape(style.surface, outline = true, radius = 12)
+            markSettingsGroupMaterial(style)
+            setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(10))
+        }
+        style.add(diagnostics, diagnosticsCard)
+        diagnosticState = style.text("", TaskProductVisualStyle.auxiliary,
+            "product/settings/app/diagnostic-state", secondary = true)
+        style.add(maintenanceDetails, requireNotNull(diagnosticState), 4)
+        style.add(maintenanceDetails, style.text(getString(R.string.app_settings_export_hint),
+            TaskProductVisualStyle.auxiliary, secondary = true), 4)
+        val exportAction = visual.action(Button(activity).apply {
+            text = getString(R.string.settings_hig_export_zip)
+            tag = "product/settings/app/export/action"
+            setOnClickListener {
+                exportGeneration++
+                exportStatus?.visibility = View.GONE
+                export.launch("openhoyi-diagnostics-${System.currentTimeMillis()}.zip")
+            }
+        }, outline = true)
+        style.add(diagnosticsCard, visual.pair(style.text(getString(R.string.settings_category_diagnostics_label)),
+            exportAction, "settings/maintenance/export-row"))
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }.also { style.add(diagnostics, it, 8) }
-        diagnosticStorageCard = DiagnosticStorageCard(activity, diagnostics, visual)
-        deviceControls?.addShutdown(diagnostics)
+        }.also { style.add(diagnosticsCard, it, 6) }
+        val detailsGrid = SettingsWideGrid(activity, style, 2, 220, 570, 10).apply {
+            addView(cupGroup)
+            addView(serviceGroup)
+        }
+        style.add(diagnosticsCard, detailsGrid, 8)
+        diagnosticStorageCard = DiagnosticStorageCard(activity, maintenanceDetails, visual, confirmClear = true).apply {
+            storageSummaryChanged = { value -> root.setDisclosureValue("maintenance", value) }
+        }
+        deviceControls?.addShutdown(maintenanceDetails)
+        style.add(diagnostics, projectLinks, 6)
+        root.finishSections()
         pendingSection?.let { root.navigate(it); pendingSection=null }
         return root
     }

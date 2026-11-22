@@ -15,6 +15,9 @@ import android.widget.TextView
 
 /** A write-only credential form. Saved values never enter this Activity. */
 class AiKeyActivity : ThemedActivity() {
+    companion object {
+        internal const val SETTINGS_REVIEW = "io.openhoyi.mobile.ai.settings-review"
+    }
     private lateinit var input: EditText
     private lateinit var status: TextView
     private lateinit var shotReviewSwitch: android.widget.Switch
@@ -94,6 +97,9 @@ class AiKeyActivity : ThemedActivity() {
             updateShotReviewSwitch()
         }.also { visual.action(it, outline = true); it.setSingleLine(false); it.maxLines = Int.MAX_VALUE; it.ellipsize = null }
         refresh()
+        if (intent.getBooleanExtra(SETTINGS_REVIEW, false) && ::shotReviewSwitch.isInitialized) {
+            shotReviewSwitch.requestFocus()
+        }
     }
     private fun updateShotReviewSwitch() {
         if (!::shotReviewSwitch.isInitialized) return

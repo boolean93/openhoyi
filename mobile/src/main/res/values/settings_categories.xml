@@ -1,0 +1,24 @@
+<resources>
+    <string name="settings_category_device">设备</string>
+    <string name="settings_category_machine">机器</string>
+    <string name="settings_category_appearance">外观</string>
+    <string name="settings_category_ai">AI</string>
+    <string name="settings_category_maintenance">维护</string>
+    <string name="settings_category_expanded">已展开</string>
+    <string name="settings_category_collapsed">已收起</string>
+    <string name="settings_category_scan_nearby">扫描附近设备</string>
+    <string name="settings_category_update">应用更新</string>
+    <string name="settings_category_scale_capabilities">设备能力与使用说明</string>
+    <string name="settings_category_ai_hint">API Key、模型、思考强度及萃取后自动评价在 HOYI.AI 对话菜单中管理。</string>
+    <string name="settings_category_diagnostics">诊断存储与服务</string>
+    <string name="settings_category_brewing">萃取</string>
+    <string name="settings_category_project_details">项目与导入指南</string>
+    <string name="settings_category_scale_tool">打开秤工具</string>
+    <string name="settings_category_apply">应用</string>
+    <string name="settings_category_preview">试听</string>
+    <string name="settings_category_shortcut_hint">工作室模式需先达温。</string>
+    <string name="settings_category_axes_hint">仅影响显示</string>
+    <string name="settings_category_feedback_hint">完成后显示反馈并播放提示音。</string>
+    <string name="settings_category_diagnostics_label">诊断日志</string>
+    <string name="settings_category_weekly_active">启用周计划</string>
+</resources>

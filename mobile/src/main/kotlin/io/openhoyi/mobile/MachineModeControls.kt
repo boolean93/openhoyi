@@ -7,8 +7,25 @@ import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.SettingsWriteTracker
 
 /** Two independent wire bits. Missing readback uses disabled labels, never a writable default. */
-internal class MachineModeControls(context: Context, private val submit: (MachineSettingChange.LeverMode) -> Unit) : LinearLayout(context) {
+internal class MachineModeControls(context: Context, private val submit: (MachineSettingChange.LeverMode) -> Unit, private val settingsPanel: Boolean) : LinearLayout(context) {
+    constructor(context: Context, submit: (MachineSettingChange.LeverMode) -> Unit) : this(context, submit, false)
+    constructor(context: Context, settingsPanel: Boolean, submit: (MachineSettingChange.LeverMode) -> Unit) :
+        this(context, submit, settingsPanel)
     private var rendering = false
+    private var widePanel = false
+    private val light = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK !=
+        android.content.res.Configuration.UI_MODE_NIGHT_YES
+    fun setWidePanel(wide: Boolean) {
+        if (!settingsPanel || widePanel == wide) return
+        widePanel = wide
+        paintSettingsSegments()
+    }
+    private fun paintSettingsSegments() {
+        listOf(mode, logic).forEach {
+            if (widePanel && light) it.colors(style.selected, style.selected, ink = style.ink, stroke = style.accent)
+            else it.colors(style.primary, style.primary)
+        }
+    }
     private val style = TaskProductVisualStyle(context)
     private val palette = CurveEditorColors(context)
     private var pressure = false
@@ -63,13 +80,14 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
         pressure = settings?.flags?.and(0x80) != 0 && settings != null
         flow = settings?.flags?.and(0x40) != 0 && settings != null
         mode.select(flow); logic.select(pressure)
-        mode.colors(palette.pressureFill, palette.flowFill)
+        if (!settingsPanel) mode.colors(palette.pressureFill, palette.flowFill)
         logic.labels(context.getString(if (flow) R.string.curve_control_slow else R.string.curve_control_constant),
             context.getString(if (flow) R.string.curve_control_fast else R.string.curve_control_follow))
-        logic.colors(palette.fill(flow), palette.fill(flow))
+        if (settingsPanel) paintSettingsSegments() else logic.colors(palette.fill(flow), palette.fill(flow))
         val known = settings != null
         val enabled = known && MachineSettingsEditGate.allowed(owner)
         listOf(mode, logic).forEach { toggle ->
+            if (settingsPanel) toggle.setSelectionVisible(known)
             toggle.isEnabled = enabled
             toggle.contentDescription = if (known)
                 context.getString(R.string.machine_mode_title) + " · " + toggle.text
@@ -100,6 +118,16 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
             mode.measuredWidth + logic.measuredWidth + dp(12) > available
         row.orientation = if (vertical) VERTICAL else HORIZONTAL
         (logic.layoutParams as LayoutParams).apply { marginStart = if (vertical) 0 else dp(12) }
+        if (settingsPanel) {
+            val equal = !vertical && MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED &&
+                maxOf(mode.requiredWidth(), logic.requiredWidth()) * 2 + dp(12) <= available
+            listOf(mode, logic).forEach { choice ->
+                (choice.layoutParams as LayoutParams).apply {
+                    width = if (equal) 0 else choice.requiredWidth()
+                    weight = if (equal) 1f else 0f
+                }
+            }
+        }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 }

@@ -7,7 +7,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 
 /** Full-width maintenance action; storage details remain separate from the button. */
-internal class DiagnosticStorageCard(private val activity: Activity, parent: LinearLayout, visual: SettingsVisualStyle) {
+internal class DiagnosticStorageCard(private val activity: Activity, parent: LinearLayout, visual: SettingsVisualStyle, private val confirmClear: Boolean = false) {
     private val controller = (activity.application as MobileApplication).diagnosticStorage.controller
     private val style = visual.palette
     private val size = style.text(activity.getString(R.string.diagnostic_storage_calculating), TaskProductVisualStyle.body,
@@ -15,11 +15,21 @@ internal class DiagnosticStorageCard(private val activity: Activity, parent: Lin
     private val action = visual.maintenanceAction(Button(activity)).apply {
         text = activity.getString(R.string.diagnostic_storage_clear)
         tag = "product/settings/app/diagnostic-storage/clear"
-        setOnClickListener { controller.clear() }
+        setOnClickListener {
+            if (!confirmClear) controller.clear()
+            else AppDialog.styleShown(android.app.AlertDialog.Builder(activity)
+                .setTitle(R.string.diagnostic_storage_clear)
+                .setMessage(R.string.diagnostic_storage_scope)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.diagnostic_storage_clear) { _, _ ->
+                    if (!controller.state.busy) controller.clear()
+                }.show())
+        }
     }
     private val result = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/diagnostic-storage/result", true).apply {
         visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
+    var storageSummaryChanged: (String) -> Unit = {}
     private var observing = false
     private val observer: (DiagnosticStorageController.State) -> Unit = { render(it) }
     init {
@@ -37,6 +47,7 @@ internal class DiagnosticStorageCard(private val activity: Activity, parent: Lin
             state.bytes == null -> activity.getString(R.string.diagnostic_storage_unavailable)
             else -> activity.getString(R.string.diagnostic_storage_size, Formatter.formatFileSize(activity, state.bytes))
         }
+        storageSummaryChanged(size.text.toString())
         val text = when {
             state.outcome == DiagnosticStorageController.Outcome.FAILED -> activity.getString(R.string.diagnostic_storage_failed)
             state.readFailed && !state.busy -> activity.getString(R.string.diagnostic_storage_read_failed)

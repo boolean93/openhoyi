@@ -172,7 +172,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 .put("contentHeightPx", text.height - text.compoundPaddingTop - text.compoundPaddingBottom)
                 .put("contentWidthPx", text.width - text.compoundPaddingLeft - text.compoundPaddingRight)
                 .put("horizontalLayoutLines",layout?.let { actual -> JSONArray((0 until actual.lineCount).map { index ->
-                    JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
+                    // A centered single-line EditText uses a very wide backing layout. Convert
+                    // to the actual content viewport just as Android draws it, without weakening bounds.
+                    JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index) - text.scrollX)
+                        .put("rightPx",actual.getLineRight(index) - text.scrollX)
                 }) } ?: JSONObject.NULL)
     }
     private fun observation(view: View, textCache:IdentityHashMap<TextView,JSONObject>?=null): JSONObject {
@@ -436,7 +439,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                                     !(parentField("handler") as Handler).hasCallbacks(parentField("refresh") as Runnable)) {"M8 ScaleOwner binding/refresh survived destruction"}
                             }
                             tracked.filter {it is MainActivity || it is MachineSettingsActivity}.forEach {activity->
-                                check(field(activity,"service")==null && field(activity,"bound")==false) {"M8 settings binding survived destruction"}
+                                val stillBound = if (activity is MainActivity) {
+                                    val lease = field(activity, "serviceBinding\$delegate") as Lazy<*>
+                                    (lease.value as VisibleServiceBinding).bound
+                                } else field(activity, "bound") == true
+                                check(field(activity,"service")==null && !stillBound) {"M8 settings binding survived destruction"}
                                 if(activity is MachineSettingsActivity)check(field(activity,"visible")==false && !(field(activity,"handler") as Handler).hasCallbacks(field(activity,"refresh") as Runnable))
                             }
                             if(serviceBound) { context.unbindService(serviceConnection); serviceBound=false }
@@ -641,6 +648,25 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     }
     private fun tagged(activity:Activity,tag:String):View=requireNotNull(root(activity).findViewWithTag<View>(tag)) {"Missing real settings target: $tag"}
     private fun reveal(activity:Activity,view:View) {
+        if (activity is MainActivity) {
+            var revealSection = false
+            main {
+                if (view.isShown) return@main
+                val document = activity.supportFragmentManager.primaryNavigationFragment?.requireView() as SettingsDocumentLayout
+                val ancestors = generateSequence(view) { it.parent as? View }.mapNotNull { it.tag as? String }.toList()
+                val section = ancestors.firstOrNull { it.startsWith("settings/section/") }?.substringAfterLast('/')
+                    ?: return@main
+                document.navigate(section)
+                for (tag in ancestors.filter { it.startsWith("settings/details/") && it.endsWith("/content") }.asReversed()) {
+                    if (document.findViewWithTag<View>(tag).visibility == View.GONE) {
+                        val action = document.findViewWithTag<View>(tag.removeSuffix("/content") + "/action")
+                        check(action.performClick()) { "Settings disclosure not reachable: $tag" }
+                    }
+                }
+                revealSection = true
+            }
+            if (revealSection) frames.committedFrame(root(activity))
+        }
         main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
         frames.committedFrame(root(activity));main {check(whole(observation(view))) {"M8 target not completely reachable: ${view.tag}/${(view as? TextView)?.text}"}}
     }
@@ -1005,10 +1031,13 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         fun state(name:String) {capture(activity,File(folder,name));cases.put(JSONObject().put("case",name).put("acceptanceStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"))}
         val stored=context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",false)
         val writer=appPage(activity).appearanceWrite
+        val storedModeTag = "settings/appearance/mode/${if (stored) "dark" else "light"}"
+        val targetModeTag = "settings/appearance/mode/${if (stored) "light" else "dark"}"
         try {
             main {appPage(activity).appearanceWrite={false}}
-            click(activity,"product/settings/app/theme/toggle")
-            main {check(appPage(activity).themeCheckBox.isChecked==stored && appPage(activity).themeError.text.isNotEmpty() && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",false)==stored)}
+            click(activity,targetModeTag)
+            main {check(tagged(activity,storedModeTag).isSelected && !tagged(activity,targetModeTag).isSelected &&
+                appPage(activity).themeCheckBox.isChecked==stored && appPage(activity).themeError.text.isNotEmpty() && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",false)==stored)}
             state("theme-write-rejected")
         } finally {main {appPage(activity).appearanceWrite=writer}}
         main {scope.rejectLanguageWrites=true}
@@ -1053,8 +1082,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         listOf("saf-cancel","saf-failure","saf-owned-success").forEach {cases.put(JSONObject().put("case",it).put("acceptanceStatus","PASS_BUSINESS_ONLY_NOT_VISUAL_ACCEPTANCE"))}
         // Successful theme selection uses the real preference/recreate path after the rejection contract.
         val themeMonitor=test.addMonitor(MainActivity::class.java.name,null,false)
-        try {click(activity,"product/settings/app/theme/toggle");activity=requireNotNull(test.waitForMonitorWithTimeout(themeMonitor,10000)) as MainActivity;await("theme recreated actual window") {ready(activity)}
-            main {check(appPage(activity).themeCheckBox.isChecked==!stored && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",stored)==!stored)}
+        try {click(activity,targetModeTag);activity=requireNotNull(test.waitForMonitorWithTimeout(themeMonitor,10000)) as MainActivity;await("theme recreated actual window") {ready(activity)}
+            main {check(tagged(activity,targetModeTag).isSelected && !tagged(activity,storedModeTag).isSelected &&
+                appPage(activity).themeCheckBox.isChecked==!stored && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",stored)==!stored)}
             state("theme-success-recreated")
         } finally {test.removeMonitor(themeMonitor)}
         cases.put(JSONObject().put("case","hardware-audio-output").put("acceptanceStatus","PENDING_PHYSICAL_AUDIO_OUTPUT_NOT_INFERRED_FROM_PLAYER"))
@@ -1313,6 +1343,14 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 }
             }
             reachability(activity,File(directory,"main-reachability"))
+            if (activity is MainActivity) {
+                val document = activity.supportFragmentManager.primaryNavigationFragment?.requireView() as SettingsDocumentLayout
+                for (category in SettingsCategory.entries.filter { it != SettingsCategory.DEVICE }) {
+                    main { document.navigate(category.sections.first()) }
+                    frames.committedFrame(document)
+                    reachability(activity, File(directory, "category-${category.key}-reachability"), category.key)
+                }
+            }
             val specialFolder=File(directory,"special-states").apply {check(isDirectory || mkdirs())}
             val cases=when(activity) {
                 is MainActivity->appSpecials(active,activity,specialFolder)

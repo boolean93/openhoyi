@@ -27,6 +27,9 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     // Opt-in paint only; Android retains the real disabled touch and accessibility state.
     var keepPendingAppearance = false
         set(value) { if (field != value) { field = value; invalidate() } }
+    // Scoped to the two reference-built Settings panels; the native drag geometry is unchanged.
+    fun useSettingsPanelInk() { settingsPanelInk = true; invalidate() }
+    private var settingsPanelInk = false
     private val palette = AppPalette(context)
     private val density = resources.displayMetrics.density
     private fun dp(value: Float) = value * density
@@ -140,7 +143,9 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
             paint.alpha = 255
             return
         }
-        val fill = blend(palette.switchOff, palette.switchOn, position)
+        val fill = if (settingsPanelInk && !dark && palette.choice == AppThemePalette.CLASSIC)
+            blend(0xffacafb0.toInt(), 0xff117a61.toInt(), position)
+        else blend(palette.switchOff, palette.switchOn, position)
         paint.alpha = if (fullInk) 255 else 100
         // A fine dark upper lip and lighter lower face suggest a shallow inset, not elevation.
         paint.shader = LinearGradient(0f, top, 0f, capsule.bottom,

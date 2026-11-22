@@ -63,6 +63,7 @@ class MainActivity : ThemedActivity() {
             })
     }
     private var scanAfterBind = false
+    private var scanOwnerAfterBind: Any? = null
     private var reconnectScaleAfterBind: Pair<String, String>? = null
     private var reconnectCoffeeAfterBind=false
     private var foreground = false
@@ -101,7 +102,11 @@ class MainActivity : ThemedActivity() {
                 reconnectScaleAfterBind = null
                 service?.connectScale(address, protocol)
             }
-            if (scanAfterBind) { scanAfterBind = false; service?.scan() }
+            if (scanAfterBind) {
+                val owner = scanOwnerAfterBind
+                scanAfterBind = false; scanOwnerAfterBind = null
+                service?.scan(owner)
+            }
             publishService()
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null; publishService() }
@@ -236,16 +241,17 @@ class MainActivity : ThemedActivity() {
     internal fun missingBle(): List<String> = (if (android.os.Build.VERSION.SDK_INT >= 31)
         listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         else listOf(Manifest.permission.ACCESS_FINE_LOCATION)).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-    internal fun ensureServiceForScan(): Boolean {
-        if (service?.running == true) { service?.scan(); return true }
+    internal fun ensureServiceForScan(owner: Any? = null): Boolean {
+        if (service?.running == true) { service?.scan(owner); return true }
         return try {
             if (BuildConfig.MOCK_MODE) startService(Intent(this, MobileService::class.java))
             else startForegroundService(Intent(this, MobileService::class.java))
             scanAfterBind = true
+            scanOwnerAfterBind = owner
             bindCreated()
-            if (!bound) scanAfterBind = false
+            if (!bound) { scanAfterBind = false; scanOwnerAfterBind = null }
             bound
-        } catch (_: RuntimeException) { scanAfterBind = false; false }
+        } catch (_: RuntimeException) { scanAfterBind = false; scanOwnerAfterBind = null; false }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

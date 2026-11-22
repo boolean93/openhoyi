@@ -333,29 +333,32 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val style = TaskProductVisualStyle(host)
         val settings = go(TaskDestination.SETTINGS) as SettingsDocumentLayout
         val scroll = settings.scroll
-        val section = main { settings.findViewWithTag<View>("settings/section/devices") }
+        main { settings.navigate("machine") }
+        await("Machine category is displayed") {
+            settings.findViewWithTag<View>("settings/heading/machine").getGlobalVisibleRect(Rect())
+        }
+        val section = main { settings.findViewWithTag<View>("settings/section/machine") }
         main {
             val nav = host.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG).navigation
             val paper = nav.background as PageBackdrop
             check(paper.snapshot.image != null && paper.photoScrim != null)
             check(paper.photoBounds?.invoke()?.contains(0, 0) == true)
             verifyShellBackdrop(host, photo = true)
-            scroll.scrollTo(0, HoyiUi.dp(host, 120))
+            scroll.scrollTo(0, scroll.scrollY + HoyiUi.dp(host, 120))
         }
         await("settings backing matches the section's scrolled visible bounds") {
             if (scroll.scrollY <= 0) return@await false
             val viewport = localRect(settings, section) ?: return@await false
-            val column = localRect(settings, settings.body) ?: return@await false
             val origin = IntArray(2).also { settings.getLocationInWindow(it) }
             val sectionOrigin = IntArray(2).also { section.getLocationInWindow(it) }
             val sectionBottom = sectionOrigin[1] - origin[1] + section.height
-            val content = Rect(column.left, viewport.top, column.right,
+            val content = Rect(viewport.left, viewport.top, viewport.right,
                 minOf(viewport.bottom, sectionBottom - section.paddingBottom))
             val areas = (settings.background as PageBackdrop).roundedAreas.map { it.clip }
             // scrollY changes synchronously; the drawable's geometry follows on traversal.
             if (content.isEmpty || content !in areas) return@await false
             requireSamePanel(settings, settings.findViewWithTag("settings/document/title"),
-                settings.findViewWithTag("settings/document/index-picker"))
+                settings.findViewWithTag("settings/document/category-grid"))
             val gapY = sectionBottom - section.paddingBottom / 2
             check(gapY in viewport.top until viewport.bottom) { "Settings section gap must be visible in the fixture" }
             check(areas.none { it.contains(content.centerX(), gapY) }) {

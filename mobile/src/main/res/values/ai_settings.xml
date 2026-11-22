@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ai_model">模型</string>
+    <string name="settings_ai_not_set">未设置</string>
+    <string name="settings_ai_on">已开启</string>
+    <string name="settings_ai_off">已关闭</string>
+    <string name="settings_ai_open">打开 HOYI.AI</string>
+    <string name="settings_ai_review">自动萃取评价</string>
+    <string name="settings_ai_key_unavailable">不可用</string>
+</resources>
