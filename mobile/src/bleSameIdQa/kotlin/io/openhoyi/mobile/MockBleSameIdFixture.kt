@@ -74,10 +74,21 @@ internal object MockBleSameIdFixture {
             check(settingState == WAITING_READBACK)
             advance(1); observe(baseline)
             check(settingState == WAITING_READBACK)
+            val wrong = when (row) {
+                "03" -> settings(flags = 0x3d)
+                "14-delay" -> settings(delay = 30, standby = 54)
+                "14-temp" -> settings(delay = 30, standby = 56)
+                else -> null
+            }
+            if (wrong != null) {
+                advance(1); observe(wrong)
+                check(settingState == WAITING_READBACK)
+            }
             advance(1); observe(target, generation = generation + 1)
             check(settingState == WAITING_READBACK)
             advance(1); observe(target)
             check(settingState == CONFIRMED)
+            check(writeCount() == 2)
             check(calls.count { (it.operation as? GattOperation.Write)?.bytes?.contentEquals(requested) == true } == 1)
         }
         case("09") {
@@ -101,7 +112,7 @@ internal object MockBleSameIdFixture {
             advance(1); observe(weeklyFirst(enabled = 0x7e))
             check(scheduleState.name == "WAITING_READBACK")
             advance(1); observe(second)
-            check(scheduleState.name == "CONFIRMED")
+            check(scheduleState.name == "CONFIRMED" && writeCount() == 3)
         }
         case("0A") {
             bootstrap()
@@ -112,7 +123,7 @@ internal object MockBleSameIdFixture {
             advance(1); observe(settings(cups = 0))
             check(cupState.name == "WAITING_ZERO")
             advance(1); observe(idle(cups = 0))
-            check(cupState.name == "CONFIRMED")
+            check(cupState.name == "CONFIRMED" && writeCount() == 2)
         }
         case("20") {
             bootstrap()
@@ -122,7 +133,7 @@ internal object MockBleSameIdFixture {
             advance(1); observe(idle())
             check(sleepState.name == "WAITING_ASLEEP")
             advance(1); observe(idle(asleep = 1))
-            check(sleepState.name == "CONFIRMED")
+            check(sleepState.name == "CONFIRMED" && writeCount() == 2)
         }
         return tests + listOf({ detachedLifecycle(context) })
     }
@@ -167,6 +178,8 @@ internal object MockBleSameIdFixture {
         } catch (_: Exception) { false } catch (_: AssertionError) { false }
         return Outcome("detached-owner-dispose/no-replay", passed, writes)
     }
+
+    private fun MobileService.DetachedCorePort.writeCount() = calls.count { it.operation is GattOperation.Write }
 
     private fun MobileService.DetachedCorePort.expectLastWrite(bytes: ByteArray) {
         val last = calls.last().operation as? GattOperation.Write ?: error("No fake write")
