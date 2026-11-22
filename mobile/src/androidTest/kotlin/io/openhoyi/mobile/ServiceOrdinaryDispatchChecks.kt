@@ -125,6 +125,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                         field(instance, "hub").set(instance, owner)
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
                         if(v2Split) {
+                            check(context.noBackupFilesDir.mkdirs() || context.noBackupFilesDir.isDirectory)
                             val fence=MachineServiceWriterFence()
                             val binding=MobileService::class.java.getDeclaredMethod("splitBinding").apply { isAccessible=true }
                             val broker=CanonicalMachineOperationBroker(RecoveryPreferenceStorage.pinMachine(context),fence) {
