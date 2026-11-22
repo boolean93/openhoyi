@@ -25,6 +25,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var unifiedSwitchChecks = false
     private var homeBoilerVisualChecks = false
     private var homeBoilerWarmupChecks = false
+    private var settingsCategoryProfile: String? = null
     private var fontSizeChecks = false
     private var themePaletteChecks = false
     private var quickCurveVisualTheme: String? = null
@@ -92,6 +93,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         autoPreheatChecks = arguments?.getString("autoPreheatChecks") in setOf("true", "only")
         unifiedSwitchChecks = arguments?.getString("unifiedSwitchChecks") == "true"
         homeBoilerWarmupChecks = arguments?.getString("homeBoilerWarmupChecks") == "true"
+        settingsCategoryProfile = arguments?.getString("settingsCategoryProfile")
         homeBoilerVisualChecks = arguments?.getString("homeBoilerVisualChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
         themePaletteChecks = arguments?.getString("themePaletteChecks") == "true"
@@ -225,6 +227,14 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ExtractionScaleWindowChecks(this).run()
                 report.putString("stream", "LIVE_SCALE_WINDOW_PASSED realMockService=true actualStopButton=true retainedTestShot=true portraitDark=true noBle=true\n")
                 finish(Activity.RESULT_OK, report); return
+            }
+            settingsCategoryProfile?.let { profile ->
+                check(disposableCiEmulator && BuildConfig.MOCK_MODE && profile in setOf("phone", "phone-short", "tablet") &&
+                    android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
+                SettingsCategoryChecks(this).run(wide = profile == "tablet", dark = profile == "phone", short = profile == "phone-short")
+                report.putString("stream", "SETTINGS_CATEGORIES_PASSED six=true routes=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
             }
             if (homeBoilerWarmupChecks) {
                 check(disposableCiEmulator && BuildConfig.MOCK_MODE &&

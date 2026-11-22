@@ -136,6 +136,61 @@ def capture_boiler_warmup(adb, executable, output, receipt):
             adb("shell", "settings", "put", "global", "animator_duration_scale", previous)
 
 
+def capture_settings_categories(adb, output, receipt, profile, width, height):
+    require(profile in {"phone", "phone-short", "tablet"}, "Expected the fresh phone/tablet Settings profile")
+    report = adb("shell", "am", "instrument", "-w", "-r", "-e", "disposableCiEmulator", "true",
+                 "-e", "settingsCategoryProfile", profile, RUNNER, timeout=220)
+    (output / "settings-instrumentation.txt").write_text(report + "\n")
+    try:
+        landing_receipt = adb("exec-out", "run-as", APP, "cat", "files/settings-categories/landing-debug.json")
+        (output / "settings-landing-debug.json").write_text(json.dumps(json.loads(landing_receipt), indent=2) + "\n")
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        if "SETTINGS_CATEGORIES_PASSED" in report:
+            raise
+    # Pull actual captured image(s) even on a later UI assertion failure.
+    keys = ("device", "brewing", "appearance") if profile == "phone-short" else (
+        "device", "machine", "brewing", "appearance", "ai", "maintenance")
+    if profile == "phone":
+        keys += ("appearance-light",)
+    if profile == "tablet":
+        keys += tuple(f"dark-{key}" for key in keys)
+    standard_keys = keys
+    if profile == "tablet":
+        keys += ("extra-standby", "extra-weekly", "extra-weekly-editor", "extra-scale-capabilities",
+                 "extra-appearance-lower", "extra-cups", "extra-diagnostics", "extra-updates",
+                 "extra-ai-chat", "extra-ai-model", "extra-ai-reasoning", "extra-ai-usage", "extra-ai-key",
+                 "extra-device-empty", "extra-device-guide")
+    for key in keys:
+        try:
+            frame = adb("exec-out", "run-as", APP, "cat", f"files/settings-categories/{key}.png", binary=True)
+        except subprocess.CalledProcessError:
+            continue
+        # Some adb exec-out implementations return cat's error as bytes with exit 0.
+        if not frame.startswith(b"\x89PNG\r\n\x1a\n"):
+            continue
+        require(png_size(frame) == (width, height), f"Wrong Settings screenshot geometry: {key}")
+        image = output / f"settings-{profile}-{key}.png"
+        image.write_bytes(frame)
+        receipt["screenshots"][image.name] = digest(image)
+    require(re.search(r"^INSTRUMENTATION_CODE: -1$", report, re.M) and "SETTINGS_CATEGORIES_PASSED" in report,
+            "Settings UI checks failed; see settings-instrumentation.txt")
+    proof = json.loads(adb("exec-out", "run-as", APP, "cat", "files/settings-categories/receipt.json"))
+    expected_names = {f"settings-{profile}-{key}.png" for key in standard_keys}
+    if profile == "tablet":
+        details = proof["supplemental"]
+        required_detail = {f"{key}.png" for key in keys[len(standard_keys):] if key != "extra-weekly-editor"}
+        require(required_detail.issubset(details), "Some original Settings configuration areas were not captured")
+        expected_names.update(f"settings-{profile}-{name}" for name in details)
+    require(proof["wide"] == (profile == "tablet") and proof["dark"] == (profile == "phone") and
+            proof["sixCategories"] and proof["exactRoutes"] == 11 and proof["returnedToCaller"] and
+            proof["recreatedCategory"] and proof["continuousDrag"] and proof["scaleToolReturned"] and proof["shortEnglishLarge"] == (profile == "phone-short") and
+            proof["appearancePreviewNoWrite"] == (profile != "phone-short") and proof["wideDark"] == (profile == "tablet") and
+            set(receipt["screenshots"]) == expected_names and
+            len({receipt["screenshots"][name] for name in expected_names if "-extra-" not in name}) == len(standard_keys),
+            "Incomplete Settings category evidence")
+    (output / "settings-geometry.json").write_text(json.dumps(proof, indent=2) + "\n")
+
+
 def main():
     require(os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
             and os.environ.get("QUICK_CURVE_VISUAL") == "true", "Manual CI runner required")
@@ -187,6 +242,11 @@ def main():
         for kind, source in DESTINATIONS.items():
             require(digest(source) == apks[kind]["sha256"], "APK changed before install")
             require(adb("install", source, timeout=120).splitlines()[-1] == "Success", "Mock fixture install failed")
+        if os.environ.get("SETTINGS_CATEGORIES") == "true":
+            name = "settings-categories"
+            capture_settings_categories(adb, output, receipt, profile, width, height)
+            receipt["passed"] = True
+            return
         if os.environ.get("BOILER_WARMUP") == "true":
             require(profile == "phone", "Boiler recording requires the dedicated phone viewport")
             name = "boiler-warmup"
