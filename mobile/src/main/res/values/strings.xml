@@ -558,11 +558,6 @@
     <string name="extraction_weight_control_advice">"使用电子秤控制停止"</string>
     <string name="extraction_no_weight_advice">"本次不按秤重停机，按曲线水量结束"</string>
     <string name="extraction_cancel_prepare_again">"再次发送取消预热"</string>
-    <string name="extraction_start_sent_waiting">等待机器进入萃取</string>
-    <string name="extraction_start_not_confirmed">尚未确认开始</string>
-    <string name="extraction_start_flow_observed">已观察到机器萃取</string>
-    <string name="extraction_start_sent_guidance">正在等待咖啡机进入萃取。</string>
-    <string name="extraction_start_no_observation_guidance">还未收到可靠的萃取数据，请看机器。需要时可停止萃取。</string>
     <string name="extraction_state_starting">"启动中"</string>
     <string name="extraction_state_running">"萃取中"</string>
     <string name="extraction_state_stopping">"正在停止"</string>
@@ -789,7 +784,6 @@
 
     <!-- Machine write feedback: permissions, recovery records and readback remain unchanged. -->
     <string name="service_write_mock_setting">"Mock 设置已更新：%1$s；未发送蓝牙命令"</string>
-    <string name="service_v2_split_pending">还有咖啡机操作待确认，请查看状态。</string>
     <string name="service_write_setting_queued">"机器设置命令已排队：%1$s"</string>
     <string name="service_write_setting_manual_block">"手动萃取期间不能修改机器设置"</string>
     <string name="service_write_cups_waiting">"正在等待累计杯数归零回报"</string>
@@ -943,7 +937,6 @@
     <string name="service_event_schedule_reconciled">"已重新收到完整计划，请核对机器时间"</string>
     <string name="service_event_sleep_confirmed">"机器已回报进入睡眠"</string>
     <string name="service_event_sleep_reconciled">"机器已重新回报清醒待机；上次入睡未获确认"</string>
-    <string name="service_event_preheat_machine_waiting">已观察到咖啡机进入预热等待，尚未达到目标温度</string>
     <string name="service_event_preheat_ready">"冲泡温度已达到曲线目标"</string>
     <string name="service_event_shot_record_failed">"无法保存萃取安全记录；请守在机器旁并用拨杆停止。"</string>
     <string name="service_event_manual_history_unwritable">"手动萃取历史暂不可写"</string>
@@ -1124,12 +1117,4 @@
     <string name="extraction_shortcuts_unavailable_name">%1$s（不可用）</string>
     <string name="extraction_shortcuts_choice">%1$s · %2$s</string>
     <string name="extraction_shortcuts_busy">正在萃取或准备，请结束后再切换快捷槽位。</string>
-    <string name="home_boiler_schedule_writing">正在写入睡眠计划</string>
-    <string name="home_boiler_schedule_readback">等待机器确认睡眠计划</string>
-    <string name="service_v2_split_restart_required">待核对记录已清除。请选择「停止设备服务」，再重新连接咖啡机。</string>
-    <string name="service_v2_split_reconciled">已核对这一项当前状态，没有重发原操作。</string>
-    <string name="service_v2_split_recovery_wait">请连接原咖啡机并等待这项新的完整回报，再核对。</string>
-    <string name="service_v2_split_observed_match">机器当前配置与目标一致。这不证明上次命令成功；清除只处理选中的这一项，也不会补发。</string>
-    <string name="service_v2_split_observed_different">机器当前配置与目标不同。清除只处理选中的这一项，不会改动配置或补发。</string>
-    <string name="service_v2_split_recovery_blocked">无法核对这份记录。记录已保留，不会自动重发。可停止设备服务后重新打开。</string>
 </resources>

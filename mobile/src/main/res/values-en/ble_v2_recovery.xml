@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="extraction_start_sent_waiting">Waiting for machine to start</string>
+    <string name="extraction_start_not_confirmed">Start not confirmed</string>
+    <string name="extraction_start_flow_observed">Machine extraction observed</string>
+    <string name="extraction_start_sent_guidance">Waiting for the coffee machine to start.</string>
+    <string name="extraction_start_no_observation_guidance">No reliable extraction data yet. Check the machine. You can stop the shot if needed.</string>
+    <string name="service_event_preheat_machine_waiting">Observed the coffee machine waiting to preheat; target temperature not yet confirmed</string>
+    <string name="service_v2_split_pending">A coffee machine operation is awaiting confirmation. Check its status.</string>
+    <string name="home_boiler_schedule_writing">Writing sleep schedule</string>
+    <string name="home_boiler_schedule_readback">Waiting for sleep schedule confirmation</string>
+    <string name="service_v2_split_restart_required">These records are cleared. Choose Stop device service, then reconnect to the coffee machine.</string>
+    <string name="service_v2_split_reconciled">Current state checked for this item. The previous command was not resent.</string>
+    <string name="service_v2_split_recovery_wait">Connect the original coffee machine and wait for a new, complete report for this item.</string>
+    <string name="service_v2_split_observed_match">The current configuration matches the target. This does not prove the previous command succeeded. Clearing affects only this item and does not resend it.</string>
+    <string name="service_v2_split_observed_different">The current configuration differs from the target. Clearing affects only this item without changing the configuration or resending it.</string>
+    <string name="service_v2_split_recovery_blocked">This record could not be checked. It was retained and will not be automatically resent. You can stop and reopen the device service.</string>
+</resources>
