@@ -17,7 +17,7 @@ internal class SettingsObservedSwitch(
         setTextColor(style.muted)
         minimumHeight = style.dp(48)
         setPaddingRelative(style.dp(8), 0, style.dp(8), 0)
-        androidx.core.view.ViewCompat.setAccessibilityLiveRegion(this, View.ACCESSIBILITY_LIVE_REGION_NONE)
+        accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE
         contentDescription = "${control.contentDescription} · ${text}"
     }
 
