@@ -73,6 +73,23 @@ class BoilerTargetStepsTest {
         assertEquals(Feedback.NOT_SENT, q.feedback(brew))
     }
 
+    @Test fun protectsAnExistingLegacyObserverAndDoesNotKeepAStaleQueue() {
+        assertFalse(q.acceptsAlongsideTemperature(State.WAITING_READBACK))
+        assertTrue(q.acceptsAlongsideTemperature(State.CONFIRMED))
+        assertTrue(q.step(brew, 1, 93))
+        val issued = q.next()!!
+        assertTrue(q.acceptsAlongsideTemperature(State.WAITING_READBACK))
+        assertTrue(q.step(steam, -1, 120))
+        q.observe(issued.boiler.change(issued.value), State.WAITING_READBACK)
+        assertNull(q.next())
+        q.observe(issued.boiler.change(issued.value), State.UNKNOWN)
+        assertNull(q.next())
+        q.sessionChanged("machine/generation-2")
+        assertNull(q.next())
+        assertTrue(q.step(steam, -1, 120))
+        assertEquals(119, q.next()?.value)
+    }
+
     @Test fun onlyOneDegreeInsideKnownRangesAndKnownSession() {
         assertFalse(q.step(steam, 1, null))
         assertFalse(q.step(steam, 1, 145))

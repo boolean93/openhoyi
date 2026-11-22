@@ -20,6 +20,9 @@ internal class BoilerTargetSteps {
     var inFlight: Request? = null
         private set
     val active get() = inFlight != null || queued.isNotEmpty()
+    /** Do not supersede a compensating or standby request's legitimate observer. */
+    fun acceptsAlongsideTemperature(state: SettingsWriteTracker.State): Boolean =
+        active || state != SettingsWriteTracker.State.WAITING_READBACK
     fun sessionChanged(key: Any?) {
         if (key == session) return
         if (active) stop(Feedback.UNKNOWN) else if (key != null) notices.clear()

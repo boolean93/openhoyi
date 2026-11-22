@@ -1290,6 +1290,7 @@ class MobileService : Service() {
         boilerTargetSteps.target(boiler, measuredTarget(boiler))
     internal fun boilerTargetFeedback(boiler: BoilerTargetSteps.Boiler) = boilerTargetSteps.feedback(boiler)
     internal fun mayStepBoilerTarget(): Boolean = appVisibility.visible && boilerTargetSession() != null &&
+        boilerTargetSteps.acceptsAlongsideTemperature(temperatureWrite.state) &&
         (MachineSettingsEditGate.allowed(this) ||
             boilerTargetSteps.active && temperatureWrite.busy && machineControlSafetyMessage == null &&
             boilerRecoveryProductSafe())
