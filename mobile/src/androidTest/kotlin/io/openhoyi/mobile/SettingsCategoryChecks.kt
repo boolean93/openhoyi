@@ -689,7 +689,15 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         settings().isAtSectionLanding("about") && button(SettingsCategory.MAINTENANCE).isSelected
                     }
                     var (endY, atEnd) = main { inspectEnd("after-directory-touch") }
-                    for (attempt in 1..4) {
+                    val dragBudget = main {
+                        val doc = settings()
+                        val viewport = rect(doc.scroll).height()
+                        val remaining = (doc.body.height - doc.scroll.height - endY).coerceAtLeast(0)
+                        val touchSlop = android.view.ViewConfiguration.get(activity).scaledTouchSlop
+                        val conservativeDrag = (viewport * .40f).toInt().minus(touchSlop).coerceAtLeast(16)
+                        ((remaining + conservativeDrag - 1) / conservativeDrag + 2).coerceIn(2, 16)
+                    }
+                    for (attempt in 1..dragBudget) {
                         if (atEnd) break
                         val before = endY
                         dragUp(main { rect(settings().scroll) })
@@ -699,7 +707,9 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         val probe = main { inspectEnd("drag-$attempt") }
                         endY = probe.first
                         atEnd = probe.second
-                        check(endY >= before) { "Real subsequent drag moved away from the end: $landingDebug" }
+                        check(endY > before || atEnd) {
+                            "Real subsequent drag did not advance towards the end: $landingDebug"
+                        }
                     }
                     check(atEnd) { "Last action did not become fully visible by directory and swipes: $landingDebug" }
                     val pinned = endY
