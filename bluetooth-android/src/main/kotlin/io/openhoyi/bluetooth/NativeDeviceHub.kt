@@ -8,6 +8,9 @@ import android.os.SystemClock
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
 
+/** Explicit pair: a detached hub may not fall back to Android transport for either role. */
+class DetachedNativeDrivers(val coffee:GattDriver,val scale:GattDriver,val clock:()->Long)
+
 /** Service/application-owned integration. The host persists only addresses reported as successfully ready. */
 class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?=null,
     private val onScaleRemembered:(String)->Unit={},
@@ -25,7 +28,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     private val onCoffeeReconnect:(String)->Boolean={false},
     rememberedScaleSuppressed:Boolean=false,
     private val automaticAllowed:(DeviceRole)->Boolean={true},
-    trackCoffeeDelivery:Boolean=false) : AutoCloseable {
+    trackCoffeeDelivery:Boolean=false,
+    private val detachedDrivers:DetachedNativeDrivers?=null) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=ScaleSelectionPolicy.remembered(rememberedScaleAddress,rememberedScaleProtocolId)
@@ -51,7 +55,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     val scaleTareState get()=standaloneTare.state
     private val reconnect=ReconnectPolicy().apply { if(rememberedScaleSuppressed)manualDisconnect() }
     private val coffeeReconnect=CoffeeReconnectPolicy()
-    val scanner=ScanCoordinator(context)
+    val scanner=ScanCoordinator(context,disabled=detachedDrivers!=null)
     private val coffee:AndroidDevice by lazy { AndroidDevice(context,DeviceRole.COFFEE,
         stateChanged={state->
             val now=SystemClock.elapsedRealtime()
@@ -70,7 +74,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
         customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,
         synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)},
-        trackCoffeeDelivery=trackCoffeeDelivery) }
+        trackCoffeeDelivery=trackCoffeeDelivery,
+        fixtureDriver=detachedDrivers?.coffee,fixtureClock=detachedDrivers?.clock) }
     val shotStartObservation get() = if (closed) null else coffeeControl.shotStartObservation
     val coffeeDeliveries: List<CoffeeDelivery> get() = if (closed) emptyList() else coffee.session.coffeeDeliveries
     // Compatibility-preserving sidecar. No existing callback or control permit consumes it.
@@ -84,7 +89,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     val latestNativeWeeklySecond get()=if(closed) null else coffee.session.latestNativeWeeklySecond
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
-    val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()},{scaleSampleSerial})
+    val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,
+        detachedDrivers?.clock ?: {SystemClock.elapsedRealtime()},{scaleSampleSerial})
     // Retain the current-device reflection contract used by lifecycle diagnostics.
     private var scale:AndroidDevice=scaleSlot.replace(ScaleSelection("",BookooScaleProtocolAdapter.id)) {
         createScaleOwner(it,BookooScaleProtocolAdapter)
@@ -122,7 +128,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                     if(ownsScale(ticket,request))extraction.weight(sample)
                     if(ownsScale(ticket,request))onScaleObservation(sample)
                 }
-            },diagnostic={if(ownsScale(ticket))diagnostic(it)},trace={if(ownsScale(ticket))trace(DeviceRole.BOOKOO,it)},scaleAdapter=adapter)
+            },diagnostic={if(ownsScale(ticket))diagnostic(it)},trace={if(ownsScale(ticket))trace(DeviceRole.BOOKOO,it)},scaleAdapter=adapter,fixtureDriver=detachedDrivers?.scale,fixtureClock=detachedDrivers?.clock)
         return ScaleOwner(device,ScaleSessionControl(device.session,standaloneTare,{scaleSampleSerial}))
     }
     val scaleCapabilities:ScaleCapabilities get()=scaleControl.capabilities
@@ -204,7 +210,20 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             if(!closed)handler.postDelayed(this,50)
         }
     }
-    init {handler.post(ticker)}
+    init {if(detachedDrivers==null)handler.post(ticker)}
+    // Explicit synthetic ingress; detached transports have no AndroidGattDriver to deliver them.
+    fun completeDetachedCoffee(generation:Long,token:Long,result:OperationResult) {
+        usable(); check(detachedDrivers!=null)
+        coffee.session.onComplete(generation,token,result)
+    }
+    fun observeDetachedCoffee(generation:Long,endpoint:Endpoint,bytes:ByteArray,capturedAtMs:Long) {
+        usable(); check(detachedDrivers!=null)
+        coffee.session.onNotification(generation,endpoint,bytes,capturedAtMs)
+    }
+    fun tickDetached() {
+        usable(); check(detachedDrivers!=null)
+        coffee.session.tick(); extraction.tick()
+    }
     private fun usable(){check(Looper.myLooper()==Looper.getMainLooper());check(!closed){"Hub closed"}}
     fun connectCoffee(address:String,authentication:CoffeeAuthentication,explicit:Boolean=true,remembered:Boolean=false){
         usable()

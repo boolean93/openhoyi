@@ -16,20 +16,24 @@ class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->
     customPressureStartPermit:(StartParameters)->Boolean = {false},
     customCurveStartPermit:(StartParameters)->Boolean = {false},
     synchronizationRefreshPermit:()->Boolean = {false},
-    trackCoffeeDelivery:Boolean = false) : AutoCloseable {
-    init {check(Looper.myLooper()==Looper.getMainLooper())}
+    trackCoffeeDelivery:Boolean = false,
+    fixtureDriver:GattDriver?=null, fixtureClock:(()->Long)?=null) : AutoCloseable {
+    init {
+        check(Looper.myLooper()==Looper.getMainLooper())
+        require((fixtureDriver==null)==(fixtureClock==null))
+    }
     private val handler=Handler(Looper.getMainLooper())
     private var closed=false
-    private val driver:AndroidGattDriver=AndroidGattDriver(context,object:AndroidGattDriver.Events {
+    private val driver:GattDriver=fixtureDriver ?: AndroidGattDriver(context,object:AndroidGattDriver.Events {
         override fun complete(generation:Long,token:Long,result:OperationResult)=session.onComplete(generation,token,result)
         override fun disconnected(generation:Long,reason:String)=session.onDisconnected(generation,reason)
         override fun notification(generation:Long,endpoint:Endpoint,bytes:ByteArray,capturedAtMs:Long)=session.onNotification(generation,endpoint,bytes,capturedAtMs)
     },trace)
-    val session:DeviceSession=DeviceSession(role,driver,{SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,
+    val session:DeviceSession=DeviceSession(role,driver,fixtureClock ?: {SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,
         diagnostic,legacyVerifiedStartFrames,scaleAdapter,scaleObservation,
         customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,synchronizationRefreshPermit=synchronizationRefreshPermit,trackCoffeeDelivery=trackCoffeeDelivery)
     private val ticker=object:Runnable {override fun run(){if(!closed){session.tick();handler.postDelayed(this,50)}}}
-    init {handler.post(ticker)}
+    init {if(fixtureDriver==null)handler.post(ticker)}
     override fun close(){
         check(Looper.myLooper()==Looper.getMainLooper())
         closed=true

@@ -97,6 +97,12 @@ if (mockOptimizationControl && (optimizeMock || updateChecks)) {
 val bleV2Delivery = providers.gradleProperty("hoyiBleV2Delivery").orNull?.let {
     when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiBleV2Delivery must be true or false") }
 } ?: false
+val bleSameIdQa = providers.gradleProperty("hoyiBleSameIdQa").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiBleSameIdQa must be true or false") }
+} ?: false
+if (bleSameIdQa && (!bleV2Delivery || updateChecks || optimizeMock || mockOptimizationControl)) {
+    throw GradleException("Same-ID BLE QA requires V2 and a plain standalone Mock build")
+}
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
@@ -104,6 +110,7 @@ android {
     defaultConfig {
         applicationId = "io.openhoyi.mobile"
         buildConfigField("boolean", "BLE_V2_DELIVERY", "false")
+        buildConfigField("boolean", "BLE_SAME_ID_QA", "false")
         minSdk = 26
         targetSdk = 35
         // Filter transitive AndroidX locales as well as application translations.
@@ -134,6 +141,7 @@ android {
             initWith(getByName("debug"))
             applicationIdSuffix = ".mock"
             buildConfigField("boolean", "BLE_V2_DELIVERY", "false")
+            buildConfigField("boolean", "BLE_SAME_ID_QA", bleSameIdQa.toString())
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "MOCK_MODE", "true")
             if (mockOptimizationControl) {
