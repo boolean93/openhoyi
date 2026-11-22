@@ -354,8 +354,37 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var readbackSequence = 0L
     private var lastReadback: CoffeeReadbackFrame? = null
     private var lastOrdinarySettings: CoffeeReadbackFrame.OrdinarySettings? = null
+    private var initialSettingsBaseline:NativeCoffeeSample<Settings>?=null
+    /** Bootstrap may calibrate displayed temperature but cannot settle a write receipt. */
+    val preheatSettingsBaseline:NativeCoffeeSample<Settings>? get() =
+        latestOrdinaryCoffeeSettings?.let { NativeCoffeeSample(it.cursor,it.receivedAtMs,it.value) }
+            ?: initialSettingsBaseline?.takeIf { it.cursor.source === currentReadbackSource() }
     private var nativeWeeklyFirst: CoffeeReadbackFrame.WeeklyPart? = null
     private var nativeWeeklySecond: CoffeeReadbackFrame.WeeklyPart? = null
+    private var nativeIdle:NativeCoffeeSample<IdleTelemetry>?=null
+    private var nativeExtraction:NativeCoffeeSample<ExtractionTelemetry>?=null
+    val latestNativeIdle get()=nativeIdle?.takeIf { it.cursor.source === currentReadbackSource() }
+    val latestNativeExtraction get()=nativeExtraction?.takeIf { it.cursor.source === currentReadbackSource() }
+    val latestNativeWeeklyFirst get()=nativeWeeklyFirst?.takeIf { it.cursor.source === currentReadbackSource() }
+    val latestNativeWeeklySecond get()=nativeWeeklySecond?.takeIf { it.cursor.source === currentReadbackSource() }
+
+    private fun recordNativeTelemetry(frame:HoyiMessage,at:Long) {
+        if (!trackCoffeeDelivery || (frame !is IdleTelemetry && frame !is ExtractionTelemetry)) return
+        val source=currentReadbackSource() ?: return
+        val lastAt=latestNativeIdle?.capturedAtMs ?: latestNativeExtraction?.capturedAtMs
+        if (lastAt!=null && at<lastAt) return
+        when (frame) {
+            is IdleTelemetry -> {
+                nativeIdle=NativeCoffeeSample(CoffeeReadbackCursor(source,++readbackSequence),at,frame)
+                nativeExtraction=null
+            }
+            is ExtractionTelemetry -> {
+                nativeExtraction=NativeCoffeeSample(CoffeeReadbackCursor(source,++readbackSequence),at,frame)
+                nativeIdle=null
+            }
+            else -> Unit
+        }
+    }
     private var shotStartEvidence: ShotStartEvidence? = null
     internal fun shotStartObservation(owner:CoffeeStartContext): ShotStartObservation? =
         shotStartEvidence?.takeIf { it.owner === owner }?.status(currentReadbackSource(),clock())
@@ -378,6 +407,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         // Called at ingress only, never on buffered initialization/replayed packets.
         if (frame !is Settings && frame !is SleepPart) return
         val source = currentReadbackSource() ?: return
+        if (frame is Settings && initialSettingsBaseline?.let {
+                it.cursor.source === source && now < it.capturedAtMs
+            } == true) return
         if (lastReadback?.let { it.cursor.source === source && now < it.receivedAtMs } == true) return
         val cursor = CoffeeReadbackCursor(source, ++readbackSequence)
         lastReadback = when (frame) {
@@ -417,6 +449,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     return
                 }
                 if (SettingsFreshness.isFresh(capturedAtMs,now)) recordLiveReadback(frame,capturedAtMs)
+                if (TelemetryFreshness.isFresh(capturedAtMs,now)) recordNativeTelemetry(frame,capturedAtMs)
                 shotStartEvidence?.let { evidence ->
                     currentReadbackSource()?.let { source ->
                         if (TelemetryFreshness.isFresh(capturedAtMs,now) &&
@@ -454,11 +487,16 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 else -> Unit
             }
         }
+        val bootstrapping=state==DeviceState.SYNCHRONIZING && frame is Settings
         val authenticated=state==DeviceState.SYNCHRONIZING||state==DeviceState.READY
         if(frame is Settings && authenticated){lastSettingsAtMs=now;lastSettings=frame;acceptSettings(frame)}
-        // READY observers may synchronously replace this connection.
+        // READY observers may synchronously replace this connection or publish a newer frame.
         if(!ownsInitialization(expected))return
         if(state==DeviceState.READY){
+            if (trackCoffeeDelivery && bootstrapping && frame is Settings && lastSettings === frame &&
+                latestOrdinaryCoffeeSettings==null) currentReadbackSource()?.let { source ->
+                initialSettingsBaseline=NativeCoffeeSample(CoffeeReadbackCursor(source,readbackSequence),now,frame)
+            }
             when(frame){
                 is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now;idleSerial++}
                 is ExtractionTelemetry -> {lastIdle=null;lastIdleAtMs=null;boilerReadback?.automaticCancelled=true}

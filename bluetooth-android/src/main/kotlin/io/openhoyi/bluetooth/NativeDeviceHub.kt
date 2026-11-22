@@ -77,6 +77,11 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     val coffeeReadbackCursor get() = if (closed) null else coffee.session.coffeeReadbackCursor
     val latestCoffeeReadbackFrame get() = if (closed) null else coffee.session.latestCoffeeReadbackFrame
     val latestOrdinaryCoffeeSettings get() = if (closed) null else coffee.session.latestOrdinaryCoffeeSettings
+    val preheatSettingsBaseline get()=if(closed) null else coffee.session.preheatSettingsBaseline
+    val latestNativeIdle get()=if(closed) null else coffee.session.latestNativeIdle
+    val latestNativeExtraction get()=if(closed) null else coffee.session.latestNativeExtraction
+    val latestNativeWeeklyFirst get()=if(closed) null else coffee.session.latestNativeWeeklyFirst
+    val latestNativeWeeklySecond get()=if(closed) null else coffee.session.latestNativeWeeklySecond
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()},{scaleSampleSerial})

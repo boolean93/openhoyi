@@ -742,6 +742,7 @@
     <string name="service_event_mock_stopped">"Mock data stopped"</string>
     <string name="service_event_mock_temperature_ready">"Mock target temperature reached; no Bluetooth commands sent"</string>
     <string name="service_event_preheat_clear_failed">"Cannot clear preheat safety record; check the machine"</string>
+    <string name="service_event_preheat_machine_waiting">Observed the coffee machine waiting to preheat; target temperature not yet confirmed</string>
     <string name="service_event_preheat_ready">"Brew temperature reached curve target"</string>
     <string name="service_event_preheat_shutdown_block">"Canceling curve preheat; device service remains running"</string>
     <string name="service_event_sample_save_failed">"Failed to temporarily save curve samples"</string>

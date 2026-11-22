@@ -27,7 +27,9 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
     fun run()=runChecks(false)
     fun runOwnership()=runChecks(true)
     fun runV2Settings()=runChecks(ownership=false,v2Settings=true)
-    private fun runChecks(ownership:Boolean,v2Settings:Boolean=false) {
+    fun runV2Passive()=runChecks(ownership=false,v2Passive=true)
+    private fun runChecks(ownership:Boolean,v2Settings:Boolean=false,v2Passive:Boolean=false) {
+        val v2Native=v2Settings || v2Passive
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -51,7 +53,13 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
         val blocks=listOf("MANUAL","SHOT_RECOVERY","APP_SHOT","PREPARATION","ADDRESS","HUB","NOT_READY")
         val cases=if(v2Settings) listOf("V2_DELAY","V2_TEMP","V2_WEEKLY_ENABLE","V2_REPLACED_TEMP","V2_ACK_UNKNOWN").map {
             MachineWriteRecoveryState.Kind.SETTING to it
-        } else if(ownership) kinds.flatMap { kind->listOf("OWNER_QUEUED","OWNER_FAILED","OWNER_READBACK").map { kind to it } } else kinds.flatMap { kind->(listOf("ALLOW")+blocks).map { kind to it } } +
+        } else if(v2Passive) listOf(
+            MachineWriteRecoveryState.Kind.CUP_RESET to "V2_CUP_PAIR",
+            MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE to "V2_WEEKLY_PAIR",
+            MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE to "V2_WEEKLY_PARTIAL",
+            MachineWriteRecoveryState.Kind.SLEEP_NOW to "V2_SLEEP_IDLE",
+            MachineWriteRecoveryState.Kind.BREW_WAIT to "V2_PREHEAT",
+        ) else if(ownership) kinds.flatMap { kind->listOf("OWNER_QUEUED","OWNER_FAILED","OWNER_READBACK").map { kind to it } } else kinds.flatMap { kind->(listOf("ALLOW")+blocks).map { kind to it } } +
             blocks.map { MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE to "SECOND_$it" }
         for ((kind,mode) in cases) {
             val id = UUID.randomUUID().toString()
@@ -102,8 +110,8 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                         val instance = attach()
                         val receive = MobileService::class.java.getDeclaredMethod("onCoffeeFrame",HoyiMessage::class.java).apply { isAccessible=true }
                         val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames,
-                            trackCoffeeDelivery=v2Settings,
-                            onCoffee={ frame -> if(v2Settings) receive.invoke(instance,frame) })
+                            trackCoffeeDelivery=v2Native,
+                            onCoffee={ frame -> if(v2Native) receive.invoke(instance,frame) })
                         hub = owner
                         field(instance, "hub").set(instance, owner)
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
@@ -161,6 +169,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             MachineWriteRecoveryState.Kind.CUP_RESET -> "cupReset"
                             MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> "scheduleWrite"
                             MachineWriteRecoveryState.Kind.SLEEP_NOW -> "sleepNow"
+                            MachineWriteRecoveryState.Kind.BREW_WAIT -> "brewPreparation"
                             else -> error("Invalid fixture")
                         }).get(instance))
                         val wire = when (kind) {
@@ -168,12 +177,14 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             MachineWriteRecoveryState.Kind.CUP_RESET -> CoffeeCommands.resetCupCount()
                             MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> CoffeeCommands.sleepSchedule(target).first()
                             MachineWriteRecoveryState.Kind.SLEEP_NOW -> CoffeeCommands.sleepNow()
+                            MachineWriteRecoveryState.Kind.BREW_WAIT -> CoffeeCommands.brewWait(selected.temperatureC)
                             else -> error("Invalid fixture")
                         }.frame.toByteArray()
                         fun request(service:MobileService)=when(kind) {
                             MachineWriteRecoveryState.Kind.SETTING->service.changeMachineSetting(change)
                             MachineWriteRecoveryState.Kind.CUP_RESET->service.resetCupCount(settings.cupCount)
                             MachineWriteRecoveryState.Kind.SLEEP_NOW->service.enterSleepNow()
+                            MachineWriteRecoveryState.Kind.BREW_WAIT->service.prepareBrew(selected.id,selected.scaleMode,7)
                             MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE->service.changeSleepSchedule(expected,target)
                             else->error("Invalid fixture")
                         }
@@ -187,7 +198,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             check(calls.last().third==GattOperation.Discover);fakeBarriers++
                             return calls.last()
                         }
-                        if(v2Settings) {
+                        if(v2Native) {
                             field(instance,"v2SettingEvidence").setBoolean(instance,true)
                             field(session,"coffeeAuthentication").set(session,CoffeeAuthentication(
                                 java.time.LocalDateTime.of(2026,11,22,0,0),"123456"))
@@ -205,7 +216,103 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             val disabled=normal.replace("FD","FC")
                             val idleHex="400024BF2F1C770B00000000000000190321AF"
                             ingest(idleHex)
-                            if (mode=="V2_WEEKLY_ENABLE") {
+                            if (v2Passive) {
+                                val firstBase="8340FE0A00071E0A00071E0A00071E0A00071E3D"
+                                val firstTarget=firstBase.replace("FE","7E")
+                                val secondBase="83800A00071E0A00071E0A00071E10"
+                                fun idleWith(temp:Int=9407,count:Int=25,sleep:Int=0)=
+                                    "4000%04X2F1C770B%02X0000000000%04X0321AF".format(temp,sleep,count)
+                                ingest(normal)
+                                val coolIdle=idleWith(temp=7500)
+                                if(mode=="V2_PREHEAT") ingest(coolIdle)
+                                if(mode.startsWith("V2_WEEKLY_")) {
+                                    ingest(firstBase)
+                                    ingest(secondBase)
+                                }
+                                check(request(instance)==null && writeCount()==1 && state()=="WRITING")
+                                check((calls.last().third as GattOperation.Write).bytes.contentEquals(wire))
+                                val beforeResult=SystemClock.elapsedRealtime()
+                                complete(calls.last())
+                                when(mode) {
+                                    "V2_CUP_PAIR" -> {
+                                        check(state()=="WAITING_ZERO" && recovery(instance).pending)
+                                        freshTick();ingest(normal.replace("0019","0000"))
+                                        freshTick();ingest(idleWith(count=0),capturedHint=beforeResult)
+                                        check(state()=="WAITING_ZERO")
+                                        freshTick();ingest(idleWith(count=25))
+                                        check(state()=="WAITING_ZERO")
+                                        freshTick();ingest(idleWith(count=0))
+                                        check(state()=="CONFIRMED" && !recovery(instance).pending && writeCount()==1)
+                                    }
+                                    "V2_WEEKLY_PAIR","V2_WEEKLY_PARTIAL" -> {
+                                        check(state()=="WRITING" && recovery(instance).pending)
+                                        // Fake queue clock advances to the real second-packet appointment.
+                                        now+=500;session.tick()
+                                        check(writeCount()==2 && state()=="WRITING")
+                                        check((calls.last().third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.sleepSchedule(target)[1].frame.toByteArray()))
+                                        ingest(firstTarget)
+                                        ingest(secondBase)
+                                        val preSecond=SystemClock.elapsedRealtime()
+                                        if (mode=="V2_WEEKLY_PARTIAL") {
+                                            val pending=calls.last()
+                                            session.onComplete(pending.first,pending.second,OperationResult.Failed("fixture second did not send"))
+                                            check(state()=="UNKNOWN" && recovery(instance).pending)
+                                            freshTick();ingest(firstTarget)
+                                            freshTick();ingest(secondBase)
+                                            freshTick();ingest(idleWith())
+                                            check(state()=="UNKNOWN" && recovery(instance).pending && writeCount()==2)
+                                            val reopened=attach()
+                                            check(recovery(reopened).pending && recovery(reopened).kind==MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE)
+                                            instance.acknowledgeManualSafety()
+                                            check(state()=="IDLE" && !recovery(instance).pending && writeCount()==2)
+                                        } else {
+                                            complete(calls.last())
+                                            check(state()=="WAITING_READBACK")
+                                            freshTick();ingest(secondBase)
+                                            check(state()=="WAITING_READBACK")
+                                            freshTick();ingest(firstTarget,capturedHint=preSecond)
+                                            freshTick();ingest(secondBase)
+                                            check(state()=="WAITING_READBACK")
+                                            freshTick();ingest(firstTarget)
+                                            freshTick();ingest(secondBase)
+                                            check(state()=="CONFIRMED" && !recovery(instance).pending && writeCount()==2)
+                                        }
+                                    }
+                                    "V2_SLEEP_IDLE" -> {
+                                        check(state()=="WAITING_ASLEEP" && recovery(instance).pending)
+                                        freshTick();ingest(idleWith(sleep=1),capturedHint=beforeResult)
+                                        check(state()=="WAITING_ASLEEP")
+                                        freshTick();ingest(idleWith(sleep=0))
+                                        check(state()=="WAITING_ASLEEP")
+                                        freshTick();ingest(idleWith(sleep=1))
+                                        check(state()=="CONFIRMED" && !recovery(instance).pending && writeCount()==1)
+                                    }
+                                    "V2_PREHEAT" -> {
+                                        check(state()=="WAITING_TEMP" && recovery(instance).pending)
+                                        val near=idleWith(temp=selected.temperatureC*100)
+                                        freshTick();ingest(near,capturedHint=beforeResult)
+                                        check(state()=="WAITING_TEMP")
+                                        freshTick();ingest("80080800000000052421322003")
+                                        check(state()=="WAITING_TEMP")
+                                        check(instance.snapshot.messageForDisplay { id,args->instance.getString(id,*args) }==
+                                            instance.getString(R.string.service_event_preheat_machine_waiting))
+                                        val olderCalibration=SystemClock.elapsedRealtime()
+                                        freshTick();ingest(normal.replace("5C00","5C14"))
+                                        freshTick();ingest(normal,capturedHint=olderCalibration)
+                                        freshTick();ingest(near)
+                                        check(state()=="WAITING_TEMP") // Fresh raw temperature, but old compensation.
+                                        freshTick();ingest(normal.replace("5C00","5C14"))
+                                        freshTick();ingest(idleWith(temp=selected.temperatureC*100+200))
+                                        check(state()=="READY" && recovery(instance).pending && writeCount()==1)
+                                        check(instance.cancelBrewPreparation()==null && state()=="CANCELLING" && writeCount()==2)
+                                        check((calls.last().third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.brewWait(0).frame.toByteArray()))
+                                        complete(calls.last())
+                                        freshTick();ingest(idleWith())
+                                        check(state()=="CANCEL_WRITTEN" && recovery(instance).pending && writeCount()==2)
+                                    }
+                                    else -> error("Missing passive fixture")
+                                }
+                            } else if (mode=="V2_WEEKLY_ENABLE") {
                                 val enable=MachineSettingChange.SleepScheduleEnabled(true)
                                 mapOf("sleepFirst" to null,"sleepSecond" to null,"sleepFirstAtMs" to null,"sleepSecondAtMs" to null)
                                     .forEach { (name,value) -> field(session,name).set(session,value) }
@@ -503,7 +610,8 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                 cleanupFailure?.let { throw it }
             }
         }
-        if(v2Settings)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==3)
+        if(v2Passive)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==0)
+        else if(v2Settings)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==3)
         else if(ownership)check(checkedFixtures==12 && fakeWrites==9 && fakeBarriers==12 && clearedReloads==0 && retainedReloads==12)
         else check(checkedFixtures==39 && fakeWrites==12 && fakeBarriers==39 && clearedReloads==28 && retainedReloads==11)
     }

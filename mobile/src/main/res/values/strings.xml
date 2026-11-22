@@ -942,6 +942,7 @@
     <string name="service_event_schedule_reconciled">"已重新收到完整计划，请核对机器时间"</string>
     <string name="service_event_sleep_confirmed">"机器已回报进入睡眠"</string>
     <string name="service_event_sleep_reconciled">"机器已重新回报清醒待机；上次入睡未获确认"</string>
+    <string name="service_event_preheat_machine_waiting">已观察到咖啡机进入预热等待，尚未达到目标温度</string>
     <string name="service_event_preheat_ready">"冲泡温度已达到曲线目标"</string>
     <string name="service_event_shot_record_failed">"无法保存萃取安全记录；请守在机器旁并用拨杆停止。"</string>
     <string name="service_event_manual_history_unwritable">"手动萃取历史暂不可写"</string>

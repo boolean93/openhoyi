@@ -573,7 +573,9 @@ class ExtractionActivity : ThemedActivity() {
                 when (preparation) {
                     BrewPreparation.State.IDLE -> if (temperatureReady) getString(R.string.extraction_temperature_ready) else getString(R.string.extraction_temperature_not_ready)
                     BrewPreparation.State.WRITING -> getString(R.string.extraction_prepare_writing)
-                    BrewPreparation.State.WAITING_TEMP -> getString(R.string.extraction_prepare_waiting)
+                    BrewPreparation.State.WAITING_TEMP -> getString(
+                        if (owner?.preheatMachineWaitingObserved==true) R.string.service_event_preheat_machine_waiting
+                        else R.string.extraction_prepare_waiting)
                     BrewPreparation.State.READY -> if (temperatureReady) getString(R.string.extraction_prepare_ready) else getString(R.string.extraction_prepare_off_target)
                     BrewPreparation.State.CANCELLING -> getString(R.string.extraction_prepare_cancelling)
                     BrewPreparation.State.CANCEL_WRITTEN -> getString(R.string.extraction_prepare_cancel_written)
