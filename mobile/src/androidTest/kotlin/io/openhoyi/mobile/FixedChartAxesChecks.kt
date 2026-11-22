@@ -30,7 +30,7 @@ internal class FixedChartAxesChecks(private val test: Instrumentation) {
                     }
                     val density = context.resources.displayMetrics.density
                     val width = (widthDp * density).toInt()
-                    val height = chart.liveHeightForPlotAspect(width, .6f).coerceAtLeast(chart.minimumLiveHeight())
+                    val height = chart.liveHeightForPlotAspect(width, .6f).coerceAtLeast(chart.minimumLiveHeight(width))
                     chart.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
                     chart.layout(0, 0, width, height)

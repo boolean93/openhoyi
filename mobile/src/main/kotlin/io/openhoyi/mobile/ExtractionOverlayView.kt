@@ -152,6 +152,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         seriesPreferences.edit().putStringSet("visible", next.map { it.name }.toSet()).apply()
         if (selected !in next) selected = null
         updateSelection()
+        requestLayout() // The live name/unit pairs may occupy a different number of bands.
         plot.invalidate()
         updateDescription()
         return true
@@ -405,7 +406,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
         return fixedAxisNotice.measuredHeight
     }
-    fun minimumLiveHeight(): Int = liveHeaderHeightPx + fixedAxisNoticeHeight() + (productRenderer?.minimumHeightForPlot(160f) ?: dp(220f).toInt())
+    fun minimumLiveHeight(width: Int): Int = liveHeaderHeightPx + fixedAxisNoticeHeight(width) + (productRenderer?.let {
+        it.minimumHeightForPlot(160f) + ceil(it.liveCaptionExtra(width, displayedData(data), focusMetric)).toInt()
+    } ?: dp(220f).toInt())
     /** Reparents the same interactive metric controls, preserving telemetry and accessibility. */
     fun attachLiveReadouts(parent: LinearLayout) {
         check(liveCompactChrome)
@@ -513,7 +516,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
         if (standalonePlotMinimumDp != null) header.measure(widthMeasureSpec,
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-        val plotMinimum = standaloneMinimumPlotHeight(MeasureSpec.getSize(widthMeasureSpec)) ?: plot.minimumAxisHeight()
+        val plotMinimum = standaloneMinimumPlotHeight(MeasureSpec.getSize(widthMeasureSpec)) ?: plot.minimumAxisHeight(MeasureSpec.getSize(widthMeasureSpec))
         val headerMinimum = standaloneHeaderMinimumHeightPx ?: dp(48f).toInt()
         val noticeHeight = fixedAxisNoticeHeight(MeasureSpec.getSize(widthMeasureSpec))
         val compact = height < plotMinimum + headerMinimum + noticeHeight
@@ -565,6 +568,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         previousRanges = target.series.associate { it.metric to it.range }
         previousSteps = target.series.associate { it.metric to it.step }
         if (expanded) lastYExpansionAt = now
+        if (liveChart && displayedData(data).series.size != displayedData(target).series.size) requestLayout()
         // Snap for static contexts, unattached probes, identity/selection changes and the first
         // observation; progress-driven live changes animate.
         val snap = !liveChart || fixedAxes || !isAttachedToWindow || snapAxisOnNextBuild ||
@@ -1145,10 +1149,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val path = Path()
-        fun minimumAxisHeight(): Int {
+        fun minimumAxisHeight(width: Int): Int {
             val fm = labels.fontMetrics
             val dynamic = standalonePlotMinimumHeightPx ?: productRenderer?.let {
-                if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight()
+                if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight(width, displayedData(data), focusMetric)
             } ?: ceil((fm.descent - fm.ascent) * 4.5f + dp(32f)).toInt()
             return if (embeddedHistory) dynamic else maxOf(dynamic, ceil(dp(96f)).toInt())
         }
