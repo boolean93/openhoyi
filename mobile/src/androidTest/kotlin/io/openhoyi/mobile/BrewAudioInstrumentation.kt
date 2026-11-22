@@ -528,6 +528,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceOrdinaryDispatchChecks(this).runV2Settings()
                 ServiceOrdinaryDispatchChecks(this).runV2Passive()
                 ServiceOrdinaryDispatchChecks(this).runV2Boiler()
+                ServiceOrdinaryDispatchChecks(this).runV2Split()
+                ServiceOrdinaryDispatchChecks(this).runV2SplitRecovery()
                 ServiceStandaloneTareDispatchChecks(this).run()
                 ServiceStandaloneTareDispatchChecks(this).runPersistence()
                 ServiceShotDispatchChecks(this).run()

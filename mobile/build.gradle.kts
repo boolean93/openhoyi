@@ -103,6 +103,10 @@ val bleSameIdQa = providers.gradleProperty("hoyiBleSameIdQa").orNull?.let {
 if (bleSameIdQa && (!bleV2Delivery || updateChecks || optimizeMock || mockOptimizationControl)) {
     throw GradleException("Same-ID BLE QA requires V2 and a plain standalone Mock build")
 }
+val bleV2SplitAdmission = providers.gradleProperty("hoyiBleV2SplitAdmission").orNull?.let {
+    when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiBleV2SplitAdmission must be true or false") }
+} ?: false
+if (bleV2SplitAdmission && !bleV2Delivery) throw GradleException("Split admission requires the local V2 mode")
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
@@ -111,6 +115,7 @@ android {
         applicationId = "io.openhoyi.mobile"
         buildConfigField("boolean", "BLE_V2_DELIVERY", "false")
         buildConfigField("boolean", "BLE_SAME_ID_QA", "false")
+        buildConfigField("boolean", "BLE_V2_SPLIT_ADMISSION", "false")
         minSdk = 26
         targetSdk = 35
         // Filter transitive AndroidX locales as well as application translations.
@@ -132,6 +137,7 @@ android {
         getByName("debug") {
             buildConfigField("boolean", "MOCK_MODE", "false")
             buildConfigField("boolean", "BLE_V2_DELIVERY", bleV2Delivery.toString())
+            buildConfigField("boolean", "BLE_V2_SPLIT_ADMISSION", bleV2SplitAdmission.toString())
         }
         getByName("release") {
             buildConfigField("boolean", "MOCK_MODE", "false")
@@ -142,6 +148,7 @@ android {
             applicationIdSuffix = ".mock"
             buildConfigField("boolean", "BLE_V2_DELIVERY", "false")
             buildConfigField("boolean", "BLE_SAME_ID_QA", bleSameIdQa.toString())
+            buildConfigField("boolean", "BLE_V2_SPLIT_ADMISSION", "false")
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "MOCK_MODE", "true")
             if (mockOptimizationControl) {

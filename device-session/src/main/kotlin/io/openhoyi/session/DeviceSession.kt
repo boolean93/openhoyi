@@ -1030,6 +1030,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         return true
     }
     private fun canBeginSleepWrite(expected:WeeklySleepSchedule):Boolean = canControlFromIdle() &&
+        (!trackCoffeeDelivery || currentWeeklyActivationBaseline()==expected.days) &&
         SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock()) &&
         WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == expected.days
     private fun firstSleepMatches(plan:WeeklySleepSchedule):Boolean {

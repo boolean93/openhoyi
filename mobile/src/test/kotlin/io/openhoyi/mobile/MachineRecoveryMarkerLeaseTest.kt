@@ -124,4 +124,63 @@ class MachineRecoveryMarkerLeaseTest {
             assertTrue(MachineRecoveryMarkerLease.withLegacyWrite(separatePath) { true })
         }
     }
+
+    @Test fun pinnedServiceWriterSurvivesLegacyAndSplitContendersAndStaleInstances() {
+        val root=Files.createTempDirectory("openhoyi-pinned-machine").toFile()
+        val marker=File(root,"pending_machine_write.json")
+        try {
+            val record=MachineWriteRecoveryState.Record(MachineWriteRecoveryState.Kind.SETTING,"AA:BB:CC:DD:EE:01")
+            var saved=MachineWriteRecoveryState.Record(null,null)
+            var reads=0; var writes=0
+            val underlying=object:MachineWriteRecoveryState.Storage {
+                override fun read():MachineWriteRecoveryState.Record { reads++;return saved }
+                override fun write(record:MachineWriteRecoveryState.Record):Boolean {
+                    writes++
+                    if(record.pending) marker.writeText("""{"kind":"SETTING","address":"AA:BB:CC:DD:EE:01"}""")
+                    else marker.delete()
+                    saved=record;return true
+                }
+            }
+            val pin=RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),underlying)
+            pin.use {
+                assertEquals(saved,pin.storage.read())
+                assertTrue(pin.storage.write(record))
+                assertNull(MachineRecoveryMarkerLease.tryAcquire(marker))
+                assertFalse(MachineRecoveryMarkerLease.withLegacyWrite(marker) { error("competing writer") })
+                val contested=RecoveryPreferenceStorage.PinnedMachine(null,underlying)
+                assertEquals(MachineWriteRecoveryState.Kind.UNKNOWN,contested.storage.read().kind)
+                assertFalse(contested.storage.write(saved))
+                assertEquals(1,reads)
+                assertEquals(1,writes)
+            }
+            assertEquals(MachineWriteRecoveryState.Kind.UNKNOWN,pin.storage.read().kind)
+            assertFalse(pin.storage.write(MachineWriteRecoveryState.Record(null,null)))
+            RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),underlying).use { resumed ->
+                assertEquals(record,resumed.storage.read())
+                assertTrue(resumed.storage.write(MachineWriteRecoveryState.Record(null,null)))
+            }
+            assertEquals(2,writes)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun pinnedLegacyNeverOverwritesSplitDowngradeFence() {
+        val root=Files.createTempDirectory("openhoyi-pinned-fence").toFile()
+        val marker=File(root,"pending_machine_write.json")
+        try {
+            val known="""{"kind":"UNKNOWN","address":null,"split":[{"kind":"SCHEDULE","address":"AA:BB:CC:DD:EE:01"}]}"""
+            marker.writeText(known)
+            var changes=0
+            val fence=MachineWriteRecoveryState.Record(MachineWriteRecoveryState.Kind.UNKNOWN,null)
+            val mem=object:MachineWriteRecoveryState.Storage {
+                override fun read()=fence
+                override fun write(record:MachineWriteRecoveryState.Record):Boolean {changes++;return true}
+            }
+            RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),mem).use {
+                assertEquals(fence,it.storage.read())
+                assertFalse(it.storage.write(MachineWriteRecoveryState.Record(null,null)))
+            }
+            assertEquals(0,changes)
+            assertEquals(known,marker.readText())
+        } finally { root.deleteRecursively() }
+    }
 }

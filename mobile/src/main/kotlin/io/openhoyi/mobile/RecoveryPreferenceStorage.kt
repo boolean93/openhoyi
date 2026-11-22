@@ -53,11 +53,112 @@ internal object RecoveryPreferenceStorage {
     internal fun decodeMachineMarker(json: JSONObject): MachineWriteRecoveryState.Record =
         MachineWriteRecoveryState.Record(machineKind(if (json.isNull("kind")) null else json.getString("kind")), json.address())
 
+    private const val MachineMarker="pending_machine_write.json"
+
+    /** Exclusive, process-local service writer; contention is an UNKNOWN fence, not empty state. */
+    internal class PinnedMachine internal constructor(private val lease:MachineRecoveryMarkerLease.Lease?,
+        private val delegate:MachineWriteRecoveryState.Storage?,
+        private val cachedLegacyPending:()->Boolean={true}) : java.io.Closeable {
+        private enum class Phase { LEGACY, LEGACY_READING, LEGACY_WRITING, OPENING_SPLIT, SPLIT, RETIRING_SPLIT, CLOSED }
+        private var phase=Phase.LEGACY
+        private var split:SplitMachineWriteFileStore?=null
+        val held:Boolean get()=lease?.let {it.isOwnerThread && it.held}==true
+        val hasLegacyAuthority:Boolean get()=held && phase==Phase.LEGACY
+        fun legacyShapeTrusted():Boolean = hasLegacyAuthority && lease?.legacyShapeTrusted()==true
+        fun holdsSplit(view:SplitMachineWriteFileStore):Boolean = held && phase==Phase.SPLIT && split===view
+        val storage=object:MachineWriteRecoveryState.Storage {
+            override fun read():MachineWriteRecoveryState.Record {
+                if(!held || phase!=Phase.LEGACY)return fenced()
+                phase=Phase.LEGACY_READING
+                return try { lease?.readWhileHeld { delegate?.read() } ?: fenced() }
+                finally { phase=Phase.LEGACY }
+            }
+            override fun write(record:MachineWriteRecoveryState.Record):Boolean {
+                if(!held || phase!=Phase.LEGACY)return false
+                phase=Phase.LEGACY_WRITING
+                return try { lease?.writeLegacy { delegate?.write(record)==true }==true }
+                finally { phase=Phase.LEGACY }
+            }
+        }
+        private fun fenced()=MachineWriteRecoveryState.Record(MachineWriteRecoveryState.Kind.UNKNOWN,null)
+        /** Irreversible for this owner epoch. Do not mix old writers and a split view. */
+        fun openSplitViewForV2(legacyDispatchIdle:()->Boolean,
+            ops:SplitMachineWriteFileStore.FileOps?=null,restoreOnly:Boolean=false):SplitMachineWriteFileStore? {
+            val owner=lease ?: return null
+            if(!held || phase!=Phase.LEGACY)return null
+            phase=Phase.OPENING_SPLIT
+            try {
+                val verifyEmpty={ !cachedLegacyPending() }
+                if (!runCatching {legacyDispatchIdle() && verifyEmpty()}.getOrDefault(false)) return null
+                // A typed split has no reason to overwrite an unrelated legacy intent cache.
+                val view=if(ops!=null) SplitMachineWriteFileStore.fromPinnedLease(owner,cachedLegacyPending,verifyEmpty,ops)
+                    else SplitMachineWriteFileStore.fromPinnedLease(owner,cachedLegacyPending,verifyEmpty)
+                if(view==null)return null
+                val observed=view.read()
+                val typed=(observed as? io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Pending)?.entries
+                    ?.all { it.target!=null }==true
+                if(observed==io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Blocked || restoreOnly && !typed ||
+                    !restoreOnly && observed!=io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Empty) {
+                    view.close()
+                    return null
+                }
+                split=view
+                phase=Phase.SPLIT
+                return view
+            } finally {
+                if(phase==Phase.OPENING_SPLIT)phase=Phase.LEGACY
+            }
+        }
+        fun retireEmptySplit(view:SplitMachineWriteFileStore):Boolean {
+            if(!holdsSplit(view))return false
+            phase=Phase.RETIRING_SPLIT
+            try {
+                if(!view.retireVerifiedEmpty())return false
+                split=null
+                phase=Phase.LEGACY
+                return true
+            } finally {
+                if(phase==Phase.RETIRING_SPLIT)phase=Phase.SPLIT
+            }
+        }
+        override fun close(){
+            if(lease!=null)check(lease.isOwnerThread) { "Pinned writer must retire on its service owner thread" }
+            if(phase==Phase.CLOSED)return
+            check(phase==Phase.LEGACY || phase==Phase.SPLIT) { "Writer transition is still in progress" }
+            split?.close() // throws while a split CAS is on this stack; retain the lease in that case
+            phase=Phase.CLOSED
+            lease?.close()
+        }
+    }
+
+    fun pinMachine(context:Context):PinnedMachine {
+        val lease=MachineRecoveryMarkerLease.tryAcquire(File(context.noBackupFilesDir,MachineMarker))
+            ?: return PinnedMachine(null,null)
+        return try {
+            val prefs=context.getSharedPreferences("machine_write_safety",Context.MODE_PRIVATE)
+            PinnedMachine(lease,machineBarrier(context,false,lease.marker)) {
+                prefs.getString("pending_kind",null)!=null || prefs.getString("pending_address",null)!=null
+            }
+        } catch (error:Exception) {
+            lease.close()
+            throw error
+        }
+    }
+
     fun machine(context:Context, backgroundTemperature:Boolean=false):MachineWriteRecoveryState.Storage {
+        val markerFile=File(context.noBackupFilesDir,
+            if(backgroundTemperature) "pending_temperature_confirmation.json" else MachineMarker)
+        val barrier=machineBarrier(context,backgroundTemperature,markerFile)
+        return if(backgroundTemperature) barrier else object:MachineWriteRecoveryState.Storage {
+            override fun read()=barrier.read()
+            override fun write(record:MachineWriteRecoveryState.Record) =
+                MachineRecoveryMarkerLease.withLegacyWrite(markerFile) { barrier.write(record) }
+        }
+    }
+
+    private fun machineBarrier(context:Context,backgroundTemperature:Boolean,markerFile:File):MachineWriteRecoveryState.Storage {
         val namespace=if(backgroundTemperature) "temperature_confirmation" else "machine_write_safety"
-        val marker=if(backgroundTemperature) "pending_temperature_confirmation.json" else "pending_machine_write.json"
         val prefs=context.getSharedPreferences(namespace,Context.MODE_PRIVATE)
-        val markerFile=File(context.noBackupFilesDir,marker)
         val pending:(MachineWriteRecoveryState.Record)->Boolean={ it.pending || it.address!=null }
         val barrier=RecoveryPersistenceBarrier(object:RecoveryPersistenceBarrier.RecordStorage<MachineWriteRecoveryState.Record> {
             override fun read()=MachineWriteRecoveryState.Record(machineKind(prefs.getString("pending_kind",null)),prefs.getString("pending_address",null))
@@ -68,8 +169,7 @@ internal object RecoveryPreferenceStorage {
             ::decodeMachineMarker,pending),pending)
         return object:MachineWriteRecoveryState.Storage {
             override fun read()=barrier.read()
-            override fun write(record:MachineWriteRecoveryState.Record) = if (backgroundTemperature) barrier.write(record)
-            else MachineRecoveryMarkerLease.withLegacyWrite(markerFile) { barrier.write(record) }
+            override fun write(record:MachineWriteRecoveryState.Record) = barrier.write(record)
         }
     }
 }
