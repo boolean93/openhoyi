@@ -727,20 +727,42 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         doc.scroll.paddingBottom).coerceAtLeast(0)
                     // ScrollView clamps using viewport + requestedY; MAX_VALUE overflows there.
                     doc.scroll.scrollTo(0, limit)
-                    check(doc.scroll.scrollY == limit && !doc.scroll.canScrollVertically(1) &&
-                        button(SettingsCategory.MAINTENANCE).isSelected) {
-                        "Expected true end $limit, got ${doc.scroll.scrollY}"
-                    }
                     limit
                 }
+                fun inspectEnd(sample: String): Boolean {
+                    val doc = settings()
+                    val y = doc.scroll.scrollY
+                    val canScrollDown = doc.scroll.canScrollVertically(1)
+                    val selected = SettingsCategory.entries.firstOrNull { button(it).isSelected }
+                    val finalAction = doc.findViewWithTag<View>("product/settings/app/curve-import-guide")
+                    val finalRect = Rect()
+                    val finalFullyVisible = finalAction.isShown && finalAction.getGlobalVisibleRect(finalRect) &&
+                        finalRect.height() == finalAction.height && finalRect.width() == finalAction.width
+                    landingDebug.put("trueEnd/$sample", JSONObject().put("expected", end).put("y", y)
+                        .put("canScrollDown", canScrollDown).put("selected", selected?.key)
+                        .put("finalActionFullyVisible", finalFullyVisible))
+                    File(out, "landing-debug.json").writeText(landingDebug.toString(2))
+                    check(y == end) { "Programmatic end drifted ($sample): ${landingDebug.optJSONObject("trueEnd/$sample")}" }
+                    return !canScrollDown && selected == SettingsCategory.MAINTENANCE && finalFullyVisible
+                }
+                var atEnd = main { inspectEnd("initial") }
+                // A programmatic scroll and a width-driven layout traversal can occur in the
+                // same frame. Both snapshots must remain physically pinned within that frame.
+                repeat(2) { index ->
+                    if (!atEnd) {
+                        val frame = CountDownLatch(1)
+                        main { settings().scroll.postOnAnimation { frame.countDown() } }
+                        check(frame.await(1, TimeUnit.SECONDS))
+                        atEnd = main { inspectEnd("frame-${index + 1}") }
+                    }
+                }
+                check(atEnd) { "Expected last action, Maintenance highlight, and true pinned end: $landingDebug" }
                 dragUp(viewport)
                 await("end remains pinned after upward motion") {
                     settings().scroll.scrollY == end && !settings().scroll.canScrollVertically(1) &&
                         button(SettingsCategory.MAINTENANCE).isSelected
                 }
-                main { check(settings().scroll.scrollY == end && button(SettingsCategory.MAINTENANCE).isSelected) {
-                    "End boundary moved from $end to ${settings().scroll.scrollY}"
-                } }
+                main { check(inspectEnd("after-touch")) { "Dragged end not pinned: $landingDebug" } }
                 if (!short) {
                     val fragment = main { page.active("root:SETTINGS") as AppSettingsFragment }
                     main { fragment.openSection("appearance") }
