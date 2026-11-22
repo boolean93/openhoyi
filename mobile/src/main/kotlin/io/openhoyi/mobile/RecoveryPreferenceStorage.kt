@@ -57,23 +57,69 @@ internal object RecoveryPreferenceStorage {
 
     /** Exclusive, process-local service writer; contention is an UNKNOWN fence, not empty state. */
     internal class PinnedMachine internal constructor(private val lease:MachineRecoveryMarkerLease.Lease?,
-        private val delegate:MachineWriteRecoveryState.Storage?) : java.io.Closeable {
-        val held:Boolean get()=lease?.held==true
+        private val delegate:MachineWriteRecoveryState.Storage?,
+        private val cachedLegacyPending:()->Boolean={true}) : java.io.Closeable {
+        private enum class Phase { LEGACY, LEGACY_READING, LEGACY_WRITING, OPENING_SPLIT, SPLIT, CLOSED }
+        private var phase=Phase.LEGACY
+        private var split:SplitMachineWriteFileStore?=null
+        val held:Boolean get()=lease?.let {it.isOwnerThread && it.held}==true
         val storage=object:MachineWriteRecoveryState.Storage {
-            override fun read():MachineWriteRecoveryState.Record =
-                lease?.readWhileHeld { delegate?.read() } ?: fenced()
-            override fun write(record:MachineWriteRecoveryState.Record):Boolean =
-                lease?.writeLegacy { delegate?.write(record)==true }==true
+            override fun read():MachineWriteRecoveryState.Record {
+                if(!held || phase!=Phase.LEGACY)return fenced()
+                phase=Phase.LEGACY_READING
+                return try { lease?.readWhileHeld { delegate?.read() } ?: fenced() }
+                finally { phase=Phase.LEGACY }
+            }
+            override fun write(record:MachineWriteRecoveryState.Record):Boolean {
+                if(!held || phase!=Phase.LEGACY)return false
+                phase=Phase.LEGACY_WRITING
+                return try { lease?.writeLegacy { delegate?.write(record)==true }==true }
+                finally { phase=Phase.LEGACY }
+            }
         }
         private fun fenced()=MachineWriteRecoveryState.Record(MachineWriteRecoveryState.Kind.UNKNOWN,null)
-        override fun close(){lease?.close()}
+        /** Irreversible for this owner epoch. Do not mix old writers and a split view. */
+        fun openSplitViewForV2(legacyDispatchIdle:()->Boolean,
+            ops:SplitMachineWriteFileStore.FileOps?=null):SplitMachineWriteFileStore? {
+            val owner=lease ?: return null
+            if(!held || phase!=Phase.LEGACY)return null
+            phase=Phase.OPENING_SPLIT
+            try {
+                val verifyEmpty={ !cachedLegacyPending() }
+                if (!runCatching {legacyDispatchIdle() && verifyEmpty()}.getOrDefault(false)) return null
+                // A typed split has no reason to overwrite an unrelated legacy intent cache.
+                val view=if(ops!=null) SplitMachineWriteFileStore.fromPinnedLease(owner,cachedLegacyPending,verifyEmpty,ops)
+                    else SplitMachineWriteFileStore.fromPinnedLease(owner,cachedLegacyPending,verifyEmpty)
+                if(view==null)return null
+                if(view.read()==io.openhoyi.session.SplitMachineWriteJournal.Snapshot.Blocked) {
+                    view.close()
+                    return null
+                }
+                split=view
+                phase=Phase.SPLIT
+                return view
+            } finally {
+                if(phase==Phase.OPENING_SPLIT)phase=Phase.LEGACY
+            }
+        }
+        override fun close(){
+            if(lease!=null)check(lease.isOwnerThread) { "Pinned writer must retire on its service owner thread" }
+            if(phase==Phase.CLOSED)return
+            check(phase==Phase.LEGACY || phase==Phase.SPLIT) { "Writer transition is still in progress" }
+            split?.close() // throws while a split CAS is on this stack; retain the lease in that case
+            phase=Phase.CLOSED
+            lease?.close()
+        }
     }
 
     fun pinMachine(context:Context):PinnedMachine {
         val lease=MachineRecoveryMarkerLease.tryAcquire(File(context.noBackupFilesDir,MachineMarker))
             ?: return PinnedMachine(null,null)
         return try {
-            PinnedMachine(lease,machineBarrier(context,false,lease.marker))
+            val prefs=context.getSharedPreferences("machine_write_safety",Context.MODE_PRIVATE)
+            PinnedMachine(lease,machineBarrier(context,false,lease.marker)) {
+                prefs.getString("pending_kind",null)!=null || prefs.getString("pending_address",null)!=null
+            }
         } catch (error:Exception) {
             lease.close()
             throw error

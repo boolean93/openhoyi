@@ -14,6 +14,8 @@ internal object MachineRecoveryMarkerLease {
 
     internal class Lease internal constructor(val marker: File, private val release: () -> Unit) : Closeable {
         private var closed = false
+        private val creator=Thread.currentThread()
+        val isOwnerThread:Boolean get()=Thread.currentThread()===creator
         val held:Boolean @Synchronized get()=!closed
         @Synchronized fun <T> readWhileHeld(read:()->T):T? = if(closed) null else read()
         @Synchronized fun writeLegacy(write:()->Boolean):Boolean =
