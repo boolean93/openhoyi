@@ -1117,4 +1117,6 @@
     <string name="extraction_shortcuts_unavailable_name">%1$s（不可用）</string>
     <string name="extraction_shortcuts_choice">%1$s · %2$s</string>
     <string name="extraction_shortcuts_busy">正在萃取或准备，请结束后再切换快捷槽位。</string>
+    <string name="home_boiler_schedule_writing">正在写入睡眠计划</string>
+    <string name="home_boiler_schedule_readback">等待机器确认睡眠计划</string>
 </resources>

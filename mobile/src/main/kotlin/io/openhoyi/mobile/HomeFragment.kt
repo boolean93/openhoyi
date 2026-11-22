@@ -729,7 +729,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             if (recovery) {
                 owner.refreshUnknownBoilerSettings()?.let(::toast)
             } else {
-                if (!MachineSettingsEditGate.allowed(owner)) return
+                val admission = BoilerHeatingAdmission.evaluate(owner)
+                if (!admission.canSubmit) {
+                    admission.reason?.let { toast(getString(it)) }
+                    return
+                }
                 owner.changeMachineSetting(change)?.let(::toast)
             }
         } finally {
@@ -872,7 +876,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         steamBoilerPressure.showBoilerPressure(readings.steamPressure)
         brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.brewTarget?.let { "${it} °C" } ?: "—"))
         steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.steamTarget?.let { "${it} °C" } ?: "—"))
-        val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
+        val heatingAdmission = BoilerHeatingAdmission.evaluate(owner, s, now)
+        val boilerEditable = heatingAdmission.canSubmit && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
         brewBoilerToggle.isEnabled = boilerEditable && !brewRecovery
@@ -892,7 +897,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             fun project(toggle: HoyiSwitch, brew: Boolean, checked: Boolean?) {
                 val label = HomeBoilerSwitchPresentation.label(brew, checked,
                     owner?.pendingSetting, owner?.settingWriteState, owner?.boilerSettingsRecoveryBusy==true,
-                    owner?.boilerReadbackReconnecting==true, preheatOccupied)
+                    owner?.boilerReadbackReconnecting==true, preheatOccupied,
+                    heatingAdmission.reason.takeUnless { BuildConfig.MOCK_MODE })
                 val state = getString(label)
                 boilerExceptions[toggle]?.let { status ->
                     val exceptional = HomeBoilerSwitchPresentation.showInline(label)

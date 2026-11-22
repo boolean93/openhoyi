@@ -35,7 +35,7 @@ internal object HomeBoilerSwitchPresentation {
         else -> true
     }
 
-    fun label(brew:Boolean,reportedEnabled:Boolean?,pending:MachineSettingChange?,state:SettingsWriteTracker.State?,recovering:Boolean=false,reconnecting:Boolean=false,preheatOccupied:Boolean=false):Int {
+    fun label(brew:Boolean,reportedEnabled:Boolean?,pending:MachineSettingChange?,state:SettingsWriteTracker.State?,recovering:Boolean=false,reconnecting:Boolean=false,preheatOccupied:Boolean=false, admissionReason:Int?=null):Int {
         val target = target(brew, pending)
         if(target!=null) {
             if(reconnecting)return R.string.home_boiler_reconnecting
@@ -46,6 +46,7 @@ internal object HomeBoilerSwitchPresentation {
             if(state==SettingsWriteTracker.State.FAILED)return R.string.home_setting_failed
         }
         if(preheatOccupied)return R.string.home_boiler_preheat_occupied
+        if(admissionReason!=null)return admissionReason
         if(target!=null && state==SettingsWriteTracker.State.RECONCILED)
             return if(target) R.string.home_boiler_retry_on else R.string.home_boiler_retry_off
         return if(reportedEnabled==true) R.string.setting_off else R.string.setting_on

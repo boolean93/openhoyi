@@ -1089,4 +1089,6 @@
     <string name="update_title">"Develop test builds"</string>
     <string name="update_verifying">"Verifying the installation package…"</string>
     <string name="update_view_release">"View release page"</string>
+    <string name="home_boiler_schedule_writing">Writing sleep schedule</string>
+    <string name="home_boiler_schedule_readback">Waiting for sleep schedule confirmation</string>
 </resources>
