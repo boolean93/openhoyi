@@ -74,6 +74,7 @@ data class MobileSnapshot(
     val candidates: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
     val nearbyScanPhase: NearbyScanPhase = NearbyScanPhase.IDLE,
+    val nearbyScanGeneration: Long = 0L,
     val nearbyScanFailure: SnapshotMessage? = null,
     val message: SnapshotMessage? = null,
     /** Display-only reason for the last coffee FAILED state; never a control permit. */
@@ -368,7 +369,7 @@ class MobileService : Service() {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,
             scanning = previous.scanning, nearbyScanPhase = previous.nearbyScanPhase,
-            nearbyScanFailure = previous.nearbyScanFailure, message = previous.message)
+            nearbyScanFailure = previous.nearbyScanFailure, nearbyScanGeneration = previous.nearbyScanGeneration, message = previous.message)
         if (mockScaleVisualInput.isInstalled) {
             applyScaleVisualInput() // Injected visual input ticks never create observations.
         } else {
@@ -998,13 +999,25 @@ class MobileService : Service() {
             handler.postDelayed(leaveForeground, 500)
         }
     }
+    private val mockNearbyCoffee = "02:00:00:00:00:01"
+    private val mockNearbyScale = "02:00:00:00:00:02"
+    internal fun readyNearbyAddress(role: DeviceRole): String? =
+        if (mock != null) when (role) {
+            DeviceRole.COFFEE -> mockNearbyCoffee.takeIf { snapshot.coffeeState == DeviceState.READY }
+            DeviceRole.BOOKOO -> mockNearbyScale.takeIf { snapshot.scaleState == DeviceState.READY }
+        } else when (role) {
+            DeviceRole.COFFEE -> hub?.coffeeAddress
+            DeviceRole.BOOKOO -> hub?.scaleAddress
+        }
+
     fun scan() {
         if (mock != null) {
             snapshot = snapshot.copy(candidates = listOf(
-                DiscoveredDevice("02:00:00:00:00:01", "HOYI Mock", -42, DeviceRole.COFFEE),
-                DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO,
+                DiscoveredDevice(mockNearbyCoffee, "HOYI Mock", -42, DeviceRole.COFFEE),
+                DiscoveredDevice(mockNearbyScale, "BOOKOO Mock", -45, DeviceRole.BOOKOO,
                     io.openhoyi.session.BookooScaleProtocolAdapter.id)),
-                scanning = false, nearbyScanPhase = NearbyScanPhase.COMPLETE)
+                scanning = false, nearbyScanPhase = NearbyScanPhase.COMPLETE, nearbyScanFailure = null,
+                nearbyScanGeneration = snapshot.nearbyScanGeneration + 1)
             event(ResourceMessage(R.string.service_scan_mock), "mock.scan")
             return
         }
@@ -1013,6 +1026,7 @@ class MobileService : Service() {
         beginDeviceSelection()
         if (snapshot.scanning) return
         snapshot = snapshot.copy(scanning = true, nearbyScanPhase = NearbyScanPhase.IDLE, nearbyScanFailure = null,
+            nearbyScanGeneration = snapshot.nearbyScanGeneration + 1,
             candidates = emptyList(), message = resolvedMessage(ResourceMessage(R.string.service_scanning)))
         Log.i(TAG, "scan start")
         current.scanner.start(onDevice = { candidate ->

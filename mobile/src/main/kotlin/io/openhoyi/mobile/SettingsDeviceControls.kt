@@ -18,6 +18,27 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     private data class Placement(val parent: android.view.ViewGroup, val index: Int,
         val params: android.view.ViewGroup.LayoutParams)
     private var tablet = false
+    private var scanStartedAfter: Long? = null
+    private var candidateFeedback: SnapshotMessage? = null
+    private fun reportCandidateOutcome(operation: () -> Unit) {
+        if (!tablet) { operation(); return }
+        val before = owner?.snapshot?.message
+        candidateFeedback = null
+        operation()
+        candidateFeedback = owner?.snapshot?.message?.takeIf { it !== before }
+        render(owner)
+    }
+    private fun candidateIsAvailable(role: DeviceRole, address: String, snapshot: MobileSnapshot?): Boolean {
+        val state = if (role == DeviceRole.COFFEE) snapshot?.coffeeState else snapshot?.scaleState
+        if (state != null && TaskShellDeviceStatus.connecting(state)) return false
+        return !address.equals(owner?.readyNearbyAddress(role), ignoreCase = true)
+    }
+    private fun markTabletScanIntent() {
+        if (tablet) {
+            scanStartedAfter = owner?.snapshot?.nearbyScanGeneration ?: 0L
+            candidateFeedback = null
+        }
+    }
     private val cards = mutableMapOf<DeviceRole, LinearLayout>()
     private val roleWords = mutableMapOf<DeviceRole, LinearLayout>()
     private val roleActions = mutableMapOf<DeviceRole, SettingsWrappingActions>()
@@ -124,7 +145,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             }.apply {visual.action(this,outline=true);tag="product/devices/coffee/retry"}
             val linked = linkedActions.getOrPut(role) { mutableListOf() }
             if (role != DeviceRole.COFFEE) scaleConnect = HoyiUi.button(host, buttons, host.getString(R.string.home_connect)) {
-                owner?.beginDeviceSelection(); selection.showRole(role); rendered = ""; render(owner)
+                markTabletScanIntent(); owner?.beginDeviceSelection(); selection.showRole(role); rendered = ""; render(owner)
                 resumeScan()
                 revealScan()
             }.apply { visual.action(this); tag = "settings/devices/scale/connect" }
@@ -184,7 +205,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     fun error(value:String) {errorChanged(true);localError=value;if(::message.isInitialized)message.text=value}
     /** The shared scan action always shows both device types, including after a scoped change. */
     fun scan() {
-        selection.showAll();rendered="";render(owner)
+        markTabletScanIntent(); selection.showAll();rendered="";render(owner)
         resumeScan()
     }
     /** Permission/Bluetooth callbacks resume the current intent, not a new unfiltered search. */
@@ -212,11 +233,19 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         owner=service
         if(!::message.isInitialized)return
         disconnectActions.forEach {it.isEnabled=connectedActionAllowed()}
+        val currentScan = scanStartedAfter?.let { after -> snapshot != null && snapshot.nearbyScanGeneration > after } == true
+        val visibleCandidates = if (tablet) snapshot?.candidates.orEmpty().filter {
+            currentScan && localError == null &&
+                (snapshot?.scanning == true || snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE) &&
+                candidateIsAvailable(it.candidateRole, it.address, snapshot)
+        } else snapshot?.candidates.orEmpty()
+        val values=visibleCandidates.filter {selection.includes(it.candidateRole)}.sortedBy {it.candidateRole.name}
+        val anyConnecting = listOfNotNull(snapshot?.coffeeState, snapshot?.scaleState).any(TaskShellDeviceStatus::connecting)
         scanButton?.apply {
             val scanning = snapshot?.scanning == true
             val caption = host.getString(when {
                 scanning -> R.string.settings_hig_scanning
-                tablet && snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE -> R.string.settings_device_scan_again
+                tablet && currentScan && snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE -> R.string.settings_device_scan_again
                 else -> R.string.home_scan
             })
             tag = "settings/devices/scan-button"
@@ -266,15 +295,14 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         }
         val display = localError ?: if (tablet) when {
             snapshot?.scanning == true -> host.getString(R.string.settings_device_nearby_hint)
-            snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE && snapshot.candidates.isEmpty() ->
+            candidateFeedback != null -> candidateFeedback?.render { id,args -> host.getString(id,*args) }.orEmpty()
+            currentScan && snapshot?.nearbyScanPhase == NearbyScanPhase.COMPLETE && values.isEmpty() && !anyConnecting ->
                 host.getString(R.string.settings_device_nearby_empty)
-            snapshot?.nearbyScanPhase == NearbyScanPhase.FAILED -> snapshot.nearbyScanFailure?.render { id,args -> host.getString(id,*args) }.orEmpty()
+            currentScan && snapshot?.nearbyScanPhase == NearbyScanPhase.FAILED -> snapshot.nearbyScanFailure?.render { id,args -> host.getString(id,*args) }.orEmpty()
             else -> ""
         } else snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()
         if(message.text.toString()!=display)message.text=display
         message.visibility=if(message.text.isNullOrEmpty())View.GONE else View.VISIBLE
-        val visibleCandidates = if (tablet && localError != null) emptyList() else snapshot?.candidates.orEmpty()
-        val values=visibleCandidates.filter {selection.includes(it.candidateRole)}.sortedBy {it.candidateRole.name}
         val key=values.toString()+allowed()
         if(key==rendered)return
         rendered=key;candidates.removeAllViews()
@@ -301,11 +329,19 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             }
             val connect=HoyiUi.button(host,LinearLayout(host),host.getString(R.string.home_connect)) {
                 if(!connectedActionAllowed()){error(host.getString(R.string.scale_active_guard));return@button}
+                if(tablet && !candidateIsAvailable(candidate.candidateRole, candidate.address, owner?.snapshot)) {
+                    rendered="";render(owner);return@button
+                }
                 localError=null
-                if(candidate.candidateRole==DeviceRole.BOOKOO) {
-                    (candidate.scaleProtocolId ?: if(BuildConfig.MOCK_MODE)io.openhoyi.session.BookooScaleProtocolAdapter.id else null)?.let {owner?.connectScale(candidate.address,it)}
-                } else if(owner?.connectRememberedCoffee(candidate.address)==RememberedCoffeeConnection.PASSWORD_REQUIRED) {
-                    showPassword(candidate.address)
+                reportCandidateOutcome {
+                    if(candidate.candidateRole==DeviceRole.BOOKOO) {
+                        val protocol = candidate.scaleProtocolId ?: if(BuildConfig.MOCK_MODE)
+                            io.openhoyi.session.BookooScaleProtocolAdapter.id else null
+                        if (protocol != null) owner?.connectScale(candidate.address, protocol)
+                        else if (tablet) error(host.getString(R.string.scale_protocol_unsupported))
+                    } else if(owner?.connectRememberedCoffee(candidate.address)==RememberedCoffeeConnection.PASSWORD_REQUIRED) {
+                        showPassword(candidate.address)
+                    }
                 }
             }.apply {visual.action(this,outline=true);isEnabled=connectedActionAllowed();tag="product/devices/candidate/${candidate.address}/connect"}
             (connect.parent as android.view.ViewGroup).removeView(connect)
@@ -318,8 +354,9 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                         PopupMenu(host, button).apply {
                             menu.add(R.string.home_connect_with_password)
                             setOnMenuItemClickListener {
-                                if (connectedActionAllowed()) showPassword(candidate.address)
-                                else error(host.getString(R.string.scale_active_guard))
+                                if (connectedActionAllowed() && candidateIsAvailable(candidate.candidateRole, candidate.address, owner?.snapshot))
+                                    showPassword(candidate.address)
+                                else if (!connectedActionAllowed()) error(host.getString(R.string.scale_active_guard))
                                 true
                             }
                         }.show()
@@ -347,7 +384,13 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 window.setOnShowListener {window.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                     val password=input.text.toString()
                     if(!password.matches(Regex("[0-9]{6}")))input.error=host.getString(R.string.home_password_error)
-                    else if(connectedActionAllowed()){owner?.connectCoffee(address,password);window.dismiss()}
+                    else if(connectedActionAllowed()){
+                        if (tablet && !candidateIsAvailable(DeviceRole.COFFEE, address, owner?.snapshot)) {
+                            window.dismiss();render(owner);return@setOnClickListener
+                        }
+                        reportCandidateOutcome { owner?.connectCoffee(address,password) }
+                        window.dismiss()
+                    }
                 }}
                 window.setOnDismissListener {input.text.clear()};AppDialog.show(window)
             }

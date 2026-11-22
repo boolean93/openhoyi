@@ -178,39 +178,55 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         check(controls.map { it.top }.distinct().size > 1 &&
                             controls.all { it.width >= min && it.height >= min && it.left >= 0 && it.right <= narrowWidth })
                         scaleActions.requestLayout()
-                        val live = checkNotNull(activity.currentService?.snapshot)
-                        fragment.renderMockNearby(live.copy(scanning = true, nearbyScanPhase = NearbyScanPhase.IDLE,
+                        val owner = checkNotNull(activity.currentService)
+                        val old = owner.snapshot
+                        val cRole = io.openhoyi.session.DeviceRole.COFFEE
+                        val sRole = io.openhoyi.session.DeviceRole.BOOKOO
+                        val alternative = "02:00:00:00:CA:23"
+                        val badScale = "02:00:00:00:CA:24"
+                        val injected = listOf(
+                            io.openhoyi.bluetooth.DiscoveredDevice("02:00:00:00:CA:22", "New Mock Coffee", -42, cRole),
+                            io.openhoyi.bluetooth.DiscoveredDevice(alternative, "New Mock Scale", -45, sRole,
+                                io.openhoyi.session.BookooScaleProtocolAdapter.id),
+                            io.openhoyi.bluetooth.DiscoveredDevice(badScale, "Unsupported Mock Scale", -45, sRole, "unsupported-fixture"))
+                        // List from before this screen's scan may not appear or be called "empty".
+                        fragment.renderMockNearby(old.copy(nearbyScanPhase = NearbyScanPhase.COMPLETE, candidates = injected))
+                        check(candidates().childCount == 0 && !caption().isShown)
+                        check(scan().performClick()) // unchanged scan control activates the actual Mock service
+                        val scanned = owner.snapshot
+                        check(scanned.nearbyScanGeneration > old.nearbyScanGeneration)
+                        fragment.renderMockNearby(scanned.copy(scanning = true, nearbyScanPhase = NearbyScanPhase.IDLE,
                             candidates = emptyList()))
                         check(!scan().isEnabled && settings().findViewWithTag<View>("settings/devices/scan-progress").isShown)
                         check(candidates().childCount == 0 && caption().text.toString() == activity.getString(R.string.settings_device_nearby_hint))
                         val mockError = activity.getString(R.string.home_permission_expired)
-                        fragment.renderMockNearby(live.copy(scanning = false, nearbyScanPhase = NearbyScanPhase.FAILED,
-                            nearbyScanFailure = SnapshotMessage.raw(mockError), candidates = emptyList()))
-                        check(caption().text.toString() == mockError && scan().isEnabled)
-                        fragment.renderMockNearby(live.copy(scanning = false, nearbyScanPhase = NearbyScanPhase.COMPLETE,
-                            nearbyScanFailure = null, candidates = emptyList()))
-                        check(caption().text.toString() == activity.getString(R.string.settings_device_nearby_empty) &&
-                            scan().text == activity.getString(R.string.settings_device_scan_again))
-                        check(scan().performClick()) // The original scan button drives the original Mock service action.
-                        fragment.renderMockNearby(null)
-                    }
-                    await("grouped Mock coffee and scale results") {
-                        candidates().findViewWithTag<View>("settings/devices/candidate-group/COFFEE")?.isShown == true &&
-                            candidates().findViewWithTag<View>("settings/devices/candidate-group/BOOKOO")?.isShown == true
-                    }
-                    main {
-                        val scaleAddress = checkNotNull(activity.currentService?.snapshot?.candidates
-                            ?.firstOrNull { it.candidateRole == io.openhoyi.session.DeviceRole.BOOKOO }).address
-                        val connect = candidates().findViewWithTag<Button>("product/devices/candidate/$scaleAddress/connect")
-                        check(connect.isShown && connect.isEnabled && connect.performClick())
-                    }
-                    await("original Mock scale connection route") {
-                        activity.currentService?.snapshot?.messageForDisplay { id, args -> activity.getString(id, *args) } ==
-                            activity.getString(R.string.service_scale_mock)
+                        fragment.renderMockNearby(scanned.copy(scanning = false, nearbyScanPhase = NearbyScanPhase.FAILED,
+                            nearbyScanFailure = SnapshotMessage.raw(mockError), candidates = injected))
+                        check(candidates().childCount == 0 && caption().text.toString() == mockError && scan().isEnabled)
+                        fragment.renderMockNearby(scanned)
+                        check(candidates().childCount == 0 && caption().text.toString() ==
+                            activity.getString(R.string.settings_device_nearby_empty))
+                        check(scan().text == activity.getString(R.string.settings_device_scan_again) && scan().performClick())
+                        val rescanned = owner.snapshot
+                        check(rescanned.nearbyScanGeneration > scanned.nearbyScanGeneration)
+                        fragment.renderMockNearby(rescanned.copy(scaleState = io.openhoyi.session.DeviceState.CONNECTING,
+                            candidates = rescanned.candidates + injected))
+                        check(candidates().findViewWithTag<View>("settings/devices/candidate-group/BOOKOO") == null)
+                        fragment.renderMockNearby(rescanned.copy(candidates = rescanned.candidates + injected))
+                        check(candidates().findViewWithTag<View>("settings/devices/candidate-group/COFFEE")?.isShown == true &&
+                            candidates().findViewWithTag<View>("settings/devices/candidate-group/BOOKOO")?.isShown == true &&
+                            rescanned.candidates.all { candidates().findViewWithTag<View>(
+                                "product/devices/candidate/${it.address}/connect") == null })
+                        check(candidates().findViewWithTag<Button>("product/devices/candidate/$badScale/connect").performClick())
+                        check(caption().text.toString() == activity.getString(R.string.scale_protocol_unsupported))
+                        fragment.renderMockNearby(rescanned.copy(candidates = injected))
+                        check(candidates().findViewWithTag<Button>("product/devices/candidate/$alternative/connect").performClick())
+                        check(caption().text.toString() == activity.getString(R.string.service_scale_mock))
                     }
                     receipts.put("deviceCompact", JSONObject().put("singleTwoRowSurface", true)
                         .put("scaleActionsSingleBand", true).put("narrowMeasuredWrap", true)
                         .put("scanningAndFailureDistinct", true).put("emptyRetryDispatched", true)
+                        .put("hidesPriorAndCurrentDevice", true).put("candidateErrorRendered", true)
                         .put("rolesGrouped", true).put("mockScaleConnectRoute", true))
                 }
                 val savedText = main { settings().findViewsByClass(EditText::class.java).first() }
