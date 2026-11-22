@@ -565,6 +565,57 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         test.waitForIdleSync()
     }
 
+    private fun checkSettingsLabelsStayIdle(host: MainPageTestHost) {
+        val root = requireNotNull(host.select(TaskDestination.SETTINGS).view)
+        val scanTitles = listOf(R.string.settings_device_nearby, R.string.settings_category_scan_nearby)
+            .map(host.activity::getString)
+        val watched = test.run {
+            lateinit var children: List<TextView>
+            runOnMainSync {
+                children = listOf(descendants(root).filterIsInstance<TextView>()
+                    .single { it.isShown && it.text.toString() in scanTitles },
+                    requireNotNull(root.findViewWithTag("product/devices/coffee/retry")))
+            }
+            children
+        }
+        var sameValueWrites = 0
+        val watchers = watched.map { view ->
+            object : android.text.TextWatcher {
+                private var before = ""
+                override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {
+                    before = text.toString()
+                }
+                override fun onTextChanged(text: CharSequence?, start: Int, beforeCount: Int, count: Int) {
+                    if (text.toString() == before) sameValueWrites++
+                }
+                override fun afterTextChanged(text: android.text.Editable?) = Unit
+            }.also { watcher -> test.runOnMainSync { view.addTextChangedListener(watcher) } }
+        }
+        val contentEvents = java.util.concurrent.atomic.AtomicInteger()
+        var layouts = 0
+        val layoutListener = android.view.ViewTreeObserver.OnGlobalLayoutListener { layouts++ }
+        val automation = test.uiAutomation
+        try {
+            test.runOnMainSync { root.viewTreeObserver.addOnGlobalLayoutListener(layoutListener) }
+            automation.setOnAccessibilityEventListener { event ->
+                if (event.packageName?.toString() == test.targetContext.packageName &&
+                    event.eventType == android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                    contentEvents.incrementAndGet()
+                }
+            }
+            // The visible Settings observer polls at 500 ms. Wait through at least two callbacks.
+            SystemClock.sleep(1200)
+            test.runOnMainSync { check(sameValueWrites == 0) { "Idle Settings rewrote unchanged label text $sameValueWrites times" } }
+        } finally {
+            automation.setOnAccessibilityEventListener(null)
+            test.runOnMainSync {
+                root.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+                watched.zip(watchers).forEach { (view, watcher) -> view.removeTextChangedListener(watcher) }
+            }
+        }
+        test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_IDLE_LABELS_PASSED sameValueWrites=0 contentEvents=${contentEvents.get()} globalLayouts=$layouts windowMs=1200\n") })
+    }
+
     fun run() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         startupAndRestore(TaskDestination.BREW)
@@ -594,6 +645,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     "Tab switch moved focus away from the single MainActivity"
                 }
             } } finally { test.removeMonitor(activityMonitor) }
+            checkSettingsLabelsStayIdle(host)
             val curve = host.select(TaskDestination.CURVES)
             var search: EditText? = null
             test.runOnMainSync {
