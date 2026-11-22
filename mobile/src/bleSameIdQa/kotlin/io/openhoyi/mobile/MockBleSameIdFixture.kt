@@ -95,6 +95,8 @@ internal object MockBleSameIdFixture {
         val refreshable = settings.filter { SettingsReadbackPolicy.supports(it.change) }
         for ((row, change, target) in refreshable) case("$row/active-sync") {
             bootstrap()
+            // Auth baseline is calibration only. In particular 0x14 needs ordinary companion evidence.
+            advance(1); observe(settings())
             val command = CoffeeCommands.setting(change).frame.toByteArray()
             check(apply(change) == null)
             expectLastWrite(command)
@@ -116,6 +118,7 @@ internal object MockBleSameIdFixture {
         for ((row, change, target) in refreshable.filter { SettingsReadbackPolicy.isBoiler(it.change) })
             for (matches in listOf(false, true)) case("$row/rebind-${if (matches) "match" else "different"}") {
                 bootstrap()
+                advance(1); observe(settings())
                 val initial = calls.count { it.operation is GattOperation.Connect }
                 val original = calls.first().operation as GattOperation.Connect
                 check(initial == 1 && apply(change) == null)
@@ -378,6 +381,8 @@ internal object MockBleSameIdFixture {
     }
 
     private fun MobileService.DetachedCorePort.openWeek(): Pair<WeeklySleepSchedule, WeeklySleepSchedule> {
+        // C2 overlap admits a boiler only after ordinary 0x83, not the authenticated boot frame.
+        advance(1);observe(settings())
         val first=weeklyFirst()
         val second=weeklySecond()
         advance(1);observe(first)
