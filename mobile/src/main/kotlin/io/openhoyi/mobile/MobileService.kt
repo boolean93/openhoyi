@@ -50,6 +50,7 @@ import io.openhoyi.session.SettingsReadbackPolicy
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
+import io.openhoyi.session.ShotStartObservation
 import io.openhoyi.session.GattOperation
 import io.openhoyi.session.KnownGatt
 import io.openhoyi.session.CharacteristicInfo
@@ -114,6 +115,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private var fixtureLeverRecipes:MachineLeverRecipeStore?=null
     private var fixtureCurveLibrary:CurveLibrary?=null
     private var fixtureCurveId:String?=null
+    private var fixtureShotEffects:DetachedShotEffects?=null
     private fun controlledCurveLibrary():CurveLibrary =
         fixtureCurveLibrary ?: (application as MobileApplication).curves
     private fun elapsedNow()=fixtureClock?.now ?: MobileMonotonicClock.elapsedRealtime()
@@ -693,7 +695,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     saveSeriesCheckpoint(force = true)
                     finishBrewFeedback(false)
                 }
-                if (!appVisibility.visible && !ShotGate.active(current) && !manualShotActive) hub?.background()
+                if (fixtureShotEffects==null && !appVisibility.visible && !ShotGate.active(current) && !manualShotActive) hub?.background()
                 event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
@@ -704,7 +706,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     event(ResourceMessage(R.string.service_event_conditions_changed), "shot.conditions_changed")
                 refreshSafetyNotification()
             }
-            handler.postDelayed(this, 100)
+            if(fixtureShotEffects==null)handler.postDelayed(this, 100)
         }
     }
 
@@ -980,7 +982,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         }
                         passiveHistoryId = null
                         finishSeries(true, passiveConfirmed = true)
-                        if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
+                        if(fixtureShotEffects==null && !appVisibility.visible && !ShotGate.active(shotState))hub?.background()
                         event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
                     } else {
                         discardPassiveSeries(requireDeviceMatch = true, observedEnd = true)
@@ -2416,13 +2418,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                                  startPermit: (() -> Boolean)?): String? {
         fun callerPermits() = startPermit == null || runCatching { startPermit() }.getOrDefault(false)
         if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
-        val app = application as MobileApplication
-        val preparation = app.beanPreparationResult.getOrElse { return getString(R.string.dose_start_unavailable) }
+        val app = if(fixtureShotEffects==null) application as MobileApplication else null
+        val preparation = fixtureShotEffects?.beans ?: requireNotNull(app).beanPreparationResult
+            .getOrElse { return getString(R.string.dose_start_unavailable) }
         if (preparation.current()?.let { it.shotId != null && !it.associated } == true)
             return getString(R.string.dose_start_unavailable)
         preparation.current()?.takeIf { it.shotId == null }?.let { dose ->
             if (!dose.confirmed) return getString(R.string.dose_start_unconfirmed)
-            if (runCatching { preparation.verifyConfirmed(app.beanInventoryResult.getOrThrow()) }.isFailure)
+            if (runCatching { preparation.verifyConfirmed(requireNotNull(app).beanInventoryResult.getOrThrow()) }.isFailure)
                 return getString(R.string.dose_start_unavailable)
         }
         if (mock != null) {
@@ -2454,7 +2457,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             series.begin(shotId, elapsedNow(), profile.id)
             extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram)
             activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
-                (application as MobileApplication).curves.find(profile.id)?.customDocument)
+                controlledCurveLibrary().find(profile.id)?.customDocument)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
             if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             else event(ResourceMessage(R.string.service_shot_requested, profile.name), "mock.synthetic_shot_requested")
@@ -2477,7 +2480,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             return getString(R.string.service_shot_sleep_start_block)
         if (blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return getString(R.string.service_shot_settings_start_block)
-        val library = (application as MobileApplication).curves
+        val library = controlledCurveLibrary()
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) {
             event(ResourceMessage(R.string.service_shot_scale_connection_changed), "shot.rejected")
@@ -2538,7 +2541,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         series.begin(shotId, elapsedNow(), profile.id)
         extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram, scaleReadoutOwner(current))
         activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
-            (application as MobileApplication).curves.find(profile.id)?.customDocument)
+            controlledCurveLibrary().find(profile.id)?.customDocument)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
             finishBrewFeedback(false)
@@ -2551,14 +2554,19 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     /** Persist shot identity and consumed-dose ownership before any start dispatch. */
     private fun beginPreparedShot(curveId: String, slot: Int): String? {
-        val app = application as MobileApplication
         val id = runCatching { requireNotNull(history).begin(curveId, slot = slot) }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
             .getOrNull() ?: return null
         return runCatching {
-            app.beanPreparationResult.getOrThrow().claim(id)
-            // Journal association is recoverable; durable ownership is not optional.
-            app.reconcileJournal()
+            val fixture=fixtureShotEffects
+            if(fixture!=null) {
+                check(fixture.beans.claim(id)==null)
+            } else {
+                val app=application as MobileApplication
+                app.beanPreparationResult.getOrThrow().claim(id)
+                // Journal association is recoverable; durable ownership is not optional.
+                app.reconcileJournal()
+            }
             id
         }.onFailure {
             runCatching { history?.transition(ExtractionState.IDLE, null, null) }
@@ -2618,7 +2626,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 snapshot.alarmBits, if (feedbackAppShot) hub?.extraction?.stopReason else null)
             brewFeedbackResult = runCatching { brewFeedback.finish(id, eligible) }.getOrNull()
             runCatching { feedbackDelivery.publish(brewFeedbackResult,
-                (application as MobileApplication).feedbackPreferences.enabled) }
+                fixtureShotEffects == null && (application as MobileApplication).feedbackPreferences.enabled) }
                 .onFailure { feedbackDelivery.clear() }
         }
     }
@@ -2632,6 +2640,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         finishBrewFeedback(completedCup)
         extractionScaleReadout.finish(observedEnd)
         val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
+        fixtureShotEffects?.let { if(completedCup)it.recordSamples(finished.first,finished.second.size);return }
         val app = application as MobileApplication
         val historyEntries = history?.entries
         val retainedIds = historyEntries?.map(ShotHistory.Entry::id)?.toSet()
@@ -2654,7 +2663,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             val observedId = history?.observeRunning()
             val recipe = activeShotRecipe?.takeIf { it.traceId == observedId }
             val fingerprint = recipe?.draftFingerprint
-            if (recipe != null && fingerprint != null)
+            if (fixtureShotEffects==null && recipe != null && fingerprint != null)
                 (application as MobileApplication).curveUsageResult.getOrThrow()
                     .attachFingerprint(recipe.traceId, fingerprint)
         }
@@ -2668,7 +2677,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     private fun saveSeriesCheckpoint(atElapsedMs: Long = elapsedNow(), force: Boolean = false) {
         series.checkpoint(atElapsedMs, force)?.let { (id, points) ->
-            runCatching { (application as MobileApplication).samples.save(id, points) }
+            runCatching {
+                fixtureShotEffects?.recordSamples(id,points.size) ?: (application as MobileApplication).samples.save(id, points)
+            }
                 .onFailure { event(ResourceMessage(R.string.service_event_sample_save_failed), "shot.samples_error") }
         }
     }
@@ -3086,13 +3097,25 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         fun acknowledge(){valid();service.acknowledgeManualSafety()}
         fun observe(bytes:ByteArray,capturedAt:Long=clock.now,generation:Long=this.generation) {
             valid();require(bytes.size in 1..64 && capturedAt in 0..clock.now)
-            require((bytes[0].toInt() and 255) in setOf(0x40,0x83)) // no passive-shot/history path
+            val opcode=bytes[0].toInt() and 255
+            require(opcode in setOf(0x40,0x83) || opcode==0x80 && service.fixtureShotEffects!=null && bytes.size==13)
             hub.observeDetachedCoffee(generation,KnownGatt.coffeeNotify,bytes,capturedAt)
+            watchShotIfIsolated()
         }
         fun complete(call:DetachedCoreDriver.Call=calls.last(),result:OperationResult=OperationResult.Success()) {
-            valid();require(call in calls);hub.completeDetachedCoffee(call.generation,call.token,result)
+            valid();require(call in calls);hub.completeDetachedCoffee(call.generation,call.token,result);watchShotIfIsolated()
         }
-        fun advance(deltaMs:Long) {valid();clock.advance(deltaMs,hub::tickDetached)}
+        fun advance(deltaMs:Long) {valid();clock.advance(deltaMs,hub::tickDetached);watchShotIfIsolated()}
+        private fun watchShotIfIsolated(){if(service.fixtureShotEffects!=null)service.watchShot.run()}
+        val shotState:ExtractionState get(){valid();return service.shotState}
+        val startEvidence:ShotStartObservation? get(){valid();return service.shotStartObservation}
+        val terminalHistory:ShotHistory.Status? get(){valid();return service.fixtureShotEffects?.history?.entries?.singleOrNull()?.status}
+        val syntheticSamples:Int get(){valid();return requireNotNull(service.fixtureShotEffects).persistedSampleCount}
+        fun start(profile:CurveProfile):String? {
+            valid();check(service.fixtureShotEffects!=null)
+            return service.startShot(profile.id,profile.scaleMode,7).also {watchShotIfIsolated()}
+        }
+        fun stop(){valid();check(service.fixtureShotEffects!=null);service.stopShot();watchShotIfIsolated()}
         fun bootstrap() {
             valid();require(calls.isEmpty())
             hub.connectCoffee("AA:BB:CC:DD:EE:01",CoffeeAuthentication(LocalDateTime.of(2026,1,1,0,0),"123456"))
@@ -3110,9 +3133,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
 
     companion object {
-        internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,run:(DetachedCorePort)->T):T {
+        internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,allowSyntheticShot:Boolean=false,run:(DetachedCorePort)->T):T {
             check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
                 Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
+            require(!allowSyntheticShot || allowImmutableCurves)
             val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
             val cache=app.cacheDir.canonicalFile
             val root=java.nio.file.Files.createTempDirectory(cache.toPath(),"openhoyi-v2-qa-").toFile()
@@ -3146,6 +3170,11 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         }
                         fixtureCurveLibrary=CurveLibrary(factory,proof)
                     }
+                    if(allowSyntheticShot) {
+                        val effects=DetachedShotEffects(clock)
+                        fixtureShotEffects=effects
+                        history=effects.history
+                    }
                     v2SettingEvidence=true
                     logs=ownerTrace
                 }
@@ -3153,6 +3182,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 val driver=DetachedCoreDriver()
                 val owner=NativeDeviceHub(ownerService.applicationContext,automaticAllowed={false},
                     onState=ownerService::onDeviceState,onCoffee=ownerService::onCoffeeFrame,
+                    legacyVerifiedStartFrames=ownerService.fixtureCurveLibrary?.legacyVerifiedStartFrames.orEmpty(),
                     trackCoffeeDelivery=true,detachedDrivers=detachedDrivers(driver,clock))
                 hub=owner
                 ownerService.hub=owner

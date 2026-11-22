@@ -114,3 +114,30 @@ internal fun deleteDetachedCoreRoot(root:File) {
     check(tree.size<=256)
     tree.sortedByDescending {it.nameCount}.forEach(java.nio.file.Files::delete)
 }
+
+/** Only isolated shot side effects; the real service still owns authorization and readback. */
+internal class DetachedShotEffects(private val clock: DetachedCoreClock) {
+    private var shotRows = ""
+    private var timingRows: String? = null
+    private var samplesById = emptyMap<String, Int>()
+    private var nextId = 0
+    val beans = BeanPreparation(object : BeanPreparation.Storage {
+        override fun read(): String? = null
+        override fun write(value: String) = error("QA has no prepared dose")
+    })
+    val history = ShotHistory(object : ShotHistory.AtomicTimingStorage {
+        override fun read() = shotRows
+        override fun readTiming() = timingRows
+        override fun write(value: String) { shotRows = value }
+        override fun writeWithTiming(value: String, timing: String) {
+            shotRows = value
+            timingRows = timing
+        }
+    }, now = { 1_700_000_000_000L + clock.now }, newId = {"synthetic-shot-${++nextId}"})
+
+    fun recordSamples(shotId: String, pointCount: Int) {
+        check(history.entries.any { it.id == shotId } && pointCount >= 0)
+        samplesById = samplesById + (shotId to pointCount)
+    }
+    val persistedSampleCount get() = samplesById.values.sum()
+}

@@ -11,13 +11,14 @@ internal object MockBleSameIdFixture {
     data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int)
     class Result(private val outcomes: List<Outcome>, private val edges: List<Outcome>) {
         fun render(zh: Boolean): String {
-            val header = if (zh) "隔离模拟核心（部分行为）：${outcomes.count { it.passed }}/${outcomes.size}\n非实机测试"
-                else "Detached fake core (partial behavior): ${outcomes.count { it.passed }}/${outcomes.size}\nNot a hardware test"
+            val intents = outcomes.filterNot { it.row.startsWith("detached-") }
+            val header = if (zh) "命令行为用例（部分阶段）：${intents.count { it.passed }}/${intents.size}，拒绝用例：${edges.count { it.passed }}/${edges.size}\n非实机测试"
+                else "Intent cases (partial stages): ${intents.count { it.passed }}/${intents.size}; deny cases: ${edges.count { it.passed }}/${edges.size}\nNot a hardware test"
             return (listOf(header) + outcomes.map {
                 "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})"
             } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})" } +
-                if (zh) "未测：主动同步、条件重连、萃取启停、真实进程恢复和版本回退。"
-                else "NOT RUN: active sync, conditional reconnect, shot start/stop, process restore and app downgrade.")
+                if (zh) "未测：主动同步、条件重连、真实进程恢复和版本回退。"
+                else "NOT RUN: active sync, conditional reconnect, process restore and app downgrade.")
                 .joinToString("\n")
         }
     }
@@ -25,11 +26,11 @@ internal object MockBleSameIdFixture {
 
     fun cases(context: Context): List<() -> Outcome> {
         val tests = mutableListOf<() -> Outcome>()
-        fun case(row: String, curves: Boolean = false, run: MobileService.DetachedCorePort.() -> Unit) {
+        fun case(row: String, curves: Boolean = false, shot: Boolean = false, run: MobileService.DetachedCorePort.() -> Unit) {
             tests += {
                 var writes = 0
                 val passed = try {
-                    MobileService.withDetachedCore(context, allowImmutableCurves = curves) { port ->
+                    MobileService.withDetachedCore(context, allowImmutableCurves = curves, allowSyntheticShot = shot) { port ->
                         try { port.run() } finally {
                             writes = port.calls.count { it.operation is GattOperation.Write }
                         }
@@ -145,7 +146,11 @@ internal object MockBleSameIdFixture {
             complete()
             check(leverState == MachineLeverRecipeStore.State.SENT)
             advance(1); observe(settings())
-            check(leverState == MachineLeverRecipeStore.State.SENT && writeCount() in 2..3)
+            check(leverState == MachineLeverRecipeStore.State.SENT)
+            val opcodes = calls.mapNotNull { call ->
+                (call.operation as? GattOperation.Write)?.bytes?.firstOrNull()?.toInt()?.and(255)
+            }
+            check(opcodes == listOf(1, 8) || opcodes == listOf(1, 8, 1))
         }
         for (cancel in listOf(false, true)) case(if (cancel) "11/cancel-written" else "11/temperature", curves = true) {
             bootstrap()
@@ -165,6 +170,35 @@ internal object MockBleSameIdFixture {
             } else {
                 advance(1); observe(idle(brewHundredths = profile.temperatureC * 100))
                 check(preparationState == BrewPreparation.State.READY && writeCount() == 2)
+            }
+        }
+        for (stop in listOf(false, true)) case(if (stop) "02/stop-evidence" else "02/start-evidence", curves = true, shot = true) {
+            bootstrap()
+            advance(1); observe(settings(flags = 0xf9)) // Synthetic café mode, no configure/heater write.
+            val profile = selectImmutableCurve { it.targetHundredthsGram <= 0 }
+            check(start(profile) == null)
+            expectLastWrite(CoffeeCommands.start(profile.parameters).frame.toByteArray())
+            complete()
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE)
+            advance(10); observe(extraction(0), generation = generation + 1)
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE)
+            advance(10); observe(extraction(0))
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE)
+            advance(1000); observe(extraction(1))
+            check(startEvidence == ShotStartObservation.MACHINE_EXTRACTION_OBSERVED)
+            if (stop) {
+                stop()
+                expectLastWrite(CoffeeCommands.stop(7).frame.toByteArray())
+                stop()
+                check(writeCount() == 3)
+                complete()
+                advance(10); observe(idle())
+                check(shotState != ExtractionState.ENDED_OBSERVED)
+                advance(2800); observe(idle())
+                check(shotState == ExtractionState.ENDED_OBSERVED && terminalHistory == ShotHistory.Status.ENDED)
+                check(syntheticSamples > 0 && writeCount() == 3)
+            } else {
+                check(writeCount() == 2)
             }
         }
         return tests + listOf({ detachedLifecycle(context) })
@@ -220,6 +254,8 @@ internal object MockBleSameIdFixture {
     private fun settings(flags: Int = 0xfd, brew: Int = 92, compensation: Int = 0, steam: Int = 125,
         delay: Int = 15, standby: Int = 53, cups: Int = 25) =
         bytes(0x83, 1, 0x13, flags, brew, compensation, steam, delay, standby, 0, cups, 0, 0x6e)
+    private fun extraction(elapsed: Int) =
+        bytes(0x80, 0, 8, 0, elapsed, 40, 0, 15, 0x24, 0xbf, 10, 0x40, 0xff)
     private fun idle(cups: Int = 25, asleep: Int = 0, brewHundredths: Int = 0x24bf) =
         bytes(0x40, 0, brewHundredths shr 8, brewHundredths and 255, 0x2f, 0x1c, 0x77, 0x0b, asleep, 0, 0, 0, 0, 0, 0, cups, 3, 0x21, 0xaf)
     private fun weeklyFirst(enabled: Int = 0xfe) =
