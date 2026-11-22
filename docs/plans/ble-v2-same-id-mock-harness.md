@@ -12,9 +12,11 @@ Return a report with the expected matrix counts and all outcomes, separate reque
 
 Build in an isolated branch and record exact source/build config and APK SHA-256. Compare normal-vs-QA manifests and assert package is `io.openhoyi.mobile.mock`, version is explicitly chosen, and same installed Mock signing certificate; inspect DEX to ensure the fixture only exists in the QA variant. Safety acceptance still needs independent review of the integrated fake-backed service implementation, manifest/bytecode checks, and actual runtime. No separate test package; no destructive settings or system commands; no tablet action until exact validated candidate and scoped authorization.
 
-## Durable restart after the V2 broker is integrated
+## Durable C3 integration and remaining lifecycle coverage
 
-Use a test-owned file-backed marker (the actual candidate writer and schema, never ordinary Mock preferences) under a unique private QA lease. Hold that lease over two independent service/driver/clock instances; close the first without clearing the real candidate marker, and re-open the second from disk. Before interpreting the fixture result, reload a third reader and compare the exact marker state and unaffected dummy preferences/files. Verify both services use the exact chosen candidate broker; an in-memory summary cannot substitute for persisted data.
+The combined harness now invokes the shared actual C3 canonical broker initialization and clock, after pinning only a uniquely created QA no-backup root. The overlap case requires the two weekly writes to complete before admitting one boiler write, then independently records the boiler settings and weekly pair. A second case closes the original detached owner with two UNKNOWN entries, reopens a new service and driver on the same isolated on-disk marker, and independently explicitly resolves each entry without issuing control writes. This is service recreation, not actual Android process death. A marker read/sync error or app-version rollback needs separate coverage. Ordinary Mock uses neither split flags nor the fixture storage.
+
+Further lifecycle checks beyond the combined CTA:
 
 1. Marker saved but gate prevents fake dispatch: after rebuild no replay; clear/retain marker only if the actual durable state proves it was not handed off. Inject write or fsync denial and expect zero real and fake control writes without a valid committed marker.
 2. Handoff succeeded then callback missing or interrupted: rebuild -> UNKNOWN, no automatic command retry; synthetic stale same-address frame or different device cannot clear. For weekly, crash between fragments and verify P2 is never resumed.

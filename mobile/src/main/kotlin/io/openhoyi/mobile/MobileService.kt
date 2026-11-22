@@ -178,7 +178,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private var unclassifiedSplitMarkerAtStartup=false
     private fun markSplitUnknown(item:SplitPending) {
         if(machineOperations?.markUnknown(item.send)==true && item.unknownAfter==null)
-            item.unknownAfter=MobileMonotonicClock.elapsedRealtime()
+            item.unknownAfter=elapsedNow()
     }
     private fun splitBinding():CanonicalMachineOperationBroker.Binding? {
         val current=hub ?: return null
@@ -1082,18 +1082,22 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         passiveSafetyBeforeArm = null
     }
 
+    private fun initializePinnedMachineOperations() {
+        // Pin before the first lazy marker read or any eager app observer can grant control.
+        val pin=runCatching { RecoveryPreferenceStorage.pinMachine(this) }
+            .getOrElse { RecoveryPreferenceStorage.PinnedMachine(null,null) }
+        machineOperations=CanonicalMachineOperationBroker(pin,machineWriterFence,::splitBinding).also { broker ->
+            if(splitAdmissionEnabled) {
+                if(broker.restoreSplit())restoredSplitAfter=elapsedNow()
+                else unclassifiedSplitMarkerAtStartup=!broker.legacyShapeTrusted()
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.BLE_V2_DELIVERY && mock==null) {
-            // Pin before the first lazy marker read or any eager app observer can grant control.
-            val pin=runCatching { RecoveryPreferenceStorage.pinMachine(this) }
-                .getOrElse { RecoveryPreferenceStorage.PinnedMachine(null,null) }
-            machineOperations=CanonicalMachineOperationBroker(pin,machineWriterFence,::splitBinding).also { broker ->
-                if(splitAdmissionEnabled) {
-                    if(broker.restoreSplit())restoredSplitAfter=MobileMonotonicClock.elapsedRealtime()
-                    else unclassifiedSplitMarkerAtStartup=!broker.legacyShapeTrusted()
-                }
-            }
+            initializePinnedMachineOperations()
         }
         val app = application as MobileApplication
         app.releaseUpdates.serviceCreated(this)
@@ -2127,14 +2131,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private fun splitBoilerSettingsFresh():Boolean {
         val native=hub?.latestOrdinaryCoffeeSettings ?: return false
         return machineSettingsFresh && snapshot.settings === native.value &&
-            SettingsFreshness.isFresh(native.receivedAtMs,MobileMonotonicClock.elapsedRealtime())
+            SettingsFreshness.isFresh(native.receivedAtMs,elapsedNow())
     }
 
     private fun splitWriteSafe():Boolean {
         val current=hub ?: return false
         val idle=current.latestNativeIdle ?: return false
         return snapshot.coffeeState==DeviceState.READY && snapshot.coffee === idle.value &&
-            TelemetryFreshness.isFresh(idle.capturedAtMs,MobileMonotonicClock.elapsedRealtime()) &&
+            TelemetryFreshness.isFresh(idle.capturedAtMs,elapsedNow()) &&
             idle.value.sleepStateRaw==0 && io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.value.alarmBits) &&
             !manualShotActive && !shotRecovery.pending && !ShotGate.active(shotState) && !brewPreparation.active &&
             !cupResetBusy && !temperatureWrite.busy && !sleepNowUnresolved &&
@@ -2173,7 +2177,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             val outcome=MachineWriteResult.apply(token,result,MachineWriteResult.Request.Schedule(
                 scheduleWrite,firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond))
             if(outcome==MachineWriteResult.Outcome.WAITING && broker.enteredReadback(send,binding,result)) {
-                item.passiveCut=PassiveCoffeeReadback.after(binding.source,current.coffeeReadbackCursor,MobileMonotonicClock.elapsedRealtime())
+                item.passiveCut=PassiveCoffeeReadback.after(binding.source,current.coffeeReadbackCursor,elapsedNow())
                 event(ResourceMessage(R.string.service_write_schedule_written),"v2.week.written")
                 writeWatchdog.await(token,MachineWriteWatchdog.Request.Schedule(scheduleWrite)) {
                     markSplitUnknown(item)
@@ -2247,7 +2251,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val first=current.latestNativeWeeklyFirst
         val second=current.latestNativeWeeklySecond
         if(first?.value!==snapshot.sleepFirst || second?.value!==frame)return false
-        val plan=item.passiveCut?.weeklyPair(first,second,MobileMonotonicClock.elapsedRealtime()) ?: return false
+        val plan=item.passiveCut?.weeklyPair(first,second,elapsedNow()) ?: return false
         val target=item.send.entry.target as? SplitMachineWriteJournal.Target.Weekly ?: return false
         if(plan.days!=target.days || !broker.settleVerified(item.send,item.binding))return false
         scheduleWrite.observe(firstSleepSerial,secondSleepSerial,first?.value,second?.value)
@@ -2286,7 +2290,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             SplitMachineWriteJournal.Kind.SCHEDULE -> splitWeek?.unknownAfter
             SplitMachineWriteJournal.Kind.BOILER -> splitBoiler?.unknownAfter
         } ?: return null
-        val now=MobileMonotonicClock.elapsedRealtime()
+        val now=elapsedNow()
         val idle=current.latestNativeIdle ?: return null
         if(idle.cursor.source!==binding.source || idle.capturedAtMs<=after)return null
         val observed=when(val target=choice.entry.target) {
@@ -3417,6 +3421,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             valid();return service.changeSleepSchedule(expected,target)
         }
         fun sleep():String? {valid();return service.enterSleepNow()}
+        fun recoveryChoices():List<CanonicalMachineOperationBroker.RecoveryChoice>{valid();return service.splitRecoveryChoices}
+        fun observation(choice:CanonicalMachineOperationBroker.RecoveryChoice):SplitObservation? {
+            valid();return service.splitObservation(choice)
+        }
+        fun resolve(observed:SplitObservation):Boolean {valid();return service.resolveSplitObservation(observed)}
+        val splitActive:Boolean get(){valid();return service.machineOperations?.splitOwned==true}
         fun acknowledge(){valid();service.acknowledgeManualSafety()}
         fun observe(bytes:ByteArray,capturedAt:Long=clock.now,generation:Long=this.generation) {
             valid();require(bytes.size in 1..64 && capturedAt in 0..clock.now)
@@ -3464,14 +3474,32 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
 
     companion object {
-        internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,allowSyntheticShot:Boolean=false,run:(DetachedCorePort)->T):T {
+        internal class DetachedRoot private constructor(internal val path:java.io.File) {
+            companion object {
+                internal fun create(cache:java.io.File)=DetachedRoot(
+                    java.nio.file.Files.createTempDirectory(cache.toPath(),"openhoyi-v2-qa-").toFile())
+            }
+        }
+        internal fun <T> withDetachedRoot(context:Context,run:(DetachedRoot)->T):T {
+            check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
+                Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
+            val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
+            val root=DetachedRoot.create(app.cacheDir.canonicalFile)
+            return try {run(root)} finally {deleteDetachedCoreRoot(root.path)}
+        }
+        internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,
+            allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,run:(DetachedCorePort)->T):T {
             check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
                 Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
             require(!allowSyntheticShot || allowImmutableCurves)
             val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
             val cache=app.cacheDir.canonicalFile
-            val root=java.nio.file.Files.createTempDirectory(cache.toPath(),"openhoyi-v2-qa-").toFile()
-            check(root.parentFile.canonicalFile==cache)
+            val root=ownerRoot?.path ?: DetachedRoot.create(cache).path
+            check(root.canonicalFile.parentFile==cache && root.canonicalFile.name==root.name &&
+                root.name.startsWith("openhoyi-v2-qa-") && root.isDirectory)
+            val noBackup=java.io.File(root,"noBackup")
+            check(noBackup.canonicalFile.parentFile==root.canonicalFile)
+            check(noBackup.isDirectory || noBackup.mkdir())
             val clock=DetachedCoreClock()
             var service:MobileService?=null
             var trace:TraceStore?=null
@@ -3480,7 +3508,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             try {
                 val ownerTrace=TraceStore(java.io.File(root,"trace"))
                 trace=ownerTrace
-                val ownerService=MobileService(detachedCore=true).apply {
+                val ownerService=MobileService(detachedCore=true).also { service=it }.apply {
                     attachBaseContext(DetachedCoreContext(app.resources,root))
                     fixtureClock=clock
                     fixtureLeverRecipes=MachineLeverRecipeStore(object:MachineLeverRecipeStore.Storage {
@@ -3507,9 +3535,11 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         history=effects.history
                     }
                     v2SettingEvidence=true
+                    splitAdmissionEnabled=true
+                    initializePinnedMachineOperations()
+                    check(machineOperations?.canStartHub==true)
                     logs=ownerTrace
                 }
-                service=ownerService
                 val driver=DetachedCoreDriver()
                 val owner=NativeDeviceHub(ownerService.applicationContext,automaticAllowed={false},
                     onState=ownerService::onDeviceState,onCoffee=ownerService::onCoffeeFrame,
@@ -3522,15 +3552,22 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 return run(bound)
             } finally {
                 port?.invalidate()
-                try { hub?.close() } finally {
+                service?.machineWriterFence?.beginDrain(retire=true)
+                var safelyClosed=false
+                try {
+                    hub?.close()
+                    safelyClosed=true
+                } finally {
                     service?.hub=null
+                    service?.machineWriterFence?.finishDrain(safelyClosed)
+                    service?.machineOperations?.close()
                     clock.close()
                     service?.handler?.removeCallbacksAndMessages(null)
                     trace?.close()
                     val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
                     // Don't race a writer. This random cache subtree contains synthetic data only.
                     check(settled)
-                    deleteDetachedCoreRoot(root)
+                    if(ownerRoot==null && safelyClosed)deleteDetachedCoreRoot(root)
                 }
             }
         }

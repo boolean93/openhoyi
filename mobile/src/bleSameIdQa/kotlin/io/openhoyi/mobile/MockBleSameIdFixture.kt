@@ -11,7 +11,7 @@ internal object MockBleSameIdFixture {
     data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int)
     class Result(private val outcomes: List<Outcome>, private val edges: List<Outcome>) {
         fun render(zh: Boolean): String {
-            val intents = outcomes.filterNot { it.row.startsWith("detached-") || it.row.endsWith("/active-sync") || it.row.contains("/rebind-") }
+            val intents = outcomes.filterNot { it.row.startsWith("detached-") || it.row.endsWith("/active-sync") || it.row.contains("/rebind-") || it.row.startsWith("canonical/") }
             val header = if (zh) "命令行为用例（部分阶段）：${intents.count { it.passed }}/${intents.size}，拒绝用例：${edges.count { it.passed }}/${edges.size}\n非实机测试"
                 else "Intent cases (partial stages): ${intents.count { it.passed }}/${intents.size}; deny cases: ${edges.count { it.passed }}/${edges.size}\nNot a hardware test"
             return (listOf(header) + outcomes.map {
@@ -158,7 +158,7 @@ internal object MockBleSameIdFixture {
                 if (i == 0) day.copy(enabled = !day.enabled) else day
             })
             val frames = CoffeeCommands.sleepSchedule(target)
-            check(changeSchedule(expected, target) == null)
+            check(changeSchedule(expected, target) == null && splitActive)
             expectLastWrite(frames[0].frame.toByteArray())
             complete()
             advance(500)
@@ -257,7 +257,30 @@ internal object MockBleSameIdFixture {
                 check(writeCount() == 2)
             }
         }
-        return tests + listOf({ detachedLifecycle(context) })
+        case("canonical/weekly+boiler") {
+            bootstrap()
+            val (base,target) = openWeek()
+            val frames=CoffeeCommands.sleepSchedule(target)
+            val brew=MachineSettingChange.BrewHeating(false)
+            check(changeSchedule(base,target)==null && splitActive)
+            expectLastWrite(frames[0].frame.toByteArray())
+            check(apply(brew)!=null) // Cannot overlap a write in flight.
+            complete()
+            advance(500); expectLastWrite(frames[1].frame.toByteArray())
+            check(apply(brew)!=null) // P2 not completed: no overlap yet.
+            complete()
+            check(scheduleState.name=="WAITING_READBACK")
+            check(apply(MachineSettingChange.Light(false))!=null)
+            check(apply(brew)==null)
+            expectLastWrite(CoffeeCommands.setting(brew).frame.toByteArray())
+            complete()
+            advance(1); observe(settings(flags=0xdd))
+            check(settingState==CONFIRMED && scheduleState.name=="WAITING_READBACK" && splitActive)
+            advance(1); observe(weeklyFirst(enabled=0x7e))
+            advance(1); observe(weeklySecond())
+            check(scheduleState.name=="CONFIRMED" && !splitActive && writeCount()==4)
+        }
+        return tests + listOf({ detachedLifecycle(context) }, { persistedTwoOwnerRecovery(context) })
     }
 
     /** Never builds legacy payloads or supplies these to a DeviceSession/real transport. */
@@ -299,6 +322,71 @@ internal object MockBleSameIdFixture {
             true
         } catch (_: Exception) { false } catch (_: AssertionError) { false }
         return Outcome("detached-owner-dispose/no-replay", passed, writes)
+    }
+
+    private fun persistedTwoOwnerRecovery(context: Context): Outcome {
+        var writes=0
+        val passed=try {
+            MobileService.withDetachedRoot(context) { root ->
+                MobileService.withDetachedCore(context,ownerRoot=root) { service ->
+                    with(service) {
+                        bootstrap()
+                        val (base,target)=openWeek()
+                        check(changeSchedule(base,target)==null && splitActive)
+                        complete()
+                        advance(500);complete()
+                        check(apply(MachineSettingChange.BrewHeating(false))==null)
+                        complete()
+                        check(writeCount()==4)
+                        advance(8001)
+                        check(scheduleState.name=="UNKNOWN" && settingState.name=="UNKNOWN")
+                        check(recoveryChoices().size==2)
+                        writes+=writeCount()
+                    }
+                }
+                MobileService.withDetachedCore(context,ownerRoot=root) { service ->
+                    with(service) {
+                        val previous=recoveryChoices()
+                        check(previous.size==2 && splitActive && calls.isEmpty())
+                        bootstrap()
+                        check(writeCount()==1 && recoveryChoices().size==2)
+                        check(apply(MachineSettingChange.Light(false))!=null)
+                        val week=previous.single { it.entry.kind==SplitMachineWriteJournal.Kind.SCHEDULE }
+                        val boiler=previous.single { it.entry.kind==SplitMachineWriteJournal.Kind.BOILER }
+                        check(observation(week)==null && observation(boiler)==null)
+                        advance(1);observe(idle())
+                        advance(1);observe(settings(flags=0xdd),generation=generation+1)
+                        check(observation(boiler)==null)
+                        advance(1);observe(weeklyFirst(enabled=0x7e))
+                        check(observation(week)==null)
+                        advance(1);observe(settings(flags=0xdd))
+                        val proof=requireNotNull(observation(boiler))
+                        check(resolve(proof) && recoveryChoices().size==1 && observation(week)==null)
+                        check(!resolve(proof))
+                        check(apply(MachineSettingChange.Light(false))!=null)
+                        advance(1);observe(weeklySecond())
+                        check(resolve(requireNotNull(observation(week))) && recoveryChoices().isEmpty())
+                        check(apply(MachineSettingChange.Light(false))!=null) // Retired restored owner still fenced.
+                        check(writeCount()==1)
+                        writes+=writeCount()
+                    }
+                }
+            }
+            true
+        } catch (_: Exception) {false} catch (_: AssertionError) {false}
+        return Outcome("canonical/persisted-recreate-two-read-only",passed,writes)
+    }
+
+    private fun MobileService.DetachedCorePort.openWeek(): Pair<WeeklySleepSchedule, WeeklySleepSchedule> {
+        val first=weeklyFirst()
+        val second=weeklySecond()
+        advance(1);observe(first)
+        advance(1);observe(second)
+        val base=week(first,second)
+        val target=WeeklySleepSchedule(base.days.mapIndexed { index, day ->
+            if(index==0)day.copy(enabled=!day.enabled) else day
+        })
+        return base to target
     }
 
     private fun MobileService.DetachedCorePort.lastWriteOpcode() =
