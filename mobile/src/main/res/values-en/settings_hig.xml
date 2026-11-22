@@ -16,4 +16,6 @@
     <string name="settings_hig_readback_details">Readback details</string>
     <string name="settings_hig_readback_hide">Hide details</string>
     <string name="settings_hig_brew_heat">Brew heat</string>
+    <string name="settings_target_queued">Waiting to send</string>
+    <string name="settings_target_not_sent">Not sent. Try again.</string>
 </resources>

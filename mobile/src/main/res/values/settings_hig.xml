@@ -16,4 +16,6 @@
     <string name="settings_hig_readback_details">读回详情</string>
     <string name="settings_hig_readback_hide">收起详情</string>
     <string name="settings_hig_brew_heat">冲泡加热</string>
+    <string name="settings_target_queued">等待发送</string>
+    <string name="settings_target_not_sent">未发送，请重试</string>
 </resources>

@@ -71,6 +71,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private var detailsExpanded = false
     private lateinit var schedule: TextView
     private lateinit var scheduleGrid: LinearLayout
+    private val targetRows = mutableListOf<SettingsBoilerTargetRow>()
     private val scheduleCards = mutableListOf<ScheduleCard>()
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
@@ -377,11 +378,20 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             controls.getChildAt(0).visibility = View.GONE // The page heading already names this group.
             val grouped = temperatureRows.take(3)
             val temperatureGrid = style.column("settings/machine/temperature-grid")
-            for (row in listOf(grouped[0], grouped[2], grouped[1])) {
-                controls.removeView(row)
-                row.background = null
-                row.setPadding(0, dp(4), 0, dp(4))
-                row.usePanelField()
+            for ((index, draft) in listOf(grouped[0], grouped[2], grouped[1]).withIndex()) {
+                controls.removeView(draft)
+                val row = if (index < 2) {
+                    val boiler = if (index == 0) BoilerTargetSteps.Boiler.BREW else BoilerTargetSteps.Boiler.STEAM
+                    val label = getString(if (index == 0) R.string.settings_hig_brew_temp else R.string.settings_hig_steam_temp)
+                    SettingsBoilerTargetRow(host, visual, boiler, label) { delta ->
+                        service?.stepBoilerTarget(boiler, delta)
+                        render()
+                    }.also(targetRows::add)
+                } else draft.apply {
+                    background = null
+                    setPadding(0, dp(4), 0, dp(4))
+                    usePanelField()
+                }
                 if (temperatureGrid.childCount > 0) style.divider(temperatureGrid, top = 0, bottom = 0)
                 temperatureGrid.addView(row, LinearLayout.LayoutParams(-1, -2))
             }
@@ -685,6 +695,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 reported?.brewCompensationTenthsC, reported?.steamTemperatureC?.times(10),
                 reported?.standbyTemperatureC?.times(10))
             temperatureRows.forEachIndexed { index, row -> row.presentDraftBaseline(observedTenths[index], editable) }
+            targetRows.forEach { row ->
+                row.show(owner?.boilerTargetDisplay(row.boiler), owner?.mayStepBoilerTarget() == true,
+                    owner?.boilerTargetFeedback(row.boiler))
+            }
         }
         cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
             owner?.cupResetState != CupResetTracker.State.UNKNOWN &&

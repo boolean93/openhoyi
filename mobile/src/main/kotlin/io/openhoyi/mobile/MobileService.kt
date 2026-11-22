@@ -630,7 +630,10 @@ class MobileService : Service() {
             }
             else -> Unit
         }
-        if (role == DeviceRole.COFFEE && state != DeviceState.READY) temperatureWrite.disconnected(settingsSampleSerial)
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY) {
+            temperatureWrite.disconnected(settingsSampleSerial)
+            boilerTargetSteps.sessionChanged(null)
+        }
         // The controller consumes idle synchronously; a link loss between that proof and
         // watchShot finalization cannot undo it. A passive cup has its own end boundary.
         if (role == DeviceRole.COFFEE && state != DeviceState.READY)
@@ -1271,7 +1274,63 @@ class MobileService : Service() {
         return null
     }
 
+    private val boilerTargetSteps = BoilerTargetSteps()
+    private val boilerTargetPump = Runnable { pumpBoilerTargets() }
+    private fun boilerTargetSession(): Any? {
+        if (snapshot.coffeeState != DeviceState.READY) return null
+        mock?.let { return it }
+        val current = hub ?: return null
+        val address = current.coffeeAddress ?: return null
+        return Triple(current, address, current.coffeeGeneration)
+    }
+    private fun measuredTarget(boiler: BoilerTargetSteps.Boiler): Int? = snapshot.settings?.let {
+        if (boiler == BoilerTargetSteps.Boiler.BREW) it.brewTemperatureC else it.steamTemperatureC
+    }
+    internal fun boilerTargetDisplay(boiler: BoilerTargetSteps.Boiler) =
+        boilerTargetSteps.target(boiler, measuredTarget(boiler))
+    internal fun boilerTargetFeedback(boiler: BoilerTargetSteps.Boiler) = boilerTargetSteps.feedback(boiler)
+    internal fun mayStepBoilerTarget(): Boolean = appVisibility.visible && boilerTargetSession() != null &&
+        (MachineSettingsEditGate.allowed(this) ||
+            boilerTargetSteps.active && temperatureWrite.busy && machineControlSafetyMessage == null &&
+            boilerRecoveryProductSafe())
+
+    internal fun stepBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int) {
+        boilerTargetSteps.sessionChanged(boilerTargetSession())
+        if (!mayStepBoilerTarget()) return
+        if (boilerTargetSteps.step(boiler, delta, measuredTarget(boiler))) pumpBoilerTargets()
+    }
+    private fun pumpBoilerTargets() {
+        handler.removeCallbacks(boilerTargetPump)
+        boilerTargetSteps.sessionChanged(boilerTargetSession())
+        if (!boilerTargetSteps.active) return
+        if (boilerTargetSteps.inFlight != null) {
+            boilerTargetSteps.observe(if (mock != null) pendingSetting else temperatureWrite.change,
+                if (mock != null) settingWriteState else temperatureWrite.state)
+        }
+        if (boilerTargetSteps.inFlight == null && boilerTargetSteps.active) {
+            if (!appVisibility.visible || !MachineSettingsEditGate.allowed(this)) {
+                boilerTargetSteps.stop(BoilerTargetSteps.Feedback.NOT_SENT)
+                return
+            }
+            val next = boilerTargetSteps.next() ?: return
+            val change = next.boiler.change(next.value)
+            if (measuredTarget(next.boiler) == next.value) {
+                boilerTargetSteps.observe(change, SettingsWriteTracker.State.CONFIRMED)
+            } else if (applyMachineSetting(change) != null) {
+                boilerTargetSteps.stop(BoilerTargetSteps.Feedback.NOT_SENT)
+            } else if (mock != null) {
+                boilerTargetSteps.observe(pendingSetting, settingWriteState)
+            }
+        }
+        if (boilerTargetSteps.active) handler.postDelayed(boilerTargetPump, 100L)
+    }
+
     fun changeMachineSetting(change: MachineSettingChange): String? {
+        if (boilerTargetSteps.active && io.openhoyi.session.SettingsReadbackPolicy.isTemperature(change))
+            return getString(R.string.service_write_setting_pending)
+        return applyMachineSetting(change)
+    }
+    private fun applyMachineSetting(change: MachineSettingChange): String? {
         interruptUpdateInstallation()
         if (mock != null) {
             val result = mock.changeSetting(change)
@@ -2610,6 +2669,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        handler.removeCallbacks(boilerTargetPump)
         manualPresentation.disconnected(requireIdle = passiveCommitted, points = terminalManualPoints())
         settleLeverWriteUnknown()
         (application as MobileApplication).releaseUpdates.serviceDestroyed(this)

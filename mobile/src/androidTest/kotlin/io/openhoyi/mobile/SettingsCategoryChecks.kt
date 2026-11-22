@@ -187,7 +187,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                 val functions = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/function-grid")
                                 val columns = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/main-columns")
                                 val rows = (0 until temperature.childCount).map(temperature::getChildAt)
-                                    .filter { it is SettingsTemperatureRow }
+                                    .filter { it is SettingsTemperatureRow || it is SettingsBoilerTargetRow }
                                 check(rows.size == 3 && rows.map { it.top }.distinct().size == 3)
                                 val thermalCard = settings().findViewWithTag<View>("settings/machine/temperature-card")
                                 val standby = settings().findViewWithTag<View>("settings/machine/standby-delay")
@@ -235,8 +235,14 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     }) { "Machine labels and controls not in a single band: ${grid.tag}" }
                                 }
                                 for ((i, row) in rows.withIndex()) {
-                                    val minus = row.findViewWithTag<Button>("settings/machine/draft-step/-1")
-                                    val plus = row.findViewWithTag<Button>("settings/machine/draft-step/1")
+                                    val kind = if (row is SettingsBoilerTargetRow) "target-step" else "draft-step"
+                                    val minus = row.findViewWithTag<Button>("settings/machine/$kind/-1")
+                                    val plus = row.findViewWithTag<Button>("settings/machine/$kind/1")
+                                    if (row is SettingsBoilerTargetRow) {
+                                        check(row.findViewById<EditText>(android.R.id.edit) == null &&
+                                            row.findViewsByClass(EditText::class.java).isEmpty() &&
+                                            row.findViewsByClass(Button::class.java).size == 2)
+                                    }
                                     check(listOf(minus, plus).all { it.isShown && it.width >= HoyiUi.dp(activity, 48) &&
                                         it.height >= HoyiUi.dp(activity, 48) }) {
                                         "Tablet draft steppers must be present, row $i=${row.width}×${row.height}; " +
