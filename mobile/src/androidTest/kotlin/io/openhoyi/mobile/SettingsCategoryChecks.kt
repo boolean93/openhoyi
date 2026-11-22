@@ -327,6 +327,59 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
 
                 }
                 main { check(savedText.text.toString() == "94") { "Category change lost unsent editor draft" }; savedText.setText(previous) }
+                if (wide) {
+                    check(BuildConfig.MOCK_MODE) { "Target click acceptance is Mock-only" }
+                    select(SettingsCategory.MACHINE)
+                    fun target(key: String) = settings().findViewWithTag<SettingsBoilerTargetRow>("product/settings/machine/$key/row")
+                    fun shownTarget(key: String) = target(key)
+                        .findViewWithTag<android.widget.TextView>("settings/machine/target-value").text.toString().toIntOrNull()
+                    fun observedTarget(key: String): Int? = activity.currentService?.snapshot?.settings?.let {
+                        if (key == "brew") it.brewTemperatureC else it.steamTemperatureC
+                    }
+                    fun touch(view: () -> View) {
+                        val position = main {
+                            val v = view()
+                            val box = rect(v)
+                            check(v.isEnabled && box.height() == v.height && box.width() == v.width)
+                            box.exactCenterX() to box.exactCenterY()
+                        }
+                        val t = SystemClock.uptimeMillis()
+                        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                            val event = MotionEvent.obtain(t, SystemClock.uptimeMillis(), action, position.first, position.second, 0)
+                            try {
+                                event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                                check(test.uiAutomation.injectInputEvent(event, true))
+                            } finally { event.recycle() }
+                        }
+                    }
+                    fun clickStep(key: String, delta: Int) =
+                        touch { target(key).findViewWithTag<Button>("settings/machine/target-step/$delta") }
+                    val brew = main { checkNotNull(observedTarget("brew")) }
+                    val steam = main { checkNotNull(observedTarget("steam")) }
+                    fun expect(key: String, value: Int) {
+                        await("Mock $key target $value without Apply") {
+                            shownTarget(key) == value && observedTarget(key) == value && activity.hasWindowFocus()
+                        }
+                    }
+                    clickStep("brew", 1); expect("brew", brew + 1)
+                    clickStep("brew", 1); expect("brew", brew + 2)
+                    clickStep("brew", -1); expect("brew", brew + 1)
+                    clickStep("steam", -1); expect("steam", steam - 1)
+                    touch { button(SettingsCategory.BREWING) }
+                    await("Switch to Brewing after target clicks") { button(SettingsCategory.BREWING).isSelected &&
+                        settings().isAtSectionLanding("shortcuts") && activity.hasWindowFocus() }
+                    touch { button(SettingsCategory.MACHINE) }
+                    await("Return to Machine after target clicks") { button(SettingsCategory.MACHINE).isSelected &&
+                        settings().isAtSectionLanding("machine") && activity.hasWindowFocus() }
+                    expect("steam", steam - 1); expect("brew", brew + 1)
+                    capture("machine-target-confirmed")
+                    clickStep("steam", 1); expect("steam", steam)
+                    clickStep("brew", -1); expect("brew", brew)
+                    receipts.put("boilerTargetSteps", JSONObject().put("touches", 6)
+                        .put("bothObserved", true).put("noApplyOrModal", true)
+                        .put("categoryRoundTrip", true).put("mockValuesRestored", true))
+                }
+
                 for (category in SettingsCategory.entries) for (section in category.sections) {
                     main { (page.active("root:SETTINGS") as AppSettingsFragment).openSection(section) }
                     await("exact $section heading") { button(category).isSelected && heading(section).getGlobalVisibleRect(Rect()) && heading(section).hasFocus() }

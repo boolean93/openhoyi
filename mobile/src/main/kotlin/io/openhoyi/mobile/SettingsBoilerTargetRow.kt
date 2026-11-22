@@ -11,7 +11,7 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
     val boiler: BoilerTargetSteps.Boiler, label: String, private val refresh: () -> Unit, private val step: (Int) -> Unit
 ) : LinearLayout(context) {
     private val style = visual.palette
-    private val value = style.text("—", TaskProductVisualStyle.action).apply { gravity = Gravity.CENTER }
+    private val value = style.text("—", TaskProductVisualStyle.action, "settings/machine/target-value").apply { gravity = Gravity.CENTER }
     private val caption = style.text("", TaskProductVisualStyle.auxiliary, secondary = true).apply {
         visibility = GONE
         accessibilityLiveRegion = ACCESSIBILITY_LIVE_REGION_POLITE
