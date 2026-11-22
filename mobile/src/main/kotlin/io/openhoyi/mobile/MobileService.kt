@@ -1289,6 +1289,26 @@ class MobileService : Service() {
     internal fun boilerTargetDisplay(boiler: BoilerTargetSteps.Boiler) =
         boilerTargetSteps.target(boiler, measuredTarget(boiler))
     internal fun boilerTargetFeedback(boiler: BoilerTargetSteps.Boiler) = boilerTargetSteps.feedback(boiler)
+    internal fun boilerTargetNeedsReadback(): Boolean = mock == null &&
+        boilerTargetSteps.needsReadback(temperatureWrite.state)
+    internal fun canRefreshBoilerTarget(): Boolean = boilerTargetNeedsReadback() &&
+        !staleSettingsRefreshBusy && settingsRefreshSafe() && hub?.canRefreshStaleSettings == true
+    internal fun refreshBoilerTargetBaseline(): Boolean {
+        val identity = boilerTargetSession() ?: return false
+        val current = hub ?: return false
+        if (!canRefreshBoilerTarget()) return false
+        boilerTargetSteps.sessionChanged(identity)
+        val serialBefore = settingsSampleSerial
+        staleSettingsRefreshBusy = true
+        current.refreshStaleSettings({ boilerTargetSession() == identity && settingsRefreshSafe() },
+            forceFreshReadback = true) { result ->
+            staleSettingsRefreshBusy = false
+            if (result is OperationResult.Success && boilerTargetSession() == identity && snapshot.settings != null)
+                boilerTargetSteps.proveNewBaseline(identity, serialBefore, settingsSampleSerial)
+        }
+        return true
+    }
+
     internal fun mayStepBoilerTarget(): Boolean = appVisibility.visible && boilerTargetSession() != null &&
         boilerTargetSteps.acceptsAlongsideTemperature(temperatureWrite.state) &&
         (MachineSettingsEditGate.allowed(this) ||
@@ -1436,6 +1456,7 @@ class MobileService : Service() {
         val replacingObserver=temperatureWrite.requiresExplicitRetry
         val token=temperatureWrite.begin(change,address,settingsSampleSerial)
             ?: return getString(R.string.service_write_setting_record_failed)
+        boilerTargetSteps.invalidateProof()
         lastSettingWasTemperature=true
         if(replacingObserver) logs.record("settings.temperature_observer_replaced",mapOf("ownerId" to ownerId,
             "previousOutcome" to "unconfirmed","automaticReplay" to "false"))

@@ -86,8 +86,36 @@ class BoilerTargetStepsTest {
         assertNull(q.next())
         q.sessionChanged("machine/generation-2")
         assertNull(q.next())
+        assertFalse(q.step(steam, -1, 120))
+        assertTrue(q.proveNewBaseline("machine/generation-2", 24, 25))
         assertTrue(q.step(steam, -1, 120))
         assertEquals(119, q.next()?.value)
+    }
+
+    @Test fun timeoutDisablesBothDirectionsAndRequiresSameSessionFreshProof() {
+        assertTrue(q.step(brew, 1, 93))
+        val issued = q.next()!!
+        assertTrue(q.step(brew, 1, 93))
+        q.observe(issued.boiler.change(issued.value), State.UNKNOWN)
+        assertEquals(Feedback.UNKNOWN_WITH_UNSENT, q.feedback(brew))
+        assertFalse(q.acceptsAlongsideTemperature(State.UNKNOWN))
+        assertFalse(q.step(brew, 1, 93))
+        assertFalse(q.step(brew, -1, 93))
+        assertNull(q.next())
+        assertFalse(q.proveNewBaseline("machine/generation-2", 12, 13))
+        assertFalse(q.proveNewBaseline("machine/generation-1", 12, 12))
+        assertTrue(q.proveNewBaseline("machine/generation-1", 12, 13))
+        assertTrue(q.acceptsAlongsideTemperature(State.UNKNOWN))
+        assertTrue(q.step(brew, 1, 94))
+        assertEquals(95, q.next()?.value)
+    }
+
+    @Test fun restartUncertaintyRequiresFreshProofBeforeRelativeEdits() {
+        assertFalse(q.acceptsAlongsideTemperature(State.UNKNOWN))
+        assertTrue(q.proveNewBaseline("machine/generation-1", 0, 1))
+        assertTrue(q.acceptsAlongsideTemperature(State.UNKNOWN))
+        q.invalidateProof()
+        assertFalse(q.acceptsAlongsideTemperature(State.UNKNOWN))
     }
 
     @Test fun onlyOneDegreeInsideKnownRangesAndKnownSession() {

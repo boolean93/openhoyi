@@ -52,6 +52,18 @@ class StaleSettingsRefreshTest {
         assertTrue(f.results.single() is OperationResult.Success);assertFalse(f.session.staleSettingsRefreshBusy)
         f.session.tick();assertEquals(before+1,f.driver.writes.size)
     }
+    @Test fun explicitBaselineProofRequiresPostDispatchFrameEvenWithFreshCache() {
+        val f = Fixture()
+        val before = f.driver.writes.size
+        f.session.refreshStaleSettings({ true }, forceFreshReadback = true) { f.results += it }
+        assertEquals(before + 1, f.driver.writes.size)
+        assertArrayEquals(CoffeeCommands.authenticate(f.wall, "123456").frame.toByteArray(), f.driver.writes.last().bytes)
+        f.complete()
+        assertTrue(f.results.isEmpty())
+        f.receive(f.settings)
+        assertTrue(f.results.single() is OperationResult.Success)
+        assertEquals(before + 1, f.driver.writes.size)
+    }
     @Test fun earlyNotificationWaitsForGattAndLateCallbacksCannotCompleteTwice() {
         val f=Fixture();f.stale();f.refresh();f.receive(f.settings)
         assertTrue(f.results.isEmpty());f.complete();f.complete();f.receive(f.settings);f.session.tick()

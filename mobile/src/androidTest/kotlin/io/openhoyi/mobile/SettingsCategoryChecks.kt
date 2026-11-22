@@ -241,7 +241,7 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     if (row is SettingsBoilerTargetRow) {
                                         check(row.findViewById<EditText>(android.R.id.edit) == null &&
                                             row.findViewsByClass(EditText::class.java).isEmpty() &&
-                                            row.findViewsByClass(Button::class.java).size == 2)
+                                            row.findViewsByClass(Button::class.java).count { it.visibility == View.VISIBLE } == 2)
                                     }
                                     check(listOf(minus, plus).all { it.isShown && it.width >= HoyiUi.dp(activity, 48) &&
                                         it.height >= HoyiUi.dp(activity, 48) }) {

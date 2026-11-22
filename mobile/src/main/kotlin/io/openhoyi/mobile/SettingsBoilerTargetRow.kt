@@ -8,13 +8,19 @@ import android.widget.LinearLayout
 
 /** Readout and real ±48dp touches. No text draft or separate Apply action. */
 internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualStyle,
-    val boiler: BoilerTargetSteps.Boiler, label: String, private val step: (Int) -> Unit
+    val boiler: BoilerTargetSteps.Boiler, label: String, private val refresh: () -> Unit, private val step: (Int) -> Unit
 ) : LinearLayout(context) {
     private val style = visual.palette
     private val value = style.text("—", TaskProductVisualStyle.action).apply { gravity = Gravity.CENTER }
     private val caption = style.text("", TaskProductVisualStyle.auxiliary, secondary = true).apply {
         visibility = GONE
         accessibilityLiveRegion = ACCESSIBILITY_LIVE_REGION_POLITE
+    }
+    private val refreshAction = style.button(Button(context), outline = true).apply {
+        text = resources.getString(R.string.settings_target_refresh)
+        visibility = GONE
+        tag = "settings/machine/target-refresh"
+        setOnClickListener { refresh() }
     }
     private val minus = button(-1, label)
     private val plus = button(1, label)
@@ -36,6 +42,7 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
         style.add(this, visual.pair(style.text(label, TaskProductVisualStyle.Type(16, 550, 24)),
             quantity, "settings/machine/target-pair", gapDp = 8))
         style.add(this, caption)
+        addView(refreshAction, LayoutParams(-2, -2))
     }
     private fun button(delta: Int, label: String) = style.button(Button(context)).apply {
         text = if (delta < 0) "−" else "+"
@@ -48,8 +55,8 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
             style.dp(3), style.dp(7), style.dp(3), style.dp(7))
         setOnClickListener { step(delta) }
     }
-    fun show(target: Int?, enabled: Boolean, feedback: BoilerTargetSteps.Feedback?) {
-        val rendered = target?.toString() ?: "—"
+    fun show(target: Int?, enabled: Boolean, feedback: BoilerTargetSteps.Feedback?, needsReadback: Boolean, canRefresh: Boolean) {
+        val rendered = target?.takeUnless { needsReadback }?.toString() ?: "—"
         if (value.text.toString() != rendered) value.text = rendered
         minus.isEnabled = enabled && target != null && target in boiler.limits && target > boiler.limits.first
         plus.isEnabled = enabled && target != null && target in boiler.limits && target < boiler.limits.last
@@ -58,9 +65,13 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
             BoilerTargetSteps.Feedback.CONFIRMING -> R.string.machine_settings_setting_waiting
             BoilerTargetSteps.Feedback.FAILED -> R.string.machine_settings_setting_failed
             BoilerTargetSteps.Feedback.UNKNOWN -> R.string.machine_settings_setting_unknown
+            BoilerTargetSteps.Feedback.UNKNOWN_WITH_UNSENT -> R.string.settings_target_unknown_unsent
+            BoilerTargetSteps.Feedback.FAILED_WITH_UNSENT -> R.string.settings_target_failed_unsent
             BoilerTargetSteps.Feedback.NOT_SENT -> R.string.settings_target_not_sent
-        }) }.orEmpty()
+        }) } ?: if (needsReadback) resources.getString(R.string.settings_target_refresh_needed) else ""
         if (caption.text.toString() != label) caption.text = label
         caption.visibility = if (label.isEmpty()) View.GONE else View.VISIBLE
+        refreshAction.visibility = if (needsReadback && boiler == BoilerTargetSteps.Boiler.BREW) VISIBLE else GONE
+        refreshAction.isEnabled = canRefresh
     }
 }

@@ -13,8 +13,10 @@ internal class BoilerTargetSteps {
         }
     }
     data class Request(val boiler: Boiler, val value: Int)
-    enum class Feedback { QUEUED, CONFIRMING, FAILED, UNKNOWN, NOT_SENT }
+    enum class Feedback { QUEUED, CONFIRMING, FAILED, UNKNOWN, UNKNOWN_WITH_UNSENT, FAILED_WITH_UNSENT, NOT_SENT }
     private var session: Any? = null
+    private var uncertain = false
+    private var refreshedAfterUnknown = false
     private val queued = linkedMapOf<Boiler, Int>()
     private val notices = mutableMapOf<Boiler, Feedback>()
     var inFlight: Request? = null
@@ -22,10 +24,20 @@ internal class BoilerTargetSteps {
     val active get() = inFlight != null || queued.isNotEmpty()
     /** Do not supersede a compensating or standby request's legitimate observer. */
     fun acceptsAlongsideTemperature(state: SettingsWriteTracker.State): Boolean =
-        active || state != SettingsWriteTracker.State.WAITING_READBACK
+        !needsReadback(state) && (active || state != SettingsWriteTracker.State.WAITING_READBACK)
+    fun needsReadback(state: SettingsWriteTracker.State): Boolean =
+        uncertain || (!active && state == SettingsWriteTracker.State.UNKNOWN && !refreshedAfterUnknown)
+    fun proveNewBaseline(key: Any, serialBefore: Long, serialAfter: Long): Boolean {
+        if (active || key != session || serialAfter <= serialBefore) return false
+        uncertain = false
+        refreshedAfterUnknown = true
+        return true
+    }
+    fun invalidateProof() { refreshedAfterUnknown = false }
     fun sessionChanged(key: Any?) {
         if (key == session) return
-        if (active) stop(Feedback.UNKNOWN) else if (key != null) notices.clear()
+        if (active) stop(Feedback.UNKNOWN) else if (key != null && !uncertain) notices.clear()
+        invalidateProof()
         session = key
     }
     fun target(boiler: Boiler, observed: Int?): Int? =
@@ -35,7 +47,7 @@ internal class BoilerTargetSteps {
         else if (inFlight?.boiler == boiler) Feedback.CONFIRMING else notices[boiler]
 
     fun step(boiler: Boiler, delta: Int, observed: Int?): Boolean {
-        if (session == null || delta !in listOf(-1, 1)) return false
+        if (session == null || uncertain || delta !in listOf(-1, 1)) return false
         val value = target(boiler, observed)?.takeIf { it in boiler.limits }?.plus(delta)?.takeIf { it in boiler.limits } ?: return false
         notices.remove(boiler)
         queued[boiler] = value
@@ -65,7 +77,14 @@ internal class BoilerTargetSteps {
     }
     fun stop(reason: Feedback) {
         queued.keys.forEach { notices[it] = Feedback.NOT_SENT }
-        inFlight?.let { notices[it.boiler] = reason }
+        if (reason == Feedback.UNKNOWN) { uncertain = true; invalidateProof() }
+        inFlight?.let {
+            notices[it.boiler] = when {
+                it.boiler in queued && reason == Feedback.UNKNOWN -> Feedback.UNKNOWN_WITH_UNSENT
+                it.boiler in queued && reason == Feedback.FAILED -> Feedback.FAILED_WITH_UNSENT
+                else -> reason
+            }
+        }
         inFlight = null
         queued.clear()
     }

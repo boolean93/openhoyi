@@ -18,4 +18,8 @@
     <string name="settings_hig_brew_heat">Brew heat</string>
     <string name="settings_target_queued">Waiting to send</string>
     <string name="settings_target_not_sent">Not sent. Try again.</string>
+    <string name="settings_target_refresh">Refresh readback</string>
+    <string name="settings_target_refresh_needed">Refresh machine settings before adjusting the temperature</string>
+    <string name="settings_target_unknown_unsent">Readback unconfirmed. Subsequent changes were not sent.</string>
+    <string name="settings_target_failed_unsent">Write failed. Subsequent changes were not sent.</string>
 </resources>

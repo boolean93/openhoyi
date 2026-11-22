@@ -18,4 +18,8 @@
     <string name="settings_hig_brew_heat">冲泡加热</string>
     <string name="settings_target_queued">等待发送</string>
     <string name="settings_target_not_sent">未发送，请重试</string>
+    <string name="settings_target_refresh">刷新读回</string>
+    <string name="settings_target_refresh_needed">先刷新读回，再调整温度</string>
+    <string name="settings_target_unknown_unsent">上次回读未确认，后续调整未发送</string>
+    <string name="settings_target_failed_unsent">这次写入失败，后续调整未发送</string>
 </resources>

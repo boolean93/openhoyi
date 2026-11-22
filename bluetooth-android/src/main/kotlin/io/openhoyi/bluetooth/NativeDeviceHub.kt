@@ -315,11 +315,11 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     }
     val canRefreshStaleSettings get() = coffee.session.canRefreshStaleSettings &&
         !DeviceConnectionGate.unsettled(extraction.state)
-    /** Refresh stale settings only; never retries a machine control command. */
-    fun refreshStaleSettings(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
+    /** Refresh authenticated settings only; never retries a machine control command. */
+    fun refreshStaleSettings(beforeDispatch:()->Boolean,forceFreshReadback:Boolean=false,done:(OperationResult)->Unit) {
         usable()
         coffee.session.refreshStaleSettings({ beforeDispatch() &&
-            !DeviceConnectionGate.unsettled(extraction.state) },done)
+            !DeviceConnectionGate.unsettled(extraction.state) },forceFreshReadback,done)
     }
 
     /** Authenticated time-sync/settings requests, never boiler-control retries. */

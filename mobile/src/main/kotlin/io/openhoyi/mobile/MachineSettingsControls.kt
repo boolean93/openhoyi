@@ -383,7 +383,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 val row = if (index < 2) {
                     val boiler = if (index == 0) BoilerTargetSteps.Boiler.BREW else BoilerTargetSteps.Boiler.STEAM
                     val label = getString(if (index == 0) R.string.settings_hig_brew_temp else R.string.settings_hig_steam_temp)
-                    SettingsBoilerTargetRow(host, visual, boiler, label) { delta ->
+                    SettingsBoilerTargetRow(host, visual, boiler, label,
+                        refresh = { service?.refreshBoilerTargetBaseline(); render() }) { delta ->
                         service?.stepBoilerTarget(boiler, delta)
                         render()
                     }.also(targetRows::add)
@@ -697,7 +698,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             temperatureRows.forEachIndexed { index, row -> row.presentDraftBaseline(observedTenths[index], editable) }
             targetRows.forEach { row ->
                 row.show(owner?.boilerTargetDisplay(row.boiler), owner?.mayStepBoilerTarget() == true,
-                    owner?.boilerTargetFeedback(row.boiler))
+                    owner?.boilerTargetFeedback(row.boiler), owner?.boilerTargetNeedsReadback() == true,
+                    owner?.canRefreshBoilerTarget() == true)
             }
         }
         cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
