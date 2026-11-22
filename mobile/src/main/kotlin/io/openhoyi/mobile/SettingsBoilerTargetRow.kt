@@ -58,8 +58,8 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
     fun show(target: Int?, enabled: Boolean, feedback: BoilerTargetSteps.Feedback?, needsReadback: Boolean, canRefresh: Boolean) {
         val rendered = target?.takeUnless { needsReadback }?.toString() ?: "—"
         if (value.text.toString() != rendered) value.text = rendered
-        minus.isEnabled = enabled && target != null && target in boiler.limits && target > boiler.limits.first
-        plus.isEnabled = enabled && target != null && target in boiler.limits && target < boiler.limits.last
+        minus.isEnabled = enabled && !needsReadback && target != null && target in boiler.limits && target > boiler.limits.first
+        plus.isEnabled = enabled && !needsReadback && target != null && target in boiler.limits && target < boiler.limits.last
         val label = feedback?.let { resources.getString(when (it) {
             BoilerTargetSteps.Feedback.QUEUED -> R.string.settings_target_queued
             BoilerTargetSteps.Feedback.CONFIRMING -> R.string.machine_settings_setting_waiting

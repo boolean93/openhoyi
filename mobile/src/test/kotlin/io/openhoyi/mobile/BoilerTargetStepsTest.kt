@@ -33,7 +33,8 @@ class BoilerTargetStepsTest {
     @Test fun failureUnknownOrSessionLossNeverReplaysUnsentWork() {
         for (state in listOf(State.FAILED, State.UNKNOWN, State.RECONCILED, State.WRITING)) {
             q.sessionChanged("session-$state")
-            q.step(brew, 1, 93)
+            assertTrue(q.proveNewBaseline("session-$state", 0, 1))
+            assertTrue(q.step(brew, 1, 93))
             val request = q.next()!!
             q.step(steam, 1, 120)
             if (state == State.WRITING) q.sessionChanged(null)
@@ -105,6 +106,7 @@ class BoilerTargetStepsTest {
         assertFalse(q.proveNewBaseline("machine/generation-2", 12, 13))
         assertFalse(q.proveNewBaseline("machine/generation-1", 12, 12))
         assertTrue(q.proveNewBaseline("machine/generation-1", 12, 13))
+        assertEquals(Feedback.NOT_SENT, q.feedback(brew))
         assertTrue(q.acceptsAlongsideTemperature(State.UNKNOWN))
         assertTrue(q.step(brew, 1, 94))
         assertEquals(95, q.next()?.value)

@@ -31,6 +31,15 @@ internal class BoilerTargetSteps {
         if (active || key != session || serialAfter <= serialBefore) return false
         uncertain = false
         refreshedAfterUnknown = true
+        // The current value is established, even if how an old write ended
+        // was never attributable. Keep any unsent work explicitly reported.
+        notices.keys.toList().forEach { boiler ->
+            when (notices[boiler]) {
+                Feedback.UNKNOWN -> notices.remove(boiler)
+                Feedback.UNKNOWN_WITH_UNSENT -> notices[boiler] = Feedback.NOT_SENT
+                else -> Unit
+            }
+        }
         return true
     }
     fun invalidateProof() { refreshedAfterUnknown = false }
