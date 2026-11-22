@@ -565,6 +565,43 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         test.waitForIdleSync()
     }
 
+    private fun checkSettingsLabelsStayIdle(host: MainPageTestHost) {
+        val root = requireNotNull(host.select(TaskDestination.SETTINGS).view)
+        val scanTitles = listOf(R.string.settings_device_nearby, R.string.settings_category_scan_nearby)
+            .map(host.activity::getString)
+        val watched = test.run {
+            lateinit var children: List<TextView>
+            runOnMainSync {
+                children = listOf(descendants(root).filterIsInstance<TextView>()
+                    .single { it.isShown && it.text.toString() in scanTitles },
+                    requireNotNull(root.findViewWithTag("product/devices/coffee/retry")))
+            }
+            children
+        }
+        var sameValueWrites = 0
+        val watchers = watched.map { view ->
+            object : android.text.TextWatcher {
+                private var before = ""
+                override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {
+                    before = text.toString()
+                }
+                override fun onTextChanged(text: CharSequence?, start: Int, beforeCount: Int, count: Int) {
+                    if (text.toString() == before) sameValueWrites++
+                }
+                override fun afterTextChanged(text: android.text.Editable?) = Unit
+            }.also { watcher -> test.runOnMainSync { view.addTextChangedListener(watcher) } }
+        }
+        try {
+            // The visible Settings observer polls at 500 ms. Wait through at least two callbacks.
+            SystemClock.sleep(1200)
+            test.runOnMainSync { check(sameValueWrites == 0) { "Idle Settings rewrote unchanged label text $sameValueWrites times" } }
+        } finally {
+            test.runOnMainSync { watched.zip(watchers).forEach { (view, watcher) -> view.removeTextChangedListener(watcher) } }
+        }
+        test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_IDLE_LABELS_PASSED sameValueWrites=0
+") })
+    }
+
     fun run() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         startupAndRestore(TaskDestination.BREW)
@@ -594,6 +631,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     "Tab switch moved focus away from the single MainActivity"
                 }
             } } finally { test.removeMonitor(activityMonitor) }
+            checkSettingsLabelsStayIdle(host)
             val curve = host.select(TaskDestination.CURVES)
             var search: EditText? = null
             test.runOnMainSync {

@@ -105,6 +105,7 @@ adb shell wm size 1440x720
 adb shell wm density 320
 run_instrumentation "$output_dir/main-navigation.txt" navigation
 adb pull "/sdcard/Android/data/$package/files/compact-home-navigation" "$output_dir/"
+grep -F 'SETTINGS_IDLE_LABELS_PASSED sameValueWrites=0' "$output_dir/main-navigation.txt" >/dev/null
 grep -F 'MAIN_NAVIGATION_CHECKS_PASSED rounds=20 tabs=6 singleHost=true curveFilterRetained=true serviceContinuous=true manualShell=true noBle=true' "$output_dir/main-navigation.txt" >/dev/null
 if grep -F 'MAIN_HOME_720_GEOMETRY_SKIP ' "$output_dir/main-navigation.txt" >/dev/null; then
   echo '720x360 Home geometry did not run at the target display size' >&2
@@ -120,7 +121,12 @@ adb shell am start -W -n "$package/io.openhoyi.mobile.MainActivity"
 assert_activity MainActivity
 sleep 3
 assert_edges 1 1
-tap_control() { python3 scripts/mock_ui_tap.py "$@" --scroll; sleep 2; }
+tap_control() {
+  printf 'Mock lifecycle target: %s
+' "$1"
+  python3 scripts/mock_ui_tap.py "$@" --scroll
+  sleep 2
+}
 for label in '曲线' '历史' '豆子' '电子秤' '设置' '首页'; do
   tap_control "$label" --node-class android.widget.LinearLayout
   assert_activity MainActivity
@@ -130,9 +136,12 @@ tap_control '设置' --node-class android.widget.LinearLayout
 assert_activity MainActivity
 assert_edges 1 1
 
-# The application theme checkbox calls Activity.recreate(). Require a NEW config-stop callback.
+# The Appearance dark choice uses the same save/recreate path. Require a NEW config-stop callback.
+tap_control '外观' --node-class android.widget.Button
+assert_activity MainActivity
+assert_edges 1 1
 cp "$output_dir/lifecycle.txt" "$output_dir/before-theme-switch.txt"
-tap_control '深色主题'
+tap_control '深色' --node-class android.widget.Button
 sleep 3
 assert_activity MainActivity
 adb shell run-as "$package" cat shared_prefs/appearance.xml > "$output_dir/appearance.xml"

@@ -307,12 +307,15 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         val showProgress = tablet && currentScan && snapshot?.scanning == true
         scanSpinner.visibility = if (showProgress) View.VISIBLE else View.GONE
         scanProgress.visibility = if (showProgress) View.VISIBLE else View.GONE
-        scanTitle.text = host.getString(if (tablet) R.string.settings_device_nearby else R.string.settings_category_scan_nearby)
+        val scanHeading = host.getString(if (tablet) R.string.settings_device_nearby else R.string.settings_category_scan_nearby)
+        if (scanTitle.text.toString() != scanHeading) scanTitle.text = scanHeading
         val coffeeState=snapshot?.coffeeState ?: io.openhoyi.session.DeviceState.DISCONNECTED
         coffeeRetry?.apply {
             visibility=if(coffeeState==io.openhoyi.session.DeviceState.READY)View.GONE else View.VISIBLE
             isEnabled=allowed() && !TaskShellDeviceStatus.connecting(coffeeState)
-            text=host.getString(if(TaskShellDeviceStatus.connecting(coffeeState))R.string.task_shell_action_connecting else R.string.coffee_connection_retry)
+            val label = host.getString(if (TaskShellDeviceStatus.connecting(coffeeState))
+                R.string.task_shell_action_connecting else R.string.coffee_connection_retry)
+            if (text.toString() != label) text = label
         }
         val prefs=host.getSharedPreferences("devices",android.content.Context.MODE_PRIVATE)
         states.forEach {(role,text)->
