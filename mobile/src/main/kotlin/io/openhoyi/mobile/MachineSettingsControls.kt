@@ -463,6 +463,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 firstFraction = .46f, gapDp = 14, minimumFirstWidth = { dp(345) }, minimumSecondWidth = { dp(380) },
                 stackGapDp = 12, onMeasuredSplit = { split ->
                     grouped.forEach { it.setWideDraftLayout(split) }
+                    val tablet = split && resources.configuration.smallestScreenWidthDp >= 600
+                    grouped[1].setTabletQuantityAlignment(tablet)
+                    targetRows.forEach { it.alignTabletQuantities(tablet) }
                     machineModes?.setWidePanel(split)
                 }).apply { tag = "settings/machine/main-columns" })
             (settings.parent as? android.view.ViewGroup)?.removeView(settings)

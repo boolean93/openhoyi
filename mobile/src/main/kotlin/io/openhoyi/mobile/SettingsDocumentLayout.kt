@@ -184,6 +184,9 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             }
             body.applySettingsWideMaterial(rail)
             val compactDevice = rail && resources.configuration.smallestScreenWidthDp >= 600
+            sections["maintenance"]?.block?.findViewWithTag<View>("settings/maintenance/diagnostics-card")?.apply {
+                setPadding(paddingLeft, paddingTop, paddingRight, style.dp(if (compactDevice) 14 else 10))
+            }
             compactDevices = compactDevice
             deviceRowDivider?.visibility = if (compactDevice) VISIBLE else GONE
             pairedDevices?.apply {
@@ -228,14 +231,15 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             val vertical = style.dp(if (rail) 0 else 4)
             setPadding(paddingLeft, vertical, paddingRight, vertical)
         }
+        val tabletRhythm = rail && resources.configuration.smallestScreenWidthDp >= 600
         card.findViewWithTag<View>("settings/machine/standby-divider")?.let { divider ->
             (divider.layoutParams as LayoutParams).apply {
-                topMargin = style.dp(if (rail) 2 else 4)
-                bottomMargin = topMargin
+                topMargin = style.dp(if (tabletRhythm) 8 else if (rail) 2 else 4)
+                bottomMargin = style.dp(if (tabletRhythm) 8 else if (rail) 2 else 4)
             }
         }
         card.findViewWithTag<View>("settings/machine/week-tiles-section")?.let { grid ->
-            (grid.layoutParams as LayoutParams).topMargin = style.dp(if (rail) 4 else 8)
+            (grid.layoutParams as LayoutParams).topMargin = style.dp(if (tabletRhythm) 8 else if (rail) 4 else 8)
         }
         sections["machine"]?.block?.apply {
             setPadding(paddingLeft, paddingTop, paddingRight, style.dp(if (rail) 2 else 14))
@@ -333,7 +337,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         brewingCard?.apply {
             background = settingsRaisedGroup(host, style, horizontalInsetDp = if (rail) 4 else 0,
                 topInsetDp = if (rail) 2 else 0)
-            setPadding(0, style.dp(if (rail) 4 else 2), 0, style.dp(if (rail) 4 else 6))
+            val tablet = rail && resources.configuration.smallestScreenWidthDp >= 600
+            setPadding(0, style.dp(if (rail) 4 else 2), 0, style.dp(if (tablet) 8 else if (rail) 4 else 6))
         }
         brewingRows.forEach { (key, row) ->
             val height = when (key) {
@@ -390,15 +395,43 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             setPaddingRelative(style.dp(12), style.dp(8), style.dp(12), style.dp(8))
         }
         val content = style.column("settings/details/$key/content")
+        val normalMinWidth = header.minimumWidth
+        val normalExplicitMinWidth = header.minWidth
+        val tabletGuideIcon = lazy {
+            val icon = HomeVisualIcon.drawable(host, "info", style.accent)
+            val layer = android.graphics.drawable.LayerDrawable(arrayOf(icon)).apply {
+                val size = style.dp(24) // The existing glyph's actual ring occupies 18dp of its viewport.
+                setLayerSize(0, size, size)
+                setLayerGravity(0, Gravity.CENTER)
+            }
+            RippleDrawable(ColorStateList.valueOf(style.selected), layer, style.shape(Color.WHITE, radius = 8))
+        }
         fun render() {
             val expanded = key in disclosureKeys
             content.visibility = if (expanded) VISIBLE else GONE
             val value = disclosureValues[key]?.takeIf { !expanded && it.isNotBlank() }
             val label = if (compactDevices && key == "scale") host.getString(R.string.settings_device_guide_short) else title
             val caption = if (value != null) "$label   $value" else label
-            val rendered = caption + if (expanded) "  ▾" else "  ›"
+            val iconOnly = compactDevices && key == "scale"
+            val rendered = if (iconOnly) "" else caption + if (expanded) "  ▾" else "  ›"
             if (header.text.toString() != rendered) header.text = rendered
             if (header.contentDescription != caption) header.contentDescription = caption
+            if (key == "scale") {
+                if (iconOnly) {
+                    // Keep the old action column width; a glyph alone must not pull precision
+                    // and the neighboring actions out of the approved positions.
+                    val width = maxOf(style.dp(48), kotlin.math.ceil(header.paint.measureText("$label  ›")).toInt() +
+                        header.paddingStart + header.paddingEnd)
+                    header.minWidth = width
+                    header.minimumWidth = width
+                    header.tooltipText = caption
+                    if (header.background !== tabletGuideIcon.value) header.background = tabletGuideIcon.value
+                } else {
+                    header.minWidth = normalExplicitMinWidth
+                    header.minimumWidth = normalMinWidth
+                    header.tooltipText = null
+                }
+            }
             ViewCompat.setStateDescription(header, host.getString(
                 if (expanded) R.string.settings_category_expanded else R.string.settings_category_collapsed))
         }

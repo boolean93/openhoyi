@@ -22,13 +22,25 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
         tag = "settings/machine/target-refresh"
         setOnClickListener { refresh() }
     }
+    private val quantity = style.row("settings/machine/target-quantity")
+    fun alignTabletQuantities(wide: Boolean) {
+        if (value.minimumWidth == if (wide) style.dp(52) else 0) return
+        value.minimumWidth = if (wide) style.dp(52) else 0
+        listOf(1, 2).forEach { index ->
+            (quantity.getChildAt(index).layoutParams as LayoutParams).apply {
+                marginStart = style.dp(if (wide) 0 else if (index == 1) 8 else 4)
+                marginEnd = if (wide || index == 1) 0 else style.dp(8)
+            }
+        }
+        quantity.forceLayout()
+    }
     private val minus = button(-1, label)
     private val plus = button(1, label)
     init {
         orientation = VERTICAL
         tag = "product/settings/machine/${if (boiler == BoilerTargetSteps.Boiler.BREW) "brew" else "steam"}/row"
         setPadding(0, style.dp(4), 0, style.dp(4))
-        val quantity = style.row().apply {
+        quantity.apply {
             gravity = Gravity.CENTER_VERTICAL
             background = android.graphics.drawable.InsetDrawable(style.shape(style.selected, radius = 10),
                 0, style.dp(5), 0, style.dp(5))

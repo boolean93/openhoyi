@@ -311,6 +311,9 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     private val draftSteppers = mutableListOf<Button>()
     private var wideDraftLayout = false
     private var panelField = false
+    private var alignTabletQuantity = false
+    private var quantityAtEnd = false
+    fun setTabletQuantityAlignment(enabled: Boolean) { alignTabletQuantity = enabled }
     fun usePanelField() {
         panelField = true
         val field = quantity as LinearLayout
@@ -383,7 +386,9 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         val range = draftRange ?: return
         editAvailable = editable
         val draft = input.text.toString().toIntOrNull()
+        val wasEnabled = action.isEnabled
         action.isEnabled = editable && SettingsTemperatureDraft.differs(draft, currentReadbackTenths, range)
+        if (alignTabletQuantity && wasEnabled != action.isEnabled) requestLayout()
         if (panelField) action.visibility = if (action.isEnabled) VISIBLE else INVISIBLE
         else action.alpha = if (action.isEnabled) 1f else .55f
         draftSteppers.forEachIndexed { index, button ->
@@ -421,6 +426,15 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
         // The name is allowed to wrap before losing the one-row editor. The fallback below
         // still stacks at very narrow sizes instead of squeezing the value or Apply.
         val minimumLabel = if (panelField) minOf(wordsWidth, style.dp(78)) else wordsWidth
+        quantityAtEnd = alignTabletQuantity && roomForSteppers && minimumLabel + quantityWidth + inlineGap <= available
+        if (quantityAtEnd) {
+            words.measure(MeasureSpec.makeMeasureSpec(available - quantityWidth - inlineGap, MeasureSpec.EXACTLY), free)
+            val firstBand = maxOf(words.measuredHeight, quantityHeight())
+            val actionBand = if (action.isEnabled) style.dp(4) + action.measuredHeight else 0
+            setMeasuredDimension(resolveSize(width, widthMeasureSpec),
+                resolveSize(firstBand + actionBand + paddingTop + paddingBottom, heightMeasureSpec))
+            return
+        }
         inline=minimumLabel+quantityWidth+actionWidth+2*inlineGap<=available
         stackedDraft = compactField || (draftRange != null && !inline)
         compactActionsInline = stackedDraft && quantityWidth + actionWidth + style.dp(8) <= available
@@ -461,8 +475,23 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
             .put("actionNaturalWidthPx",actionWidth).put("inputText",input.text.toString()).put("inline",inline).put("naturalHeightPx",content+paddingTop+paddingBottom)
         setMeasuredDimension(resolveSize(width,widthMeasureSpec),resolveSize(content+paddingTop+paddingBottom,heightMeasureSpec))
     }
+    private fun quantityHeight() = quantity.measuredHeight
     override fun onLayout(changed:Boolean,l:Int,t:Int,r:Int,b:Int) {
         val content=height-paddingTop-paddingBottom
+        if (quantityAtEnd) {
+            val available = width - paddingLeft - paddingRight
+            val firstBand = maxOf(words.measuredHeight, quantityHeight())
+            fun place(view: View, start: Int, top: Int) {
+                val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - paddingRight - start - view.measuredWidth
+                    else paddingLeft + start
+                view.layout(left, paddingTop + top, left + view.measuredWidth, paddingTop + top + view.measuredHeight)
+            }
+            place(words, 0, (firstBand - words.measuredHeight) / 2)
+            place(quantity, available - quantity.measuredWidth, (firstBand - quantityHeight()) / 2)
+            if (action.isEnabled) place(action, available - action.measuredWidth, firstBand + style.dp(4))
+            else action.layout(0, 0, 0, 0)
+            return
+        }
         if (stackedDraft) {
             fun place(view: View, x: Int, y: Int) {
                 val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - paddingRight - x - view.measuredWidth

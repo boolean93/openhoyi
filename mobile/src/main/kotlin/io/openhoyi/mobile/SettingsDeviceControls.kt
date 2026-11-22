@@ -108,8 +108,6 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             scaleHeading.setPadding(0, 0, 0, 0)
             words.getChildAt(0).visibility = View.GONE
             words.addView(scaleHeading, 1, LinearLayout.LayoutParams(-1, -2))
-            guide.minWidth = style.dp(48)
-            guide.minimumWidth = guide.minWidth
             guide.tag = "settings/details/scale/action"
         } else {
             (listOf(scaleHeading) + helpers).sortedBy { placements[it]?.index }.forEach(::returnToPhone)

@@ -344,6 +344,37 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                         check(candidates().childCount == 0 && !caption().isShown)
                         fragment.renderMockNearby(null)
                     }
+                    fun guide() = settings().findViewWithTag<Button>("settings/details/scale/action")
+                    fun guideContent() = settings().findViewWithTag<View>("settings/details/scale/content")
+                    fun tapGuide() {
+                        val bounds = main {
+                            val guide = guide()
+                            val box = rect(guide)
+                            check(guide.text.isEmpty() && guide.contentDescription == activity.getString(R.string.settings_device_guide_short) &&
+                                guide.tooltipText == guide.contentDescription)
+                            check(box.width() >= HoyiUi.dp(activity, 48) && box.height() >= HoyiUi.dp(activity, 48))
+                            box
+                        }
+                        val time = SystemClock.uptimeMillis()
+                        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                            val event = MotionEvent.obtain(time, SystemClock.uptimeMillis(),
+                                action, bounds.exactCenterX(), bounds.exactCenterY(), 0)
+                            try {
+                                event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                                check(test.uiAutomation.injectInputEvent(event, true))
+                            } finally { event.recycle() }
+                        }
+                    }
+                    main { check(!guideContent().isShown) }
+                    tapGuide()
+                    await("tablet info icon opens the scale guide only") {
+                        guideContent().isShown && activity.currentService?.snapshot?.scaleState == io.openhoyi.session.DeviceState.READY &&
+                            button(SettingsCategory.DEVICE).isSelected
+                    }
+                    captureDevice("guide", "平板电子秤：点击 i 后显示原使用说明")
+                    tapGuide()
+                    await("tablet info icon closes the scale guide") { !guideContent().isShown }
+                    receipts.put("deviceGuideTouch", true)
                     receipts.put("deviceCompact", JSONObject().put("singleTwoRowSurface", true)
                         .put("scaleActionsSingleBand", true).put("narrowMeasuredWrap", true)
                         .put("scanningAndFailureDistinct", true).put("emptyRetryDispatched", true)
@@ -401,6 +432,25 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                                     "Thermal card or standby outside density budget: ${thermalCard.height}, viewport=$bodyViewport standby=$standbyBounds"
                                 }
                                 check(rows.all { it.height <= HoyiUi.dp(activity, 72) })
+                                if (activity.resources.configuration.smallestScreenWidthDp >= 600) {
+                                    val temperatures = rows.map { row -> rect(requireNotNull(
+                                        row.findViewWithTag<View>(if (row is SettingsBoilerTargetRow)
+                                            "settings/machine/target-quantity" else "product/settings/machine/compensation/quantity"))) }
+                                    check(temperatures.map { it.right }.distinct().size == 1 &&
+                                        temperatures.maxOf { it.left } - temperatures.minOf { it.left } <= HoyiUi.dp(activity, 2)) {
+                                        "Tablet temperature quantities must share a width and right axis: $temperatures"
+                                    }
+                                    val delay = standby.findViewsByClass(Button::class.java).single()
+                                    val divider = settings().findViewWithTag<View>("settings/machine/standby-divider")
+                                    val every = settings().findViewWithTag<View>("settings/machine/weekly-every-day")
+                                    fun screenY(view: View) = IntArray(2).also(view::getLocationOnScreen)[1]
+                                    val upper = screenY(divider) - (screenY(delay) + delay.height)
+                                    val lower = screenY(every) - (screenY(divider) + divider.height)
+                                    check(minOf(upper, lower) >= HoyiUi.dp(activity, 8))
+                                    receipts.put("machineRhythm", JSONObject()
+                                        .put("temperatureBands", temperatures.map(Rect::toShortString).toString())
+                                        .put("dividerTopGapPx", upper).put("dividerBottomGapPx", lower))
+                                }
                                 val week = settings().findViewWithTag<android.view.ViewGroup>("settings/machine/weekly-grid")
                                 if (week.isShown) {
                                     val weekLocation = IntArray(2).also(week::getLocationOnScreen)
@@ -531,6 +581,31 @@ internal class SettingsCategoryChecks(private val test: Instrumentation) {
                 if (wide) {
                     check(BuildConfig.MOCK_MODE) { "Target click acceptance is Mock-only" }
                     select(SettingsCategory.MACHINE)
+                    if (activity.resources.configuration.smallestScreenWidthDp >= 600) {
+                        val draftRow = main { settings().findViewWithTag<View>("product/settings/machine/compensation/row") }
+                        fun field() = draftRow.findViewWithTag<View>("product/settings/machine/compensation/quantity")
+                        fun applyDraft() = draftRow.findViewWithTag<Button>("product/settings/machine/compensation/action")
+                        val axis = main { rect(field()).right }
+                        val originalDraft = main { savedText.text.toString() }
+                        val newDraft = if (originalDraft == "3") "4" else "3"
+                        try {
+                            main { savedText.setText(newDraft) }
+                            await("compensation Apply appears only below the edited amount") {
+                                val apply = applyDraft()
+                                val amount = rect(field())
+                                apply.isShown && apply.isEnabled && apply.width >= HoyiUi.dp(activity, 48) &&
+                                    apply.height >= HoyiUi.dp(activity, 48) && rect(apply).top > amount.bottom &&
+                                    rect(apply).right == amount.right && amount.right == axis
+                            }
+                            // Leave the draft without pressing Apply; no service write is attempted.
+                        } finally {
+                            main { savedText.setText(originalDraft) }
+                        }
+                        await("compensation Apply hides again when the draft is restored") {
+                            !applyDraft().isShown && rect(field()).right == axis
+                        }
+                        receipts.put("compensationApplyLayout", true)
+                    }
                     fun target(key: String) = settings().findViewWithTag<SettingsBoilerTargetRow>("product/settings/machine/$key/row")
                     fun shownTarget(key: String) = target(key)
                         .findViewWithTag<android.widget.TextView>("settings/machine/target-value").text.toString().toIntOrNull()

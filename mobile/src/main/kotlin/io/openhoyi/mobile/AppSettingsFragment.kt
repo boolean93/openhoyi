@@ -304,7 +304,7 @@ class AppSettingsFragment : Fragment() {
         val projectLinks = SettingsColumns(activity, style, website, guide, org.json.JSONObject(),
             firstFraction = .5f, minimumFirstWidth = { style.dp(160) }, minimumSecondWidth = { style.dp(160) },
             stackGapDp = 0).apply { tag = "settings/maintenance/project-links" }
-        val diagnosticsCard = style.column().apply {
+        val diagnosticsCard = style.column("settings/maintenance/diagnostics-card").apply {
             background = style.shape(style.surface, outline = true, radius = 12)
             markSettingsGroupMaterial(style)
             setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(10))
