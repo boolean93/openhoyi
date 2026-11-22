@@ -59,10 +59,12 @@ internal object RecoveryPreferenceStorage {
     internal class PinnedMachine internal constructor(private val lease:MachineRecoveryMarkerLease.Lease?,
         private val delegate:MachineWriteRecoveryState.Storage?,
         private val cachedLegacyPending:()->Boolean={true}) : java.io.Closeable {
-        private enum class Phase { LEGACY, LEGACY_READING, LEGACY_WRITING, OPENING_SPLIT, SPLIT, CLOSED }
+        private enum class Phase { LEGACY, LEGACY_READING, LEGACY_WRITING, OPENING_SPLIT, SPLIT, RETIRING_SPLIT, CLOSED }
         private var phase=Phase.LEGACY
         private var split:SplitMachineWriteFileStore?=null
         val held:Boolean get()=lease?.let {it.isOwnerThread && it.held}==true
+        val hasLegacyAuthority:Boolean get()=held && phase==Phase.LEGACY
+        fun holdsSplit(view:SplitMachineWriteFileStore):Boolean = held && phase==Phase.SPLIT && split===view
         val storage=object:MachineWriteRecoveryState.Storage {
             override fun read():MachineWriteRecoveryState.Record {
                 if(!held || phase!=Phase.LEGACY)return fenced()
@@ -100,6 +102,18 @@ internal object RecoveryPreferenceStorage {
                 return view
             } finally {
                 if(phase==Phase.OPENING_SPLIT)phase=Phase.LEGACY
+            }
+        }
+        fun retireEmptySplit(view:SplitMachineWriteFileStore):Boolean {
+            if(!holdsSplit(view))return false
+            phase=Phase.RETIRING_SPLIT
+            try {
+                if(!view.retireVerifiedEmpty())return false
+                split=null
+                phase=Phase.LEGACY
+                return true
+            } finally {
+                if(phase==Phase.RETIRING_SPLIT)phase=Phase.SPLIT
             }
         }
         override fun close(){

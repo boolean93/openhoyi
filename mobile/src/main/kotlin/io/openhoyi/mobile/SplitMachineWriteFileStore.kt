@@ -131,6 +131,17 @@ internal class SplitMachineWriteFileStore private constructor(
         }
     }
 
+    /** Only a live, originally empty borrowed view may atomically retire back to legacy. */
+    @Synchronized fun retireVerifiedEmpty():Boolean {
+        if(ownsLease || !active || !canUseLease() || failed || mutating ||
+            initial!=SplitMachineWriteJournal.Snapshot.Empty || liveEntries.isNotEmpty() || lastWritten!=null) return false
+        return performMutation {
+            if(ops.exists(marker) || cachedLegacyPending()) return@performMutation false
+            active=false
+            true
+        }
+    }
+
     private var failed = false
 
     @Synchronized override fun close() {

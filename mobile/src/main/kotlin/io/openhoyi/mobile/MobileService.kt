@@ -140,13 +140,13 @@ class MobileService : Service() {
     val automaticScaleWaiting: Boolean get() = hub?.automaticScaleWaiting == true
     private val shotRecovery by lazy { ShotRecoveryState(RecoveryPreferenceStorage.shot(this)) }
     private val restartShotWarning: String get() = getString(R.string.machine_recovery_shot_restart)
-    private var pinnedMachineWrites:RecoveryPreferenceStorage.PinnedMachine?=null
+    private var machineOperations:CanonicalMachineOperationBroker?=null
     private val machineWriterFence=MachineServiceWriterFence()
     private val machineWriteRecovery by lazy {
-        MachineWriteRecoveryState(pinnedMachineWrites?.storage ?: RecoveryPreferenceStorage.machine(this))
+        MachineWriteRecoveryState(machineOperations?.legacyStorage ?: RecoveryPreferenceStorage.machine(this))
     }
     private fun holdsMachineWriter():Boolean =
-        !BuildConfig.BLE_V2_DELIVERY || machineWriterFence.mayStartOrDispatch && pinnedMachineWrites?.held==true
+        !BuildConfig.BLE_V2_DELIVERY || machineOperations?.legacyMayDispatch==true
     private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
         machineWriteRecovery.kind, brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
@@ -1039,8 +1039,12 @@ class MobileService : Service() {
         super.onCreate()
         if (BuildConfig.BLE_V2_DELIVERY && mock==null) {
             // Pin before the first lazy marker read or any eager app observer can grant control.
-            pinnedMachineWrites=runCatching { RecoveryPreferenceStorage.pinMachine(this) }
+            val pin=runCatching { RecoveryPreferenceStorage.pinMachine(this) }
                 .getOrElse { RecoveryPreferenceStorage.PinnedMachine(null,null) }
+            machineOperations=CanonicalMachineOperationBroker(pin,machineWriterFence) {
+                val current=hub
+                current?.coffeeReadbackCursor?.source?.let { CanonicalMachineOperationBroker.Binding(current,it) }
+            }
         }
         val app = application as MobileApplication
         app.releaseUpdates.serviceCreated(this)
@@ -1060,7 +1064,7 @@ class MobileService : Service() {
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
-        if (!holdsMachineWriter()) {
+        if (BuildConfig.BLE_V2_DELIVERY && machineOperations?.canStartHub!=true) {
             event(ResourceMessage(R.string.service_unavailable), "service.machine_writer_fenced")
             return START_NOT_STICKY
         }
@@ -3046,7 +3050,7 @@ class MobileService : Service() {
         closeDeviceOwner()
         // All transport callbacks settle while the old writer remains exclusive. Do not wake
         // another writer in this process when driver teardown itself was uncertain.
-        if (machineWriterFence.mayReleaseWriter) pinnedMachineWrites?.close()
+        machineOperations?.close()
         autoConnect.onChanged=null
         super.onDestroy()
     }
