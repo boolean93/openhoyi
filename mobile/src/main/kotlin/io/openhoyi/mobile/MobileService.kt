@@ -3476,6 +3476,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
 
     companion object {
         internal class DetachedRoot private constructor(internal val path:java.io.File) {
+            internal var ownerClosedSafely:Boolean=true
             companion object {
                 internal fun create(cache:java.io.File)=DetachedRoot(
                     java.nio.file.Files.createTempDirectory(cache.toPath(),"openhoyi-v2-qa-").toFile())
@@ -3486,7 +3487,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
             val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
             val root=DetachedRoot.create(app.cacheDir.canonicalFile)
-            return try {run(root)} finally {deleteDetachedCoreRoot(root.path)}
+            return try {run(root)} finally {
+                if(root.ownerClosedSafely)deleteDetachedCoreRoot(root.path)
+            }
         }
         internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,
             allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,run:(DetachedCorePort)->T):T {
@@ -3495,12 +3498,15 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             require(!allowSyntheticShot || allowImmutableCurves)
             val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
             val cache=app.cacheDir.canonicalFile
-            val root=ownerRoot?.path ?: DetachedRoot.create(cache).path
+            val fixtureRoot=ownerRoot ?: DetachedRoot.create(cache)
+            check(fixtureRoot.ownerClosedSafely)
+            val root=fixtureRoot.path
             check(root.canonicalFile.parentFile==cache && root.canonicalFile.name==root.name &&
                 root.name.startsWith("openhoyi-v2-qa-") && root.isDirectory)
             val noBackup=java.io.File(root,"noBackup")
             check(noBackup.canonicalFile.parentFile==root.canonicalFile)
             check(noBackup.isDirectory || noBackup.mkdir())
+            fixtureRoot.ownerClosedSafely=false
             val clock=DetachedCoreClock()
             var service:MobileService?=null
             var trace:TraceStore?=null
@@ -3561,14 +3567,20 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 } finally {
                     service?.hub=null
                     service?.machineWriterFence?.finishDrain(safelyClosed)
-                    service?.machineOperations?.close()
-                    clock.close()
-                    service?.handler?.removeCallbacksAndMessages(null)
-                    trace?.close()
-                    val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
-                    // Don't race a writer. This random cache subtree contains synthetic data only.
-                    check(settled)
-                    if(ownerRoot==null && safelyClosed)deleteDetachedCoreRoot(root)
+                    var leaseReleased=false
+                    try {
+                        service?.machineOperations?.close()
+                        leaseReleased=safelyClosed
+                    } finally {
+                        clock.close()
+                        service?.handler?.removeCallbacksAndMessages(null)
+                        trace?.close()
+                        val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
+                        // No deletion or reuse when a previous owner, pin or trace could still be active.
+                        fixtureRoot.ownerClosedSafely=leaseReleased && settled
+                        check(fixtureRoot.ownerClosedSafely)
+                        if(ownerRoot==null)deleteDetachedCoreRoot(root)
+                    }
                 }
             }
         }
