@@ -11,14 +11,14 @@ internal object MockBleSameIdFixture {
     data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int)
     class Result(private val outcomes: List<Outcome>, private val edges: List<Outcome>) {
         fun render(zh: Boolean): String {
-            val intents = outcomes.filterNot { it.row.startsWith("detached-") || it.row.endsWith("/active-sync") || it.row.endsWith("/rebind") }
+            val intents = outcomes.filterNot { it.row.startsWith("detached-") || it.row.endsWith("/active-sync") || it.row.contains("/rebind-") }
             val header = if (zh) "命令行为用例（部分阶段）：${intents.count { it.passed }}/${intents.size}，拒绝用例：${edges.count { it.passed }}/${edges.size}\n非实机测试"
                 else "Intent cases (partial stages): ${intents.count { it.passed }}/${intents.size}; deny cases: ${edges.count { it.passed }}/${edges.size}\nNot a hardware test"
             return (listOf(header) + outcomes.map {
                 "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})"
             } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})" } +
-                if (zh) "未测：重连完成后的回读、真实进程恢复和版本回退。"
-                else "NOT RUN: post-rebind readback, process restore and app downgrade.")
+                if (zh) "未测：真实进程恢复和版本回退。"
+                else "NOT RUN: process restore and app downgrade.")
                 .joinToString("\n")
         }
     }
@@ -113,23 +113,41 @@ internal object MockBleSameIdFixture {
             check(settingState == CONFIRMED && writeCount() == 4)
             check(calls.count { it.operation is GattOperation.Connect } == 1)
         }
-        for ((row, change) in refreshable.filter { SettingsReadbackPolicy.isBoiler(it.change) }) case("$row/rebind") {
-            bootstrap()
-            val initial = calls.count { it.operation is GattOperation.Connect }
-            val original = calls.first().operation as GattOperation.Connect
-            check(initial == 1 && apply(change) == null)
-            complete()
-            advance(250); check(lastWriteOpcode() == 1); complete()
-            advance(1000); check(lastWriteOpcode() == 1); complete()
-            val priorGeneration = generation
-            advance(1749); observe(idle())
-            check(calls.count { it.operation is GattOperation.Connect } == initial)
-            advance(1); observe(idle())
-            val connect = calls.last()
-            check(connect.operation == original && connect.generation != priorGeneration)
-            check(calls.count { it.operation is GattOperation.Connect } == 2 && writeCount() == 4)
-            check(settingState != CONFIRMED)
-        }
+        for ((row, change, target) in refreshable.filter { SettingsReadbackPolicy.isBoiler(it.change) })
+            for (matches in listOf(false, true)) case("$row/rebind-${if (matches) "match" else "different"}") {
+                bootstrap()
+                val initial = calls.count { it.operation is GattOperation.Connect }
+                val original = calls.first().operation as GattOperation.Connect
+                check(initial == 1 && apply(change) == null)
+                val originalControl = calls.last()
+                complete()
+                advance(250); check(lastWriteOpcode() == 1); complete()
+                advance(1000); check(lastWriteOpcode() == 1); complete()
+                val priorGeneration = generation
+                advance(1749); observe(idle())
+                check(calls.count { it.operation is GattOperation.Connect } == initial)
+                advance(1); observe(idle())
+                val connect = calls.last()
+                check(connect.operation == original && connect.generation != priorGeneration)
+                check(calls.count { it.operation is GattOperation.Connect } == 2 && writeCount() == 4)
+                check(settingState == SettingsWriteTracker.State.UNKNOWN)
+                complete(originalControl) // Old generation and token cannot complete the new Connect or claim success.
+                observe(target, generation = priorGeneration)
+                check(settingState == SettingsWriteTracker.State.UNKNOWN && recoveryKind == MachineWriteRecoveryState.Kind.SETTING)
+                completeFakeHandshakeTransport()
+                check(settingState == SettingsWriteTracker.State.UNKNOWN && writeCount() == 5)
+                advance(1); observe(target, generation = priorGeneration)
+                advance(1); observe(byteArrayOf(0x83.toByte(), 1)) // Malformed 83 cannot make link ready or reconcile.
+                check(settingState == SettingsWriteTracker.State.UNKNOWN && recoveryKind == MachineWriteRecoveryState.Kind.SETTING)
+                advance(1); observe(if (matches) target else settings())
+                check(settingState == SettingsWriteTracker.State.RECONCILED && recoveryKind == null)
+                advance(1); observe(idle())
+                advance(1); observe(target)
+                check(settingState == SettingsWriteTracker.State.RECONCILED)
+                check(calls.count { it.operation is GattOperation.Connect } == 2 && writeCount() == 5)
+                check(calls.count { (it.operation as? GattOperation.Write)?.bytes?.contentEquals(
+                    CoffeeCommands.setting(change).frame.toByteArray()) == true } == 1)
+            }
         case("09") {
             bootstrap()
             val first = weeklyFirst(); val second = weeklySecond()

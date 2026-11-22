@@ -3116,16 +3116,24 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             return service.startShot(profile.id,profile.scaleMode,7).also {watchShotIfIsolated()}
         }
         fun stop(){valid();check(service.fixtureShotEffects!=null);service.stopShot();watchShotIfIsolated()}
-        fun bootstrap() {
-            valid();require(calls.isEmpty())
-            hub.connectCoffee("AA:BB:CC:DD:EE:01",CoffeeAuthentication(LocalDateTime.of(2026,1,1,0,0),"123456"))
+        fun completeFakeHandshakeTransport() {
+            valid()
             check(calls.last().operation is GattOperation.Connect)
             complete()
             check(calls.last().operation == GattOperation.Discover)
             complete(result=OperationResult.Success(listOf(
                 CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
                 CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
-            complete();complete()
+            complete()
+            val auth=calls.last().operation as? GattOperation.Write ?: error("Expected fake authentication")
+            check(auth.endpoint==KnownGatt.coffeeWrite && auth.bytes.first().toInt() and 255 == 1)
+            complete()
+            check(service.snapshot.coffeeState!=DeviceState.READY)
+        }
+        fun bootstrap() {
+            valid();require(calls.isEmpty())
+            hub.connectCoffee("AA:BB:CC:DD:EE:01",CoffeeAuthentication(LocalDateTime.of(2026,1,1,0,0),"123456"))
+            completeFakeHandshakeTransport()
             observe(byteArrayOf(0x83.toByte(),1,0x13,0xfd.toByte(),92,0,125,15,53,0,25,0,0x6e))
             observe(byteArrayOf(0x40,0,0x24,0xbf.toByte(),0x2f,0x1c,0x77,0x0b,0,0,0,0,0,0,0,25,3,0x21,0xaf.toByte()))
             check(service.snapshot.coffeeState==DeviceState.READY && service.snapshot.settings!=null)
