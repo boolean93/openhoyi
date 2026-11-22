@@ -122,8 +122,7 @@ assert_activity MainActivity
 sleep 3
 assert_edges 1 1
 tap_control() {
-  printf 'Mock lifecycle target: %s
-' "$1"
+  printf 'Mock lifecycle target: %s\n' "$1"
   python3 scripts/mock_ui_tap.py "$@" --scroll
   sleep 2
 }

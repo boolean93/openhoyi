@@ -598,8 +598,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         } finally {
             test.runOnMainSync { watched.zip(watchers).forEach { (view, watcher) -> view.removeTextChangedListener(watcher) } }
         }
-        test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_IDLE_LABELS_PASSED sameValueWrites=0
-") })
+        test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_IDLE_LABELS_PASSED sameValueWrites=0\n") })
     }
 
     fun run() {
