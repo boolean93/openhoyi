@@ -1,0 +1,13 @@
+# Private same-package Android BLE V2 acceptance harness
+
+`-PhoyiBleSameIdQa=true -PhoyiBleV2Delivery=true` enables the single Mock-only diagnostics row; the normal Mock, Debug, and Release do not compile the fixture. The row has no manifest entry, receiver, permission, launcher or network changes. Nothing runs automatically. In this foundation commit the row reports NOT RUN and the sink is deliberately not yet wired; do not install it as a candidate for tablet acceptance.
+
+## Required downstream fixture contract
+
+Replace the body of `MockBleSameIdFixture.run()` only after an explicit fake-backed detached MobileService factory exists. Construct on main, with explicit bounded synthetic clock, guard against reentrancy, and release on completion. No reflection, framework Service lifecycle, real Application/curve-store/telemetry sharing, system service, permission lookup, real driver fallback, unscoped filesystem, user data/history/keys, nor writes outside optional dedicated QA files. Inject the driver at creation, through the real guarded native hub/session path. All device operations must be synthetic. The diagnostic screen stays ordinary Mock; separate diagnostic output is runtime service evidence, not evidence that a normal settings click uses that same path.
+
+Return a report with the expected matrix counts and all outcomes, separate requested/queued/submitted/GATT complete/evidence-confirmed records, one same-case test of changed/missing readback, stale or wrong generation, schedule P1/P2 verification, STOP priority, no replay. Record actual submitted fake writes and positive/blocked cases plus zero real transport calls. Keep controller entirely test-owned and no raw frame payloads, passwords, hardware addresses or history in UI/report. A missing test row, reached fallback, exception or false confirmation means failure, not passed or skipped. Main thread capture should run bounded deterministic batches rather than wait/sleep for physical side effects.
+
+## Build and verification
+
+Build in an isolated branch and record exact source/build config and APK SHA-256. Compare normal-vs-QA manifests and assert package is `io.openhoyi.mobile.mock`, version is explicitly chosen, and same installed Mock signing certificate; inspect DEX to ensure the fixture only exists in the QA variant. Safety acceptance still needs independent review of the integrated fake-backed service implementation, manifest/bytecode checks, and actual runtime. No separate test package; no destructive settings or system commands; no tablet action until exact validated candidate and scoped authorization.

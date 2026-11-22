@@ -302,6 +302,7 @@ class AppSettingsFragment : Fragment() {
             setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(10))
         }
         style.add(diagnostics, diagnosticsCard)
+        MockBleSameIdQaRow.attach(activity, diagnosticsCard, style)
         diagnosticState = style.text("", TaskProductVisualStyle.auxiliary,
             "product/settings/app/diagnostic-state", secondary = true)
         style.add(maintenanceDetails, requireNotNull(diagnosticState), 4)

@@ -175,6 +175,14 @@ android {
             java.setSrcDirs(listOf("src/updateFixtureTest/kotlin"))
         }
     }
+    if (bleSameIdQa) {
+        sourceSets.getByName("mock").java.srcDir("src/bleSameIdQa/kotlin")
+    } else {
+        sourceSets.getByName("mock").java.srcDir("src/bleSameIdQaStub/kotlin")
+    }
+    sourceSets.getByName("debug").java.srcDir("src/bleSameIdQaStub/kotlin")
+    sourceSets.getByName("release").java.srcDir("src/bleSameIdQaStub/kotlin")
+    if (updateChecks) sourceSets.getByName("updateFixture").java.srcDir("src/bleSameIdQaStub/kotlin")
     sourceSets.getByName("test").java.srcDir("src/compatTest/kotlin")
     sourceSets.getByName("androidTest").java.srcDir("src/compatTest/kotlin")
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
