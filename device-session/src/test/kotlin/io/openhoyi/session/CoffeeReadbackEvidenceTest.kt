@@ -22,11 +22,11 @@ class CoffeeReadbackEvidenceTest {
         override fun close(generation: Long) = Unit
     }
 
-    private inner class Fixture {
+    private inner class Fixture(track:Boolean=false) {
         val driver = Driver()
         var now = 100L
         val legacy = mutableListOf<HoyiMessage>()
-        val session = DeviceSession(DeviceRole.COFFEE, driver, { now }, coffeeFrame = { f, _ -> legacy += f })
+        val session = DeviceSession(DeviceRole.COFFEE, driver, { now }, coffeeFrame = { f, _ -> legacy += f }, trackCoffeeDelivery=track)
         fun connect(device: String = address, early: Boolean = false) {
             session.connect(device, CoffeeAuthentication(LocalDateTime.of(2026, 11, 1, 0, 0), "123456"))
             assertNull(session.coffeeReadbackCursor)
@@ -45,8 +45,8 @@ class CoffeeReadbackEvidenceTest {
             val (generation, token, _) = driver.submitted.last()
             session.onComplete(generation, token, result)
         }
-        fun receive(hex: String, generation: Long = session.generation, endpoint: Endpoint = KnownGatt.coffeeNotify) {
-            session.onNotification(generation, endpoint, packet(hex))
+        fun receive(hex: String, generation: Long = session.generation, endpoint: Endpoint = KnownGatt.coffeeNotify, capturedAt:Long=now) {
+            session.onNotification(generation, endpoint, packet(hex),capturedAt)
         }
         fun settingsWithDisabled(bit: Int) = packet(settings).also { bytes ->
             bytes[3] = (bytes[3].toInt() and bit.inv()).toByte()
@@ -74,6 +74,83 @@ class CoffeeReadbackEvidenceTest {
             assertEquals(address, frame.cursor.source.address)
             assertEquals(f.session.generation, frame.cursor.source.generation)
         }
+    }
+
+    @Test fun actualSettingCutRequiresCurrentProvenanceAndBothCompanionFields() {
+        val f = Fixture(track=true)
+        f.connect()
+        f.receive(settings)
+        f.receive("400024BF2F1C770B00000000000000190321AF")
+        val target = MachineSettingChange.StandbyDelay(30,53)
+        var receipt: CoffeeReadbackEvidence.Setting? = null
+        f.session.writeSettingWithEvidence(target,{true}) { result,cut ->
+            assertTrue(result is OperationResult.Success)
+            receipt=cut
+        }
+        val matching=settings.replace("0F35","1E35")
+        f.now=101; f.receive(matching)
+        f.now=102; f.complete()
+        val proof=requireNotNull(receipt)
+        fun check(report:Settings=f.legacy.last() as Settings, intent:MachineSettingChange=target) =
+            proof.evaluate(intent,report,f.latest(),f.cursor(),f.now)
+        assertNull(check())
+        f.now=103; f.receive(matching,capturedAt=101)
+        assertNull(check()) // Arrived late to the owner but captured before the transport cut.
+        f.now=104; f.receive(settings.replace("0F35","1E36"))
+        assertEquals(CoffeeReadbackEvidence.Setting.Observation.DIFFERENT,check())
+        f.now=105; f.receive(matching)
+        assertEquals(CoffeeReadbackEvidence.Setting.Observation.MATCH,check())
+        assertNull(check(intent=MachineSettingChange.StandbyTemperature(53,30)))
+        assertNull(check(report=(f.legacy.last() as Settings).copy()))
+        val stale=f.latest()
+        f.now=106; f.receive(settings)
+        assertNull(proof.evaluate(target,(stale as CoffeeReadbackFrame.OrdinarySettings).value,
+            stale,f.cursor(),f.now))
+        f.now=107; f.receive(matching,capturedAt=105)
+        assertNull(check()) // Newer than transport, but older than the latest native observation.
+        val other=Fixture(track=true)
+        other.connect()
+        other.now=107;other.receive(matching)
+        assertNull(proof.evaluate(target,other.legacy.last() as Settings,other.latest(),other.cursor(),other.now))
+    }
+
+    @Test fun weeklyMasterUsesBothNativeHalvesAndCannotEnableChangedPlanWhileQueued() {
+        val f=Fixture(track=true)
+        f.connect()
+        f.receive(settings.replace("FD","FC"))
+        f.receive("400024BF2F1C770B00000000000000190321AF")
+        val enable=MachineSettingChange.SleepScheduleEnabled(true)
+        var result:OperationResult?=null
+        fun submit() {
+            result=null
+            f.session.writeSettingWithEvidence(enable,{true}) { value, _ -> result=value }
+        }
+        f.receive(first)
+        var sent=f.driver.submitted.size
+        submit()
+        assertTrue(result is OperationResult.Failed)
+        assertEquals(sent,f.driver.submitted.size)
+
+        f.now=101; f.receive(second,capturedAt=99)
+        submit()
+        assertTrue(result is OperationResult.Failed) // Late P2 captured before the current P1.
+        assertEquals(sent,f.driver.submitted.size)
+        f.receive(second)
+
+        f.session.setBrewWait(0,{true}) { }
+        sent=f.driver.submitted.size
+        submit()
+        assertNull(result)
+        f.now=102; f.receive(first.replace("FE0A","FE0B"))
+        f.now=103; f.receive(second)
+        f.complete()
+        assertTrue(result is OperationResult.Failed)
+        assertEquals(sent,f.driver.submitted.size)
+        submit()
+        assertNull(result)
+        assertEquals(sent+1,f.driver.submitted.size)
+        assertArrayEquals(CoffeeCommands.setting(enable).frame.toByteArray(),
+            (f.driver.submitted.last().third as GattOperation.Write).bytes)
     }
 
     @Test fun exactBoilerWaitsForPostTransportMatchingFieldAndRejectsOldConnection() {

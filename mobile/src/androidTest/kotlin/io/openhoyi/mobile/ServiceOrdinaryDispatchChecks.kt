@@ -26,7 +26,8 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
 
     fun run()=runChecks(false)
     fun runOwnership()=runChecks(true)
-    private fun runChecks(ownership:Boolean) {
+    fun runV2Settings()=runChecks(ownership=false,v2Settings=true)
+    private fun runChecks(ownership:Boolean,v2Settings:Boolean=false) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -48,7 +49,9 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
         val kinds=listOf(MachineWriteRecoveryState.Kind.SETTING,MachineWriteRecoveryState.Kind.CUP_RESET,
             MachineWriteRecoveryState.Kind.SLEEP_NOW,MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE)
         val blocks=listOf("MANUAL","SHOT_RECOVERY","APP_SHOT","PREPARATION","ADDRESS","HUB","NOT_READY")
-        val cases=if(ownership) kinds.flatMap { kind->listOf("OWNER_QUEUED","OWNER_FAILED","OWNER_READBACK").map { kind to it } } else kinds.flatMap { kind->(listOf("ALLOW")+blocks).map { kind to it } } +
+        val cases=if(v2Settings) listOf("V2_DELAY","V2_TEMP","V2_WEEKLY_ENABLE","V2_REPLACED_TEMP","V2_ACK_UNKNOWN").map {
+            MachineWriteRecoveryState.Kind.SETTING to it
+        } else if(ownership) kinds.flatMap { kind->listOf("OWNER_QUEUED","OWNER_FAILED","OWNER_READBACK").map { kind to it } } else kinds.flatMap { kind->(listOf("ALLOW")+blocks).map { kind to it } } +
             blocks.map { MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE to "SECOND_$it" }
         for ((kind,mode) in cases) {
             val id = UUID.randomUUID().toString()
@@ -97,7 +100,10 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             check(!field(instance, "running").getBoolean(instance))
                         }
                         val instance = attach()
-                        val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames)
+                        val receive = MobileService::class.java.getDeclaredMethod("onCoffeeFrame",HoyiMessage::class.java).apply { isAccessible=true }
+                        val owner = NativeDeviceHub(context, legacyVerifiedStartFrames=app.curves.legacyVerifiedStartFrames,
+                            trackCoffeeDelivery=v2Settings,
+                            onCoffee={ frame -> if(v2Settings) receive.invoke(instance,frame) })
                         hub = owner
                         field(instance, "hub").set(instance, owner)
                         val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
@@ -180,6 +186,143 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             queues[0].enqueue(GattOperation.Discover,1000) { }
                             check(calls.last().third==GattOperation.Discover);fakeBarriers++
                             return calls.last()
+                        }
+                        if(v2Settings) {
+                            field(instance,"v2SettingEvidence").setBoolean(instance,true)
+                            field(session,"coffeeAuthentication").set(session,CoffeeAuthentication(
+                                java.time.LocalDateTime.of(2026,11,22,0,0),"123456"))
+                            field(session,"notifyEndpoint").set(session,KnownGatt.coffeeNotify)
+                            fun ingest(hex:String,capturedHint:Long?=null) {
+                                // Advance the detached queue's clock, not the Android app's wall clock.
+                                now=SystemClock.elapsedRealtime()
+                                session.onNotification(session.generation,KnownGatt.coffeeNotify,
+                                    hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray(),capturedHint ?: now)
+                            }
+                            fun writeCount() = calls.count { it.third is GattOperation.Write }
+                            // Same monotonic clock as the ACK cut; no wall clock or future samples.
+                            fun freshTick() = SystemClock.sleep(2)
+                            val normal="830113FD5C007D0F350019006E"
+                            val disabled=normal.replace("FD","FC")
+                            val idleHex="400024BF2F1C770B00000000000000190321AF"
+                            ingest(idleHex)
+                            if (mode=="V2_WEEKLY_ENABLE") {
+                                val enable=MachineSettingChange.SleepScheduleEnabled(true)
+                                mapOf("sleepFirst" to null,"sleepSecond" to null,"sleepFirstAtMs" to null,"sleepSecondAtMs" to null)
+                                    .forEach { (name,value) -> field(session,name).set(session,value) }
+                                field(instance,"snapshot").set(instance,instance.snapshot.copy(sleepFirst=null,sleepSecond=null,sleepFirstAt=null,sleepSecondAt=null))
+                                ingest(disabled)
+                                ingest("8340FE0A00071E0A00071E0A00071E0A00071E3D")
+                                check(instance.changeMachineSetting(enable)!=null && writeCount()==0)
+                                ingest("83800A00071E0A00071E0A00071E10")
+                                val blocked=barrier()
+                                check(instance.changeMachineSetting(enable)==null && state()=="WRITING")
+                                ingest("8340FE0B00071E0A00071E0A00071E0A00071E3D")
+                                ingest("83800A00071E0A00071E0A00071E10")
+                                complete(blocked)
+                                check(writeCount()==0 && state()=="FAILED" && !recovery(instance).pending)
+                                check(instance.changeMachineSetting(enable)==null && writeCount()==1 && state()=="WRITING")
+                                check((calls.last().third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.setting(enable).frame.toByteArray()))
+                                val preAck=SystemClock.elapsedRealtime()
+                                complete(calls.last());check(state()=="WAITING_READBACK")
+                                freshTick();ingest(normal,capturedHint=preAck)
+                                check(state()=="WAITING_READBACK" && recovery(instance).pending)
+                                freshTick();ingest(disabled)
+                                check(state()=="WAITING_READBACK")
+                                freshTick();ingest(normal)
+                                check(state()=="CONFIRMED" && !recovery(instance).pending && writeCount()==1)
+                            } else if (mode=="V2_ACK_UNKNOWN") {
+                                ingest(normal)
+                                check(instance.changeMachineSetting(MachineSettingChange.Light(false))==null && writeCount()==1)
+                                val call=calls.last()
+                                val preResult=SystemClock.elapsedRealtime()
+                                session.onComplete(call.first,call.second,OperationResult.Unknown("fixture uncertain delivery"))
+                                check(state()=="UNKNOWN" && recovery(instance).pending)
+                                val lightOff=normal.replace("FD","F5")
+                                freshTick();ingest(lightOff,capturedHint=preResult);ingest(idleHex)
+                                instance.acknowledgeManualSafety()
+                                check(state()=="UNKNOWN" && recovery(instance).pending && writeCount()==1)
+
+                                // New authenticated synthetic generation on an incorrect address cannot
+                                // clear the record, then same-address evidence allows explicit release.
+                                queues[0].open()
+                                field(session,"activeAddress").set(session,"AA:BB:CC:DD:EE:02")
+                                ingest(idleHex);freshTick();ingest(lightOff)
+                                instance.acknowledgeManualSafety()
+                                check(state()=="UNKNOWN" && recovery(instance).pending && writeCount()==1)
+                                queues[0].open()
+                                field(session,"activeAddress").set(session,address)
+                                ingest(idleHex);freshTick();ingest(lightOff)
+                                check(state()=="UNKNOWN" && recovery(instance).pending && writeCount()==1)
+                                instance.acknowledgeManualSafety()
+                                check(state()=="IDLE" && !recovery(instance).pending && writeCount()==1)
+                                check(instance.changeMachineSetting(MachineSettingChange.Light(true))==null && writeCount()==2)
+                                check((calls.last().third as GattOperation.Write).bytes.contentEquals(
+                                    CoffeeCommands.setting(MachineSettingChange.Light(true)).frame.toByteArray()))
+                                complete(calls.last())
+                                freshTick();ingest(normal)
+                                check(state()=="CONFIRMED" && !recovery(instance).pending && writeCount()==2)
+                            } else if (mode=="V2_REPLACED_TEMP") {
+                                val temp=(field(instance,"temperatureWrite\$delegate").get(instance) as Lazy<*>).value as BackgroundTemperatureWrite
+                                ingest(normal)
+                                val paired=MachineSettingChange.StandbyDelay(30,53)
+                                val other=MachineSettingChange.BrewTemperature(93)
+                                check(instance.changeMachineSetting(paired)==null && writeCount()==1)
+                                val prePairedAck=SystemClock.elapsedRealtime()
+                                complete(calls.last());check(temp.state==SettingsWriteTracker.State.WAITING_READBACK)
+                                check(instance.changeMachineSetting(other)==null && temp.change==other && writeCount()==2)
+                                complete(calls.last());check(temp.state==SettingsWriteTracker.State.WAITING_READBACK)
+                                freshTick();ingest(normal.replace("0F35","1E35"),capturedHint=prePairedAck)
+                                check(instance.changeMachineSetting(MachineSettingChange.StandbyTemperature(60,30))!=null &&
+                                    writeCount()==2 && temp.change==other)
+
+                                // Rebind to a newly authenticated dummy generation, not to the old operation.
+                                // Synthetic queue only: no BLE connecting, command replay, or device permission.
+                                val previousGeneration=queues[0].generation
+                                queues[0].open()
+                                check(queues[0].generation>previousGeneration && writeCount()==2)
+                                temp.disconnected(field(instance,"settingsSampleSerial").getLong(instance))
+                                ingest(idleHex)
+                                freshTick();ingest(normal.replace("5C","5D").replace("0F35","1E36"))
+                                check(temp.state==SettingsWriteTracker.State.UNKNOWN && writeCount()==2)
+                                val newIntent=MachineSettingChange.StandbyTemperature(60,30)
+                                check(instance.changeMachineSetting(newIntent)==null && temp.change==newIntent && writeCount()==3)
+                                check((calls.last().third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.setting(newIntent).frame.toByteArray()))
+                                complete(calls.last())
+                                freshTick();ingest(normal.replace("5C","5D").replace("0F35","1E3C"))
+                                check(temp.state==SettingsWriteTracker.State.CONFIRMED && writeCount()==3)
+                            } else {
+                                val temp=(field(instance,"temperatureWrite\$delegate").get(instance) as Lazy<*>).value as BackgroundTemperatureWrite
+                                val delay=mode=="V2_DELAY"
+                                val old = if(delay) MachineSettingChange.StandbyDelay(30,53)
+                                    else MachineSettingChange.StandbyTemperature(60,15)
+                                val fresh = if(delay) MachineSettingChange.StandbyDelay(30,54)
+                                    else MachineSettingChange.StandbyTemperature(60,30)
+                                val changed = if(delay) normal.replace("0F35","0F36") else normal.replace("0F35","1E35")
+                                val matching = if(delay) normal.replace("0F35","1E36") else normal.replace("0F35","1E3C")
+                                val mismatch = if(delay) normal.replace("0F35","1E35") else normal.replace("0F35","0F3C")
+                                ingest(normal)
+                                val blocked=barrier()
+                                check(instance.changeMachineSetting(old)==null && temp.state==SettingsWriteTracker.State.WRITING)
+                                ingest(changed)
+                                complete(blocked)
+                                check(writeCount()==0 && temp.state==SettingsWriteTracker.State.FAILED)
+                                check(instance.changeMachineSetting(fresh)==null && writeCount()==1)
+                                check((calls.last().third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.setting(fresh).frame.toByteArray()))
+                                val preAck=SystemClock.elapsedRealtime()
+                                complete(calls.last())
+                                check(temp.state==SettingsWriteTracker.State.WAITING_READBACK)
+                                freshTick();ingest(matching,capturedHint=preAck)
+                                val other = if(delay) MachineSettingChange.StandbyTemperature(60,30)
+                                    else MachineSettingChange.StandbyDelay(120,60)
+                                check(instance.changeMachineSetting(other)!=null && writeCount()==1)
+                                freshTick();ingest(mismatch)
+                                check(temp.state==SettingsWriteTracker.State.WAITING_READBACK)
+                                freshTick();ingest(matching)
+                                check(temp.state==SettingsWriteTracker.State.CONFIRMED && writeCount()==1)
+                            }
+                            check(systemLookups==0 && permissionChecks==0 && componentCalls==0 && scaleExecutions==0)
+                            fakeWrites+=writeCount(); checkedFixtures++
+                            return@runOnMainSync
                         }
                         val held=if(!partial)barrier() else null
                         now=SystemClock.elapsedRealtime()
@@ -360,7 +503,8 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                 cleanupFailure?.let { throw it }
             }
         }
-        if(ownership)check(checkedFixtures==12 && fakeWrites==9 && fakeBarriers==12 && clearedReloads==0 && retainedReloads==12)
+        if(v2Settings)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==3)
+        else if(ownership)check(checkedFixtures==12 && fakeWrites==9 && fakeBarriers==12 && clearedReloads==0 && retainedReloads==12)
         else check(checkedFixtures==39 && fakeWrites==12 && fakeBarriers==39 && clearedReloads==28 && retainedReloads==11)
     }
 }

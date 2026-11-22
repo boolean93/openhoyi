@@ -353,6 +353,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var readbackSource: CoffeeReadbackSource? = null
     private var readbackSequence = 0L
     private var lastReadback: CoffeeReadbackFrame? = null
+    private var lastOrdinarySettings: CoffeeReadbackFrame.OrdinarySettings? = null
+    private var nativeWeeklyFirst: CoffeeReadbackFrame.WeeklyPart? = null
+    private var nativeWeeklySecond: CoffeeReadbackFrame.WeeklyPart? = null
     private var shotStartEvidence: ShotStartEvidence? = null
     internal fun shotStartObservation(owner:CoffeeStartContext): ShotStartObservation? =
         shotStartEvidence?.takeIf { it.owner === owner }?.status(currentReadbackSource(),clock())
@@ -368,15 +371,25 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         currentReadbackSource()?.let { CoffeeReadbackCursor(it, readbackSequence) }
     val latestCoffeeReadbackFrame: CoffeeReadbackFrame? get() =
         lastReadback?.takeIf { it.cursor.source === currentReadbackSource() }
+    val latestOrdinaryCoffeeSettings: CoffeeReadbackFrame.OrdinarySettings? get() =
+        lastOrdinarySettings?.takeIf { it.cursor.source === currentReadbackSource() }
 
     private fun recordLiveReadback(frame: HoyiMessage, now: Long) {
         // Called at ingress only, never on buffered initialization/replayed packets.
         if (frame !is Settings && frame !is SleepPart) return
         val source = currentReadbackSource() ?: return
+        if (lastReadback?.let { it.cursor.source === source && now < it.receivedAtMs } == true) return
         val cursor = CoffeeReadbackCursor(source, ++readbackSequence)
         lastReadback = when (frame) {
-            is Settings -> CoffeeReadbackFrame.OrdinarySettings(cursor, now, frame)
-            is SleepPart -> CoffeeReadbackFrame.WeeklyPart(cursor, now, frame)
+            is Settings -> CoffeeReadbackFrame.OrdinarySettings(cursor, now, frame).also { lastOrdinarySettings=it }
+            is SleepPart -> CoffeeReadbackFrame.WeeklyPart(cursor, now, frame).also {
+                if (frame.firstDaySundayIndex == 0) {
+                    nativeWeeklyFirst=it
+                    nativeWeeklySecond=null
+                } else if (frame.firstDaySundayIndex == 4) {
+                    nativeWeeklySecond=it
+                }
+            }
         }
     }
 
@@ -403,7 +416,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     initialSynchronization?.settings=frame to now
                     return
                 }
-                recordLiveReadback(frame,now)
+                if (SettingsFreshness.isFresh(capturedAtMs,now)) recordLiveReadback(frame,capturedAtMs)
                 shotStartEvidence?.let { evidence ->
                     currentReadbackSource()?.let { source ->
                         if (TelemetryFreshness.isFresh(capturedAtMs,now) &&
@@ -708,14 +721,30 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     private fun canStartPreheat():Boolean =
         canControlWithBrewSettings() && lastSettings?.flags?.and(0x04) == 0x04
+    private fun currentWeeklyActivationBaseline(): List<WeeklySleepDay>? {
+        val source=currentReadbackSource() ?: return null
+        val first=nativeWeeklyFirst ?: return null
+        val second=nativeWeeklySecond ?: return null
+        if (first.cursor.source !== source || second.cursor.source !== source ||
+            first.cursor.sequence >= second.cursor.sequence ||
+            !SleepScheduleFreshness.isFresh(first.value,first.receivedAtMs,second.value,second.receivedAtMs,clock()))
+            return null
+        return WeeklySleepSchedule.fromReadback(first.value,second.value)?.days
+    }
+    private fun standbyCompanionBaseline():Settings? =
+        if (!trackCoffeeDelivery) lastSettings
+        else latestOrdinaryCoffeeSettings?.takeIf {
+            it.value === lastSettings && SettingsFreshness.isFresh(it.receivedAtMs,clock())
+        }?.value
     private fun canWriteSetting(change: MachineSettingChange): Boolean =
         canControlWithFreshSettings() && when(change) {
             // New slow-flow global writes require the exact reviewed firmware at dispatch too.
             is MachineSettingChange.LeverMode -> MachineModeFirmwarePolicy.permits(change, observedFirmware)
-            is MachineSettingChange.StandbyDelay -> lastSettings?.standbyTemperatureC == change.temperatureC
-            is MachineSettingChange.StandbyTemperature -> lastSettings?.standbyMinutes == change.minutes
+            is MachineSettingChange.StandbyDelay -> standbyCompanionBaseline()?.standbyTemperatureC == change.temperatureC
+            is MachineSettingChange.StandbyTemperature -> standbyCompanionBaseline()?.standbyMinutes == change.minutes
             is MachineSettingChange.SleepScheduleEnabled -> !change.enabled ||
-                SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock())
+                if (trackCoffeeDelivery) currentWeeklyActivationBaseline()!=null
+                else SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock())
             else -> true
         }
     /** Persistent single-recipe overwrite. Success means GATT completion only, never verified storage.
@@ -783,29 +812,41 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
 
     fun writeSetting(change:MachineSettingChange,callback:(OperationResult)->Unit)=writeSetting(change,{true},callback)
-    fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
+    fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) =
+        writeSettingWithEvidence(change,beforeDispatch) { result, _ -> callback(result) }
+
+    fun writeSettingWithEvidence(change:MachineSettingChange,beforeDispatch:()->Boolean,
+        callback:(OperationResult,CoffeeReadbackEvidence.Setting?)->Unit) {
         boilerReadback=null;boilerRefreshTask=null
-        if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
-        else if (!canWriteSetting(change)) callback(OperationResult.Failed("fresh settings with unchanged companion value required"))
+        if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"),null)
+        else if (!canWriteSetting(change)) callback(OperationResult.Failed("fresh settings with unchanged companion value required"),null)
         else {
+            fun enablingPlanBaseline() = if (trackCoffeeDelivery) currentWeeklyActivationBaseline()
+                else WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days
             val enablingPlan = if(change is MachineSettingChange.SleepScheduleEnabled && change.enabled)
-                WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days else null
+                enablingPlanBaseline() else null
             val expected=generation
             val expectedFirmware=observedFirmware
+            var dispatchSource:CoffeeReadbackSource? = null
             send(CoffeeCommands.setting(change),DeviceRole.COFFEE,kind=when(change) {
                 is MachineSettingChange.BrewHeating, is MachineSettingChange.SteamHeating -> CoffeeDeliveryKind.BOILER
                 else -> CoffeeDeliveryKind.SETTING
             },
                 beforeDispatch={beforeDispatch() && canWriteSetting(change) &&
                     (change !is MachineSettingChange.LeverMode || observedFirmware==expectedFirmware) &&
-                    (enablingPlan == null || WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == enablingPlan)}) {result->
+                    (enablingPlan == null || enablingPlanBaseline() == enablingPlan)},
+                onHandoff={ if (trackCoffeeDelivery) dispatchSource=currentReadbackSource() }) {result->
                 // Arm before the host callback: it must enter WAITING_READBACK before requesting refresh.
                 if(result is OperationResult.Success && ownsInitialization(expected) && state==DeviceState.READY &&
                     SettingsReadbackPolicy.supports(change))
                     coffeeAuthentication?.let { authentication->address?.let { target->
                         boilerReadback=BoilerReadback(expected,target,authentication,clock(),SettingsReadbackPolicy.isBoiler(change))
                     } }
-                callback(result)
+                val evidence = if (result is OperationResult.Success || result is OperationResult.Unknown)
+                    coffeeReadbackCursor?.takeIf { it.source === dispatchSource }?.let {
+                        CoffeeReadbackEvidence.Setting(change,it,clock())
+                    } else null
+                callback(result,evidence)
             }
         }
     }

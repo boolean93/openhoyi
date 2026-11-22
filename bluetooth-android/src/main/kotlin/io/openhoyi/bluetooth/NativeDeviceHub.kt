@@ -76,6 +76,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     // Compatibility-preserving sidecar. No existing callback or control permit consumes it.
     val coffeeReadbackCursor get() = if (closed) null else coffee.session.coffeeReadbackCursor
     val latestCoffeeReadbackFrame get() = if (closed) null else coffee.session.latestCoffeeReadbackFrame
+    val latestOrdinaryCoffeeSettings get() = if (closed) null else coffee.session.latestOrdinaryCoffeeSettings
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()},{scaleSampleSerial})
@@ -312,13 +313,17 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             { beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state) },done)
     }
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit)=writeSetting(change,{true},done)
-    fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+    fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,done:(OperationResult)->Unit) =
+        writeSettingWithEvidence(change,beforeDispatch) { result, _ -> done(result) }
+
+    fun writeSettingWithEvidence(change:MachineSettingChange,beforeDispatch:()->Boolean,
+        done:(OperationResult,CoffeeReadbackEvidence.Setting?)->Unit) {
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
-            done(OperationResult.Failed("extraction active"));return
+            done(OperationResult.Failed("extraction active"),null);return
         }
-        coffee.session.writeSetting(change,beforeDispatch,done)
+        coffee.session.writeSettingWithEvidence(change,beforeDispatch,done)
     }
     val canRefreshStaleSettings get() = coffee.session.canRefreshStaleSettings &&
         !DeviceConnectionGate.unsettled(extraction.state)

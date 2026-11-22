@@ -26,6 +26,22 @@ object CoffeeReadbackEvidence {
         current != null && baseline.source === current.source && frame.cursor.source === current.source &&
             frame.cursor.sequence > baseline.sequence && frame.cursor.sequence == current.sequence
 
+    /** One exact setting's source-bound cut, issued by the session after the write result.
+     * A source-valid mismatch is an observation, never evidence that the requested setting applied.
+     */
+    class Setting internal constructor(private val target:MachineSettingChange,
+        private val cut:CoffeeReadbackCursor, private val cutAtMs:Long) {
+        enum class Observation { MATCH, DIFFERENT }
+
+        fun evaluate(expected:MachineSettingChange?, report:Settings, frame:CoffeeReadbackFrame?,
+            current:CoffeeReadbackCursor?, now:Long):Observation? {
+            if (target!=expected || frame !is CoffeeReadbackFrame.OrdinarySettings || frame.value !== report ||
+                !eligible(cut,current,frame) || frame.receivedAtMs<=cutAtMs ||
+                !SettingsFreshness.isFresh(frame.receivedAtMs,now)) return null
+            return if (target.matches(report)) Observation.MATCH else Observation.DIFFERENT
+        }
+    }
+
     /** Baseline must be taken after transport success. An already-matching target is not a change. */
     class Boiler private constructor(private val target: MachineSettingChange, private val baseline: CoffeeReadbackCursor) {
         fun matches(frame: CoffeeReadbackFrame, current: CoffeeReadbackCursor?, nowMs: Long): Boolean =

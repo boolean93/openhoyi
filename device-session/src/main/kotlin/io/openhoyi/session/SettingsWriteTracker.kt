@@ -80,6 +80,18 @@ class SettingsWriteTracker {
         return true
     }
 
+    /** User acknowledged a specific unknown operation after an independent fresh baseline;
+     * this does not confirm the requested value or grant automatic retry. */
+    fun unknownAcknowledgementToken():Long? = serial.takeIf { state==State.UNKNOWN }
+    fun acknowledgeUnknown(token:Long):Boolean {
+        if (serial!=token || state!=State.UNKNOWN) return false
+        serial++
+        change=null
+        afterSample=0
+        state=State.IDLE
+        return true
+    }
+
     fun disconnected(sampleSerial: Long) {
         if (state == State.WRITING || state == State.WAITING_READBACK) {
             afterSample = maxOf(afterSample, sampleSerial)
