@@ -113,21 +113,20 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
                 brewing = true, beverageHundredthsGram = i * 101)
         }
         val series = FourMetricChartProjection.build(samples, emptyList(), liveFlow = true, includeLiveWeight = true)
-        data class Case(val id: String, val locale: Locale, val font: AppFontSize, val widthDp: Int,
-            val heightDp: Int, val count: Int)
+        data class Case(val id: String, val language: AppLanguage, val font: AppFontSize, val widthDp: Int,
+            val heightDp: Int, val count: Int, val dark: Boolean = false)
         val cases = listOf(
-            Case("square-four", Locale.SIMPLIFIED_CHINESE, AppFontSize.MEDIUM, 640, 250, 4),
-            Case("square-five", Locale.SIMPLIFIED_CHINESE, AppFontSize.MEDIUM, 640, 250, 5),
-            Case("short-small", Locale.SIMPLIFIED_CHINESE, AppFontSize.SMALL, 328, 200, 5),
-            Case("short-large", Locale.ENGLISH, AppFontSize.LARGE, 300, 230, 5)
+            Case("square-four", AppLanguage.CHINESE, AppFontSize.MEDIUM, 640, 250, 4, dark = true),
+            Case("square-five", AppLanguage.CHINESE, AppFontSize.MEDIUM, 640, 250, 5, dark = true),
+            Case("short-small", AppLanguage.CHINESE, AppFontSize.SMALL, 328, 200, 5),
+            Case("short-large", AppLanguage.ENGLISH, AppFontSize.LARGE, 300, 230, 5)
         )
         fun JSONObject.glyph() = getJSONArray("glyphBoundsPx")
         fun JSONArray.coord(i: Int) = getDouble(i)
+        var firstFailure: Throwable? = null
         for (case in cases) {
-            val context = android.view.ContextThemeWrapper(base.createConfigurationContext(
-                Configuration(base.resources.configuration).apply {
-                    setLocale(case.locale); fontScale = case.font.scale
-                }), R.style.MobileTheme)
+            val context = android.view.ContextThemeWrapper(
+                AppLanguageContext.wrap(base, case.language, case.dark, case.font), R.style.MobileTheme)
             val density = context.resources.displayMetrics.density
             val width = (case.widthDp * density).toInt()
             val height = (case.heightDp * density).toInt()
@@ -138,9 +137,17 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
             })
             check(data.series.size == case.count)
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val receipt = JSONObject()
+                .put("rendering", "native Canvas component in hosted Mock, not hardware or whole window")
+                .put("widthPx", width).put("heightPx", height).put("density", density)
+                .put("appFont", case.font.key).put("dark", case.dark).put("axisCount", data.series.size)
             try {
                 bitmap.eraseColor(visual.palette.surface)
                 val plot = renderer.draw(Canvas(bitmap), width, height, data, ChartMetric.PRESSURE, null, comparison = false)
+                receipt.put("afterWidthPxFromCanvas", plot.width()).put("geometry", renderer.evidence)
+                File(directory, "axis-stack-${case.id}.png").outputStream().use {
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
                 check(plot.width() >= 96 * density && plot.height() >= 96 * density) { "${case.id}: $plot" }
                 val ops = (0 until renderer.evidence.length()).map(renderer.evidence::getJSONObject)
                 val texts = ops.filter { it.optString("operation") == "text" }
@@ -204,17 +211,17 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
                 if (case.id == "square-four") check(plot.width() - oldPlotWidth >= 80 * density) {
                     "Expected meaningful gain in the same four-axis plot: $oldPlotWidth → ${plot.width()}"
                 }
-                File(directory, "axis-stack-${case.id}.png").outputStream().use {
-                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-                }
-                File(directory, "axis-stack-${case.id}.json").writeText(JSONObject()
-                    .put("rendering", "native Canvas component in hosted Mock, not hardware or whole window")
-                    .put("widthPx", width).put("heightPx", height).put("density", density)
-                    .put("appFont", case.font.key).put("axisCount", data.series.size)
-                    .put("beforeWidthPxFromPriorFormula", oldPlotWidth).put("beforeAllAxes", oldAll)
-                    .put("afterWidthPxFromCanvas", plot.width()).put("geometry", renderer.evidence).toString())
-            } finally { bitmap.recycle() }
+                receipt.put("beforeWidthPxFromPriorFormula", oldPlotWidth).put("beforeAllAxes", oldAll).put("passed", true)
+            } catch (error: Exception) {
+                receipt.put("passed", false).put("failure", error.stackTraceToString())
+                val prior = firstFailure
+                if (prior == null) firstFailure = error else prior.addSuppressed(error)
+            } finally {
+                bitmap.recycle()
+                File(directory, "axis-stack-${case.id}.json").writeText(receipt.toString())
+            }
         }
+        firstFailure?.let { throw it }
     }
 
 }
