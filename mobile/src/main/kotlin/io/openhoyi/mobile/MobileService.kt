@@ -164,7 +164,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         MachineWriteRecoveryState(machineOperations?.legacyStorage ?: RecoveryPreferenceStorage.machine(this))
     }
     private fun holdsMachineWriter():Boolean =
-        !opaqueV2RecoveryFence && (!BuildConfig.BLE_V2_DELIVERY || machineOperations?.legacyMayDispatch==true)
+        !opaqueV2RecoveryFence &&
+            (if(BuildConfig.BLE_V2_DELIVERY || fixtureClock!=null) machineOperations?.legacyMayDispatch==true else true)
     private var splitAdmissionEnabled=BuildConfig.BLE_V2_SPLIT_ADMISSION
     private class SplitPending(val send:CanonicalMachineOperationBroker.Send,
         val binding:CanonicalMachineOperationBroker.Binding,val trackerToken:Long) {
