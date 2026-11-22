@@ -9,32 +9,35 @@ import io.openhoyi.session.SettingsWriteTracker.State.WAITING_READBACK
 /** Scripted evidence traverses the detached real service, codec, hub and guarded fake driver. */
 internal object MockBleSameIdFixture {
     data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int)
-    class Result(private val outcomes: List<Outcome>) {
+    class Result(private val outcomes: List<Outcome>, private val edges: List<Outcome>) {
         fun render(zh: Boolean): String {
-            val header = if (zh) "隔离模拟核心：${outcomes.count { it.passed }}/${outcomes.size}\n非实机测试"
-                else "Detached fake core: ${outcomes.count { it.passed }}/${outcomes.size}\nNot a hardware test"
+            val header = if (zh) "隔离模拟核心（部分行为）：${outcomes.count { it.passed }}/${outcomes.size}\n非实机测试"
+                else "Detached fake core (partial behavior): ${outcomes.count { it.passed }}/${outcomes.size}\nNot a hardware test"
             return (listOf(header) + outcomes.map {
                 "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})"
-            } + if (zh) "未测：萃取启停、拨杆配方、预热/取消、13 条禁用边界、系统生命周期。"
-                else "NOT RUN: shot start/stop, stored lever recipe, preheat/cancel, 13 exclusions and system lifecycle.")
+            } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})" } +
+                if (zh) "未测：主动同步、条件重连、萃取启停、拨杆配方、预热/取消、真实进程恢复和版本回退。"
+                else "NOT RUN: active sync, conditional reconnect, shot start/stop, stored lever recipe, preheat/cancel, process restore and app downgrade.")
                 .joinToString("\n")
         }
     }
     private data class Setting(val row: String, val change: MachineSettingChange, val observed: ByteArray)
 
-    fun run(context: Context): Result {
-        val tests = mutableListOf<Outcome>()
+    fun cases(context: Context): List<() -> Outcome> {
+        val tests = mutableListOf<() -> Outcome>()
         fun case(row: String, run: MobileService.DetachedCorePort.() -> Unit) {
-            var writes = 0
-            val passed = try {
-                MobileService.withDetachedCore(context) { port ->
-                    try { port.run() } finally {
-                        writes = port.calls.count { it.operation is GattOperation.Write }
+            tests += {
+                var writes = 0
+                val passed = try {
+                    MobileService.withDetachedCore(context) { port ->
+                        try { port.run() } finally {
+                            writes = port.calls.count { it.operation is GattOperation.Write }
+                        }
                     }
-                }
-                true
-            } catch (_: Exception) { false } catch (_: AssertionError) { false }
-            tests += Outcome(row, passed, writes)
+                    true
+                } catch (_: Exception) { false } catch (_: AssertionError) { false }
+                Outcome(row, passed, writes)
+            }
         }
         case("01") {
             bootstrap()
@@ -55,7 +58,7 @@ internal object MockBleSameIdFixture {
             Setting("14-temp", MachineSettingChange.StandbyTemperature(56, 15), settings(standby = 56)),
             Setting("15", MachineSettingChange.SleepScheduleEnabled(true), settings()),
         )
-        for ((row, change, target) in settings) case(row) {
+        for ((row, change, target) in settings) case("$row/passive") {
             bootstrap()
             val baseline = if (row == "15") settings(flags = 0xfc) else settings()
             advance(1); observe(baseline)
@@ -121,7 +124,48 @@ internal object MockBleSameIdFixture {
             advance(1); observe(idle(asleep = 1))
             check(sleepState.name == "CONFIRMED")
         }
-        return Result(tests.toList())
+        return tests + listOf({ detachedLifecycle(context) })
+    }
+
+    /** Never builds legacy payloads or supplies these to a DeviceSession/real transport. */
+    fun boundaryChecks(): List<Outcome> {
+        val forbidden = listOf(
+            Triple("07", 0x07, 5), Triple("08-short", 0x08, 5), Triple("09-single", 0x09, 7),
+            Triple("0B", 0x0b, 9), Triple("12", 0x12, 5), Triple("13", 0x13, 5),
+            Triple("16", 0x16, 5), Triple("17-reset", 0x17, 5), Triple("17-alarm", 0x17, 6),
+            Triple("18", 0x18, 5), Triple("21", 0x21, 5), Triple("40-outbound", 0x40, 5),
+            Triple("OTA-boundary", 0xa0, 5),
+        )
+        return forbidden.mapIndexed { index, (row, opcode, size) ->
+            val sink = DetachedCoreDriver()
+            val guard = GuardedGattDriver(DeviceRole.COFFEE, sink)
+            val marker = ByteArray(size).apply { this[0] = opcode.toByte() }
+            val denied = !guard.execute(1, index + 1L, GattOperation.Write(KnownGatt.coffeeWrite, marker, true))
+            Outcome("deny/$row", denied && sink.calls.isEmpty(), sink.calls.size)
+        }
+    }
+
+    /** Detached host disposal only. Never presents this as Android process death/upgrade. */
+    private fun detachedLifecycle(context: Context): Outcome {
+        var writes = 0
+        val passed = try {
+            val old = MobileService.withDetachedCore(context) { port ->
+                port.bootstrap()
+                check(port.apply(MachineSettingChange.Light(false)) == null)
+                check(port.calls.count { it.operation is GattOperation.Write } == 2)
+                port
+            }
+            check(runCatching { old.complete() }.isFailure)
+            MobileService.withDetachedCore(context) { fresh ->
+                fresh.bootstrap()
+                fresh.advance(100)
+                fresh.observe(settings(flags = 0xf5))
+                writes = fresh.calls.count { it.operation is GattOperation.Write }
+                check(writes == 1 && fresh.settingState.name == "IDLE" && fresh.recoveryKind == null)
+            }
+            true
+        } catch (_: Exception) { false } catch (_: AssertionError) { false }
+        return Outcome("detached-owner-dispose/no-replay", passed, writes)
     }
 
     private fun MobileService.DetachedCorePort.expectLastWrite(bytes: ByteArray) {
