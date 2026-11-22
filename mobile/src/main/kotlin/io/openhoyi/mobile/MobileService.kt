@@ -112,6 +112,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private lateinit var logs: TraceStore
     private var fixtureClock:DetachedCoreClock?=null
     private var fixtureLeverRecipes:MachineLeverRecipeStore?=null
+    private var fixtureCurveLibrary:CurveLibrary?=null
+    private var fixtureCurveId:String?=null
+    private fun controlledCurveLibrary():CurveLibrary =
+        fixtureCurveLibrary ?: (application as MobileApplication).curves
     private fun elapsedNow()=fixtureClock?.now ?: MobileMonotonicClock.elapsedRealtime()
     private fun scheduleDelay(delay:Long,action:()->Unit) {
         val fixture=fixtureClock
@@ -1785,9 +1789,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         leverRecipeWriteBlock()?.let { return it }
         if (!CustomCurveFirmwarePolicy.permitsStoredRecipe(profile.parameters, coffeeFirmware))
             return getString(R.string.lever_firmware_unsupported)
-        val app = application as MobileApplication
+        val library = controlledCurveLibrary()
         if (leverDeviceAddress != expectedAddress || coffeeFirmware.toString() != expectedFirmware ||
-            app.curves.resolve(profile.id, false, 7) != profile || !app.curves.validated(profile))
+            library.resolve(profile.id, false, 7) != profile || !library.validated(profile))
             return getString(R.string.lever_changed)
         val frame = runCatching { io.openhoyi.protocol.StoredLeverRecipeFormat.candidate(profile.parameters).hex() }
             .getOrNull() ?: return getString(R.string.lever_changed)
@@ -1837,7 +1841,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             leverInFlight == token && leverStore.pending(token) && hub === current &&
                 current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
                 coffeeFirmware.toString() == expectedFirmware && leverRecipeConditions() == null &&
-                app.curves.resolve(profile.id, false, 7) == profile && app.curves.validated(profile)
+                library.resolve(profile.id, false, 7) == profile && library.validated(profile)
         }, { snapshot = snapshot.copy(settingsAt = null) }, ::complete)
         } catch (_: Exception) { complete(OperationResult.Unknown("recipe submission interrupted")) }
         return null
@@ -2093,6 +2097,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         return null
     }
     private fun selectedCurve(profileId: String, slot: Int): CurveProfile? {
+        fixtureCurveLibrary?.let {
+            return profileId.takeIf { id -> id == fixtureCurveId && slot == 7 }
+                ?.let { id -> it.resolve(id,false,slot) }
+        }
         val selectedId = if (slot == 7)
             getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         else if (slot in 1..5)
@@ -2236,7 +2244,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             if (brewPreparation.active) return getString(R.string.service_shot_preheat_mock_pending)
             val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
             if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
-            val library = (application as MobileApplication).curves
+            val library = controlledCurveLibrary()
             shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
                 snapshot.scaleState, snapshot.scaleObservation, elapsedNow(), shotState,
                 validated = library.validated(profile))?.let { return it }
@@ -2267,7 +2275,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if (settings.flags and 0x04 == 0) return getString(R.string.service_shot_preheat_cafe_mode)
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_scale_changed)
-        val library = (application as MobileApplication).curves
+        val library = controlledCurveLibrary()
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             snapshot.scaleState, snapshot.scaleObservation, elapsedNow(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
@@ -3049,6 +3057,26 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val cupState:CupResetTracker.State get(){valid();return service.cupResetState}
         val sleepState:SleepNowTracker.State get(){valid();return service.sleepNowState}
         val recoveryKind:MachineWriteRecoveryState.Kind? get(){valid();return service.machineWriteRecoveryKind}
+        val preparationState:BrewPreparation.State get(){valid();return service.brewPreparationState}
+        val leverState:MachineLeverRecipeStore.State? get(){valid()
+            return service.leverStore.attemptFor(hub.coffeeAddress)?.state
+        }
+        fun selectImmutableCurve(predicate:(CurveProfile)->Boolean):CurveProfile {
+            valid()
+            val library=requireNotNull(service.fixtureCurveLibrary)
+            val profile=library.items.asSequence().mapNotNull { library.resolve(it.id,false,7) }
+                .firstOrNull(predicate) ?: error("No matching immutable QA curve")
+            service.fixtureCurveId=profile.id
+            return profile
+        }
+        fun prepare(profile:CurveProfile):String? {valid()
+            return service.prepareBrew(profile.id,profile.scaleMode,7)
+        }
+        fun cancelPreparation():String? {valid();return service.cancelBrewPreparation()}
+        fun sendLever(profile:CurveProfile):String? {valid()
+            return service.sendLeverRecipe(profile,requireNotNull(hub.coffeeAddress),
+                requireNotNull(service.coffeeFirmware).toString()) {}
+        }
         fun apply(change:MachineSettingChange):String? {valid();return service.changeMachineSetting(change)}
         fun resetCups(expected:Int):String? {valid();return service.resetCupCount(expected)}
         fun changeSchedule(expected:WeeklySleepSchedule,target:WeeklySleepSchedule):String? {
@@ -3082,7 +3110,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
 
     companion object {
-        internal fun <T> withDetachedCore(context:Context,run:(DetachedCorePort)->T):T {
+        internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,run:(DetachedCorePort)->T):T {
             check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
                 Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
             val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
@@ -3101,9 +3129,23 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     attachBaseContext(DetachedCoreContext(app.resources,root))
                     fixtureClock=clock
                     fixtureLeverRecipes=MachineLeverRecipeStore(object:MachineLeverRecipeStore.Storage {
-                        override fun read():String?=null
-                        override fun write(value:String):Boolean=error("Recipe operations not in core fixture")
+                        private var synthetic:String?=null
+                        override fun read():String?=synthetic
+                        override fun write(value:String):Boolean {
+                            check(allowImmutableCurves)
+                            synthetic=value
+                            return true
+                        }
                     })
+                    if(allowImmutableCurves) {
+                        val factory=app.assets.open("factory_curves_v3.tsv").use(FactoryCurveCatalog::load)
+                        val proof=app.assets.open("factory_wire_v1.tsv").use { base ->
+                            app.assets.open("factory_slot_wire_v1.tsv").use { slot ->
+                                FactoryWireProof.load(base,factory,slot)
+                            }
+                        }
+                        fixtureCurveLibrary=CurveLibrary(factory,proof)
+                    }
                     v2SettingEvidence=true
                     logs=ownerTrace
                 }

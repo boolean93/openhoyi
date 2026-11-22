@@ -16,7 +16,7 @@ internal class DetachedCoreClock {
     var now=10L
         private set
     fun schedule(delay:Long,action:()->Unit) {
-        require(delay in 0L..120_000L && jobs.size<32)
+        require(delay in 0L..600_000L && jobs.size<32)
         jobs+=Job(now+delay,action)
     }
     fun advance(delta:Long,tick:()->Unit) {

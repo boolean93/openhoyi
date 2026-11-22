@@ -16,8 +16,8 @@ internal object MockBleSameIdFixture {
             return (listOf(header) + outcomes.map {
                 "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})"
             } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})" } +
-                if (zh) "未测：主动同步、条件重连、萃取启停、拨杆配方、预热/取消、真实进程恢复和版本回退。"
-                else "NOT RUN: active sync, conditional reconnect, shot start/stop, stored lever recipe, preheat/cancel, process restore and app downgrade.")
+                if (zh) "未测：主动同步、条件重连、萃取启停、真实进程恢复和版本回退。"
+                else "NOT RUN: active sync, conditional reconnect, shot start/stop, process restore and app downgrade.")
                 .joinToString("\n")
         }
     }
@@ -25,11 +25,11 @@ internal object MockBleSameIdFixture {
 
     fun cases(context: Context): List<() -> Outcome> {
         val tests = mutableListOf<() -> Outcome>()
-        fun case(row: String, run: MobileService.DetachedCorePort.() -> Unit) {
+        fun case(row: String, curves: Boolean = false, run: MobileService.DetachedCorePort.() -> Unit) {
             tests += {
                 var writes = 0
                 val passed = try {
-                    MobileService.withDetachedCore(context) { port ->
+                    MobileService.withDetachedCore(context, allowImmutableCurves = curves) { port ->
                         try { port.run() } finally {
                             writes = port.calls.count { it.operation is GattOperation.Write }
                         }
@@ -135,6 +135,38 @@ internal object MockBleSameIdFixture {
             advance(1); observe(idle(asleep = 1))
             check(sleepState.name == "CONFIRMED" && writeCount() == 2)
         }
+        case("08/sent-unverified", curves = true) {
+            bootstrap()
+            val profile = selectImmutableCurve { CustomCurveFirmwarePolicy.permitsStoredRecipe(
+                it.parameters, CoffeeFirmware(1, 1, 3)) }
+            check(sendLever(profile) == null)
+            expectLastWrite(CoffeeCommands.storedLeverRecipe(profile.parameters).frame.toByteArray())
+            check(leverState == MachineLeverRecipeStore.State.PENDING)
+            complete()
+            check(leverState == MachineLeverRecipeStore.State.SENT)
+            advance(1); observe(settings())
+            check(leverState == MachineLeverRecipeStore.State.SENT && writeCount() in 2..3)
+        }
+        for (cancel in listOf(false, true)) case(if (cancel) "11/cancel-written" else "11/temperature", curves = true) {
+            bootstrap()
+            val profile = selectImmutableCurve { it.temperatureC in 75..105 && it.temperatureC !in 93..95 }
+            check(prepare(profile) == null)
+            expectLastWrite(CoffeeCommands.brewWait(profile.temperatureC).frame.toByteArray())
+            complete()
+            check(preparationState == BrewPreparation.State.WAITING_TEMP)
+            advance(1); observe(idle())
+            check(preparationState == BrewPreparation.State.WAITING_TEMP)
+            if (cancel) {
+                check(cancelPreparation() == null)
+                expectLastWrite(CoffeeCommands.brewWait(0).frame.toByteArray())
+                complete()
+                advance(1); observe(idle())
+                check(preparationState == BrewPreparation.State.CANCEL_WRITTEN && writeCount() == 3)
+            } else {
+                advance(1); observe(idle(brewHundredths = profile.temperatureC * 100))
+                check(preparationState == BrewPreparation.State.READY && writeCount() == 2)
+            }
+        }
         return tests + listOf({ detachedLifecycle(context) })
     }
 
@@ -188,8 +220,8 @@ internal object MockBleSameIdFixture {
     private fun settings(flags: Int = 0xfd, brew: Int = 92, compensation: Int = 0, steam: Int = 125,
         delay: Int = 15, standby: Int = 53, cups: Int = 25) =
         bytes(0x83, 1, 0x13, flags, brew, compensation, steam, delay, standby, 0, cups, 0, 0x6e)
-    private fun idle(cups: Int = 25, asleep: Int = 0) =
-        bytes(0x40, 0, 0x24, 0xbf, 0x2f, 0x1c, 0x77, 0x0b, asleep, 0, 0, 0, 0, 0, 0, cups, 3, 0x21, 0xaf)
+    private fun idle(cups: Int = 25, asleep: Int = 0, brewHundredths: Int = 0x24bf) =
+        bytes(0x40, 0, brewHundredths shr 8, brewHundredths and 255, 0x2f, 0x1c, 0x77, 0x0b, asleep, 0, 0, 0, 0, 0, 0, cups, 3, 0x21, 0xaf)
     private fun weeklyFirst(enabled: Int = 0xfe) =
         bytes(0x83, 0x40, enabled, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 0x3d)
     private fun weeklySecond() =
