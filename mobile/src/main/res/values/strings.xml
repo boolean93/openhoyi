@@ -558,6 +558,11 @@
     <string name="extraction_weight_control_advice">"使用电子秤控制停止"</string>
     <string name="extraction_no_weight_advice">"本次不按秤重停机，按曲线水量结束"</string>
     <string name="extraction_cancel_prepare_again">"再次发送取消预热"</string>
+    <string name="extraction_start_sent_waiting">等待机器进入萃取</string>
+    <string name="extraction_start_not_confirmed">尚未确认开始</string>
+    <string name="extraction_start_flow_observed">已观察到机器萃取</string>
+    <string name="extraction_start_sent_guidance">正在等待咖啡机进入萃取。</string>
+    <string name="extraction_start_no_observation_guidance">还未收到可靠的萃取数据，请看机器。需要时可停止萃取。</string>
     <string name="extraction_state_starting">"启动中"</string>
     <string name="extraction_state_running">"萃取中"</string>
     <string name="extraction_state_stopping">"正在停止"</string>

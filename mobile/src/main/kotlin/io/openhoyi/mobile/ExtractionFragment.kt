@@ -691,6 +691,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE
+        val startObservation = owner?.shotStartObservation.takeIf {
+            state == ExtractionState.STARTING || state == ExtractionState.RUNNING
+        }
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         val shortcutBlock = host.liveShortcutBlock(this)
@@ -756,10 +759,18 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(host, snapshot.coffeeState), DeviceStatusText.label(host, snapshot.scaleState)))
-        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else shotLabel(state), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
+        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else when (startObservation) {
+            io.openhoyi.session.ShotStartObservation.WAITING_FOR_MACHINE -> getString(R.string.extraction_start_sent_waiting)
+            io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> getString(R.string.extraction_start_not_confirmed)
+            io.openhoyi.session.ShotStartObservation.MACHINE_EXTRACTION_OBSERVED -> getString(R.string.extraction_start_flow_observed)
+            null -> shotLabel(state)
+        }, owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
+            startObservation == io.openhoyi.session.ShotStartObservation.WAITING_FOR_MACHINE -> getString(R.string.extraction_start_sent_guidance)
+            startObservation == io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> getString(R.string.extraction_start_no_observation_guidance)
+            startObservation == io.openhoyi.session.ShotStartObservation.MACHINE_EXTRACTION_OBSERVED -> getString(R.string.extraction_running_guidance)
             state == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
             state == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
             state == ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_stopping_guidance)
@@ -956,7 +967,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             profile?.id, profile?.name, profile?.let(library::validated) == true,
             startVisible = !stopAction.visible))
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
-        val facts=ExtractionStatusPresentation.Facts(state,active,owner?.running==true,blocked!=null || studioBlocked!=null,
+        // Project waiting/unknown evidence without altering the STOP action or controller state.
+        val noticeState = when (startObservation) {
+            io.openhoyi.session.ShotStartObservation.WAITING_FOR_MACHINE -> ExtractionState.STARTING
+            io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> ExtractionState.OUTCOME_UNKNOWN
+            else -> state
+        }
+        val facts=ExtractionStatusPresentation.Facts(noticeState,active,owner?.running==true,blocked!=null || studioBlocked!=null,
             owner?.manualShotActive==true,owner?.scalePreflight==true,preparation,!normalPreparation,
             snapshot.alarmBits,snapshot.alarmAt,now,!owner?.machineControlSafetyMessage.isNullOrBlank(),!owner?.manualSafetyMessage.isNullOrBlank(),
             settingBusy || sleepBusy,owner?.blockingSettingWriteState==SettingsWriteTracker.State.UNKNOWN || owner?.sleepNowState==SleepNowTracker.State.UNKNOWN,

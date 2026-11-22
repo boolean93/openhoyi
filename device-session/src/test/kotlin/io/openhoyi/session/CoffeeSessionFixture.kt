@@ -2,7 +2,7 @@ package io.openhoyi.session
 
 import java.time.LocalDateTime
 
-internal class CoffeeSessionFixture(customPressureStartPermit:(io.openhoyi.protocol.StartParameters)->Boolean={false}) {
+internal class CoffeeSessionFixture(trackCoffeeDelivery:Boolean=false, customPressureStartPermit:(io.openhoyi.protocol.StartParameters)->Boolean={false}) {
     var now = 0L
     val calls = mutableListOf<Triple<Long, Long, GattOperation>>()
     var executeFailure: Exception? = null
@@ -15,7 +15,7 @@ internal class CoffeeSessionFixture(customPressureStartPermit:(io.openhoyi.proto
         }
         override fun close(generation: Long) { closes++ }
     }
-    val session = DeviceSession(DeviceRole.COFFEE, driver, { now },customPressureStartPermit=customPressureStartPermit)
+    val session = DeviceSession(DeviceRole.COFFEE, driver, { now },customPressureStartPermit=customPressureStartPermit,trackCoffeeDelivery=trackCoffeeDelivery)
     fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
     fun complete(result: OperationResult = OperationResult.Success()) {
         val (generation, token, _) = calls.last()

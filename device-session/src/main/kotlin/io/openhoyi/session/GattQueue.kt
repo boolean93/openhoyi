@@ -6,7 +6,7 @@ class TransportCloseUncertainException(cause: Exception?) :
 /** Thread-confined queue; elapsed time must come from a monotonic clock. Never retries writes. */
 class GattQueue(private val driver: GattDriver, private val clock: () -> Long, private val invalidated: (String) -> Unit = {}) {
     private data class Pending(val token:Long,val generation:Long,val operation:GattOperation,val timeout:Long,
-        val beforeDispatch:()->Boolean,val callback:(OperationResult)->Unit,val coffeeKind:CoffeeDeliveryKind?,var handedOff:Boolean=false)
+        val beforeDispatch:()->Boolean,val callback:(OperationResult)->Unit,val coffeeKind:CoffeeDeliveryKind?,val onHandoff:(()->Unit)?,var handedOff:Boolean=false)
     private var coffeeDelivery: CoffeeDeliveryProjection? = null
     internal fun enableCoffeeDelivery() { assertThread(); coffeeDelivery = CoffeeDeliveryProjection() }
     internal fun coffeeDeliveries(): List<CoffeeDelivery> { assertThread(); return coffeeDelivery?.read(generation).orEmpty() }
@@ -36,14 +36,14 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     }
     fun enqueue(operation:GattOperation, timeoutMs:Long, urgent:Boolean=false,
                 beforeDispatch:()->Boolean={true}, callback:(OperationResult)->Unit) {
-        enqueueTagged(operation,timeoutMs,urgent,beforeDispatch,null,callback)
+        enqueueTagged(operation,timeoutMs,urgent,beforeDispatch,null,callback=callback)
     }
     internal fun enqueueTagged(operation:GattOperation, timeoutMs:Long, urgent:Boolean,
-                beforeDispatch:()->Boolean, kind:CoffeeDeliveryKind?, callback:(OperationResult)->Unit) {
+                beforeDispatch:()->Boolean, kind:CoffeeDeliveryKind?, onHandoff:(()->Unit)?=null, callback:(OperationResult)->Unit) {
         assertThread(); require(timeoutMs in 1..120_000)
         if(!active){callback(OperationResult.Cancelled("not connected"));return}
         if(pending.size>=64 && !urgent){callback(OperationResult.Failed("queue full"));return}
-        val p=Pending(++serial,generation,operation,timeoutMs,beforeDispatch,callback,kind)
+        val p=Pending(++serial,generation,operation,timeoutMs,beforeDispatch,callback,kind,onHandoff)
         val displaced=if(pending.size>=64)pending.removeLast() else null
         if(urgent)pending.addFirst(p) else pending.addLast(p)
         record(p,CoffeeDeliveryPhase.QUEUED)
@@ -68,6 +68,9 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
             pump();return
         }
         val executionGeneration=generation
+        // Internal observation only. Never let its exception or an owner change cause a write.
+        p.onHandoff?.let { runCatching(it) }
+        if(current!==p||generation!=executionGeneration||!active)return
         p.handedOff=true
         record(p,CoffeeDeliveryPhase.DRIVER_HANDOFF)
         val accepted=try{driver.execute(executionGeneration,p.token,p.operation)}catch(_:Exception){

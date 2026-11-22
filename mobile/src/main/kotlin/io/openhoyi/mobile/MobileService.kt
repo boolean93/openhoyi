@@ -2355,6 +2355,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.dose_start_unavailable), "bean.shot_claim_failed")
         }.getOrNull()
     }
+    internal val shotStartObservation get() = hub?.shotStartObservation
     internal val coffeeDeliveries get() = hub?.coffeeDeliveries.orEmpty()
 
     fun stopShot() {

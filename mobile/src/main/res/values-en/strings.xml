@@ -248,6 +248,11 @@
     <string name="extraction_starting_guidance">"Start command in progress; watch the coffee machine"</string>
     <string name="extraction_state_ended">"Ended"</string>
     <string name="extraction_state_running">"Extracting"</string>
+    <string name="extraction_start_sent_waiting">Waiting for machine to start</string>
+    <string name="extraction_start_not_confirmed">Start not confirmed</string>
+    <string name="extraction_start_flow_observed">Machine extraction observed</string>
+    <string name="extraction_start_sent_guidance">Waiting for the coffee machine to start.</string>
+    <string name="extraction_start_no_observation_guidance">No reliable extraction data yet. Check the machine. You can stop the shot if needed.</string>
     <string name="extraction_state_starting">"Starting"</string>
     <string name="extraction_state_stopping">"Stopping"</string>
     <string name="extraction_state_unknown">"Outcome unknown"</string>

@@ -71,6 +71,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,
         synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)},
         trackCoffeeDelivery=trackCoffeeDelivery) }
+    val shotStartObservation get() = if (closed) null else coffeeControl.shotStartObservation
     val coffeeDeliveries: List<CoffeeDelivery> get() = if (closed) emptyList() else coffee.session.coffeeDeliveries
     // Compatibility-preserving sidecar. No existing callback or control permit consumes it.
     val coffeeReadbackCursor get() = if (closed) null else coffee.session.coffeeReadbackCursor

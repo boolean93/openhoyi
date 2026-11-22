@@ -79,6 +79,20 @@ class CoffeeDeliveryTest {
         assertFalse(queue.coffeeDeliveries().any { it.kind == CoffeeDeliveryKind.PREHEAT })
     }
 
+    @Test fun observationHookCannotDispatchOnADetachedOwnerOrBreakAnOrdinaryWrite() = with(Fixture()) {
+        val write = GattOperation.Write(KnownGatt.coffeeWrite,byteArrayOf(1),true)
+        queue.enqueueTagged(write,5000,false,{true},CoffeeDeliveryKind.START,
+            onHandoff={queue.disconnect("pre-driver observer detached owner")}) { results += it }
+        assertTrue(driver.calls.isEmpty())
+        assertEquals(CoffeeDeliveryPhase.NOT_SENT,phase(CoffeeDeliveryKind.START))
+        queue.open()
+        queue.enqueueTagged(write,5000,false,{true},CoffeeDeliveryKind.START,
+            onHandoff={error("observation failed")}) { results += it }
+        assertEquals(1,driver.calls.size)
+        ack()
+        assertTrue(results.last() is OperationResult.Success)
+    }
+
     @Test fun guardCanDisconnectBeforeDriverHandoffWithoutClaimingUnknownDelivery() = with(Fixture()) {
         enqueue(CoffeeDeliveryKind.SETTING, permit = {
             queue.disconnect("reentrant before dispatch")

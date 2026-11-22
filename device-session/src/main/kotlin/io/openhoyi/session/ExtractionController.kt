@@ -29,10 +29,12 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     private data class StopOwner(val address:String,val slot:Int)
     private var stopOwner:StopOwner?=null
     private var approvedStart:CoffeeStartContext?=null
+    private var observationOwner:CoffeeStartContext?=null
+    val shotStartObservation get()=observationOwner?.let(session::shotStartObservation)
     var startAddress:String?=null;private set
     override fun prepareStart(parameters:StartParameters):Boolean {
         approvedStart=session.captureStartContext(parameters)
-        approvedStart?.let { startAddress=it.address }
+        approvedStart?.let { startAddress=it.address; observationOwner=null }
         return approvedStart!=null
     }
     override fun startConditionsValid(parameters:StartParameters):Boolean =
@@ -45,6 +47,7 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
             done(OperationResult.Failed("start context not prepared or no longer valid"));return
         }
         stopOwner=StopOwner(context.address,parameters.slot)
+        observationOwner=context
         session.startExtraction(parameters,context,beforeDispatch,done)
     }
     override fun stop(done:(OperationResult)->Unit) {

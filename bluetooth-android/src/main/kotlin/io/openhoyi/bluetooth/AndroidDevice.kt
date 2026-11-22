@@ -23,7 +23,7 @@ class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->
     private val driver:AndroidGattDriver=AndroidGattDriver(context,object:AndroidGattDriver.Events {
         override fun complete(generation:Long,token:Long,result:OperationResult)=session.onComplete(generation,token,result)
         override fun disconnected(generation:Long,reason:String)=session.onDisconnected(generation,reason)
-        override fun notification(generation:Long,endpoint:Endpoint,bytes:ByteArray)=session.onNotification(generation,endpoint,bytes)
+        override fun notification(generation:Long,endpoint:Endpoint,bytes:ByteArray,capturedAtMs:Long)=session.onNotification(generation,endpoint,bytes,capturedAtMs)
     },trace)
     val session:DeviceSession=DeviceSession(role,driver,{SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,
         diagnostic,legacyVerifiedStartFrames,scaleAdapter,scaleObservation,

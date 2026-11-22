@@ -29,7 +29,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private val customCurveStartPermit:(StartParameters)->Boolean = {false},
     private val wallClock:()->LocalDateTime = LocalDateTime::now,
     private val synchronizationRefreshPermit:()->Boolean = {false},
-    trackCoffeeDelivery:Boolean = false) {
+    private val trackCoffeeDelivery:Boolean = false) {
     init {
         if(role!=DeviceRole.COFFEE) {
             if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified && !scaleAdapter.documentedTransport &&
@@ -353,6 +353,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var readbackSource: CoffeeReadbackSource? = null
     private var readbackSequence = 0L
     private var lastReadback: CoffeeReadbackFrame? = null
+    private var shotStartEvidence: ShotStartEvidence? = null
+    internal fun shotStartObservation(owner:CoffeeStartContext): ShotStartObservation? =
+        shotStartEvidence?.takeIf { it.owner === owner }?.status(currentReadbackSource(),clock())
 
     private fun currentReadbackSource(): CoffeeReadbackSource? {
         if (role != DeviceRole.COFFEE || state != DeviceState.READY || !queue.active || coffeeAuthentication == null) return null
@@ -377,7 +380,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
     }
 
-    fun onNotification(generation:Long,endpoint:Endpoint,bytes:ByteArray) {
+    fun onNotification(generation:Long,endpoint:Endpoint,bytes:ByteArray,capturedAtMs:Long=clock()) {
         if(this.generation!=generation||!queue.active||endpoint!=notifyEndpoint)return
         val now=clock()
         if(role==DeviceRole.BOOKOO) {
@@ -401,6 +404,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     return
                 }
                 recordLiveReadback(frame,now)
+                shotStartEvidence?.let { evidence ->
+                    currentReadbackSource()?.let { source ->
+                        if (TelemetryFreshness.isFresh(capturedAtMs,now) &&
+                            evidence.status(source,now) == ShotStartObservation.WAITING_FOR_MACHINE) {
+                            if (frame is ExtractionTelemetry) evidence.observe(source,capturedAtMs,frame)
+                            else if (frame is IdleTelemetry) evidence.observeIdle(source,capturedAtMs)
+                        }
+                    }
+                }
                 processCoffeeFrame(generation,frame,now)
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
@@ -543,13 +555,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     private var stopAdmissionGeneration: Long? = null
     private fun send(command:EncodedCommand,expectedRole:DeviceRole,urgent:Boolean=false,
-        beforeDispatch:()->Boolean={true},storedRecipeOwner:Any?=null,kind:CoffeeDeliveryKind?=null,callback:(OperationResult)->Unit) {
+        beforeDispatch:()->Boolean={true},storedRecipeOwner:Any?=null,kind:CoffeeDeliveryKind?=null,onHandoff:(()->Unit)?=null,callback:(OperationResult)->Unit) {
         fun ownsWritePermit() = urgent || (stopAdmissionGeneration != generation && staleSettingsRefresh==null && (storedRecipeWrite == null || storedRecipeWrite === storedRecipeOwner))
         if (!ownsWritePermit()) { callback(OperationResult.Failed("machine synchronization or stored recipe write active")); return }
         if(role!=expectedRole||state!=DeviceState.READY){callback(OperationResult.Failed("device not ready or wrong role"));return}
         val endpoint=writeEndpoint ?: run {callback(OperationResult.Failed("scale transport is read-only"));return}
         queue.enqueueTagged(GattOperation.Write(endpoint,command.frame.toByteArray(),withResponse),5000,urgent,
-            beforeDispatch={state==DeviceState.READY && ownsWritePermit() && beforeDispatch()},kind=kind,callback=callback)
+            beforeDispatch={state==DeviceState.READY && ownsWritePermit() && beforeDispatch()},kind=kind,onHandoff=onHandoff,callback=callback)
     }
     private fun canControlFromIdle():Boolean {
         val idle=lastIdle ?: return false
@@ -623,7 +635,18 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=permittedStart(parameters)
         if(command==null){callback(OperationResult.Failed("curve outside validated profile set"));return}
-        send(command,DeviceRole.COFFEE,kind=CoffeeDeliveryKind.START,beforeDispatch={beforeDispatch() && startConditionsValid(parameters,context)},callback=callback)
+        var evidence: ShotStartEvidence? = null
+        send(command,DeviceRole.COFFEE,kind=CoffeeDeliveryKind.START,
+            beforeDispatch={beforeDispatch() && startConditionsValid(parameters,context)}, onHandoff={
+                if (trackCoffeeDelivery) {
+                    evidence = currentReadbackSource()?.let { ShotStartEvidence(context,it,clock()) }
+                    shotStartEvidence = evidence
+                }
+            }) { result ->
+            if ((result is OperationResult.Failed || result is OperationResult.Cancelled) &&
+                shotStartEvidence === evidence) shotStartEvidence = null
+            callback(result)
+        }
     }
     fun stopExtraction(slot:Int,callback:(OperationResult)->Unit)=stopExtraction(slot,address,callback)
     fun stopExtraction(slot:Int,expectedAddress:String?,callback:(OperationResult)->Unit) {

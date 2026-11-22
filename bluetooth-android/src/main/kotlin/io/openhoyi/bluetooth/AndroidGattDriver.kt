@@ -16,7 +16,7 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
     interface Events {
         fun complete(generation:Long,token:Long,result:OperationResult)
         fun disconnected(generation:Long,reason:String)
-        fun notification(generation:Long,endpoint:Endpoint,bytes:ByteArray)
+        fun notification(generation:Long,endpoint:Endpoint,bytes:ByteArray,capturedAtMs:Long)
     }
     private val context=context.applicationContext
     private val handler=Handler(Looper.getMainLooper())
@@ -37,9 +37,9 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
         val description=listOfNotNull(operation,detail).joinToString(" ").ifEmpty { null }
         emitWireTrace(trace,wireTrace(kind,gen,token,ep,(op as? GattOperation.Write)?.bytes,description))
     }
-    private fun notification(gen:Long,ep:Endpoint,bytes:ByteArray) {
+    private fun notification(gen:Long,ep:Endpoint,bytes:ByteArray,capturedAtMs:Long) {
         emitWireTrace(trace,wireTrace("notification",gen,endpoint=ep,bytes=bytes))
-        events.notification(gen,ep,bytes)
+        events.notification(gen,ep,bytes,capturedAtMs)
     }
     override fun execute(generation:Long,token:Long,operation:GattOperation):Boolean {
         owner();record("request",generation,token,operation)
@@ -123,10 +123,10 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
         }
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(g:BluetoothGatt,ch:BluetoothGattCharacteristic){
-            if(Build.VERSION.SDK_INT<33){val bytes=ch.value?.copyOf()?:return;val ep=endpoint(ch);dispatch(g){notification(gen,ep,bytes)}}
+            if(Build.VERSION.SDK_INT<33){val capturedAtMs=SystemClock.elapsedRealtime();val bytes=ch.value?.copyOf()?:return;val ep=endpoint(ch);dispatch(g){notification(gen,ep,bytes,capturedAtMs)}}
         }
         override fun onCharacteristicChanged(g:BluetoothGatt,ch:BluetoothGattCharacteristic,value:ByteArray){
-            val bytes=value.copyOf();val ep=endpoint(ch);dispatch(g){notification(gen,ep,bytes)}
+            val capturedAtMs=SystemClock.elapsedRealtime();val bytes=value.copyOf();val ep=endpoint(ch);dispatch(g){notification(gen,ep,bytes,capturedAtMs)}
         }
     }
 }
