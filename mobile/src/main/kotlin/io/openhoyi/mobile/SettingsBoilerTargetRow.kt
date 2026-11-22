@@ -27,9 +27,17 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
         if (value.minimumWidth == if (wide) style.dp(52) else 0) return
         value.minimumWidth = if (wide) style.dp(52) else 0
         listOf(1, 2).forEach { index ->
-            (quantity.getChildAt(index).layoutParams as LayoutParams).apply {
-                marginStart = style.dp(if (wide) 0 else if (index == 1) 8 else 4)
-                marginEnd = if (wide || index == 1) 0 else style.dp(8)
+            val child = quantity.getChildAt(index)
+            // Replace the previously resolved LTR/RTL values as well as the relative margins.
+            // Mutating just marginStart/marginEnd during measurement leaves the old physical
+            // margins in the cached child parameters until Android next resolves direction.
+            child.layoutParams = LayoutParams(-2, -2).apply {
+                val start = if (wide) 0 else style.dp(if (index == 1) 8 else 4)
+                val end = if (wide || index == 1) 0 else style.dp(8)
+                if (quantity.layoutDirection == LAYOUT_DIRECTION_RTL) setMargins(end, 0, start, 0)
+                else setMargins(start, 0, end, 0)
+                marginStart = start
+                marginEnd = end
             }
         }
         quantity.forceLayout()
