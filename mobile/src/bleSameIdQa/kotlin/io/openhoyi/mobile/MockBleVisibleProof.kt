@@ -1,12 +1,16 @@
 package io.openhoyi.mobile
 
 import android.app.AlertDialog
+import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.View
 import android.widget.LinearLayout
+import io.openhoyi.protocol.CoffeeCommands
 import io.openhoyi.protocol.DecodeResult
 import io.openhoyi.protocol.HoyiCodec
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.MachineSettingChange
+import io.openhoyi.protocol.Settings
 import io.openhoyi.protocol.SleepPart
 import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.ExtractionState
@@ -44,8 +48,16 @@ internal object MockBleVisibleProof {
             var acked=false
             var expectedStatus:Int?=null
             var retries=0
-            fun writes()=port.calls.filter {it.operation is io.openhoyi.session.GattOperation.Write}.drop(initialWrites)
-                .map {(it.operation as io.openhoyi.session.GattOperation.Write).bytes.first().toInt() and 255}
+            val confirmedBytes=settings(0xfd)
+            val confirmedBit=((HoyiCodec.decode(confirmedBytes) as DecodeResult.Valid).value as Settings).brewHeating
+            var fresh=false
+            var renderingSwitch=false
+            var gestureProbe=false
+            var freshOwner=Any() // Synthetic presentation identity, not a Bluetooth disconnect.
+            fun writePackets()=port.calls.mapNotNull {it.operation as? io.openhoyi.session.GattOperation.Write}
+                .drop(initialWrites)
+            fun writes()=writePackets().map {it.bytes.first().toInt() and 255}
+            fun freshIdentity():Pair<Any,Boolean>?=if(fresh && port.heatingAdmission.canSubmit)freshOwner to confirmedBit else null
             fun conduct(tap:()->Unit) {
                 if(completed || failed)return
                 try {tap();render()}
@@ -53,10 +65,12 @@ internal object MockBleVisibleProof {
             }
             val quiet=HoyiUi.button(activity,body,label("模拟被动等待","Advance fake passive wait")) {
                 conduct {
-                    port.advance(0)
+                    port.pollAutomaticStaleSettings()
                     port.advance(349)
+                    port.pollAutomaticStaleSettings()
                     check(!port.settingsSyncPending && writes().isEmpty() && port.liveFrame is IdleTelemetry)
                     port.advance(1)
+                    port.pollAutomaticStaleSettings()
                     check(port.settingsSyncPending && writes()==listOf(1))
                 }
             }.apply {tag="qa/v2/stale-settings/passive-time"}
@@ -64,30 +78,71 @@ internal object MockBleVisibleProof {
             val retrySwitch=HoyiSwitch(activity).apply {
                 tag="qa/v2/stale-settings/same-switch"
                 contentDescription=label("冲泡锅炉","Brew boiler")
-                setOnCheckedChangeListener {_,_->check(false) { "Retry must not toggle." }}
+                authoritativeToggleIdentity=::freshIdentity
+                setOnCheckedChangeListener {_,checked->
+                    if(!renderingSwitch)conduct {
+                        check(fresh && !gestureProbe && checked!=confirmedBit)
+                        check(writes()==List(1+retries){1})
+                        check(port.apply(MachineSettingChange.BrewHeating(checked))==null)
+                        check(writes()==List(1+retries){1}+0x0c)
+                        val expected=CoffeeCommands.brewHeating(checked).frame.toByteArray()
+                        check(writePackets().last().bytes.contentEquals(expected))
+                        completed=true
+                    }
+                }
             }
             style.add(body,retrySwitch)
+            fun motion(action:Int,down:Long) {
+                check(retrySwitch.isAttachedToWindow && retrySwitch.width>0 && retrySwitch.height>0)
+                val event=MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,
+                    retrySwitch.width/2f,retrySwitch.height/2f,0).apply {
+                    source=android.view.InputDevice.SOURCE_TOUCHSCREEN
+                }
+                try {check(retrySwitch.dispatchTouchEvent(event))} finally {event.recycle()}
+            }
             val retryClock=HoyiUi.button(activity,body,label("模拟重试冷却结束","Advance fake retry cooldown")) {
-                conduct {repeat(2){port.advance(1000);port.observe(idle(9400))}}
+                conduct {
+                    repeat(2){port.advance(1000);port.observe(idle(9400));port.pollAutomaticStaleSettings()}
+                    check(!port.settingsSyncPending && port.canRetrySettingsFromSwitch && writes()==List(1+retries){1})
+                }
             }
             val ack=HoyiUi.button(activity,body,label("模拟写入回执","Deliver fake write callback")) {
                 conduct {port.complete();acked=true;check(port.settingsSyncPending && !port.heatingAdmission.canSubmit)}
             }
             val good=HoyiUi.button(activity,body,label("模拟新设置回报","Deliver current settings report")) {
                 conduct {
-                    port.advance(1);port.observe(settings(0xfd))
+                    // A finger down before fresh evidence must not become a write on release.
+                    gestureProbe=true
+                    val staleDown=SystemClock.uptimeMillis()
+                    motion(MotionEvent.ACTION_DOWN,staleDown)
+                    port.advance(1);port.observe(confirmedBytes)
                     check(!port.settingsSyncPending && port.heatingAdmission.canSubmit && writes()==List(1+retries){1})
                     expectedStatus=R.string.machine_settings_sync_observed
-                    completed=true
+                    fresh=true
+                    render()
+                    motion(MotionEvent.ACTION_UP,staleDown)
+                    check(retrySwitch.isChecked==confirmedBit && writes()==List(1+retries){1})
+                    // Exercise Android's posted native click with a changed presentation owner
+                    // after UP. This is not a simulated physical reconnection.
+                    val nativeDown=SystemClock.uptimeMillis()
+                    motion(MotionEvent.ACTION_DOWN,nativeDown)
+                    motion(MotionEvent.ACTION_UP,nativeDown)
+                    freshOwner=Any()
+                    render()
+                    check(retrySwitch.post {
+                        conduct {
+                            check(retrySwitch.isChecked==confirmedBit && writes()==List(1+retries){1})
+                            gestureProbe=false
+                        }
+                    })
                 }
             }
             val timeout=HoyiUi.button(activity,body,label("模拟等待超时","Advance to timeout")) {
                 conduct {
-                    repeat(5) {port.advance(1000);port.observe(idle(9400))}
+                    repeat(5) {port.advance(1000);port.observe(idle(9400));port.pollAutomaticStaleSettings()}
                     check(!port.settingsSyncPending && !port.heatingAdmission.canSubmit &&
                         port.liveFrame is IdleTelemetry && writes()==List(1+retries){1})
                     expectedStatus=R.string.machine_settings_sync_unconfirmed
-                    completed=retries>=1
                 }
             }
             render={
@@ -99,8 +154,15 @@ internal object MockBleVisibleProof {
                 expectedStatus?.let { expected ->
                     check(result.visibility==View.VISIBLE && result.text.toString()==activity.getString(expected))
                 }
-                state.text=if(port.heatingAdmission.canSubmit)label("开关已可手动操作；未发锅炉命令。","Manual switch is available; no boiler command was sent.")
+                state.text=if(completed && fresh)label("通过：旧手势没有写入；重新点击只发送了一条模拟锅炉命令。",
+                    "PASS: older gestures sent nothing; a distinct tap sent one fake boiler command.")
+                    else if(fresh && !gestureProbe)label("手势检查通过，未发锅炉命令；请重新点一下同一个开关。",
+                        "Gesture checks passed with no boiler write. Tap the same switch again.")
+                    else if(fresh)label("正在检查回读与点击之间的手势边界。","Checking the gesture transition after readback.")
                     else label("机器已就绪；开关暂不可操作。","Machine ready; switch not available yet.")
+                renderingSwitch=true
+                try {if(!completed && retrySwitch.isChecked!=confirmedBit)retrySwitch.isChecked=confirmedBit}
+                finally {renderingSwitch=false}
                 retryClock.isEnabled=!completed && expectedStatus==R.string.machine_settings_sync_unconfirmed &&
                     !port.canRetrySettingsFromSwitch
                 retrySwitch.readbackRetry=if(!completed && port.canRetrySettingsFromSwitch) ({
@@ -112,7 +174,8 @@ internal object MockBleVisibleProof {
                         check(port.settingsSyncPending && writes()==List(1+retries){1})
                     }
                 }) else null
-                retrySwitch.isEnabled=retrySwitch.readbackRetry!=null
+                retrySwitch.drawnToggleIdentity=freshIdentity()
+                retrySwitch.isEnabled=!completed && (retrySwitch.readbackRetry!=null || freshIdentity()!=null)
                 quiet.isEnabled=!completed && !acked && !port.settingsSyncPending && writes().isEmpty()
                 ack.isEnabled=!completed && !acked && port.settingsSyncPending
                 good.isEnabled=!completed && acked && port.settingsSyncPending

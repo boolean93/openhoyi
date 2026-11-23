@@ -3542,6 +3542,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             valid()
             MachineSettingsSyncView.render(status,service)
         }
+        fun pollAutomaticStaleSettings() {valid();service.refreshStaleMachineSettings()}
         val settingsSyncPending:Boolean get(){valid();return service.machineSettingsSyncPending}
         fun retrySettingsFromSwitch():Boolean {valid();return service.retryStaleMachineSettings()}
         val canRetrySettingsFromSwitch:Boolean get(){valid();return service.canRetryStaleMachineSettings}
