@@ -26,20 +26,37 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     /** Same hit target, with no native check/drag behaviour while a safe read-only retry is offered. */
     var readbackRetry: (() -> Unit)?=null
         set(value) {
-            if(value!=null && touching)nativeGestureInvalid=true
+            if(value!=null) {
+                if(touching)nativeGestureInvalid=true
+                queuedNativeClick?.invalid=true
+            }
             field=value
         }
     var authoritativeToggleIdentity:(() -> Any?)?=null
     var drawnToggleIdentity:Any?=null
         set(value) {
-            if(touching && field!=value)nativeGestureInvalid=true
+            if(field!=value) {
+                if(touching)nativeGestureInvalid=true
+                queuedNativeClick?.invalid=true
+            }
             field=value
         }
     private var nativeGestureInvalid=false
+    private class NativeClick(val down:Any?,var invalid:Boolean=false)
+    private var queuedNativeClick:NativeClick?=null
     private var nativeTouchIdentity:Any?=null
     private var readbackGesture=false
     private var readbackTap:(()->Unit)?=null
     override fun performClick():Boolean {
+        // Android View may post its click after touch-up and after a new BLE report has rendered.
+        val queued=queuedNativeClick
+        if(queued!=null) {
+            queuedNativeClick=null
+            val current=authoritativeToggleIdentity
+            if(queued.invalid || readbackRetry!=null || current==null ||
+                !BoilerSwitchGestureGate.allows(drawnToggleIdentity,current(),queued.down,touching=true))return false
+            return super.performClick()
+        }
         val retry=readbackRetry
         if(retry!=null && isEnabled) {
             retry()
@@ -129,7 +146,7 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
         if (ready) { motion?.cancel(); position = if (isChecked) 1f else 0f; invalidate() }
     }
     override fun onDetachedFromWindow() {
-        readbackGesture=false;readbackTap=null;nativeTouchIdentity=null
+        readbackGesture=false;readbackTap=null;nativeTouchIdentity=null;queuedNativeClick=null
         touching = false
         motion?.cancel(); position = if (isChecked) 1f else 0f
         super.onDetachedFromWindow()
@@ -176,7 +193,13 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
             touching = isEnabled
         }
         // Switch alone owns slop, thumb hit-testing, clamping, fling and cancellation.
+        val click=if(event.actionMasked==MotionEvent.ACTION_UP && touching && authoritativeToggleIdentity!=null)
+            NativeClick(nativeTouchIdentity,nativeGestureInvalid).also {queuedNativeClick=it} else null
         val handled = super.onTouchEvent(event)
+        if(click!=null && queuedNativeClick===click) {
+            // Clear after View's performClick post. Drag commits have no posted click.
+            if(!post {if(queuedNativeClick===click)queuedNativeClick=null})queuedNativeClick=null
+        }
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             touching = false
             settle()
