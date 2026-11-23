@@ -110,55 +110,43 @@ internal object MockBleSameIdFixture {
             check(apply(change) == null)
             expectLastWrite(command)
             complete()
-            advance(249)
+            val boiler=SettingsReadbackPolicy.isBoiler(change)
+            val due=if(boiler)350L else 250L
+            advance(due-1)
             check(writeCount() == 2)
             advance(1)
             check(lastWriteOpcode() == 1 && writeCount() == 3)
             complete()
             check(settingState == WAITING_READBACK)
             advance(1000)
-            check(lastWriteOpcode() == 1 && writeCount() == 4)
-            complete()
+            if(!boiler) {
+                check(lastWriteOpcode() == 1 && writeCount() == 4)
+                complete()
+            }
             check(settingState == WAITING_READBACK)
             advance(1); observe(target)
-            check(settingState == CONFIRMED && writeCount() == 4)
+            check(settingState == CONFIRMED && writeCount() == if(boiler)3 else 4)
             check(calls.count { it.operation is GattOperation.Connect } == 1)
         }
         for ((row, change, target) in refreshable.filter { SettingsReadbackPolicy.isBoiler(it.change) })
-            for (matches in listOf(false, true)) case("$row/rebind-${if (matches) "match" else "different"}") {
+            for (fresh in listOf(false,true)) case("$row/rebind-"+if(fresh) "natural-proof" else "not-automatic") {
                 bootstrap()
                 advance(1); observe(settings())
-                val initial = calls.count { it.operation is GattOperation.Connect }
-                val original = calls.first().operation as GattOperation.Connect
-                check(initial == 1 && apply(change) == null)
-                val originalControl = calls.last()
+                val owner=generation
+                check(apply(change)==null)
                 complete()
-                advance(250); check(lastWriteOpcode() == 1); complete()
-                advance(1000); check(lastWriteOpcode() == 1); complete()
-                val priorGeneration = generation
-                advance(1749); observe(idle())
-                check(calls.count { it.operation is GattOperation.Connect } == initial)
-                advance(1); observe(idle())
-                val connect = calls.last()
-                check(connect.operation == original && connect.generation != priorGeneration)
-                check(calls.count { it.operation is GattOperation.Connect } == 2 && writeCount() == 4)
-                check(settingState == SettingsWriteTracker.State.UNKNOWN)
-                complete(originalControl) // Old generation and token cannot complete the new Connect or claim success.
-                observe(target, generation = priorGeneration)
-                check(settingState == SettingsWriteTracker.State.UNKNOWN && recoveryKind == MachineWriteRecoveryState.Kind.SETTING)
-                completeFakeHandshakeTransport()
-                check(settingState == SettingsWriteTracker.State.UNKNOWN && writeCount() == 5)
-                advance(1); observe(target, generation = priorGeneration)
-                advance(1); observe(byteArrayOf(0x83.toByte(), 1)) // Malformed 83 cannot make link ready or reconcile.
-                check(settingState == SettingsWriteTracker.State.UNKNOWN && recoveryKind == MachineWriteRecoveryState.Kind.SETTING)
-                advance(1); observe(if (matches) target else settings())
-                check(settingState == SettingsWriteTracker.State.RECONCILED && recoveryKind == null)
-                advance(1); observe(idle())
-                advance(1); observe(target)
-                check(settingState == SettingsWriteTracker.State.RECONCILED)
-                check(calls.count { it.operation is GattOperation.Connect } == 2 && writeCount() == 5)
-                check(calls.count { (it.operation as? GattOperation.Write)?.bytes?.contentEquals(
-                    CoffeeCommands.setting(change).frame.toByteArray()) == true } == 1)
+                if(fresh) {
+                    advance(100);observe(target)
+                    check(settingState==CONFIRMED)
+                    repeat(6){advance(1000);observe(idle())}
+                    check(writeCount()==2)
+                } else {
+                    advance(350);check(lastWriteOpcode()==1);complete()
+                    repeat(6){advance(1000);observe(idle())}
+                    check(settingState==SettingsWriteTracker.State.UNKNOWN &&
+                        recoveryKind==MachineWriteRecoveryState.Kind.SETTING && writeCount()==3)
+                }
+                check(generation==owner && calls.count {it.operation is GattOperation.Connect}==1)
             }
         case("09") {
             bootstrap()

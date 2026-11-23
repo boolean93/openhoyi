@@ -23,6 +23,45 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     private var motion: ValueAnimator? = null
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val capsule = RectF()
+    /** Same hit target, with no native check/drag behaviour while a safe read-only retry is offered. */
+    var readbackRetry: (() -> Unit)?=null
+        set(value) {
+            if(value!=null && touching)nativeGestureInvalid=true
+            field=value
+        }
+    var authoritativeToggleIdentity:(() -> Any?)?=null
+    var drawnToggleIdentity:Any?=null
+        set(value) {
+            if(touching && field!=value)nativeGestureInvalid=true
+            field=value
+        }
+    private var nativeGestureInvalid=false
+    private var nativeTouchIdentity:Any?=null
+    private var readbackGesture=false
+    private var readbackTap:(()->Unit)?=null
+    override fun performClick():Boolean {
+        val retry=readbackRetry
+        if(retry!=null && isEnabled) {
+            retry()
+            return true
+        }
+        authoritativeToggleIdentity?.let { current ->
+            val rendered=drawnToggleIdentity
+            if(nativeGestureInvalid && touching || !BoilerSwitchGestureGate.allows(rendered,current(),nativeTouchIdentity,touching))return false
+        }
+        return super.performClick()
+    }
+    override fun onInitializeAccessibilityNodeInfo(info:android.view.accessibility.AccessibilityNodeInfo) {
+        super.onInitializeAccessibilityNodeInfo(info)
+        if(readbackRetry!=null) {
+            info.className="android.widget.Button"
+            info.isCheckable=false
+            info.isChecked=false
+            if(android.os.Build.VERSION.SDK_INT>=30)
+                info.stateDescription=context.getString(R.string.machine_settings_sync_retry_state)
+            else info.contentDescription=context.getString(R.string.machine_settings_sync_retry_state)
+        }
+    }
     private var touching = false
     // Opt-in paint only; Android retains the real disabled touch and accessibility state.
     var keepPendingAppearance = false
@@ -90,12 +129,46 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
         if (ready) { motion?.cancel(); position = if (isChecked) 1f else 0f; invalidate() }
     }
     override fun onDetachedFromWindow() {
+        readbackGesture=false;readbackTap=null;nativeTouchIdentity=null
         touching = false
         motion?.cancel(); position = if (isChecked) 1f else 0f
         super.onDetachedFromWindow()
     }
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!interactive) return false
+        if(event.actionMasked==MotionEvent.ACTION_DOWN) {
+            readbackTap=readbackRetry
+            nativeTouchIdentity=drawnToggleIdentity
+            nativeGestureInvalid=false
+            val current=authoritativeToggleIdentity
+            readbackGesture=readbackTap!=null || current!=null &&
+                (nativeTouchIdentity==null || current()!=nativeTouchIdentity)
+        }
+        if(!readbackGesture && event.actionMasked!=MotionEvent.ACTION_DOWN && touching &&
+            (nativeGestureInvalid || readbackRetry!=null || authoritativeToggleIdentity?.let { current ->
+                !BoilerSwitchGestureGate.allows(drawnToggleIdentity,current(),nativeTouchIdentity,touching=true)
+            }==true)) {
+            // Freshness can change while a native drag is in progress. Cancel rather than
+            // treating the same touch-up as either a toggle or a new read-only retry.
+            val cancelled=MotionEvent.obtain(event)
+            try {cancelled.action=MotionEvent.ACTION_CANCEL;super.onTouchEvent(cancelled)}
+            finally {cancelled.recycle()}
+            touching=false
+            readbackGesture=true
+        }
+        if(readbackGesture) {
+            when(event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> if(event.x<0 || event.x>=width || event.y<0 || event.y>=height)readbackTap=null
+                MotionEvent.ACTION_POINTER_DOWN -> readbackTap=null
+                MotionEvent.ACTION_UP -> {
+                    val tap=readbackTap
+                    readbackGesture=false;readbackTap=null
+                    if(event.x>=0 && event.x<width && event.y>=0 && event.y<height)tap?.invoke()
+                }
+                MotionEvent.ACTION_CANCEL -> {readbackGesture=false;readbackTap=null}
+            }
+            return true
+        }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             // Finish an interrupted transition before native hit-testing so invisible and
             // visible thumb positions agree when a second gesture starts.
@@ -112,7 +185,7 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val fullInk = isEnabled || keepPendingAppearance
+        val fullInk = (isEnabled && readbackRetry==null) || keepPendingAppearance
         val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
         // Native layout owns gravity, padding, RTL and integer density rounding too.
         capsule.set(trackDrawable.bounds)

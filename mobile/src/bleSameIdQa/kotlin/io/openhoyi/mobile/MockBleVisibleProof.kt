@@ -43,6 +43,7 @@ internal object MockBleVisibleProof {
             var failed=false
             var acked=false
             var expectedStatus:Int?=null
+            var retries=0
             fun writes()=port.calls.filter {it.operation is io.openhoyi.session.GattOperation.Write}.drop(initialWrites)
                 .map {(it.operation as io.openhoyi.session.GattOperation.Write).bytes.first().toInt() and 255}
             fun conduct(tap:()->Unit) {
@@ -50,17 +51,32 @@ internal object MockBleVisibleProof {
                 try {tap();render()}
                 catch(_:Exception) {failed=true;runCatching {scope.close()};state.text=label("用例失败，请关闭。","Fixture failed; close it.")}
             }
-            val sync=HoyiUi.button(activity,body,activity.getString(R.string.machine_settings_sync_clock)) {
-                conduct { check(port.syncStaleSettings());check(port.settingsSyncPending && writes()==listOf(1)) }
-            }.apply {tag="qa/v2/stale-settings/sync"}
+            val quiet=HoyiUi.button(activity,body,label("模拟被动等待","Advance fake passive wait")) {
+                conduct {
+                    port.advance(0)
+                    port.advance(349)
+                    check(!port.settingsSyncPending && writes().isEmpty() && port.liveFrame is IdleTelemetry)
+                    port.advance(1)
+                    check(port.settingsSyncPending && writes()==listOf(1))
+                }
+            }.apply {tag="qa/v2/stale-settings/passive-time"}
             style.add(body,result)
+            val retrySwitch=HoyiSwitch(activity).apply {
+                tag="qa/v2/stale-settings/same-switch"
+                contentDescription=label("冲泡锅炉","Brew boiler")
+                setOnCheckedChangeListener {_,_->check(false) { "Retry must not toggle." }}
+            }
+            style.add(body,retrySwitch)
+            val retryClock=HoyiUi.button(activity,body,label("模拟重试冷却结束","Advance fake retry cooldown")) {
+                conduct {repeat(2){port.advance(1000);port.observe(idle(9400))}}
+            }
             val ack=HoyiUi.button(activity,body,label("模拟写入回执","Deliver fake write callback")) {
                 conduct {port.complete();acked=true;check(port.settingsSyncPending && !port.heatingAdmission.canSubmit)}
             }
             val good=HoyiUi.button(activity,body,label("模拟新设置回报","Deliver current settings report")) {
                 conduct {
                     port.advance(1);port.observe(settings(0xfd))
-                    check(!port.settingsSyncPending && port.heatingAdmission.canSubmit && writes()==listOf(1))
+                    check(!port.settingsSyncPending && port.heatingAdmission.canSubmit && writes()==List(1+retries){1})
                     expectedStatus=R.string.machine_settings_sync_observed
                     completed=true
                 }
@@ -68,28 +84,42 @@ internal object MockBleVisibleProof {
             val timeout=HoyiUi.button(activity,body,label("模拟等待超时","Advance to timeout")) {
                 conduct {
                     repeat(5) {port.advance(1000);port.observe(idle(9400))}
-                    check(!port.settingsSyncPending && !port.heatingAdmission.canSubmit && writes()==listOf(1))
+                    check(!port.settingsSyncPending && !port.heatingAdmission.canSubmit &&
+                        port.liveFrame is IdleTelemetry && writes()==List(1+retries){1})
                     expectedStatus=R.string.machine_settings_sync_unconfirmed
-                    completed=true
+                    completed=retries>=1
                 }
             }
             render={
-                port.renderSettingsSync(sync,result)
+                port.renderSettingsSync(result)
                 if(port.settingsSyncPending) {
-                    check(sync.visibility==View.VISIBLE && !sync.isEnabled &&
-                        sync.text.toString()==activity.getString(R.string.machine_settings_sync_pending))
+                    check(result.visibility==View.VISIBLE &&
+                        result.text.toString()==activity.getString(R.string.machine_settings_sync_pending))
                 }
                 expectedStatus?.let { expected ->
                     check(result.visibility==View.VISIBLE && result.text.toString()==activity.getString(expected))
                 }
                 state.text=if(port.heatingAdmission.canSubmit)label("开关已可手动操作；未发锅炉命令。","Manual switch is available; no boiler command was sent.")
                     else label("机器已就绪；开关暂不可操作。","Machine ready; switch not available yet.")
+                retryClock.isEnabled=!completed && expectedStatus==R.string.machine_settings_sync_unconfirmed &&
+                    !port.canRetrySettingsFromSwitch
+                retrySwitch.readbackRetry=if(!completed && port.canRetrySettingsFromSwitch) ({
+                    conduct {
+                        check(port.retrySettingsFromSwitch())
+                        retries++
+                        acked=false
+                        expectedStatus=null
+                        check(port.settingsSyncPending && writes()==List(1+retries){1})
+                    }
+                }) else null
+                retrySwitch.isEnabled=retrySwitch.readbackRetry!=null
+                quiet.isEnabled=!completed && !acked && !port.settingsSyncPending && writes().isEmpty()
                 ack.isEnabled=!completed && !acked && port.settingsSyncPending
                 good.isEnabled=!completed && acked && port.settingsSyncPending
                 timeout.isEnabled=good.isEnabled
             }
             render()
-            check(!port.heatingAdmission.canSubmit && sync.isEnabled && writes().isEmpty())
+            check(!port.heatingAdmission.canSubmit && quiet.isEnabled && writes().isEmpty())
             val dialog=AlertDialog.Builder(activity).setTitle(label("模拟：设置同步","Fixture: settings sync"))
                 .setView(body).setNegativeButton(android.R.string.cancel,null).create()
             dialog.setOnDismissListener {scope.close()}

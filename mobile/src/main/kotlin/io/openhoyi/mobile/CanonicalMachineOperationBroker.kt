@@ -118,6 +118,9 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         Send.issue(entry,binding,token).also { current.live[entry.kind]=it }
     }
 
+    fun waitsForObservation(send:Send,binding:Binding):Boolean =
+        !mutating && exact(send,binding)!=null && send.phase==Phase.WAITING_READBACK
+
     fun mayDispatch(send:Send,binding:Binding):Boolean {
         val current=exact(send,binding) ?: return false
         return !mutating && send.phase==Phase.QUEUED &&

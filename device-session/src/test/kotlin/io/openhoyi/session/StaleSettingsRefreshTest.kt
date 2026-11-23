@@ -62,6 +62,15 @@ class StaleSettingsRefreshTest {
         f.session.writeSetting(MachineSettingChange.BrewHeating(false)) {}
         assertEquals(listOf(1,0x0c),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
     }
+    @Test fun v2ForcedReadDoesNotReuseNativeCacheWhenApplicationInvalidatesItsSnapshot() {
+        val f=Fixture(trackV2=true)
+        val baseline=f.driver.writes.size
+        f.session.refreshStaleSettings({true},forceFreshReadback=true) {f.results+=it}
+        assertEquals(listOf(1),f.driver.writes.drop(baseline).map {it.bytes[0].toInt()})
+        f.complete();assertTrue(f.results.isEmpty())
+        f.now+=1;f.receive(f.settings)
+        assertTrue(f.results.single() is OperationResult.Success)
+    }
     @Test fun v2ValidEarlyNative83AloneWaitsForAttCompletion() {
         val f=Fixture(trackV2=true)
         f.stale()
@@ -83,6 +92,21 @@ class StaleSettingsRefreshTest {
         f.session.tick(); f.idle(); f.receive(f.settings)
         assertTrue(f.results.single() is OperationResult.Failed)
         assertEquals(listOf(1),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
+    }
+    @Test fun v2ExplicitReadAgainAfterAckOnlyTimeoutIsNotABoilerToggle() {
+        val f=Fixture(trackV2=true)
+        f.stale()
+        val baseline=f.driver.writes.size
+        f.refresh();f.complete()
+        f.now+=5000;f.session.tick();f.idle()
+        assertTrue(f.results.single() is OperationResult.Failed)
+        assertEquals(DeviceState.READY,f.session.state)
+        f.now+=1000;f.idle();f.now+=1000;f.idle()
+        f.refresh();f.complete()
+        assertEquals(1,f.results.size)
+        f.now+=1;f.receive(f.settings)
+        assertTrue(f.results.last() is OperationResult.Success)
+        assertEquals(listOf(1,1),f.driver.writes.drop(baseline).map {it.bytes[0].toInt()})
     }
     @Test fun v2ReconnectAfterAcknowledgedSyncCannotCarryOldSettingsIntoNewOwner() {
         val f=Fixture(trackV2=true)

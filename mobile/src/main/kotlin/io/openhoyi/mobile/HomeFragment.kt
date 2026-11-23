@@ -55,7 +55,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var safetyWarning: TextView
     private lateinit var prominentAlarm: TextView
     private lateinit var acknowledgeManual: Button
-    private lateinit var syncBoilerSettings: Button
     private lateinit var syncBoilerStatus: TextView
     private lateinit var coffee: TextView
     private lateinit var coffeeDot: View
@@ -348,13 +347,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             MachineSettingChange.SteamHeating(it)
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
-        syncBoilerSettings=button(content,getString(R.string.machine_settings_sync_clock)) {
-            if(service?.syncStaleMachineSettings()!=true)toast(getString(R.string.machine_settings_sync_unavailable))
-            render()
-        }.apply {
-            tag="product/home/boiler-settings-sync"
-            visibility=View.GONE
-        }
         syncBoilerStatus=text(content,"",14).apply {
             visibility=View.GONE
             accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -952,11 +944,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val boilerEditable = heatingAdmission.canSubmit && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
-        val showSettingsSync=!BuildConfig.MOCK_MODE && !brewRecovery && !steamRecovery &&
-            owner?.machineControlSafetyMessage==null && s.coffeeState==DeviceState.READY && owner?.machineSettingsFresh==false
-        MachineSettingsSyncView.render(syncBoilerSettings,syncBoilerStatus,owner,showSettingsSync)
-        brewBoilerToggle.isEnabled = boilerEditable && !brewRecovery
-        steamBoilerToggle.isEnabled = boilerEditable && !steamRecovery
+        MachineSettingsSyncView.render(syncBoilerStatus,owner)
+        fun allowSwitchOrObservation(toggle:HoyiSwitch,recovery:Boolean,brew:Boolean) {
+            val admit=boilerEditable && !recovery
+            val observation=if(!admit && !BuildConfig.MOCK_MODE)owner?.captureBoilerReadbackRetry(recovery,brew) else null
+            toggle.readbackRetry=observation?.let { retry ->
+                {if(service===owner) {retry();render()}}
+            }
+            if(owner?.usesAutomaticBoilerSettingsSync==true) {
+                toggle.authoritativeToggleIdentity={service?.takeIf {it===owner}?.freshBoilerInteraction(brew)}
+                toggle.drawnToggleIdentity=if(admit)owner.freshBoilerInteraction(brew) else null
+            } else {toggle.authoritativeToggleIdentity=null;toggle.drawnToggleIdentity=null}
+            toggle.isEnabled=admit || observation!=null
+        }
+        allowSwitchOrObservation(brewBoilerToggle,brewRecovery,true)
+        allowSwitchOrObservation(steamBoilerToggle,steamRecovery,false)
 
         val preheatOccupied=PreheatStatusPresentation.boilerOccupied(
             owner?.brewPreparationState ?: BrewPreparation.State.IDLE,s.coffeeState==DeviceState.READY,

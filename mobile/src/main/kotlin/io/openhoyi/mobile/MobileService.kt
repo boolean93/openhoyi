@@ -1486,7 +1486,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         !io.openhoyi.session.DeviceConnectionGate.unsettled(shotState) && !brewPreparation.active && !cupResetBusy && !scheduleBusy &&
         sleepNow.state !in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN)
     private fun attemptBoilerFallback() {
-        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID || v2SettingEvidence)return
         val pending=boilerFallback ?: return
         val current=hub ?: return
         val now=elapsedNow()
@@ -1719,7 +1719,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         }
                         current.refreshBoilerSettings({machineWriteRecovery.owns(recoveryOwner) && boilerRecoveryProductSafe() &&
                             permitsOrdinaryWrite(current,coffeeAddress,token,
-                                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))}) { attempt,refreshResult ->
+                                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))},
+                            singleBoiler=v2SettingEvidence) { attempt,refreshResult ->
                             recordBoilerRefresh(false,attempt,refreshResult)
                         }
                     }
@@ -1802,15 +1803,51 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     private val settingsRefreshBudget = SettingsRefreshBudget()
     private var staleSettingsRefreshBusy = false
-    private var manualSettingsSyncResult:Pair<Long,Int>?=null
-    internal val machineSettingsSyncStatus get()=manualSettingsSyncResult?.takeIf { elapsedNow()<it.first }?.second
+    private val automaticSettingsSync=AutomaticSettingsRefresh()
+    private var automaticSettingsSyncResult:Pair<Long,Int>?=null
+    internal val machineSettingsSyncStatus get()=
+        if(staleSettingsRefreshBusy) R.string.machine_settings_sync_pending
+        else automaticSettingsSyncResult?.takeIf { elapsedNow()<it.first }?.second
     internal val machineSettingsSyncPending get()=staleSettingsRefreshBusy
-    private val canStartStaleMachineSettingsSync get()=!staleSettingsRefreshBusy && !machineSettingsFresh &&
-        settingsRefreshSafe() && hub?.canRefreshStaleSettings==true
-    internal val canSyncStaleMachineSettings get()=canStartStaleMachineSettingsSync &&
-        hub?.coffeeGeneration?.let {settingsRefreshBudget.available(it,snapshot.settingsAt,elapsedNow(),explicit=true)}==true
-    internal fun syncStaleMachineSettings():Boolean =
-        refreshStaleMachineSettings(explicit=true,reportUserResult=true)
+    internal val usesAutomaticBoilerSettingsSync get()=v2SettingEvidence
+    private var nextSettingsTapRetryAt=0L
+    internal val canRetryStaleMachineSettings:Boolean get() {
+        val current=hub ?: return false
+        val source=current.coffeeReadbackCursor?.source ?: return false
+        val observed=current.preheatSettingsBaseline?.takeIf {it.cursor.source===source}?.cursor?.sequence ?: return false
+        return v2SettingEvidence && !staleSettingsRefreshBusy && !machineSettingsFresh &&
+            elapsedNow()>=nextSettingsTapRetryAt && settingsRefreshSafe() && current.canRefreshStaleSettings &&
+            automaticSettingsSync.hasSpent(source,current.coffeeGeneration,observed)
+    }
+    internal fun retryStaleMachineSettings():Boolean =
+        if(canRetryStaleMachineSettings)refreshStaleMachineSettings(switchRetry=true) else false
+    internal fun captureBoilerReadbackRetry(recovery:Boolean,brew:Boolean):(() -> Unit)? {
+        if(!v2SettingEvidence)return null
+        val current=hub ?: return null
+        val source=current.coffeeReadbackCursor?.source ?: return null
+        val observationId=current.preheatSettingsBaseline?.takeIf {it.cursor.source===source}?.cursor?.sequence
+        val pending=settingsWrite.change
+        val trackerToken=settingsWrite.boilerRecoveryToken()
+        val splitOwner=splitBoiler
+        if(recovery && !canRefreshUnknownBoilerSettings || !recovery && !canRetryStaleMachineSettings)return null
+        return action@{
+            if(hub!==current || current.coffeeReadbackCursor?.source!==source)return@action
+            if(recovery) {
+                val stillSame=settingsWrite.change==pending && settingsWrite.state==SettingsWriteTracker.State.UNKNOWN &&
+                    settingsWrite.boilerRecoveryToken()==trackerToken && splitBoiler===splitOwner &&
+                    (if(brew) pending is MachineSettingChange.BrewHeating else pending is MachineSettingChange.SteamHeating)
+                if(stillSame)refreshUnknownBoilerSettings()
+            } else if(current.preheatSettingsBaseline?.cursor?.sequence==observationId)retryStaleMachineSettings()
+        }
+    }
+    internal fun freshBoilerInteraction(brew:Boolean):Any? {
+        if(!v2SettingEvidence || !BoilerHeatingAdmission.evaluate(this,now=elapsedNow()).canSubmit)return null
+        val current=hub ?: return null
+        val source=current.coffeeReadbackCursor?.source ?: return null
+        val native=current.preheatSettingsBaseline ?: return null
+        if(native.cursor.source!==source || native.value!==snapshot.settings)return null
+        return Triple(current,source,if(brew)native.value.brewHeating else native.value.steamHeating)
+    }
     private fun settingsRefreshSafe(): Boolean {
         if(!holdsMachineWriter())return false
         val idle = snapshot.coffee as? IdleTelemetry ?: return false
@@ -1831,24 +1868,34 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
     }
     /** A bounded settings synchronization, not a retry of the user's machine command. */
-    private fun refreshStaleMachineSettings(explicit: Boolean = false,reportUserResult:Boolean=false):Boolean {
-        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && !explicit)return false
-        if (!canStartStaleMachineSettingsSync) return false
-        val current = hub ?: return false
-        val generation = current.coffeeGeneration
-        if (!settingsRefreshBudget.claim(generation, snapshot.settingsAt, elapsedNow(), explicit)) return false
-        if(reportUserResult)manualSettingsSyncResult=null
-        staleSettingsRefreshBusy = true
+    private fun refreshStaleMachineSettings(explicit:Boolean=false,switchRetry:Boolean=false):Boolean {
+        val current=hub ?: return false
+        val generation=current.coffeeGeneration
+        val now=elapsedNow()
+        val eligible=!staleSettingsRefreshBusy && !machineSettingsFresh && settingsRefreshSafe() &&
+            current.canRefreshStaleSettings
+        val proactive=v2SettingEvidence
+        if(proactive) {
+            val owner=current.coffeeReadbackCursor?.source ?: return false
+            val observation=current.preheatSettingsBaseline?.takeIf {it.cursor.source===owner}?.cursor?.sequence ?: return false
+            if(switchRetry) {
+                if(!eligible || !canRetryStaleMachineSettings)return false
+                nextSettingsTapRetryAt=now+2_000L
+            } else if(!automaticSettingsSync.claim(owner,generation,observation,now,eligible))return false
+        } else if(!eligible || !settingsRefreshBudget.claim(generation,snapshot.settingsAt,now,explicit))return false
+        if(proactive)automaticSettingsSyncResult=null
+        staleSettingsRefreshBusy=true
         logMachineStateGate("settings.refresh_started")
-        current.refreshStaleSettings({ hub === current && current.coffeeGeneration == generation && settingsRefreshSafe() }) { result ->
-            staleSettingsRefreshBusy = false
-            logs.record("settings.refresh_finished", mapOf("result" to result.javaClass.simpleName,
+        current.refreshStaleSettings({hub===current && current.coffeeGeneration==generation && settingsRefreshSafe()},
+            forceFreshReadback=proactive) {result ->
+            staleSettingsRefreshBusy=false
+            logs.record("settings.refresh_finished",mapOf("result" to result.javaClass.simpleName,
                 "version" to BuildConfig.VERSION_NAME))
-            if(reportUserResult) {
-                val message=if(result is OperationResult.Success && hub===current && current.coffeeGeneration==generation && machineSettingsFresh)
+            if(proactive && hub===current && current.coffeeGeneration==generation) {
+                val message=if(result is OperationResult.Success && machineSettingsFresh)
                     R.string.machine_settings_sync_observed else R.string.machine_settings_sync_unconfirmed
-                manualSettingsSyncResult=(elapsedNow()+6_000L) to message
-                event(ResourceMessage(message),"settings.manual_sync_result")
+                if(result !is OperationResult.Success)nextSettingsTapRetryAt=elapsedNow()+2_000L
+                automaticSettingsSyncResult=(elapsedNow()+6_000L) to message
             }
         }
         return true
@@ -2256,7 +2303,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             if(outcome==MachineWriteResult.Outcome.WAITING && broker.enteredReadback(send,binding,result)) {
                 item.settingCut=evidence
                 event(ResourceMessage(R.string.service_write_setting_written),"v2.boiler.written")
-                // Unlike the exclusive 8E path: never issue sync/reconnect to obtain overlap evidence.
+                maybeRefreshSplitBoiler()
                 writeWatchdog.await(token,MachineWriteWatchdog.Request.Setting(settingsWrite)) {
                     markSplitUnknown(item)
                     event(ResourceMessage(R.string.service_write_setting_no_readback),"v2.boiler.unknown")
@@ -2273,6 +2320,19 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         return null
     }
 
+    private fun maybeRefreshSplitBoiler() {
+        val item=splitBoiler ?: return
+        val broker=machineOperations ?: return
+        val current=hub ?: return
+        fun eligible()=splitWeek==null && !scheduleBusy && splitBoiler===item && hub===current &&
+            settingsWrite.state==SettingsWriteTracker.State.WAITING_READBACK &&
+            broker.waitsForObservation(item.send,item.binding) && splitWriteSafe()
+        if(!eligible())return
+        current.refreshBoilerSettings(::eligible,singleBoiler=true) {attempt,result ->
+            recordBoilerRefresh(false,attempt,result)
+        }
+    }
+
     private fun observeSplitWeek(frame:SleepPart):Boolean {
         val item=splitWeek ?: return false
         if(scheduleWrite.state!=SleepScheduleWriteTracker.State.WAITING_READBACK)return false
@@ -2286,6 +2346,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if(plan.days!=target.days || !broker.settleVerified(item.send,item.binding))return false
         scheduleWrite.observe(firstSleepSerial,secondSleepSerial,first?.value,second?.value)
         splitWeek=null
+        maybeRefreshSplitBoiler()
         broker.returnToLegacy()
         event(ResourceMessage(R.string.service_write_schedule_confirmed),"v2.week.confirmed")
         return true
@@ -3477,13 +3538,13 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             val current=service.snapshot
             return LiveTelemetry.machine(current.coffee,current.coffeeState,current.coffeeAt,clock.now)
         }
-        fun renderSettingsSync(action:android.widget.TextView,status:android.widget.TextView) {
+        fun renderSettingsSync(status:android.widget.TextView) {
             valid()
-            MachineSettingsSyncView.render(action,status,service,service.snapshot.coffeeState==DeviceState.READY &&
-                !service.machineSettingsFresh && service.machineControlSafetyMessage==null)
+            MachineSettingsSyncView.render(status,service)
         }
-        fun syncStaleSettings():Boolean {valid();return service.syncStaleMachineSettings()}
         val settingsSyncPending:Boolean get(){valid();return service.machineSettingsSyncPending}
+        fun retrySettingsFromSwitch():Boolean {valid();return service.retryStaleMachineSettings()}
+        val canRetrySettingsFromSwitch:Boolean get(){valid();return service.canRetryStaleMachineSettings}
         val heatingAdmission:BoilerHeatingAdmission get(){valid()
             return BoilerHeatingAdmission.evaluate(service,service.snapshot,clock.now)
         }

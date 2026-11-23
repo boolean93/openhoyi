@@ -63,7 +63,6 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private lateinit var connectionState: TextView
     private lateinit var settings: TextView
     private lateinit var settingsOverview: TextView
-    private lateinit var syncReadbackAction: TextView
     private lateinit var syncReadbackStatus: TextView
     private lateinit var brewTemperatureValue: TextView
     private lateinit var steamTemperatureValue: TextView
@@ -151,11 +150,6 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         supplyValue = settingRow(R.string.machine_settings_supply_label)
         settingsDivider(host, settingsCard, visual)
         settingsOverview = text(settingsCard, getString(R.string.machine_settings_readback_missing), TaskVisualTokens.SUPPORTING_SP)
-        syncReadbackAction=action(settingsCard,getString(R.string.machine_settings_sync_clock)) {
-            if(service?.syncStaleMachineSettings()!=true)
-                android.widget.Toast.makeText(host,R.string.machine_settings_sync_unavailable,android.widget.Toast.LENGTH_SHORT).show()
-            render()
-        }.apply {tag="product/settings/machine/sync-readback";visibility=View.GONE}
         syncReadbackStatus=text(settingsCard,"",TaskVisualTokens.SUPPORTING_SP).apply {
             visibility=View.GONE
             accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -613,8 +607,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 DeviceStatusText.label(this, snapshot.coffeeState), getString(if (ready)
                     R.string.machine_settings_authenticated else R.string.machine_settings_not_current)))
         val reported = snapshot.settings
-        MachineSettingsSyncView.render(syncReadbackAction,syncReadbackStatus,owner,
-            !BuildConfig.MOCK_MODE && ready && owner?.machineSettingsFresh==false && owner.machineControlSafetyMessage==null)
+        MachineSettingsSyncView.render(syncReadbackStatus,owner)
         settingsOverview.update(if (reported == null) getString(R.string.machine_settings_readback_missing) else
             getString(R.string.machine_settings_readback_summary,
                 getString(if (ready && owner?.machineSettingsFresh == true)
@@ -737,8 +730,18 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             }
             val button = control as Button
             if (button is HoyiSwitch) {
+                val brew=button===brewHeatingButton
+                val boiler=brew || button===steamHeatingButton
+                val recovery=boiler && owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN &&
+                    (if(brew) owner.pendingSetting is MachineSettingChange.BrewHeating else owner.pendingSetting is MachineSettingChange.SteamHeating)
+                val retry=if(boiler && !editable && !BuildConfig.MOCK_MODE)owner?.captureBoilerReadbackRetry(recovery,brew) else null
+                button.readbackRetry=retry?.let {action -> {if(service===owner){action();render()}}}
+                if(boiler && owner?.usesAutomaticBoilerSettingsSync==true) {
+                    button.authoritativeToggleIdentity={service?.takeIf {it===owner}?.freshBoilerInteraction(brew)}
+                    button.drawnToggleIdentity=if(editable)owner.freshBoilerInteraction(brew) else null
+                } else {button.authoritativeToggleIdentity=null;button.drawnToggleIdentity=null}
                 (button.parent as SettingsObservedSwitch).present(
-                    snapshot.settings?.let { value == R.string.setting_on }, editable)
+                    snapshot.settings?.let { value == R.string.setting_on }, editable || retry!=null)
                 return
             }
             val text=when {
@@ -776,6 +779,14 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         }))
     }
     private fun confirm(change: MachineSettingChange) {
+        val owner=service
+        if(owner?.usesAutomaticBoilerSettingsSync==true &&
+            (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating)) {
+            // Still performs service-side admission on this explicit fresh toggle.
+            owner.changeMachineSetting(change)
+            render()
+            return
+        }
         if (BuildConfig.MOCK_MODE) {
             AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_mock_confirm_title))
                 .setMessage(getString(R.string.machine_settings_mock_confirm_message, settingsPresentation.change(change)))

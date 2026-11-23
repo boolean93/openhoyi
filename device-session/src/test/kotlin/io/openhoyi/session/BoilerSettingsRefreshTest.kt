@@ -62,12 +62,12 @@ class BoilerSettingsRefreshTest {
             it[3]=(it[3].toInt() and (if(change is MachineSettingChange.BrewHeating)0x20 else 0x10).inv()).toByte()
             it[it.lastIndex]=it.dropLast(1).fold(0){a,v->a xor (v.toInt() and 255)}.toByte()
         }
-        fun begin(change:MachineSettingChange,refresh:Boolean=true):Long {
+        fun begin(change:MachineSettingChange,refresh:Boolean=true,single:Boolean=false):Long {
             val token=requireNotNull(tracker.begin(change))
             session.writeSetting(change,{tracker.permitsWrite(token)}) { result->
                 tracker.written(token,result,serial)
                 if(refresh && result is OperationResult.Success)
-                    session.refreshBoilerSettings({tracker.permitsBoilerRefresh(token)}) {_,_->}
+                    session.refreshBoilerSettings({tracker.permitsBoilerRefresh(token)},singleBoiler=single) {_,_->}
             }
             return token
         }
@@ -89,6 +89,22 @@ class BoilerSettingsRefreshTest {
             else -> error("not a temperature setting")
         }
         it[it.lastIndex]=it.dropLast(1).fold(0){a,v->a xor (v.toInt() and 255)}.toByte()
+    }
+
+    @Test fun v2SingleBoilerSyncWaitsPassivelyAndCanReadEvenAfterBaselineExpires() {
+        val f=Fixture(v2=true)
+        f.advance(179_900)
+        val before=f.driver.writes.size
+        val change=MachineSettingChange.BrewHeating(false)
+        f.begin(change,single=true);f.complete()
+        f.advance(180_249)
+        assertEquals(listOf(0x0c),f.driver.writes.drop(before).map {it.bytes[0].toInt()})
+        f.advance(180_250)
+        assertEquals(listOf(0x0c,1),f.driver.writes.drop(before).map {it.bytes[0].toInt()})
+        f.complete()
+        f.advance(181_500);f.advance(185_900)
+        assertEquals(listOf(0x0c,1),f.driver.writes.drop(before).map {it.bytes[0].toInt()})
+        assertEquals(DeviceState.READY,f.session.state)
     }
 
     @Test fun temperatureWritesConfirmOnFirstFreshSyncWithoutWaitingForPhysicalHeating() {

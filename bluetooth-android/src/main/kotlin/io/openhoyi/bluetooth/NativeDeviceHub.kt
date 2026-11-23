@@ -359,9 +359,9 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     }
 
     /** Authenticated time-sync/settings requests, never boiler-control retries. */
-    fun refreshBoilerSettings(beforeDispatch:()->Boolean,outcome:(Int,OperationResult)->Unit){
+    fun refreshBoilerSettings(beforeDispatch:()->Boolean,singleBoiler:Boolean=false,outcome:(Int,OperationResult)->Unit){
         usable()
-        coffee.session.refreshBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},outcome)
+        coffee.session.refreshBoilerSettings({beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},singleBoiler,outcome)
     }
     val boilerReconciliationReady get()=coffee.session.boilerReconciliationReady
     fun qualifiesBoilerSyncedSettings(intent:MachineSettingChange?,frame:Settings):Boolean =
