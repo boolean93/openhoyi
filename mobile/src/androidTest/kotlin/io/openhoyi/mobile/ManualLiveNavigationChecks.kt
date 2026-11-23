@@ -154,24 +154,56 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             flushEnd()
 
             if (includeDraftEditors) {
+                fun preservedBelowLive(owner: ThemedActivity, verifyDraft: () -> Unit) {
+                    val monitor = test.addMonitor(PassiveExtractionHostActivity::class.java.name, null, false)
+                    val live = try {
+                        start("standalone-under-live")
+                        requireNotNull(test.waitForMonitorWithTimeout(monitor, 10000)) as PassiveExtractionHostActivity
+                    } finally {test.removeMonitor(monitor)}
+                    await("standalone foreground shows same extraction Fragment without popup") {
+                        val frame=live.supportFragmentManager.primaryNavigationFragment as? ExtractionFragment
+                            ?: return@await false
+                        val root=frame.view ?: return@await false
+                        val buttons=descendants(root).filter { it.tag in setOf("product/extraction/start","product/extraction/stop") }.toList()
+                        val chart=descendants(root).filterIsInstance<ExtractionOverlayView>().singleOrNull()
+                        live.hasWindowFocus() && buttons.size==2 && buttons.all {it.visibility==View.GONE} &&
+                            (chart?.points?.size ?: 0)>=2 &&
+                            live.supportFragmentManager.fragments.none { it is ManualLiveDialog }
+                    }
+                    test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                    await("same underlying standalone Activity resumes") {
+                        owner.hasWindowFocus() && owner.lifecycle.currentState==Lifecycle.State.RESUMED
+                    }
+                    SystemClock.sleep(250)
+                    test.runOnMainSync {
+                        check(owner.hasWindowFocus() && !owner.isFinishing)
+                        verifyDraft()
+                    }
+                    flushEnd()
+                }
                 val editor = open(main, AiChatActivity::class.java).also { child = it }
                 lateinit var edit: EditText
                 test.runOnMainSync {
                     edit=descendants(editor.window.decorView).filterIsInstance<EditText>().first()
                     edit.setText("unsent draft");edit.setSelection(2)
                 }
-                start("editor-deferred")
-                SystemClock.sleep(250)
-                test.runOnMainSync {
-                    check(editor.hasWindowFocus() && edit.text.toString()=="unsent draft" && edit.selectionStart==2)
-                    check(foregroundPage()===history)
+                preservedBelowLive(editor) {
+                    check(edit.isAttachedToWindow && edit.text.toString()=="unsent draft" && edit.selectionStart==2)
                 }
-                flushEnd()
                 test.runOnMainSync { edit.text.clear(); editor.finish() }
-                await("finished observation does not steal navigation when returning") {
+                await("AI editor return retains selected history tab") {
                     foregroundPage()===history && main.hasWindowFocus()
                 }
                 child = null
+                val compare=open(main,BrewComparisonActivity::class.java).also {child=it}
+                preservedBelowLive(compare) {
+                    check(foregroundPage()===history)
+                }
+                test.runOnMainSync { compare.finish() }
+                await("comparison return retains selected history tab") {
+                    foregroundPage()===history && main.hasWindowFocus()
+                }
+                child=null
             }
             test.runOnMainSync {
                 check(main.currentService === service && service.running)

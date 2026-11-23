@@ -31,6 +31,25 @@ class ManualShotPresentationGateTest {
         assertTrue(gate.eligible("next", true))
     }
 
+    @Test fun offeredWindowCanClaimOnlyCurrentObservationAndCannotLaunchTwice() {
+        val gate = ManualShotPresentationGate()
+        gate.started("shot-1")
+        assertFalse(gate.offerWindow("shot-1",false))
+        assertTrue(gate.offerWindow("shot-1",true))
+        assertFalse(gate.acceptWindow("other",true))
+        assertFalse(gate.acceptWindow("shot-1",false))
+        assertTrue(gate.acceptWindow("shot-1",true))
+        assertFalse(gate.offerWindow("shot-1",true))
+        gate.discarded()
+        gate.started("shot-2")
+        assertTrue(gate.offerWindow("shot-2",true))
+        gate.dropWindow("shot-2")
+        assertFalse(gate.offerWindow("shot-2",true))
+        assertTrue(gate.claim("shot-2",true)) // A visible Main shell can still render inline.
+        gate.discarded()
+        assertFalse(gate.acceptWindow("shot-2",true))
+    }
+
     @Test fun disconnectedCupRemainsUnknownAndCannotClaimUntilIdleAndNextStart() {
         val gate = ManualShotPresentationGate()
         gate.started("cup-1")

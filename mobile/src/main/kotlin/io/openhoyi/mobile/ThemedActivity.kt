@@ -8,6 +8,58 @@ import androidx.fragment.app.FragmentActivity
 abstract class ThemedActivity : FragmentActivity() {
     internal var redirectedRoot = false
     private lateinit var appliedAppearance: AppAppearance
+    internal open val extractionPageHost: ExtractionPageHost? get() = null
+    private val standaloneManualGate get() = (application as MobileApplication).manualShotPresentation
+    private var topManualWindow = android.os.Build.VERSION.SDK_INT < 29
+    private var rejectedObservation: String? = null
+    private val offerManualWindow = Runnable {
+        if (this is MainActivity || this is PassiveExtractionHostActivity || !manualWindowForeground()) return@Runnable
+        val observation = standaloneManualGate.activeId ?: return@Runnable
+        if (observation == rejectedObservation || !standaloneManualGate.offerWindow(observation,true)) return@Runnable
+        try {
+            startActivity(android.content.Intent(this,PassiveExtractionHostActivity::class.java)
+                .putExtra(PassiveExtractionHostActivity.EXTRA_OBSERVATION,observation))
+        } catch (_: Exception) {
+            rejectedObservation = observation
+            standaloneManualGate.dropWindow(observation)
+        }
+    }
+    private val standaloneObservationChanged:()->Unit=::scheduleManualWindow
+
+    internal fun manualWindowForeground():Boolean =
+        topManualWindow && hasWindowFocus() && !isFinishing && !redirectedRoot &&
+            lifecycle.currentState==androidx.lifecycle.Lifecycle.State.RESUMED &&
+            !supportFragmentManager.isStateSaved &&
+            getSystemService(android.app.KeyguardManager::class.java)?.isDeviceLocked!=true &&
+            getSystemService(android.os.PowerManager::class.java)?.isInteractive==true
+
+    private fun scheduleManualWindow() {
+        window.decorView.removeCallbacks(offerManualWindow)
+        window.decorView.post(offerManualWindow)
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        if (this !is MainActivity && this !is PassiveExtractionHostActivity) {
+            standaloneManualGate.observe(standaloneObservationChanged)
+            scheduleManualWindow()
+        }
+    }
+    override fun onPause() {
+        standaloneManualGate.unobserve(standaloneObservationChanged)
+        window.decorView.removeCallbacks(offerManualWindow)
+        super.onPause()
+    }
+    override fun onWindowFocusChanged(hasFocus:Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && this !is MainActivity && this !is PassiveExtractionHostActivity) scheduleManualWindow()
+    }
+    override fun onTopResumedActivityChanged(isTopResumedActivity:Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        topManualWindow = isTopResumedActivity
+        if (isTopResumedActivity && this !is MainActivity && this !is PassiveExtractionHostActivity) scheduleManualWindow()
+    }
+
     override fun attachBaseContext(newBase: Context) {
         val app = newBase.applicationContext as MobileApplication
         appliedAppearance = app.appearancePreferences.current

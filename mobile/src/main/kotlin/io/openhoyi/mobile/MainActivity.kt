@@ -126,6 +126,22 @@ class MainActivity : ThemedActivity() {
         if (::shellStatus.isInitialized) shellStatus.present(service)
     }
 
+    internal override val extractionPageHost: ExtractionPageHost = object : ExtractionPageHost {
+        override val observeOnly get() = isAutomaticManualExtraction
+        override fun visibleService(candidate:MobileService?):MobileService? =
+            manualEntryId?.let { id -> candidate?.takeIf {it.manualChartIdentity==id} } ?: candidate.takeIf {manualEntryId==null}
+        override fun observeService(observer:(MobileService?)->Unit) = this@MainActivity.observeService(observer)
+        override fun removeServiceObserver(observer:(MobileService?)->Unit) = this@MainActivity.removeServiceObserver(observer)
+        override fun select(destination:TaskDestination) = this@MainActivity.select(destination)
+        override fun revokeShortcutStart() = this@MainActivity.revokeShortcutStart()
+        override fun liveShortcutChoices() = this@MainActivity.liveShortcutChoices()
+        override fun liveShortcutSession(fragment:ExtractionFragment) = this@MainActivity.liveShortcutSession(fragment)
+        override fun liveShortcutBlock(fragment:ExtractionFragment,session:LiveShortcutSession<MobileService>?) =
+            this@MainActivity.liveShortcutBlock(fragment,session)
+        override fun openLiveShortcut(fragment:ExtractionFragment,session:LiveShortcutSession<MobileService>,choice:LiveShortcutChoice) =
+            this@MainActivity.openLiveShortcut(fragment,session,choice)
+    }
+
     private val manualGate get() = (application as MobileApplication).manualShotPresentation
     private var manualEntryId: String? = null
     internal val isAutomaticManualExtraction get() = extractionVisible && manualEntryId != null
@@ -153,11 +169,15 @@ class MainActivity : ThemedActivity() {
             return
         }
         val shot = manualGate.activeId ?: return
-        if (!manualGate.eligible(shot, true)) return
+        if (service?.manualChartIdentity!=shot) return
+        if (!manualGate.eligible(shot, true) || manualGate.hasWindowOffer(shot)) return
         if (extractionVisible) {
             // An existing extraction is already presenting the manual sample. Never replace its selection.
-            if (supportFragmentManager.primaryNavigationFragment is ExtractionFragment)
-                manualGate.claim(shot, true)
+            if (supportFragmentManager.primaryNavigationFragment is ExtractionFragment && manualGate.claim(shot,true) &&
+                manualEntryId != null && manualEntryId != shot) {
+                manualEntryId=shot
+                manualEntryUntouched=false
+            }
             return
         }
         revokeShortcutStart()
