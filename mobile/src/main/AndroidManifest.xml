@@ -18,6 +18,7 @@
         <activity android:name=".CurveActivity" android:exported="false" android:enableOnBackInvokedCallback="true" />
         <activity android:name=".LegacyCurveActivity" android:exported="false" />
         <activity android:name=".ExtractionActivity" android:exported="false" />
+        <activity android:name=".PassiveExtractionHostActivity" android:exported="false" />
         <activity android:name=".MachineSettingsActivity" android:exported="false" />
         <activity android:name=".AppSettingsActivity" android:exported="false" />
         <activity android:name=".BackgroundSettingsActivity" android:exported="false" />

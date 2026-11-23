@@ -2,13 +2,15 @@ package io.openhoyi.mobile
 
 /** Main-thread, process-local handoff of observations, not an owner of machine state. */
 internal class ManualShotPresentationGate {
-    enum class Outcome { ENDED, UNKNOWN }
+    enum class Outcome { ENDED, UNKNOWN, DISCARDED }
     data class Terminal(val id: String, val outcome: Outcome, val points: List<ShotPoint>)
 
     var activeId: String? = null
         private set
     private var awaitIdle = false
     private var presentedId: String? = null
+    private var windowOffer: String? = null
+    private var lastWindowOffered: String? = null
     private var terminal: Terminal? = null
     private val observers = mutableSetOf<() -> Unit>()
 
@@ -25,6 +27,25 @@ internal class ManualShotPresentationGate {
         return true
     }
 
+    fun offerWindow(id: String, foreground: Boolean): Boolean {
+        if (!eligible(id,foreground) || windowOffer != null || lastWindowOffered == id) return false
+        lastWindowOffered = id
+        windowOffer = id
+        return true
+    }
+    fun hasWindowOffer(id: String) = windowOffer == id && activeId == id
+    fun acceptWindow(id: String, foreground: Boolean): Boolean {
+        if (!hasWindowOffer(id) || !claim(id,foreground)) return false
+        windowOffer = null
+        return true
+    }
+    fun dropWindow(id: String) {
+        if (windowOffer == id) {
+            windowOffer = null
+            changed()
+        }
+    }
+
     fun terminalFor(id: String): Terminal? = terminal?.takeIf { it.id == id }
 
     fun started(id: String) {
@@ -37,10 +58,12 @@ internal class ManualShotPresentationGate {
     private fun finish(outcome: Outcome, points: List<ShotPoint>) {
         val id = activeId ?: return
         terminal = Terminal(id, outcome, points)
+        if (windowOffer == id) windowOffer = null
         activeId = null
         changed()
     }
     fun ended(points: List<ShotPoint> = emptyList()) = finish(Outcome.ENDED, points)
+    fun discarded() = finish(Outcome.DISCARDED, emptyList())
     fun disconnected(requireIdle: Boolean = true, points: List<ShotPoint> = emptyList()) {
         if (requireIdle) awaitIdle = true
         finish(Outcome.UNKNOWN, points)

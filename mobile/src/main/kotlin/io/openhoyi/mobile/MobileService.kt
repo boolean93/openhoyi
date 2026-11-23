@@ -272,17 +272,18 @@ class MobileService : Service() {
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
 
-    internal fun manualLiveSamples(observationId: String): ManualLiveSamples? {
-        if (!running || manualPresentation.activeId != observationId || series.curveId != "manual") return null
-        val now = MobileMonotonicClock.elapsedRealtime()
-        val current = snapshot
-        return ManualLiveSamples(series.points, buildSet {
-            if (LiveTelemetry.machine(current.coffee, current.coffeeState, current.coffeeAt, now) == null)
-                addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
-            if (LiveTelemetry.scale(current.scaleObservation, current.scaleState, now) == null)
-                addAll(listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WEIGHT))
-        })
+    private data class ManualTerminalTrace(val traceId: String, val observationId: String, val outcome: ManualShotPresentationGate.Outcome)
+    private var manualTerminalTrace: ManualTerminalTrace? = null
+    private val matchingManualTerminal get() =
+        manualTerminalTrace?.takeIf { series.curveId == "manual" && it.traceId == series.traceIdentity }
+    internal val manualTerminalOutcome: ManualShotPresentationGate.Outcome? get() = matchingManualTerminal?.outcome
+    internal val manualChartIdentity: String? get() = if (series.curveId != "manual") null
+        else manualPresentation.activeId ?: matchingManualTerminal?.observationId
+    private fun markManualTerminal(outcome: ManualShotPresentationGate.Outcome) {
+        val observationId = manualPresentation.activeId ?: return
+        if (series.curveId == "manual") series.traceIdentity?.let { manualTerminalTrace = ManualTerminalTrace(it, observationId, outcome) }
     }
+
     private fun terminalManualPoints(): List<ShotPoint> =
         if (manualPresentation.activeId != null && series.curveId == "manual") series.points else emptyList()
 
@@ -328,6 +329,8 @@ class MobileService : Service() {
         mockExtractionScenario.completeStop(owner, id, result)
     internal fun offerMockExtractionCoffeeState(owner: Any, state: DeviceState) =
         mockExtractionScenario.coffeeState(owner, state)
+    internal fun offerMockExtractionSettings(owner: Any, settings: Settings) =
+        mockExtractionScenario.offerReadOnlySettings(owner, settings)
     internal fun offerMockExtractionFrame(owner: Any, frame: HoyiMessage) =
         mockExtractionScenario.offerCoffeeFrame(owner, frame)
     internal fun tickMockExtraction(owner: Any) = mockExtractionScenario.tick(owner)
@@ -650,6 +653,8 @@ class MobileService : Service() {
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             val committed = passiveCommitted
             passiveCommitted = false
+            markManualTerminal(if (committed) ManualShotPresentationGate.Outcome.UNKNOWN
+                else ManualShotPresentationGate.Outcome.DISCARDED)
             manualPresentation.disconnected(requireIdle = committed, points = terminalManualPoints())
             if (committed) {
                 passiveHistoryId?.let { id ->
@@ -808,6 +813,7 @@ class MobileService : Service() {
                     val committed = passiveCommitted
                     if (committed) {
                         passiveCommitted = false
+                        markManualTerminal(ManualShotPresentationGate.Outcome.ENDED)
                         manualPresentation.ended(terminalManualPoints())
                         clearPassiveRecovery(requireDeviceMatch = true)
                         val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, observedAt)
@@ -853,7 +859,10 @@ class MobileService : Service() {
      */
     private fun discardPassiveSeries(requireDeviceMatch: Boolean, observedEnd: Boolean) {
         passiveCommitted = false
-        if (observedEnd) manualPresentation.ended(terminalManualPoints())
+        if (observedEnd) {
+            markManualTerminal(ManualShotPresentationGate.Outcome.DISCARDED)
+            manualPresentation.discarded()
+        }
         finishSeries(observedEnd, countsAsCup = false)
         passiveHistoryId = null
         passiveStartedWallMs = 0L

@@ -72,6 +72,7 @@ class MainActivity : ThemedActivity() {
         override fun run() {
             shortcutStart?.allows()
             if (::shellStatus.isInitialized) shellStatus.present(service)
+        scheduleManualExtraction()
             if (foreground) handler.postDelayed(this, 250)
         }
     }
@@ -125,16 +126,98 @@ class MainActivity : ThemedActivity() {
         if (::shellStatus.isInitialized) shellStatus.present(service)
     }
 
-    internal override fun showsManualLiveChart(): Boolean =
-        // A native dialog can cover the chart without changing the Fragment lifecycle.
-        service?.running == true && hasWindowFocus() &&
-            (supportFragmentManager.primaryNavigationFragment as? ExtractionFragment)?.let {
-                it.isVisible && it.isResumed
-            } == true
+    internal override val extractionPageHost: ExtractionPageHost = object : ExtractionPageHost {
+        override val observeOnly get() = isAutomaticManualExtraction &&
+            (service?.manualShotActive == true || service?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN)
+        override val allowAutomaticPermissionPrompt get() = !isAutomaticManualExtraction
+        override fun observeService(observer:(MobileService?)->Unit) = this@MainActivity.observeService(observer)
+        override fun removeServiceObserver(observer:(MobileService?)->Unit) = this@MainActivity.removeServiceObserver(observer)
+        override fun select(destination:TaskDestination) = this@MainActivity.select(destination)
+        override fun revokeShortcutStart() = this@MainActivity.revokeShortcutStart()
+        override fun liveShortcutChoices() = this@MainActivity.liveShortcutChoices()
+        override fun liveShortcutSession(fragment:ExtractionFragment) = this@MainActivity.liveShortcutSession(fragment)
+        override fun liveShortcutBlock(fragment:ExtractionFragment,session:LiveShortcutSession<MobileService>?) =
+            this@MainActivity.liveShortcutBlock(fragment,session)
+        override fun openLiveShortcut(fragment:ExtractionFragment,session:LiveShortcutSession<MobileService>,choice:LiveShortcutChoice) =
+            this@MainActivity.openLiveShortcut(fragment,session,choice)
+    }
+
+    private val manualGate get() = (application as MobileApplication).manualShotPresentation
+    private var manualEntryId: String? = null
+    internal val isAutomaticManualExtraction get() = extractionVisible && manualEntryId != null
+    private var manualEntryUntouched = false
+    private var topResumed = android.os.Build.VERSION.SDK_INT < 29
+    private val manualRouteTick = Runnable { presentManualExtraction() }
+    private val onManualGateChanged: () -> Unit = ::scheduleManualExtraction
+
+    private fun scheduleManualExtraction() {
+        handler.removeCallbacks(manualRouteTick)
+        handler.post(manualRouteTick)
+    }
+
+    private fun presentManualExtraction() {
+        if (!foreground || !topResumed || !hasWindowFocus() || isFinishing || redirectedRoot ||
+            lifecycle.currentState != Lifecycle.State.RESUMED || supportFragmentManager.isStateSaved ||
+            getSystemService(android.app.KeyguardManager::class.java)?.isDeviceLocked == true ||
+            getSystemService(android.os.PowerManager::class.java)?.isInteractive != true ||
+            service?.running != true) return
+        val entry = manualEntryId
+        val entryOutcome = entry?.let(manualGate::terminalFor)?.outcome
+        if (manualEntryUntouched && entry != null && extractionVisible && entry != manualGate.activeId &&
+            entryOutcome == null && service?.chartCurveId == "manual") {
+            restoreManualEntryOrigin()
+            return
+        }
+        val shot = manualGate.activeId ?: return
+        if (service?.manualChartIdentity!=shot) return
+        if (!manualGate.eligible(shot, true) || manualGate.hasWindowOffer(shot)) return
+        if (extractionVisible) {
+            // An existing extraction is already presenting the manual sample. Never replace its selection.
+            if (supportFragmentManager.primaryNavigationFragment is ExtractionFragment && manualGate.claim(shot,true) &&
+                manualEntryId != null && manualEntryId != shot) {
+                manualEntryId=shot
+                manualEntryUntouched=false
+            }
+            return
+        }
+        revokeShortcutStart()
+        extractionOrigin = destination
+        extractionVisible = true
+        manualEntryId = shot
+        extractionSlot = 7
+        manualEntryUntouched = true
+        destination = TaskDestination.BREW
+        // Reuse the retained extraction page directly; showExtraction/routeShortcut may select a recipe.
+        showCurrent()
+        if (supportFragmentManager.primaryNavigationFragment is ExtractionFragment) manualGate.claim(shot, true)
+    }
+
+    private fun restoreManualEntryOrigin() {
+        extractionVisible = false
+        destination = extractionOrigin ?: TaskDestination.BREW
+        extractionOrigin = null
+        manualEntryId = null
+        manualEntryUntouched = false
+        showCurrent()
+        // A newer live cup (if already observed) can be presented independently on the next turn.
+        scheduleManualExtraction()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) scheduleManualExtraction()
+    }
+
+    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        topResumed = isTopResumedActivity
+        if (topResumed) scheduleManualExtraction()
+    }
 
     internal val currentService get() = service
     override fun onUserInteraction() {
         super.onUserInteraction()
+        if (manualEntryId != null) manualEntryUntouched = false
         if(foreground)service?.requestCoffeeRecoverySoon()
     }
     internal fun reconnectCoffee() = reconnectCoffee(afterSleep = false)
@@ -267,6 +350,19 @@ class MainActivity : ThemedActivity() {
         extractionVisible = savedInstanceState?.getBoolean(STATE_EXTRACTION)
             ?: intent.getBooleanExtra(EXTRA_OPEN_EXTRACTION, false)
         extractionOrigin=savedInstanceState?.getString("extractionOrigin")?.let {runCatching {TaskDestination.valueOf(it)}.getOrNull()}
+        manualEntryId = savedInstanceState?.getString("manualExtractionEntry")
+        manualEntryUntouched = savedInstanceState?.getBoolean("manualExtractionUntouched") == true
+        // A killed process has no process-local observation ownership to restore.
+        if (manualEntryId != null && manualEntryId != manualGate.activeId &&
+            manualGate.terminalFor(requireNotNull(manualEntryId)) == null) {
+            if (manualEntryUntouched) {
+                extractionVisible = false
+                destination = extractionOrigin ?: TaskDestination.BREW
+                extractionOrigin = null
+            }
+            manualEntryId = null
+            manualEntryUntouched = false
+        }
         extractionSlot = savedInstanceState?.getInt(STATE_EXTRACTION_SLOT)
             ?: intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7)
         scaleSettingsReturn = savedInstanceState?.getBoolean("settingsScaleReturn") ?: false
@@ -331,6 +427,8 @@ class MainActivity : ThemedActivity() {
         handler.post(shellRefresh)
     }
     override fun onPause() {
+        manualGate.unobserve(onManualGateChanged)
+        handler.removeCallbacks(manualRouteTick)
         revokeShortcutStart()
         foreground = false
         handler.removeCallbacks(shellRefresh)
@@ -379,7 +477,9 @@ class MainActivity : ThemedActivity() {
         }
         revokeShortcutStart()
         if (next == destination && !extractionVisible) return
-        if (extractionVisible) leaveCurvePreparation()
+        if (extractionVisible && manualEntryId == null) leaveCurvePreparation()
+        manualEntryId = null
+        manualEntryUntouched = false
         scaleSettingsReturn = false
         settingsOrigin = null
         extractionOrigin = null
@@ -622,6 +722,8 @@ class MainActivity : ThemedActivity() {
     fun showExtraction(slot: Int = 7) {
         revokeShortcutStart()
         val wireSlot = routeShortcut(slot) ?: return
+        manualEntryId = null
+        manualEntryUntouched = false
         if(!extractionVisible)extractionOrigin=destination
         dismissTransientDialogs()
         destination = TaskDestination.BREW
@@ -666,12 +768,16 @@ class MainActivity : ThemedActivity() {
         outState.putInt(STATE_PAGE_ID, pageId)
         outState.putBoolean(STATE_EXTRACTION, extractionVisible)
         outState.putInt(STATE_EXTRACTION_SLOT, extractionSlot)
+        outState.putString("manualExtractionEntry", manualEntryId)
+        outState.putBoolean("manualExtractionUntouched", manualEntryUntouched)
         super.onSaveInstanceState(outState)
     }
 
     override fun onPostResume() {
         super.onPostResume()
         if (pendingShow) showCurrent()
+        manualGate.observe(onManualGateChanged)
+        scheduleManualExtraction()
         // ComponentActivity marks its lifecycle RESUMED after this callback returns.
         // Retry on the next main-loop turn; consume rechecks pause/state-save and reads
         // the latest pending request rather than capturing an obsolete intent.
@@ -762,7 +868,10 @@ class MainActivity : ThemedActivity() {
         }
         if (consumed) return
         if (!extractionVisible && scaleSettingsReturn && destination == TaskDestination.SCALE) { select(TaskDestination.SETTINGS); return }
-        if (extractionVisible) { leaveCurvePreparation(); extractionVisible = false; destination=extractionOrigin ?: TaskDestination.BREW; extractionOrigin=null; showCurrent() }
+        if (extractionVisible) {
+            if (manualEntryId != null) restoreManualEntryOrigin()
+            else { leaveCurvePreparation(); extractionVisible = false; destination=extractionOrigin ?: TaskDestination.BREW; extractionOrigin=null; showCurrent() }
+        }
         else if(destination==TaskDestination.SETTINGS && settingsOrigin!=null) select(requireNotNull(settingsOrigin))
         else if (destination != TaskDestination.BREW) select(TaskDestination.BREW)
         else finish()

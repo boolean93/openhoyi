@@ -26,7 +26,8 @@ import java.util.Locale
 
 /** A screen never owns BLE. Explicit start or a one-shot shortcut tap can start; navigation cannot. */
 class ExtractionFragment : androidx.fragment.app.Fragment() {
-    private val host get() = requireActivity() as MainActivity
+    private val host get() = requireActivity() as ThemedActivity
+    private val taskHost get() = checkNotNull(host.extractionPageHost)
     private val application get() = host.application
     private val MODE_PRIVATE=android.content.Context.MODE_PRIVATE
     private fun getColor(id:Int)=requireContext().getColor(id)
@@ -360,11 +361,11 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                     LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
                 else LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) }
             }
-        chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { host.select(TaskDestination.CURVES) }
+        chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { taskHost.select(TaskDestination.CURVES) }
         connectDevices = compact(toolbar, getString(R.string.extraction_connect_devices)) {
-            host.select(TaskDestination.BREW)
+            taskHost.select(TaskDestination.BREW)
         }
-        chooseBeans = compact(toolbar, getString(R.string.dose_title)) { startActivity(Intent(host, BeanPreparationActivity::class.java)) }
+        chooseBeans = compact(toolbar, getString(R.string.dose_title)) { if (!taskHost.observeOnly) startActivity(Intent(host, BeanPreparationActivity::class.java)) }
         val toolsShield = Any()
         val referenceTools = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -387,8 +388,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         }
         style.button(detailsButton)
         curveSummary.setOnLongClickListener { detailsButton.performClick(); true }
-        prepare = compact(preparationTools, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
-        cancelPrepare = compact(preparationTools, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        prepare = compact(preparationTools, getString(R.string.extraction_prepare_button)) { if (!taskHost.observeOnly) confirmPrepare() }
+        cancelPrepare = compact(preparationTools, getString(R.string.extraction_cancel_prepare)) { if (!taskHost.observeOnly) { service?.cancelBrewPreparation()?.let(::toast); render() } }
         preparationSummary = text(sidePanel, "", 12).apply { visibility = View.GONE }
         // These can describe UNKNOWN writes or stale alarms. Keep them outside the
         // tools panel so longer translations cannot push a safety message offscreen.
@@ -428,7 +429,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         start = HoyiUi.button(host, actionButtons, getString(R.string.extraction_start), primary = true) { startSelectedCurve() }
         (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
         stop = HoyiUi.button(host, actionButtons, getString(R.string.extraction_stop), danger = true) {
-            service?.stopShot(); render()
+            if (!taskHost.observeOnly) { service?.stopShot(); render() }
         }.apply {
             setTextColor(getColor(android.R.color.white))
             background = HoyiUi.shape(host, R.color.mobile_stop_button, 10)
@@ -454,12 +455,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     }
     override fun onResume() {
         super.onResume();feedbackUi.start();visible=true
-        host.observeService(serviceObserver);handler.post(refresh)
-        if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
+        taskHost.observeService(serviceObserver);handler.post(refresh)
+        if (!BuildConfig.MOCK_MODE && taskHost.allowAutomaticPermissionPrompt && service?.manualShotActive != true)
+            requestSafetyNotificationsOnce()
     }
     override fun onPause() {
         automaticReviewDialog?.dismiss(); automaticReviewDialog = null
-        host.revokeShortcutStart()
+        taskHost.revokeShortcutStart()
         feedbackUi.leave(host.isChangingConfigurations)
         visible=false;handler.removeCallbacks(refresh)
         closeLiveShortcuts()
@@ -468,7 +470,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         toolsDialog?.dismiss();toolsDialog=null
         statusDetailsDialog?.dismiss();statusDetailsDialog=null
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
-        host.removeServiceObserver(serviceObserver);service=null;super.onPause()
+        taskHost.removeServiceObserver(serviceObserver);service=null;super.onPause()
     }
     private fun toolVisible(source: View): Boolean {
         val body = sourceBodyForTools()
@@ -579,13 +581,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     }
 
     private fun showLiveShortcuts() {
-        host.liveShortcutBlock(this)?.let { toast(it); return }
+        taskHost.liveShortcutBlock(this)?.let { toast(it); return }
         closeLiveShortcuts()
-        val session = host.liveShortcutSession(this)
+        val session = taskHost.liveShortcutSession(this)
             ?: run { toast(getString(R.string.service_unavailable)); return }
         liveShortcutsSession = session
         val rows = style.column().apply { setPadding(dp(16), dp(4), dp(16), dp(4)) }
-        host.liveShortcutChoices().forEach { choice ->
+        taskHost.liveShortcutChoices().forEach { choice ->
             val name = choice.item?.name ?: getString(if (choice.curveId == PresetSlots.EMPTY)
                 R.string.extraction_shortcuts_empty else R.string.curve_slot_unavailable)
             val label = ('A' + (choice.slot - 1)).toString()
@@ -605,7 +607,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 setOnClickListener {
                     if (liveShortcutsSession === session && liveShortcutsDialog?.isShowing == true) {
                         closeLiveShortcuts()
-                        host.openLiveShortcut(this@ExtractionFragment, session, choice)
+                        taskHost.openLiveShortcut(this@ExtractionFragment, session, choice)
                     }
                 }
             }, LinearLayout.LayoutParams(-1, -2))
@@ -628,7 +630,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         confirmPrepare(expected, stillValid)
 
     private fun startSelectedCurve() {
-        host.revokeShortcutStart()
+        if (taskHost.observeOnly) return
+        taskHost.revokeShortcutStart()
         val owner = service ?: run { toast(getString(R.string.service_unavailable)); return }
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
@@ -647,7 +650,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         render()
     }
     private fun confirmPrepare(expected:CurveProfile?=null, stillValid: () -> Boolean = { true }) {
-        host.revokeShortcutStart()
+        taskHost.revokeShortcutStart()
         val owner = service ?: return
         val profile = selected()?.let {
             (application as MobileApplication).curves.resolve(it.id,
@@ -687,16 +690,17 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
 
     private fun render() {
         if (!::readiness.isInitialized) return
-        feedbackUi.update(service, visible)
-        val owner = service
+        feedbackUi.update(service, visible && !taskHost.observeOnly)
+        val owner = taskHost.visibleService(service)
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
-        val shortcutBlock = host.liveShortcutBlock(this)
+        val shortcutBlock = taskHost.liveShortcutBlock(this)
         if (shortcutBlock != null ||
-            (liveShortcutsSession?.let { host.liveShortcutBlock(this, it) } != null)) closeLiveShortcuts()
-        if (liveShortcutsButton.isEnabled != (shortcutBlock == null)) liveShortcutsButton.isEnabled = shortcutBlock == null
+            (liveShortcutsSession?.let { taskHost.liveShortcutBlock(this, it) } != null)) closeLiveShortcuts()
+        if (liveShortcutsButton.isEnabled != (shortcutBlock == null && !taskHost.observeOnly)) liveShortcutsButton.isEnabled = shortcutBlock == null && !taskHost.observeOnly
+        liveShortcutsButton.visibility = if (taskHost.observeOnly) View.GONE else View.VISIBLE
         val shortcutDescription = listOfNotNull(getString(R.string.extraction_shortcuts), shortcutBlock).joinToString(". ")
         if (liveShortcutsButton.contentDescription != shortcutDescription) liveShortcutsButton.contentDescription = shortcutDescription
         chart.compactRunningExplanation = active
@@ -711,7 +715,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         // Running cups still need an identity and live connection context in the supporting pane.
         curveSummary.visibility = View.VISIBLE
         deviceSummary.visibility = View.VISIBLE
-        chooseBeans.visibility=if(active) View.GONE else View.VISIBLE
+        chooseBeans.visibility=if(active || taskHost.observeOnly) View.GONE else View.VISIBLE
         val item = selected()
         val library = (application as MobileApplication).curves
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
@@ -732,7 +736,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
             SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         val slotLabel = if (presetSlot == 7) "" else getString(R.string.extraction_slot_suffix, presetSlot.toString())
-        val observedCup = owner?.chartPoints?.isNotEmpty() == true || active || state == ExtractionState.OUTCOME_UNKNOWN
+        val observedCup = taskHost.observeOnly || owner?.chartPoints?.isNotEmpty() == true || active || state == ExtractionState.OUTCOME_UNKNOWN
         val displayCurve = if (observedCup) owner?.chartCurveId?.let(library::find) else item
         val recipe = if (observedCup) owner?.activeShotRecipe?.forTrace(owner.chartTraceIdentity)
             else profile?.let { ShotRecipeSnapshot.capture("preview", it) }
@@ -756,9 +760,22 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(host, snapshot.coffeeState), DeviceStatusText.label(host, snapshot.scaleState)))
-        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else shotLabel(state), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
+        val shownShotLabel = when {
+            owner?.manualShotActive == true -> getString(R.string.extraction_manual_label)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> getString(R.string.extraction_manual_label)
+            owner?.scalePreflight == true -> getString(R.string.extraction_preflight_label)
+            else -> shotLabel(state)
+        }
+        val stopSuffix = owner?.stopReason?.takeUnless { owner.chartCurveId == "manual" }
+            ?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) }.orEmpty()
+        shotSummary.show(getString(R.string.extraction_shot_summary, shownShotLabel, stopSuffix))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> getString(R.string.extraction_ended_guidance)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> getString(R.string.extraction_unknown_guidance)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> ""
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
             state == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
             state == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
@@ -786,7 +803,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
         compactIdentity.show(displayCurveName)
         compactIdentity.contentDescription = displayCurveName
-        compactClock.show(shotLabel(state))
+        compactClock.show(shownShotLabel)
         compactClock.setTextColor(getColor(if(state==ExtractionState.RUNNING) R.color.mobile_success else if(state==ExtractionState.OUTCOME_UNKNOWN) R.color.mobile_danger else R.color.mobile_text))
         compactElapsed.show(elapsedText)
         compactElapsed.contentDescription=elapsedText + if(BuildConfig.MOCK_MODE) " · Mock · " + getString(R.string.extraction_mock_subtitle) else ""
@@ -797,7 +814,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
             (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)))
             R.color.mobile_danger else R.color.mobile_text))
-        chooseCurve.visibility = if (presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
+        chooseCurve.visibility = if (!taskHost.observeOnly && presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
             !ShotGate.active(state) && owner?.manualShotActive != true) View.VISIBLE else View.GONE
         chooseCurve.show(if (item == null) getString(R.string.extraction_choose_curve) else getString(R.string.home_curve_replace))
         readiness.setTextColor(if (state == ExtractionState.OUTCOME_UNKNOWN) visual.warningInk
@@ -808,7 +825,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val coffeeMissing = snapshot.coffeeState != DeviceState.READY
         val requiredScaleMissing = profile?.targetHundredthsGram?.let { it > 0 } == true &&
             snapshot.scaleState != DeviceState.READY
-        connectDevices.visibility = if (!ShotGate.active(state) && owner?.manualShotActive != true &&
+        connectDevices.visibility = if (!taskHost.observeOnly && !ShotGate.active(state) && owner?.manualShotActive != true &&
             (coffeeMissing || requiredScaleMissing))
             View.VISIBLE else View.GONE
         connectDevices.show(when {
@@ -890,9 +907,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             }
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
-        chart.traceIdentity = owner?.chartTraceIdentity
+        chart.traceIdentity = owner?.manualChartIdentity ?: owner?.chartTraceIdentity
         // The selected recipe defines the final Y scale; manual/unknown cups keep the margin policy.
-        chart.expectedRanges = if (owner?.manualShotActive == true || owner?.chartCurveId == "manual")
+        chart.expectedRanges = if (taskHost.observeOnly || owner?.manualShotActive == true || owner?.chartCurveId == "manual")
             emptyMap() else ChartAxisSeed.from(profile)
         val rawPoints=owner?.chartPoints ?: emptyList()
         val points = ExtractionReference.align(rawPoints).points
@@ -926,7 +943,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         // Unresolved preparation/recovery states retain their controls and fixed status.
         val hideIdlePreparation = active && normalPreparation && !prepare.isEnabled && !cancelPrepare.isEnabled &&
             owner?.machineWriteRecoveryKind != MachineWriteRecoveryState.Kind.BREW_WAIT
-        preparationTools.visibility = if (hideIdlePreparation) View.GONE else View.VISIBLE
+        preparationTools.visibility = if (hideIdlePreparation || taskHost.observeOnly) View.GONE else View.VISIBLE
         cancelPrepare.show(if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
             getString(R.string.extraction_cancel_prepare_again) else getString(R.string.extraction_cancel_prepare))
         // Grey means protected, not unresponsive: tapping only explains the current reason.
@@ -948,13 +965,14 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         start.contentDescription = listOfNotNull(start.contentDescription?.toString(), blocked ?: studioBlocked)
             .joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
-        stop.isEnabled = stopAction.enabled
-        stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
-        start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
+        val observeOnly = owner?.manualShotActive == true || taskHost.observeOnly
+        stop.isEnabled = stopAction.enabled && !observeOnly
+        stop.visibility = if (stopAction.visible && !observeOnly) View.VISIBLE else View.GONE
+        start.visibility = if (stopAction.visible || observeOnly) View.GONE else View.VISIBLE
         // Same resolved profile/slot as startSelectedCurve(); observed records never select a recipe.
         pendingRecipeLabel.bind(PendingRecipePresentation.name(observedCup, owner?.chartCurveId,
             profile?.id, profile?.name, profile?.let(library::validated) == true,
-            startVisible = !stopAction.visible))
+            startVisible = !stopAction.visible && !observeOnly))
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
         val facts=ExtractionStatusPresentation.Facts(state,active,owner?.running==true,blocked!=null || studioBlocked!=null,
             owner?.manualShotActive==true,owner?.scalePreflight==true,preparation,!normalPreparation,
