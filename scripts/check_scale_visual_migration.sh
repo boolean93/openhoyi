@@ -177,6 +177,8 @@ import hashlib
 reference_name,reference_sha=references[page]
 assert hashlib.sha256((Path('docs/research/task-first-ui-concepts')/reference_name).read_bytes()).hexdigest()==reference_sha
 command = ['adb','shell','am','instrument','-w']
+if battery_screen != 'none':
+    command.append('-r')  # Require machine-readable instrumentation result code.
 for key,value in {'scaleVisualMigration':'true','disposableCiEmulator':'true','freshProcessVerified':'true',
     'scalePage':page,'referencePngSha256':reference_sha,'sourceSha':source,'headSha':os.environ.get('PRODUCT_PR_HEAD_SHA',source),
     'sourceDirty':dirty,'apkSha':apk,'sampleTheme':theme,'expectedFontScale':scale,
