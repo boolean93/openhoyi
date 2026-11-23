@@ -9,4 +9,7 @@
     <style name="MobileChineseTypography">
         <item name="android:fontFamily">@font/task_chinese_family</item>
     </style>
+    <style name="BrewCompletionWindowAnimation" parent="@android:style/Animation.Dialog">
+        <item name="android:windowEnterAnimation">@anim/brew_completion_fade_in</item>
+    </style>
 </resources>

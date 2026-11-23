@@ -134,6 +134,7 @@ internal class BrewCompletionCardDialog(
             create()
             window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             window?.setLayout(style.dp(imageWidth + 2 * inset), -2)
+            window?.setWindowAnimations(R.style.BrewCompletionWindowAnimation)
         }
     }
 
