@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorFilter
+import android.graphics.PixelFormat
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.ColorDrawable
@@ -17,6 +19,7 @@ import android.text.style.ReplacementSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.graphics.drawable.GradientDrawable
@@ -54,10 +57,10 @@ internal class BrewCompletionCardDialog(
             setPadding(style.dp(inset), 0, style.dp(inset), style.dp(20))
         }
         val header = style.row("completion-card-header").apply { gravity = Gravity.END }
-        val close = style.text("", TaskProductVisualStyle.section).apply {
-            gravity = Gravity.CENTER
-            text = iconLabel("", ChromeIcon.CLOSE)
-            setTextColor(closeInk)
+        val close = ImageButton(activity).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
+            setImageDrawable(closeDrawable())
             background = interactive(Color.TRANSPARENT, focus = closeInk, radius = 24)
             isFocusable = true
             contentDescription = activity.getString(R.string.completion_card_close)
@@ -169,11 +172,35 @@ internal class BrewCompletionCardDialog(
         contentDescription = label
     }
 
-    private enum class ChromeIcon { CLOSE, SPARK, SHARE }
+    private fun closeDrawable(): Drawable = object : Drawable() {
+        private val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = closeInk
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+        }
+        override fun getIntrinsicWidth(): Int = style.dp(16)
+        override fun getIntrinsicHeight(): Int = style.dp(16)
+        override fun draw(canvas: Canvas) {
+            val side = minOf(bounds.width(), bounds.height()).toFloat()
+            if (side <= 0f) return
+            val centerX = bounds.exactCenterX()
+            val centerY = bounds.exactCenterY()
+            val arm = side * 0.28f
+            ink.strokeWidth = side * 0.105f
+            canvas.drawLine(centerX - arm, centerY - arm, centerX + arm, centerY + arm, ink)
+            canvas.drawLine(centerX + arm, centerY - arm, centerX - arm, centerY + arm, ink)
+        }
+        override fun setAlpha(alpha: Int) { ink.alpha = alpha; invalidateSelf() }
+        override fun setColorFilter(filter: ColorFilter?) { ink.colorFilter = filter; invalidateSelf() }
+        @Suppress("DEPRECATION")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+    }
+
+    private enum class ChromeIcon { SPARK, SHARE }
 
     /** Inline icons keep the icon and label centered as one text run, including when a label wraps. */
     private fun iconLabel(label: String, icon: ChromeIcon) = SpannableString("\uFFFC" + label).apply {
-        val size = style.dp(if (icon == ChromeIcon.CLOSE) 14 else 18)
+        val size = style.dp(18)
         val gap = if (label.isEmpty()) 0 else style.dp(7)
         setSpan(object : ReplacementSpan() {
             override fun getSize(paint: Paint, text: CharSequence?, start: Int, end: Int, fm: Paint.FontMetricsInt?): Int = size + gap
@@ -193,10 +220,6 @@ internal class BrewCompletionCardDialog(
                 canvas.scale(size / 24f, size / 24f)
                 fun path(draw: Path.() -> Unit) = canvas.drawPath(Path().apply(draw), ink)
                 when (icon) {
-                    ChromeIcon.CLOSE -> {
-                        canvas.drawLine(6f, 6f, 18f, 18f, ink)
-                        canvas.drawLine(18f, 6f, 6f, 18f, ink)
-                    }
                     ChromeIcon.SPARK -> {
                         path {
                             moveTo(10f, 4f); quadTo(11f, 9f, 16f, 10f); quadTo(11f, 11f, 10f, 16f)
