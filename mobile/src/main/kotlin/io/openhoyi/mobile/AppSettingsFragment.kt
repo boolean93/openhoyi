@@ -46,12 +46,19 @@ class AppSettingsFragment : Fragment() {
     private var deviceControls: SettingsDeviceControls? = null
     private var diagnosticState: TextView? = null
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.isNotEmpty() && result.values.all { it }) deviceControls?.resumeScan()
+        if (result.isNotEmpty() && result.values.all { it }) {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)manualBleScanAgain() else deviceControls?.resumeScan()
+        }
         else deviceControls?.error(getString(R.string.home_permission_required))
     }
     private val bluetooth = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) deviceControls?.resumeScan()
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)manualBleScanAgain() else deviceControls?.resumeScan()
+        }
         else deviceControls?.error(getString(R.string.home_permission_required))
+    }
+    private fun manualBleScanAgain() {
+        context?.let { android.widget.Toast.makeText(it,R.string.manual_real_ble_scan_again,android.widget.Toast.LENGTH_SHORT).show() }
     }
     fun openSection(key: String) { val current=document;if(current==null)pendingSection=key else current.navigate(key) }
     override fun onSaveInstanceState(outState: Bundle) {

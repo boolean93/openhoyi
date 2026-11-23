@@ -601,13 +601,19 @@ class HomeActivity : ThemedActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSIONS) {
-            if (missingBle().isEmpty()) enableAndScan() else toast(getString(R.string.home_permission_required))
+            if (missingBle().isEmpty()) {
+                if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)toast(getString(R.string.manual_real_ble_scan_again))
+                else enableAndScan()
+            } else toast(getString(R.string.home_permission_required))
         }
     }
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == ENABLE && resultCode == RESULT_OK) enableAndScan()
+        if (requestCode == ENABLE && resultCode == RESULT_OK) {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)toast(getString(R.string.manual_real_ble_scan_again))
+            else enableAndScan()
+        }
         if (requestCode == EXPORT && resultCode == RESULT_OK) data?.data?.let { (application as MobileApplication).export(it) }
     }
     private fun choose(device: DiscoveredDevice) {
