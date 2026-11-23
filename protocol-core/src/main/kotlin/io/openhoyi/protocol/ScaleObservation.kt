@@ -38,12 +38,12 @@ data class ScaleObservation(
 }
 
 object ScaleObservationDecoder {
-    val bookooCapabilities=ScaleCapabilities(tare=true,deviceFlow=true,validatedWeightControl=true,automaticTare=true)
+    val bookooCapabilities=ScaleCapabilities(tare=true,deviceFlow=true,battery=true,validatedWeightControl=true,automaticTare=true)
     fun bookoo(bytes:ByteArray,receivedAtMs:Long):DecodeResult<ScaleObservation> =
         when(val decoded=BookooCodec.decode(bytes)) {
             is DecodeResult.Valid -> DecodeResult.Valid(ScaleObservation(decoded.value.weightHundredthsGram,
                 receivedAtMs,bookooCapabilities,ScaleEvidence.VERIFIED_TRANSPORT,
-                deviceFlowHundredths=decoded.value.deviceFlowHundredths,raw=decoded.value.raw))
+                deviceFlowHundredths=decoded.value.deviceFlowHundredths, batteryPercent=decoded.value.batteryPercent,raw=decoded.value.raw))
             is DecodeResult.Invalid -> decoded
             is DecodeResult.Unknown -> decoded
         }

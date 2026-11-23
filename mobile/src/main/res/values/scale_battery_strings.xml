@@ -1,0 +1,4 @@
+<resources>
+    <string name="settings_scale_battery_percent">%1$d%%</string>
+    <string name="settings_scale_battery_status">%1$s，电量 %2$s</string>
+</resources>

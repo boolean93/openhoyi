@@ -36,7 +36,7 @@ object FelicitaScaleProtocolAdapter:LegacyDocumentedScaleAdapter() {
 /** ULTRA-only legacy discovery is not covered by the hardware evidence of existing BOOKOO. */
 object BookooUltraLegacyScaleProtocolAdapter:LegacyDocumentedScaleAdapter() {
     override val id="bookoo-ultra-legacy"
-    override val capabilities=ScaleCapabilities(tare=true,deviceFlow=true)
+    override val capabilities=ScaleCapabilities(tare=true,deviceFlow=true,battery=true)
     override val writeEndpoint=KnownGatt.bookooWrite
     override val notifyEndpoint=KnownGatt.bookooNotify
     override val initializationCommands get()=BookooCodec.initializationCommands()
@@ -44,7 +44,7 @@ object BookooUltraLegacyScaleProtocolAdapter:LegacyDocumentedScaleAdapter() {
     override fun newDecoder(onEvent:(ScaleProtocolEvent)->Unit):(ByteArray,Long)->DecodeResult<ScaleObservation> = {bytes,at->
         when(val result=BookooCodec.decode(bytes)) {
             is DecodeResult.Valid->DecodeResult.Valid(ScaleObservation(result.value.weightHundredthsGram,at,
-                capabilities,ScaleEvidence.DOCUMENTED_TRANSPORT,deviceFlowHundredths=result.value.deviceFlowHundredths,raw=result.value.raw))
+                capabilities,ScaleEvidence.DOCUMENTED_TRANSPORT,deviceFlowHundredths=result.value.deviceFlowHundredths, batteryPercent=result.value.batteryPercent,raw=result.value.raw))
             is DecodeResult.Invalid->{onEvent(ScaleProtocolEvent.ReadingInvalidated);result}
             is DecodeResult.Unknown->result
         }
