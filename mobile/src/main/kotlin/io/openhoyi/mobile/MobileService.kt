@@ -1819,7 +1819,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             if(native.value!==idle || !TelemetryFreshness.isFresh(native.capturedAtMs,elapsedNow()))return false
         }
         return SettingsRefreshEligibility.allowed(
-            foreground = running && mock == null && appVisibility.visible,
+            foreground = fixtureClock!=null || (running && mock == null && appVisibility.visible),
             readyIdle = snapshot.coffeeState == DeviceState.READY &&
                 TelemetryFreshness.isFresh(snapshot.coffeeAt, elapsedNow()) &&
                 idle.sleepStateRaw == 0 && io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits),
@@ -3477,6 +3477,13 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             val current=service.snapshot
             return LiveTelemetry.machine(current.coffee,current.coffeeState,current.coffeeAt,clock.now)
         }
+        fun renderSettingsSync(action:android.widget.TextView,status:android.widget.TextView) {
+            valid()
+            MachineSettingsSyncView.render(action,status,service,service.snapshot.coffeeState==DeviceState.READY &&
+                !service.machineSettingsFresh && service.machineControlSafetyMessage==null)
+        }
+        fun syncStaleSettings():Boolean {valid();return service.syncStaleMachineSettings()}
+        val settingsSyncPending:Boolean get(){valid();return service.machineSettingsSyncPending}
         val heatingAdmission:BoilerHeatingAdmission get(){valid()
             return BoilerHeatingAdmission.evaluate(service,service.snapshot,clock.now)
         }

@@ -954,13 +954,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
         val showSettingsSync=!BuildConfig.MOCK_MODE && !brewRecovery && !steamRecovery &&
             owner?.machineControlSafetyMessage==null && s.coffeeState==DeviceState.READY && owner?.machineSettingsFresh==false
-        syncBoilerSettings.visibility=if(showSettingsSync) View.VISIBLE else View.GONE
-        val syncStatus=owner?.machineSettingsSyncStatus
-        syncBoilerStatus.visibility=if(syncStatus!=null)View.VISIBLE else View.GONE
-        syncBoilerStatus.show(syncStatus?.let(::getString).orEmpty())
-        syncBoilerSettings.isEnabled=owner?.canSyncStaleMachineSettings==true
-        syncBoilerSettings.text=getString(if(owner?.machineSettingsSyncPending==true)
-            R.string.machine_settings_sync_pending else R.string.machine_settings_sync_clock)
+        MachineSettingsSyncView.render(syncBoilerSettings,syncBoilerStatus,owner,showSettingsSync)
         brewBoilerToggle.isEnabled = boilerEditable && !brewRecovery
         steamBoilerToggle.isEnabled = boilerEditable && !steamRecovery
 

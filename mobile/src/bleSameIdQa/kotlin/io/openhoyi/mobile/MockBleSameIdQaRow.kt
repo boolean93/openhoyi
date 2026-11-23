@@ -73,6 +73,12 @@ internal object MockBleSameIdQaRow {
             }
                 .tag = if(shot) "settings/maintenance/ble-v2-shot-ui" else "settings/maintenance/ble-v2-week-ui"
         }
+        HoyiUi.button(activity,card,if(chinese) "模拟：设置回读过期与同步" else "Fixture: stale settings and sync") {
+            if(!running)runCatching {MockBleVisibleProof.openSettingsSync(activity)}.onFailure {
+                result.text=if(chinese) "无法打开隔离设置同步界面。" else "Cannot open the isolated settings sync fixture."
+                result.visibility=View.VISIBLE
+            }
+        }.tag="settings/maintenance/ble-v2-settings-sync-ui"
         style.add(card, result, 4)
     }
 }

@@ -20,7 +20,7 @@ internal class DetachedCoreClock {
         jobs+=Job(now+delay,action)
     }
     fun advance(delta:Long,tick:()->Unit) {
-        require(delta in 0L..60_000L && now+delta<=120_000L)
+        require(delta in 0L..60_000L && now+delta<=240_000L)
         now+=delta
         tick()
         repeat(64) {
