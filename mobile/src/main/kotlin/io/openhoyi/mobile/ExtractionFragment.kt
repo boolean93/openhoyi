@@ -455,7 +455,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     override fun onResume() {
         super.onResume();feedbackUi.start();visible=true
         host.observeService(serviceObserver);handler.post(refresh)
-        if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
+        if (!BuildConfig.MOCK_MODE && !host.isAutomaticManualExtraction && service?.manualShotActive != true)
+            requestSafetyNotificationsOnce()
     }
     override fun onPause() {
         automaticReviewDialog?.dismiss(); automaticReviewDialog = null
@@ -756,9 +757,16 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(host, snapshot.coffeeState), DeviceStatusText.label(host, snapshot.scaleState)))
-        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else shotLabel(state), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
+        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label)
+            else when(owner?.manualTerminalOutcome) {
+                ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
+                ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
+                else -> shotLabel(state)
+            }, owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> getString(R.string.extraction_ended_guidance)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> getString(R.string.extraction_unknown_guidance)
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
             state == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
             state == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
@@ -890,7 +898,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             }
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
-        chart.traceIdentity = owner?.chartTraceIdentity
+        chart.traceIdentity = owner?.manualChartIdentity ?: owner?.chartTraceIdentity
         // The selected recipe defines the final Y scale; manual/unknown cups keep the margin policy.
         chart.expectedRanges = if (owner?.manualShotActive == true || owner?.chartCurveId == "manual")
             emptyMap() else ChartAxisSeed.from(profile)
@@ -948,13 +956,14 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         start.contentDescription = listOfNotNull(start.contentDescription?.toString(), blocked ?: studioBlocked)
             .joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
-        stop.isEnabled = stopAction.enabled
-        stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
-        start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
+        val observeOnly = owner?.manualShotActive == true || host.isAutomaticManualExtraction
+        stop.isEnabled = stopAction.enabled && !observeOnly
+        stop.visibility = if (stopAction.visible && !observeOnly) View.VISIBLE else View.GONE
+        start.visibility = if (stopAction.visible || observeOnly) View.GONE else View.VISIBLE
         // Same resolved profile/slot as startSelectedCurve(); observed records never select a recipe.
         pendingRecipeLabel.bind(PendingRecipePresentation.name(observedCup, owner?.chartCurveId,
             profile?.id, profile?.name, profile?.let(library::validated) == true,
-            startVisible = !stopAction.visible))
+            startVisible = !stopAction.visible && !observeOnly))
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
         val facts=ExtractionStatusPresentation.Facts(state,active,owner?.running==true,blocked!=null || studioBlocked!=null,
             owner?.manualShotActive==true,owner?.scalePreflight==true,preparation,!normalPreparation,

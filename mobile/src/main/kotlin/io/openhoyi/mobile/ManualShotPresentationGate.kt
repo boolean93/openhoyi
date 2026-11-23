@@ -2,7 +2,7 @@ package io.openhoyi.mobile
 
 /** Main-thread, process-local handoff of observations, not an owner of machine state. */
 internal class ManualShotPresentationGate {
-    enum class Outcome { ENDED, UNKNOWN }
+    enum class Outcome { ENDED, UNKNOWN, DISCARDED }
     data class Terminal(val id: String, val outcome: Outcome, val points: List<ShotPoint>)
 
     var activeId: String? = null
@@ -41,6 +41,7 @@ internal class ManualShotPresentationGate {
         changed()
     }
     fun ended(points: List<ShotPoint> = emptyList()) = finish(Outcome.ENDED, points)
+    fun discarded() = finish(Outcome.DISCARDED, emptyList())
     fun disconnected(requireIdle: Boolean = true, points: List<ShotPoint> = emptyList()) {
         if (requireIdle) awaitIdle = true
         finish(Outcome.UNKNOWN, points)

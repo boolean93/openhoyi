@@ -8,25 +8,6 @@ import androidx.fragment.app.FragmentActivity
 abstract class ThemedActivity : FragmentActivity() {
     internal var redirectedRoot = false
     private lateinit var appliedAppearance: AppAppearance
-    private val manualLive by lazy { ManualLiveCoordinator(this) }
-    internal open fun showsManualLiveChart() = false
-    internal fun manualLiveDialogClosed() = manualLive.dialogClosed()
-
-    override fun onPostResume() {
-        super.onPostResume()
-        manualLive.resume()
-    }
-
-    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
-        super.onTopResumedActivityChanged(isTopResumedActivity)
-        manualLive.topChanged(isTopResumedActivity)
-    }
-
-    override fun onPause() {
-        manualLive.pause()
-        super.onPause()
-    }
-
     override fun attachBaseContext(newBase: Context) {
         val app = newBase.applicationContext as MobileApplication
         appliedAppearance = app.appearancePreferences.current

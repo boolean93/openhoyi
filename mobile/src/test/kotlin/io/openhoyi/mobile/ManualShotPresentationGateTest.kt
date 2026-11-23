@@ -19,6 +19,18 @@ class ManualShotPresentationGateTest {
         assertTrue(gate.claim("cup-2", true))
     }
 
+    @Test fun provisionalObservationCanRouteImmediatelyWithoutBecomingACompletedCup() {
+        val gate = ManualShotPresentationGate()
+        gate.started("short")
+        assertTrue(gate.claim("short", true))
+        assertFalse(gate.claim("short", true))
+        gate.discarded()
+        assertEquals(ManualShotPresentationGate.Outcome.DISCARDED, gate.terminalFor("short")?.outcome)
+        assertFalse(gate.eligible("short", true))
+        gate.started("next")
+        assertTrue(gate.eligible("next", true))
+    }
+
     @Test fun disconnectedCupRemainsUnknownAndCannotClaimUntilIdleAndNextStart() {
         val gate = ManualShotPresentationGate()
         gate.started("cup-1")
