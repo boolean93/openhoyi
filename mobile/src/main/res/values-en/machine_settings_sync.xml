@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="machine_settings_sync_clock">Settings expired · Sync settings (sets machine clock)</string>
+    <string name="machine_settings_sync_pending">Syncing machine settings…</string>
+    <string name="machine_settings_sync_observed">New machine settings received.</string>
+    <string name="machine_settings_sync_unconfirmed">New settings were not confirmed. No settings were resent.</string>
+    <string name="machine_settings_sync_unavailable">Sync is unavailable right now. Try again later.</string>
+</resources>

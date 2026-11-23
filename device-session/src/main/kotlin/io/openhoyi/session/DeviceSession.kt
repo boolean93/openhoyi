@@ -83,6 +83,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         var dispatched=false
         var written=false
         var received=false
+        var cutSource:CoffeeReadbackSource?=null
+        var cutSequence=0L
+        var handoffAt:Long?=null
     }
     private var staleSettingsRefresh:StaleSettingsRefresh?=null
     val staleSettingsRefreshBusy:Boolean get()=staleSettingsRefresh!=null
@@ -125,7 +128,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         staleSettingsRefresh=task
         queue.enqueueTagged(GattOperation.Write(requireNotNull(writeEndpoint),authentication.encodeAt(wallClock()).frame.toByteArray(),withResponse),
             5000,urgent=false,kind=CoffeeDeliveryKind.SETTINGS_REFRESH,beforeDispatch={
-                if(!staleRefreshEligible(task))false else {task.dispatched=true;true}
+                staleRefreshEligible(task)
+            },onHandoff={
+                task.dispatched=true
+                if(trackCoffeeDelivery) {
+                    val cursor=coffeeReadbackCursor
+                    task.cutSource=cursor?.source
+                    task.cutSequence=cursor?.sequence ?: 0
+                    task.handoffAt=clock()
+                }
             }) {result->
             if(staleSettingsRefresh===task) {
                 if(result !is OperationResult.Success)finishStaleSettingsRefresh(task,result)
@@ -501,7 +512,12 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                         }
                     }
                 }
-                processCoffeeFrame(generation,frame,now)
+                // For READY V2 settings, do not re-age an old native notification at app delivery.
+                if(trackCoffeeDelivery && state==DeviceState.READY && frame is Settings) {
+                    val native=latestOrdinaryCoffeeSettings
+                    if(native?.value!==frame)return
+                    processCoffeeFrame(generation,frame,native.receivedAtMs)
+                } else processCoffeeFrame(generation,frame,now)
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
         }else when(val decoded=scaleDecoder(bytes,now)) {
@@ -549,7 +565,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             }
             coffeeFrame(frame,now)
             staleSettingsRefresh?.let { task->
-                if(frame is Settings && task.dispatched)task.received=true
+                if(frame is Settings && task.dispatched) {
+                    val sample=latestOrdinaryCoffeeSettings
+                    if(!trackCoffeeDelivery || sample?.let {
+                            it.value===frame && it.cursor.source===task.cutSource &&
+                                it.cursor.sequence>task.cutSequence && task.handoffAt?.let { cut -> it.receivedAtMs>cut }==true
+                        }==true)task.received=true
+                }
             }
             settleStaleSettingsRefresh()
         }

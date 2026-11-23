@@ -63,6 +63,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private lateinit var connectionState: TextView
     private lateinit var settings: TextView
     private lateinit var settingsOverview: TextView
+    private lateinit var syncReadbackAction: TextView
+    private lateinit var syncReadbackStatus: TextView
     private lateinit var brewTemperatureValue: TextView
     private lateinit var steamTemperatureValue: TextView
     private lateinit var runModeValue: TextView
@@ -149,6 +151,15 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         supplyValue = settingRow(R.string.machine_settings_supply_label)
         settingsDivider(host, settingsCard, visual)
         settingsOverview = text(settingsCard, getString(R.string.machine_settings_readback_missing), TaskVisualTokens.SUPPORTING_SP)
+        syncReadbackAction=action(settingsCard,getString(R.string.machine_settings_sync_clock)) {
+            if(service?.syncStaleMachineSettings()!=true)
+                android.widget.Toast.makeText(host,R.string.machine_settings_sync_unavailable,android.widget.Toast.LENGTH_SHORT).show()
+            render()
+        }.apply {tag="product/settings/machine/sync-readback";visibility=View.GONE}
+        syncReadbackStatus=text(settingsCard,"",TaskVisualTokens.SUPPORTING_SP).apply {
+            visibility=View.GONE
+            accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
         settings = text(settingsCard, "", 14).apply {
             visibility = if (detailsExpanded) View.VISIBLE else View.GONE
         }
@@ -602,6 +613,14 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 DeviceStatusText.label(this, snapshot.coffeeState), getString(if (ready)
                     R.string.machine_settings_authenticated else R.string.machine_settings_not_current)))
         val reported = snapshot.settings
+        syncReadbackAction.visibility=if(!BuildConfig.MOCK_MODE && ready && owner?.machineSettingsFresh==false &&
+            owner.machineControlSafetyMessage==null)View.VISIBLE else View.GONE
+        syncReadbackAction.isEnabled=owner?.canSyncStaleMachineSettings==true
+        syncReadbackAction.text=getString(if(owner?.machineSettingsSyncPending==true)
+            R.string.machine_settings_sync_pending else R.string.machine_settings_sync_clock)
+        val syncStatus=owner?.machineSettingsSyncStatus
+        syncReadbackStatus.visibility=if(syncStatus!=null)View.VISIBLE else View.GONE
+        syncReadbackStatus.update(syncStatus?.let(::getString).orEmpty())
         settingsOverview.update(if (reported == null) getString(R.string.machine_settings_readback_missing) else
             getString(R.string.machine_settings_readback_summary,
                 getString(if (ready && owner?.machineSettingsFresh == true)

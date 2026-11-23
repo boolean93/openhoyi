@@ -1802,9 +1802,22 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     private val settingsRefreshBudget = SettingsRefreshBudget()
     private var staleSettingsRefreshBusy = false
+    private var manualSettingsSyncResult:Pair<Long,Int>?=null
+    internal val machineSettingsSyncStatus get()=manualSettingsSyncResult?.takeIf { elapsedNow()<it.first }?.second
+    internal val machineSettingsSyncPending get()=staleSettingsRefreshBusy
+    private val canStartStaleMachineSettingsSync get()=!staleSettingsRefreshBusy && !machineSettingsFresh &&
+        settingsRefreshSafe() && hub?.canRefreshStaleSettings==true
+    internal val canSyncStaleMachineSettings get()=canStartStaleMachineSettingsSync &&
+        hub?.coffeeGeneration?.let {settingsRefreshBudget.available(it,snapshot.settingsAt,elapsedNow(),explicit=true)}==true
+    internal fun syncStaleMachineSettings():Boolean =
+        refreshStaleMachineSettings(explicit=true,reportUserResult=true)
     private fun settingsRefreshSafe(): Boolean {
         if(!holdsMachineWriter())return false
         val idle = snapshot.coffee as? IdleTelemetry ?: return false
+        if(v2SettingEvidence) {
+            val native=hub?.latestNativeIdle ?: return false
+            if(native.value!==idle || !TelemetryFreshness.isFresh(native.capturedAtMs,elapsedNow()))return false
+        }
         return SettingsRefreshEligibility.allowed(
             foreground = running && mock == null && appVisibility.visible,
             readyIdle = snapshot.coffeeState == DeviceState.READY &&
@@ -1818,20 +1831,27 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
     }
     /** A bounded settings synchronization, not a retry of the user's machine command. */
-    private fun refreshStaleMachineSettings(explicit: Boolean = false) {
-        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && !explicit)return
-        if (staleSettingsRefreshBusy || machineSettingsFresh || !settingsRefreshSafe()) return
-        val current = hub ?: return
+    private fun refreshStaleMachineSettings(explicit: Boolean = false,reportUserResult:Boolean=false):Boolean {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && !explicit)return false
+        if (!canStartStaleMachineSettingsSync) return false
+        val current = hub ?: return false
         val generation = current.coffeeGeneration
-        if (!current.canRefreshStaleSettings) return
-        if (!settingsRefreshBudget.claim(generation, snapshot.settingsAt, elapsedNow(), explicit)) return
+        if (!settingsRefreshBudget.claim(generation, snapshot.settingsAt, elapsedNow(), explicit)) return false
+        if(reportUserResult)manualSettingsSyncResult=null
         staleSettingsRefreshBusy = true
         logMachineStateGate("settings.refresh_started")
         current.refreshStaleSettings({ hub === current && current.coffeeGeneration == generation && settingsRefreshSafe() }) { result ->
             staleSettingsRefreshBusy = false
             logs.record("settings.refresh_finished", mapOf("result" to result.javaClass.simpleName,
                 "version" to BuildConfig.VERSION_NAME))
+            if(reportUserResult) {
+                val message=if(result is OperationResult.Success && hub===current && current.coffeeGeneration==generation && machineSettingsFresh)
+                    R.string.machine_settings_sync_observed else R.string.machine_settings_sync_unconfirmed
+                manualSettingsSyncResult=(elapsedNow()+6_000L) to message
+                event(ResourceMessage(message),"settings.manual_sync_result")
+            }
         }
+        return true
     }
     private fun logMachineStateGate(event: String) {
         val now = elapsedNow()

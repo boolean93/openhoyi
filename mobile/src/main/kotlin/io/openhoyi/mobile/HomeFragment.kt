@@ -55,6 +55,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var safetyWarning: TextView
     private lateinit var prominentAlarm: TextView
     private lateinit var acknowledgeManual: Button
+    private lateinit var syncBoilerSettings: Button
+    private lateinit var syncBoilerStatus: TextView
     private lateinit var coffee: TextView
     private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
@@ -346,6 +348,17 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             MachineSettingChange.SteamHeating(it)
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
+        syncBoilerSettings=button(content,getString(R.string.machine_settings_sync_clock)) {
+            if(service?.syncStaleMachineSettings()!=true)toast(getString(R.string.machine_settings_sync_unavailable))
+            render()
+        }.apply {
+            tag="product/home/boiler-settings-sync"
+            visibility=View.GONE
+        }
+        syncBoilerStatus=text(content,"",14).apply {
+            visibility=View.GONE
+            accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
         HomeViewportBudget.install(root, content, boilerRow, boilerDials, phoneHome, compactType, spaciousHome)
         // FillViewport supplies an exact height only when the natural stack fits.
         // Weighted empty space then absorbs the spare room, without moving the header.
@@ -939,6 +952,15 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val boilerEditable = heatingAdmission.canSubmit && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
+        val showSettingsSync=!BuildConfig.MOCK_MODE && !brewRecovery && !steamRecovery &&
+            owner?.machineControlSafetyMessage==null && s.coffeeState==DeviceState.READY && owner?.machineSettingsFresh==false
+        syncBoilerSettings.visibility=if(showSettingsSync) View.VISIBLE else View.GONE
+        val syncStatus=owner?.machineSettingsSyncStatus
+        syncBoilerStatus.visibility=if(syncStatus!=null)View.VISIBLE else View.GONE
+        syncBoilerStatus.show(syncStatus?.let(::getString).orEmpty())
+        syncBoilerSettings.isEnabled=owner?.canSyncStaleMachineSettings==true
+        syncBoilerSettings.text=getString(if(owner?.machineSettingsSyncPending==true)
+            R.string.machine_settings_sync_pending else R.string.machine_settings_sync_clock)
         brewBoilerToggle.isEnabled = boilerEditable && !brewRecovery
         steamBoilerToggle.isEnabled = boilerEditable && !steamRecovery
 

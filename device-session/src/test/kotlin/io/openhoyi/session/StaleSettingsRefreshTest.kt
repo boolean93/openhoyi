@@ -16,10 +16,10 @@ class StaleSettingsRefreshTest {
         override fun close(generation:Long) {}
         val writes get()=calls.mapNotNull {it.third as? GattOperation.Write}
     }
-    private inner class Fixture {
+    private inner class Fixture(trackV2:Boolean=false) {
         val driver=Driver();var now=0L
         val wall=LocalDateTime.of(2026,11,14,12,0)
-        val session=DeviceSession(DeviceRole.COFFEE,driver,{now},wallClock={wall})
+        val session=DeviceSession(DeviceRole.COFFEE,driver,{now},wallClock={wall},trackCoffeeDelivery=trackV2)
         val settings=hex("830113FD5C007D0F350019006E")
         val results=mutableListOf<OperationResult>()
         init {connect()}
@@ -41,6 +41,72 @@ class StaleSettingsRefreshTest {
         }
         fun stale() {now=180_001;idle()}
         fun refresh(guard:()->Boolean={true})=session.refreshStaleSettings(guard){results+=it}
+    }
+    @Test fun v2RequiresActualPostHandoffCurrentNative83AndNeverWritesBoiler() {
+        val f=Fixture(trackV2=true)
+        f.stale()
+        val baseline=f.driver.writes.size
+        val handoff=f.now
+        f.refresh(); f.complete()
+        f.now+=10
+        f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,f.settings,handoff-1)
+        assertEquals(handoff-1,f.session.settingsObservedAtMs)
+        assertTrue(f.results.isEmpty())
+        f.session.onNotification(f.session.generation-1,KnownGatt.coffeeNotify,f.settings,f.now)
+        assertTrue(f.results.isEmpty())
+        f.receive(f.settings)
+        assertTrue(f.results.single() is OperationResult.Success)
+        assertEquals(f.now,f.session.settingsObservedAtMs)
+        assertEquals(listOf(1),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
+        // Only a later, separately invoked command may use the new baseline.
+        f.session.writeSetting(MachineSettingChange.BrewHeating(false)) {}
+        assertEquals(listOf(1,0x0c),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
+    }
+    @Test fun v2ValidEarlyNative83AloneWaitsForAttCompletion() {
+        val f=Fixture(trackV2=true)
+        f.stale()
+        val baseline=f.driver.writes.size
+        f.refresh()
+        f.now+=1; f.receive(f.settings)
+        assertTrue(f.session.staleSettingsRefreshBusy)
+        assertTrue(f.results.isEmpty())
+        f.complete()
+        assertTrue(f.results.single() is OperationResult.Success)
+        assertEquals(listOf(1),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
+    }
+    @Test fun v2AckAloneExpiresAndDoesNotReplayAnyControlOrSync() {
+        val f=Fixture(trackV2=true)
+        f.stale()
+        val baseline=f.driver.writes.size
+        f.refresh(); f.complete()
+        f.now+=5000
+        f.session.tick(); f.idle(); f.receive(f.settings)
+        assertTrue(f.results.single() is OperationResult.Failed)
+        assertEquals(listOf(1),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
+    }
+    @Test fun v2ReconnectAfterAcknowledgedSyncCannotCarryOldSettingsIntoNewOwner() {
+        val f=Fixture(trackV2=true)
+        f.stale()
+        val baseline=f.driver.writes.size
+        f.refresh(); f.complete()
+        assertTrue(f.results.isEmpty())
+        val previous=f.session.generation
+        f.session.connect("replacement",CoffeeAuthentication(f.wall,"123456"))
+        f.complete(); f.complete(OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        f.complete(); f.complete()
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        f.now+=1
+        f.session.onNotification(previous,KnownGatt.coffeeNotify,f.settings,f.now)
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        assertNull(f.session.settingsObservedAtMs)
+        assertTrue(f.results.single() !is OperationResult.Success)
+        f.receive(f.settings); f.idle()
+        assertEquals(DeviceState.READY,f.session.state)
+        assertEquals(f.now,f.session.settingsObservedAtMs)
+        assertEquals(1,f.results.size)
+        assertEquals(listOf(1,1),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
     }
     @Test fun freshDoesNotWriteAndStaleUsesOneAuthenticationOnly() {
         val f=Fixture();val before=f.driver.writes.size
