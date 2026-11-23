@@ -22,6 +22,8 @@ class BoilerSettingsRefreshTest {
         val tracker=SettingsWriteTracker()
         var serial=0L
         var lastSettings:Settings?=null
+        var onSettings: ((Settings)->Unit)?=null
+        var settingEvidence:CoffeeReadbackEvidence.Setting?=null
         val session:DeviceSession=DeviceSession(DeviceRole.COFFEE,driver,{now},stateChanged={state->
             if(state!=DeviceState.READY)tracker.disconnected(serial)
         },coffeeFrame={frame,_->
@@ -29,6 +31,7 @@ class BoilerSettingsRefreshTest {
                 lastSettings=frame
                 serial++
                 if(!v2) tracker.observe(serial,frame,session.boilerReconciliationReady)
+                onSettings?.invoke(frame)
             }
         },wallClock={wallTime},trackCoffeeDelivery=v2)
         val initial=hex("830113FD5C007D0F350019006E")
@@ -64,7 +67,8 @@ class BoilerSettingsRefreshTest {
         }
         fun begin(change:MachineSettingChange,refresh:Boolean=true,single:Boolean=false):Long {
             val token=requireNotNull(tracker.begin(change))
-            session.writeSetting(change,{tracker.permitsWrite(token)}) { result->
+            session.writeSettingWithEvidence(change,{tracker.permitsWrite(token)}) { result,evidence->
+                settingEvidence=evidence
                 tracker.written(token,result,serial)
                 if(refresh && result is OperationResult.Success)
                     session.refreshBoilerSettings({tracker.permitsBoilerRefresh(token)},singleBoiler=single) {_,_->}
@@ -105,6 +109,49 @@ class BoilerSettingsRefreshTest {
         f.advance(181_500);f.advance(185_900)
         assertEquals(listOf(0x0c,1),f.driver.writes.drop(before).map {it.bytes[0].toInt()})
         assertEquals(DeviceState.READY,f.session.state)
+    }
+
+    @Test fun matchingPassiveSettingsAtQueueHeadReleaseSuppressesAuthSync() {
+        assertQueuedBoilerRefresh(passiveMatches=true)
+    }
+
+    @Test fun nonmatchingPassiveSettingsAtQueueHeadReleaseStillAllowsOneAuthSync() {
+        assertQueuedBoilerRefresh(passiveMatches=false)
+    }
+
+    private fun assertQueuedBoilerRefresh(passiveMatches:Boolean) {
+        val f=Fixture(v2=true)
+        val change=MachineSettingChange.BrewHeating(false)
+        val initialWriteCount=f.driver.writes.size
+        f.begin(change,single=true);f.complete()
+        val cut=requireNotNull(f.settingEvidence)
+        val seen=mutableListOf<CoffeeReadbackEvidence.Setting.Observation?>()
+        f.onSettings={report->
+            val native=f.session.latestOrdinaryCoffeeSettings
+            val observation=cut.evaluate(change,report,native,native?.cursor,f.now)
+            seen+=observation
+            // Match settles the original tracker; a passive mismatch alone does not.
+            if(observation==CoffeeReadbackEvidence.Setting.Observation.MATCH)
+                f.tracker.observe(f.serial,report)
+        }
+        // Hold a synthetic second operation at GATT so the fallback is queued, not handed off.
+        f.session.setBrewWait(92,{true}) { }
+        f.advance(350)
+        fun refreshPhase()=f.session.coffeeDeliveries.single{it.kind==CoffeeDeliveryKind.SETTINGS_REFRESH}.phase
+        fun opcodes()=f.driver.writes.drop(initialWriteCount).map{it.bytes[0].toInt()}
+        assertEquals(CoffeeDeliveryPhase.QUEUED,refreshPhase())
+        assertEquals(listOf(0x0C,0x11),opcodes())
+        f.now=351;f.receive(if(passiveMatches)f.disabled(change) else f.initial)
+        assertEquals(listOf(if(passiveMatches)CoffeeReadbackEvidence.Setting.Observation.MATCH
+            else CoffeeReadbackEvidence.Setting.Observation.DIFFERENT),seen)
+        assertEquals(if(passiveMatches)SettingsWriteTracker.State.CONFIRMED
+            else SettingsWriteTracker.State.WAITING_READBACK,f.tracker.state)
+        f.complete()
+        assertEquals(if(passiveMatches)CoffeeDeliveryPhase.NOT_SENT else CoffeeDeliveryPhase.DRIVER_HANDOFF,
+            refreshPhase())
+        if(!passiveMatches)f.complete()
+        f.advance(1250);f.advance(3000)
+        assertEquals(if(passiveMatches)listOf(0x0C,0x11) else listOf(0x0C,0x11,0x01),opcodes())
     }
 
     @Test fun temperatureWritesConfirmOnFirstFreshSyncWithoutWaitingForPhysicalHeating() {
