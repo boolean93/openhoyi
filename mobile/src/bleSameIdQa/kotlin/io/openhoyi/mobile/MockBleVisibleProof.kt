@@ -59,34 +59,44 @@ internal object MockBleVisibleProof {
                 val target = WeeklySleepSchedule(base.days.mapIndexed { index, day ->
                     if (index == 0) day.copy(enabled = false) else day
                 })
-                var tab = 0
+                var tab = 1
+                val machinePanel = style.column("qa/v2/machine-panel")
+                val weeklyPanel = style.column("qa/v2/weekly-panel")
+                val machineAction = style.text("", TaskProductVisualStyle.auxiliary, "qa/v2/machine-admission")
+                val weeklyPending = style.text("", TaskProductVisualStyle.auxiliary, "qa/v2/week-pending")
+                style.add(machinePanel, style.text(label("咖啡机","Machine"), TaskProductVisualStyle.section))
+                style.add(machinePanel, machineAction)
+                style.add(weeklyPanel, style.text(label("每周计划","Weekly plan"), TaskProductVisualStyle.section))
+                style.add(weeklyPanel, weeklyPending)
+                style.add(content, machinePanel)
+                style.add(content, weeklyPanel)
                 var phase = 0
                 var steamSent = false
                 var temperature = 9400
                 action(nav, "机器预览", "Machine preview") { tab = 0 }
                 action(nav, "周表预览", "Schedule preview") { tab = 1 }
-                val week = action(content, "修改周表", "Change weekly plan") {
+                val week = action(weeklyPanel, "修改周表", "Change weekly plan") {
                     check(p.changeSchedule(base, target) == null); phase = 1
                 }
-                val links = action(content, "模拟两包写入完成", "Complete both fake writes") {
+                val links = action(weeklyPanel, "模拟两包写入完成", "Complete both fake writes") {
                     p.complete(); p.advance(500); p.complete(); phase = 2
                 }
-                val telemetry = action(content, "模拟温度更新", "Advance fake telemetry") {
+                val telemetry = action(machinePanel, "模拟温度更新", "Advance fake telemetry") {
                     temperature += 25
                     p.advance(1); p.observe(idle(temperature))
                 }
-                val steam = action(content, "关闭蒸汽锅炉", "Turn steam boiler off") {
+                val steam = action(machinePanel, "关闭蒸汽锅炉", "Turn steam boiler off") {
                     check(p.heatingAdmission.canSubmit)
                     check(p.apply(MachineSettingChange.SteamHeating(false)) == null)
                     steamSent = true
                 }
-                val heatReport = action(content, "模拟蒸汽回报", "Deliver fake steam settings") {
+                val heatReport = action(machinePanel, "模拟蒸汽回报", "Deliver fake steam settings") {
                     p.complete(); p.advance(1); p.observe(settings(0xed))
                     check(p.settingState == SettingsWriteTracker.State.CONFIRMED)
                     check(p.scheduleState == SleepScheduleWriteTracker.State.WAITING_READBACK)
                     phase = 3
                 }
-                val weekReport = action(content, "模拟周表双段回报", "Deliver both fake schedule reports") {
+                val weekReport = action(weeklyPanel, "模拟周表双段回报", "Deliver both fake schedule reports") {
                     p.advance(1); p.observe(first(0x7e))
                     check(p.scheduleState == SleepScheduleWriteTracker.State.WAITING_READBACK)
                     p.advance(1); p.observe(second)
@@ -103,6 +113,17 @@ internal object MockBleVisibleProof {
                     }
                     status.text = ("${if(tab==0) label("机器", "Machine") else label("周表", "Schedule")} · $schedule") +
                         if (p.settingState == SettingsWriteTracker.State.CONFIRMED) label(" · 蒸汽已确认", " · Steam confirmed") else ""
+                    machinePanel.visibility = if(tab==0) View.VISIBLE else View.GONE
+                    weeklyPanel.visibility = if(tab==1) View.VISIBLE else View.GONE
+                    val admission=p.heatingAdmission
+                    machineAction.text = admission.reason?.let(activity::getString) ?: if(admission.canSubmit)
+                        label("可操作蒸汽锅炉", "Steam control available") else label("蒸汽暂不可操作", "Steam control unavailable")
+                    weeklyPending.text = when(p.scheduleState) {
+                        SleepScheduleWriteTracker.State.WRITING -> label("写入中，尚不可操作蒸汽", "Writing: steam is not yet available")
+                        SleepScheduleWriteTracker.State.WAITING_READBACK -> label("仍等待周表双段回报", "Still waiting for the two schedule reports")
+                        SleepScheduleWriteTracker.State.CONFIRMED -> label("收到周表双段回报", "Both schedule reports received")
+                        else -> label("等待修改本周计划", "Ready to edit this week's plan")
+                    }
                     week.isEnabled = phase == 0
                     links.isEnabled = phase == 1
                     telemetry.isEnabled = phase in 1..3
