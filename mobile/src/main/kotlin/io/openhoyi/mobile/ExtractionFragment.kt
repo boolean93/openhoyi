@@ -760,12 +760,16 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(host, snapshot.coffeeState), DeviceStatusText.label(host, snapshot.scaleState)))
-        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label)
-            else when(owner?.manualTerminalOutcome) {
-                ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
-                ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
-                else -> shotLabel(state)
-            }, owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
+        val shownShotLabel = when {
+            owner?.manualShotActive == true -> getString(R.string.extraction_manual_label)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
+            owner?.scalePreflight == true -> getString(R.string.extraction_preflight_label)
+            else -> shotLabel(state)
+        }
+        val stopSuffix = owner?.stopReason?.takeUnless { owner.chartCurveId == "manual" }
+            ?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) }.orEmpty()
+        shotSummary.show(getString(R.string.extraction_shot_summary, shownShotLabel, stopSuffix))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
             owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> getString(R.string.extraction_ended_guidance)
@@ -797,7 +801,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
                 state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
         compactIdentity.show(displayCurveName)
         compactIdentity.contentDescription = displayCurveName
-        compactClock.show(shotLabel(state))
+        compactClock.show(shownShotLabel)
         compactClock.setTextColor(getColor(if(state==ExtractionState.RUNNING) R.color.mobile_success else if(state==ExtractionState.OUTCOME_UNKNOWN) R.color.mobile_danger else R.color.mobile_text))
         compactElapsed.show(elapsedText)
         compactElapsed.contentDescription=elapsedText + if(BuildConfig.MOCK_MODE) " · Mock · " + getString(R.string.extraction_mock_subtitle) else ""
