@@ -421,6 +421,34 @@ class BoilerSettingsRefreshTest {
         assertEquals(1,changed.driver.writes.count {it.bytes.contentEquals(CoffeeCommands.setting(intent).frame.toByteArray())})
     }
 
+    @Test fun v2ExplicitRetryAfterOriginalBoilerWriteTimeoutReadsWithoutReplaying() {
+        val f=Fixture(v2=true)
+        val change=MachineSettingChange.SteamHeating(false)
+        val baseline=f.driver.writes.size
+        val token=f.begin(change,single=true);f.complete()
+        f.advance(350);f.complete() // One passive fallback got a transport result but no settings.
+        f.advance(6000);assertTrue(f.tracker.timeout(token,f.serial))
+        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+
+        fun sync() {
+            assertTrue(f.session.canRefreshUnknownBoilerSettings)
+            f.session.refreshUnknownBoilerSettings({f.tracker.permitsBoilerRecovery(token)}) {_,_->}
+        }
+        sync()
+        f.advance(6250);f.complete()
+        assertEquals(SettingsWriteTracker.State.UNKNOWN,f.tracker.state)
+        f.advance(12000) // First retry also received no readback; same intent is retryable again.
+        sync()
+        f.advance(12250);f.complete()
+        f.now=12251;f.receive(f.disabled(change))
+        val current=requireNotNull(f.lastSettings)
+        assertTrue(f.session.qualifiesBoilerSyncedSettings(change,current))
+        assertTrue(f.tracker.observe(f.serial,current,reconcileBoilerMismatch=true))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED,f.tracker.state)
+        assertFalse(f.tracker.permitsBoilerRecovery(token))
+        assertEquals(listOf(0x0D,0x01,0x01,0x01),f.driver.writes.drop(baseline).map{it.bytes[0].toInt()})
+    }
+
     @Test fun manualRecoveryIsSingleSyncAfterSettingsExpiryWithDebounceAndNoControl() {
         val f=Fixture();val token=f.begin(MachineSettingChange.BrewHeating(false));f.complete()
         f.advance(6000);assertTrue(f.tracker.timeout(token,f.serial))
