@@ -298,7 +298,9 @@ internal object MockBleSameIdFixture {
     /** Throwable messages can include paths or values; only fixed stage and code locations are allowed. */
     private fun diagnostic(stage: String, failure: Throwable): String {
         val stages = setOf("setup", "discover", "subscribe", "auth-enqueued", "auth-completed",
-            "fresh-83", "native-idle", "ready-verified", "case-body", "cleanup")
+            "fresh-83", "native-idle", "ready-verified", "case-body", "cleanup", "request-setting",
+            "request-cups", "request-week", "request-sleep", "resolve-device-report",
+            "case-observe", "case-transport-complete", "case-advance", "request-start", "request-stop")
         fun kind(error: Throwable) = when (error) {
             is NullPointerException -> "NullPointer"
             is SecurityException -> "Security"

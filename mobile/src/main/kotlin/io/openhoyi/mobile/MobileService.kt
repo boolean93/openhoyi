@@ -2441,7 +2441,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     /** One read-only reason for the grey start action in both extraction screens. No writes. */
     private fun customCurveFirmwareBlock(profile: CurveProfile?): String? {
-        val configured = profile?.let { (application as MobileApplication).curves.find(it.id)?.customDocument?.configuration } != null
+        val configured = profile?.let { controlledCurveLibrary().find(it.id)?.customDocument?.configuration } != null
         return if (configured && !CustomCurveFirmwarePolicy.permits(requireNotNull(profile).parameters, coffeeFirmware))
             getString(if (CustomCurveFirmwarePolicy.isPressureFollow(profile.parameters))
                 R.string.follow_firmware_required else R.string.flow_editor_firmware_required) else null
@@ -3388,6 +3388,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         private val hub:NativeDeviceHub,private val clock:DetachedCoreClock,private val driver:DetachedCoreDriver,
         private val progress:(String)->Unit) {
         private var active=true
+        private var bootstrapped=false
+        private fun caseStage(label:String){if(bootstrapped)progress(label)}
         internal fun invalidate(){active=false}
         private fun valid(){ check(active && Looper.myLooper()===Looper.getMainLooper()) }
         val calls:List<DetachedCoreDriver.Call> get(){valid();return driver.calls}
@@ -3418,30 +3420,30 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             return service.sendLeverRecipe(profile,requireNotNull(hub.coffeeAddress),
                 requireNotNull(service.coffeeFirmware).toString()) {}
         }
-        fun apply(change:MachineSettingChange):String? {valid();return service.changeMachineSetting(change)}
-        fun resetCups(expected:Int):String? {valid();return service.resetCupCount(expected)}
+        fun apply(change:MachineSettingChange):String? {valid();caseStage("request-setting");return service.changeMachineSetting(change)}
+        fun resetCups(expected:Int):String? {valid();caseStage("request-cups");return service.resetCupCount(expected)}
         fun changeSchedule(expected:WeeklySleepSchedule,target:WeeklySleepSchedule):String? {
-            valid();return service.changeSleepSchedule(expected,target)
+            valid();caseStage("request-week");return service.changeSleepSchedule(expected,target)
         }
-        fun sleep():String? {valid();return service.enterSleepNow()}
+        fun sleep():String? {valid();caseStage("request-sleep");return service.enterSleepNow()}
         fun recoveryChoices():List<CanonicalMachineOperationBroker.RecoveryChoice>{valid();return service.splitRecoveryChoices}
         fun observation(choice:CanonicalMachineOperationBroker.RecoveryChoice):SplitObservation? {
             valid();return service.splitObservation(choice)
         }
-        fun resolve(observed:SplitObservation):Boolean {valid();return service.resolveSplitObservation(observed)}
+        fun resolve(observed:SplitObservation):Boolean {valid();caseStage("resolve-device-report");return service.resolveSplitObservation(observed)}
         val splitActive:Boolean get(){valid();return service.machineOperations?.splitOwned==true}
         fun acknowledge(){valid();service.acknowledgeManualSafety()}
         fun observe(bytes:ByteArray,capturedAt:Long=clock.now,generation:Long=this.generation) {
-            valid();require(bytes.size in 1..64 && capturedAt in 0..clock.now)
+            valid();caseStage("case-observe");require(bytes.size in 1..64 && capturedAt in 0..clock.now)
             val opcode=bytes[0].toInt() and 255
             require(opcode in setOf(0x40,0x83) || opcode==0x80 && service.fixtureShotEffects!=null && bytes.size==13)
             hub.observeDetachedCoffee(generation,KnownGatt.coffeeNotify,bytes,capturedAt)
             watchShotIfIsolated()
         }
         fun complete(call:DetachedCoreDriver.Call=calls.last(),result:OperationResult=OperationResult.Success()) {
-            valid();require(call in calls);hub.completeDetachedCoffee(call.generation,call.token,result);watchShotIfIsolated()
+            valid();caseStage("case-transport-complete");require(call in calls);hub.completeDetachedCoffee(call.generation,call.token,result);watchShotIfIsolated()
         }
-        fun advance(deltaMs:Long) {valid();clock.advance(deltaMs,hub::tickDetached);watchShotIfIsolated()}
+        fun advance(deltaMs:Long) {valid();caseStage("case-advance");clock.advance(deltaMs,hub::tickDetached);watchShotIfIsolated()}
         private fun watchShotIfIsolated(){if(service.fixtureShotEffects!=null)service.watchShot.run()}
         val shotState:ExtractionState get(){valid();return service.shotState}
         val startEvidence:ShotStartObservation? get(){valid();return service.shotStartObservation}
@@ -3449,9 +3451,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val syntheticSamples:Int get(){valid();return requireNotNull(service.fixtureShotEffects).persistedSampleCount}
         fun start(profile:CurveProfile):String? {
             valid();check(service.fixtureShotEffects!=null)
+            caseStage("request-start")
             return service.startShot(profile.id,profile.scaleMode,7).also {watchShotIfIsolated()}
         }
-        fun stop(){valid();check(service.fixtureShotEffects!=null);service.stopShot();watchShotIfIsolated()}
+        fun stop(){valid();check(service.fixtureShotEffects!=null);caseStage("request-stop");service.stopShot();watchShotIfIsolated()}
         fun completeFakeHandshakeTransport() {
             valid()
             check(calls.last().operation is GattOperation.Connect)
@@ -3480,6 +3483,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             observe(byteArrayOf(0x40,0,0x24,0xbf.toByte(),0x2f,0x1c,0x77,0x0b,0,0,0,0,0,0,0,25,3,0x21,0xaf.toByte()))
             progress("ready-verified")
             check(service.snapshot.coffeeState==DeviceState.READY && service.snapshot.settings!=null)
+            bootstrapped=true
             progress("case-body")
         }
     }
