@@ -31,7 +31,13 @@ class BrewCompletionPreviewActivity : Activity() {
             samples = listOf(0.0, 1.0, 2.0, 4.0, 7.2, 8.9, 9.2, 9.0, 8.8, 8.4, 8.0, 7.6, 7.1, 6.7, 6.0)
                 .mapIndexed { index, value -> ShotShareCardRenderer.Sample(index * 2.0, value) },
         )
-        card = BrewCompletionCardDialog(this, model, {}, {}).also {
+        val flow = when (intent.getStringExtra("flowPace")) {
+            "slow" -> BrewFeedbackClips.Level.LOW_FLOW
+            "fast" -> BrewFeedbackClips.Level.HIGH_FLOW
+            "none" -> null
+            else -> BrewFeedbackClips.Level.BRAVO
+        }
+        card = BrewCompletionCardDialog(this, model, onShare = {}, flowLevel = flow, onReview = {}).also {
             val review = intent.getBooleanExtra("showReview", true)
             it.refresh(review, review)
             if (intent.getBooleanExtra("exportFixture", false)) {

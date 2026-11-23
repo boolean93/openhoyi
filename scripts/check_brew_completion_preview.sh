@@ -60,19 +60,19 @@ PYPNG
 }
 
 capture() {
-  local name="$1" show="$2" long="$3" width="$4" height="$5"
+  local name="$1" show="$2" long="$3" width="$4" height="$5" pace="$6"
   "${ADB[@]}" shell am force-stop "$app"
-  "${ADB[@]}" shell am start -W -n "$preview" --ez showReview "$show" --ez longCurve "$long" --ez exportFixture true > "$out/$name-launch.txt"
+  "${ADB[@]}" shell am start -W -n "$preview" --ez showReview "$show" --ez longCurve "$long" --ez exportFixture true --es flowPace "$pace" > "$out/$name-launch.txt"
   grep -q '^Status: ok' "$out/$name-launch.txt"
   for attempt in {1..5}; do
     "${ADB[@]}" shell uiautomator dump /sdcard/brew-completion-preview.xml > /dev/null
     "${ADB[@]}" exec-out cat /sdcard/brew-completion-preview.xml > "$out/$name.xml"
-    if python3 - "$out/$name.xml" "$app" "$show" <<'PY'
+    if python3 - "$out/$name.xml" "$app" "$show" "$pace" <<'PY'
 import re
 import sys
 import xml.etree.ElementTree as ET
 
-path, package, show = sys.argv[1:]
+path, package, show, pace = sys.argv[1:]
 nodes = [n.attrib for n in ET.parse(path).iter("node") if n.get("package") == package]
 def labeled(n, label):
     return n.get("content-desc") == label or (n.get("text") or "").replace("\ufffc", "").strip() == label
@@ -83,6 +83,11 @@ review_visible = [n for n in nodes if labeled(n, "AI 评价")]
 assert len(close) == 1 and len(action("分享")) == 1, "Expected close and Share"
 assert len(review_visible) == (show == "true") and len(action("AI 评价")) == (show == "true"), "Wrong AI review action state"
 assert all(n.get("text") != "本次萃取" for n in nodes), "Duplicate external title"
+pace_labels = {"slow": "流速 · 偏慢", "balanced": "流速 · 适中", "fast": "流速 · 偏快"}
+shown_pace = [n for n in nodes if any(labeled(n, label) for label in pace_labels.values())]
+assert len(shown_pace) == (pace != "none"), "Flow indicator count or omission is wrong"
+if shown_pace:
+    assert labeled(shown_pace[0], pace_labels[pace]), "Wrong flow indicator label"
 photo = [n for n in nodes if n.get("class") == "android.widget.ImageView"
          and (n.get("content-desc") or "").startswith("本次萃取")]
 assert len(photo) == 1, "A single accessible share image is expected"
@@ -115,14 +120,14 @@ PY
 }
 "${ADB[@]}" shell wm size 1080x2400
 "${ADB[@]}" shell wm density 420
-capture phone-no-ai false false 1080 2400
-capture phone-with-ai true false 1080 2400
+capture phone-no-ai false false 1080 2400 slow
+capture phone-with-ai true false 1080 2400 balanced
 "${ADB[@]}" shell cmd uimode night yes
-capture phone-dark-with-ai true false 1080 2400
+capture phone-dark-with-ai true false 1080 2400 fast
 "${ADB[@]}" shell cmd uimode night no
 "${ADB[@]}" shell wm size 2560x1600
 "${ADB[@]}" shell wm density 360
-capture tablet-long-no-ai false true 2560 1600
+capture tablet-long-no-ai false true 2560 1600 none
 cmp "$out/phone-no-ai-card.png" "$out/phone-with-ai-card.png"
 cmp "$out/phone-dark-with-ai-card.png" "$out/phone-with-ai-card.png"
 if cmp -s "$out/phone-no-ai-card.png" "$out/tablet-long-no-ai-card.png"; then

@@ -75,7 +75,8 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
         variant = voice
         val graphic = model ?: BrewCompletedShare.create(activity.getString(R.string.completion_card_title),
             null, result, null, emptyList()).model
-        val card = BrewCompletionCardDialog(activity, graphic, { ShotShareCardShare.launch(activity, it) }) {
+        val card = BrewCompletionCardDialog(activity, graphic,
+            onShare = { ShotShareCardShare.launch(activity, it) }, flowLevel = result.level) {
             val ticket = reviewAccess.issue(result) ?: return@BrewCompletionCardDialog
             stop()
             try { activity.startActivity(CompletionReviewChatActivity.intent(activity, ticket)) }

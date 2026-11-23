@@ -19,6 +19,7 @@ import android.text.style.ReplacementSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -29,6 +30,7 @@ internal class BrewCompletionCardDialog(
     private val activity: Activity,
     graphic: ShotShareCardRenderer.Model,
     onShare: (android.graphics.Bitmap) -> Unit,
+    flowLevel: BrewFeedbackClips.Level? = null,
     onReview: () -> Unit,
 ) {
     private val style = TaskProductVisualStyle(activity)
@@ -56,12 +58,29 @@ internal class BrewCompletionCardDialog(
             elevation = style.dp(5).toFloat()
             setPadding(style.dp(inset), 0, style.dp(inset), style.dp(20))
         }
-        val header = style.row("completion-card-header").apply { gravity = Gravity.END }
+        val header = style.row("completion-card-header").apply { gravity = Gravity.CENTER_VERTICAL }
+        val leading = FrameLayout(activity).apply {
+            setPadding(0, 0, style.dp(4), 0)
+        }
+        header.addView(leading, LinearLayout.LayoutParams(0, style.dp(48), 1f))
+        completionFlowPaceLabel(flowLevel)?.let { label ->
+            val flow = style.text(activity.getString(label), TaskProductVisualStyle.auxiliary).apply {
+                tag = "completion-card-flow-pace"
+                setSingleLine()
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(secondaryInk)
+                setPadding(style.dp(10), style.dp(4), style.dp(10), style.dp(4))
+                background = shape(if (dark) 0xFF392C25.toInt() else 0xFFF1E7DE.toInt(), 12)
+            }
+            leading.addView(flow, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL))
+        }
         val close = ImageButton(activity).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
+            imageTintList = null
+            backgroundTintList = null
             setImageDrawable(closeDrawable())
             background = interactive(Color.TRANSPARENT, focus = closeInk, radius = 24)
+            setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
             isFocusable = true
             contentDescription = activity.getString(R.string.completion_card_close)
             tag = "completion-card-close"

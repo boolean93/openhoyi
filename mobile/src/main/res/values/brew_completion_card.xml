@@ -14,4 +14,7 @@
     <string name="completion_card_spoken_seconds">用时 %1$s 秒</string>
     <string name="completion_card_spoken_yield">出液 %1$s 克</string>
     <string name="completion_card_spoken_ratio">粉液比 1 比 %1$s</string>
+    <string name="completion_flow_pace_slow">流速 · 偏慢</string>
+    <string name="completion_flow_pace_balanced">流速 · 适中</string>
+    <string name="completion_flow_pace_fast">流速 · 偏快</string>
 </resources>
