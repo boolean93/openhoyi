@@ -17,7 +17,24 @@ class ScaleProtocolAdapterTest {
         val observation=(adapter.decode(sample(),123L) as DecodeResult.Valid).value
         assertEquals(1800,observation.hundredthsGram);assertEquals(-10,observation.deviceFlowHundredths)
         assertEquals(123L,observation.receivedAtMs);assertTrue(observation.eligibleForControl)
-        assertNull(observation.batteryPercent);assertFalse(adapter.capabilities.battery)
+        assertEquals(0,observation.batteryPercent);assertTrue(adapter.capabilities.battery)
+    }
+    @Test fun bothBookooNotificationsCarryUnsignedBatteryWithoutChangingWeightOrControl() {
+        for (adapter in listOf(BookooScaleProtocolAdapter, BookooUltraLegacyScaleProtocolAdapter)) {
+            for ((rawPercent, expected) in listOf(0 to 0, 100 to 100, 101 to null, 255 to null)) {
+                val frame = sample().apply {
+                    this[13] = rawPercent.toByte()
+                    this[19] = take(19).fold(0) { a, b -> a xor (b.toInt() and 255) }.toByte()
+                }
+                val value = (adapter.decode(frame, 123L) as DecodeResult.Valid).value
+                assertEquals(expected, value.batteryPercent)
+                assertEquals(1800, value.hundredthsGram)
+                assertEquals(-10, value.deviceFlowHundredths)
+                assertEquals(adapter.observationEvidence, value.evidence)
+                assertEquals(adapter.transportVerified, value.eligibleForControl)
+                assertTrue(value.capabilities.battery)
+            }
+        }
     }
     @Test fun offlineCandidatesCannotExposeGattOrControl() {
         for (adapter in ScaleProtocolRegistry.offlineCandidates) {

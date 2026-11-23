@@ -1583,6 +1583,84 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         state("forty-navigation-return")
         persist(true)
     }
+    private fun batteryStatus(scope: Scope, activity: Activity, directory: File, screen: String): JSONObject {
+        val host = activity as MainActivity
+        main {
+            check((host.resources.configuration.smallestScreenWidthDp >= 600) == (screen == "tablet"))
+            host.openSettingsSection("scale")
+        }
+        val status = tagged(host, "settings/devices/status/BOOKOO") as TextView
+        val change = tagged(host, "settings/devices/change/BOOKOO") as Button
+        val states = JSONObject()
+        fun checkStatus(state: DeviceState, percent: Int?, label: String) {
+            await("settings scale battery: $label") {
+                val connectedText = DeviceStatusText.label(host, state)
+                val visible = status.text.toString()
+                visible.startsWith(connectedText) &&
+                    visible.contains('\uFFFC') == (percent != null) &&
+                    (percent == null || visible.endsWith(host.getString(R.string.settings_scale_battery_percent, percent)))
+            }
+            reveal(host, status)
+            main {
+                val layout = requireNotNull(status.layout)
+                val value = status.text
+                if (percent != null) {
+                    check(layout.lineCount == 1 && layout.getEllipsisCount(0) == 0 && layout.getLineEnd(0) == value.length)
+                    val image = (value as android.text.Spanned).getSpans(0, value.length, android.text.style.ImageSpan::class.java)
+                    check(image.size == 1 && image.single().drawable.bounds.width() > 0)
+                    check(status.contentDescription?.contains(host.getString(R.string.settings_scale_battery_percent, percent)) == true)
+                    if (screen == "phone") check(change.isShown)
+                    if (change.isShown) {
+                        check(change.text == host.getString(R.string.home_visual_change))
+                        check(change.height >= HoyiUi.dp(host, 48) && whole(observation(change)))
+                        val changeBounds = Rect(); val statusBounds = Rect()
+                        check(change.getGlobalVisibleRect(changeBounds) && status.getGlobalVisibleRect(statusBounds))
+                        check(!Rect.intersects(changeBounds, statusBounds)) { "Battery squeezed or overlaps Change" }
+                    }
+                } else check(status.contentDescription == null)
+                states.put(label, JSONObject().put("lineCount", layout.lineCount)
+                    .put("changeVisible", change.isShown).put("percent", percent ?: JSONObject.NULL))
+            }
+        }
+        fun offer(battery: Int, at: Long): ScaleObservation {
+            val packet = ByteArray(20).apply {
+                this[0] = 3; this[1] = 11; this[6] = 43; this[9] = 25; this[10] = 43
+                this[13] = battery.toByte()
+                this[19] = take(19).fold(0) { sum, byte -> sum xor (byte.toInt() and 255) }.toByte()
+            }
+            val decoded = (io.openhoyi.protocol.ScaleObservationDecoder.bookoo(packet, at)
+                as io.openhoyi.protocol.DecodeResult.Valid).value
+            return decoded.copy(evidence = ScaleEvidence.LIVE_READ_ONLY,
+                capabilities = ScaleCapabilities(deviceFlow = true, battery = true)).also {
+                scope.offer(DeviceState.READY, it)
+            }
+        }
+        scope.offer(DeviceState.READY, null)
+        checkStatus(DeviceState.READY, null, "awaiting")
+        offer(0, 100000L)
+        checkStatus(DeviceState.READY, 0, "valid-zero")
+        offer(100, 100000L)
+        checkStatus(DeviceState.READY, 100, "full")
+        val sample = offer(62, 100000L)
+        checkStatus(DeviceState.READY, 62, "visible")
+        frames.screenshot(host, root(host), File(directory, "battery-visible.png")) { JSONObject() }
+        offer(255, 100000L)
+        checkStatus(DeviceState.READY, null, "invalid")
+        offer(62, 100000L)
+        checkStatus(DeviceState.READY, 62, "before-stale")
+        scope.advance(101501L)
+        checkStatus(DeviceState.READY, null, "stale")
+        scope.offer(DeviceState.CONNECTING, null)
+        checkStatus(DeviceState.CONNECTING, null, "switch")
+        scope.offer(DeviceState.READY,
+            sample.copy(capabilities = ScaleCapabilities(), batteryPercent = null, receivedAtMs = 101501L))
+        checkStatus(DeviceState.READY, null, "unsupported")
+        frames.screenshot(host, root(host), File(directory, "battery-hidden.png")) { JSONObject() }
+        scope.offer(DeviceState.DISCONNECTED, null)
+        checkStatus(DeviceState.DISCONNECTED, null, "disconnected")
+        return states
+    }
+
     fun run(arguments:Bundle):Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")
         check(arguments.getString("disposableCiEmulator")=="true" && arguments.getString("freshProcessVerified")=="true")
@@ -1591,7 +1669,12 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val source=requireNotNull(arguments.getString("sourceSha"));check(source.matches(Regex("[0-9a-f]{40}")))
         val theme=requireNotNull(arguments.getString("sampleTheme"));check(theme in setOf("light","dark"))
         val scale=requireNotNull(arguments.getString("expectedFontScale")).toFloat();check(scale in setOf(1f,1.3f))
-        val profile="tablet-user-landscape-$theme-font-$scale"
+        val batteryScreen = if (arguments.getString("batteryOnly") == "true") {
+            requireNotNull(arguments.getString("batteryScreen")).also {
+                check(page == "connection" && it in setOf("phone", "tablet"))
+            }
+        } else null
+        val profile = if (batteryScreen == null) "tablet-user-landscape-$theme-font-$scale" else "battery-$batteryScreen-$theme-font-$scale"
         val directory=File(requireNotNull(context.getExternalFilesDir(null)),"scale-visual-migration/$source/$profile/$page").apply {check(isDirectory || mkdirs())}
         val reference=if(page=="scale")"d33ae2f0348cd0464b992196a5e1b1c855b3bdce7232f211755e19d4b693bfaf" else "21cba381b9c7025aa138458d37d0c0f0f3e0a9fb277bff943ea3cbcec1edc931"
         check(arguments.getString("referencePngSha256")==reference)
@@ -1604,40 +1687,44 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         var scope:Scope?=null;var failure:Throwable?=null
         try {
             val active=Scope(directory,page);scope=active;active.prepare();active.install(theme=="dark");active.beginService()
-            serviceGuards(active,directory)
+            if (batteryScreen == null) serviceGuards(active,directory)
             val activity=start(if(page=="scale")ScaleActivity::class.java else DeviceConnectionActivity::class.java)
             await("page bound to exact scoped owner") {field(activity,"owner")===active.ownerService}
-            if(page=="scale")mainScale(active,activity,directory) else {
-                setCandidates(active,activity,candidates(3));File(directory,"fixture.json").writeText(active.fixture.put("candidateCount",3).toString(2))
-            }
-            val captured=capture(activity,directory)
-            val png=android.graphics.BitmapFactory.Options().apply {inJustDecodeBounds=true}
-            android.graphics.BitmapFactory.decodeFile(File(directory,"window.png").absolutePath,png)
-            check(png.outWidth==2560 && png.outHeight==1600)
-            manifest.put("wholeWindowPngSizePx",JSONArray(listOf(png.outWidth,png.outHeight)))
-                .put("initialFrameSync",captured.proof).put("window",captured.target)
-            val font=context.resources.openRawResource(R.font.noto_sans_sc_variable).use {input->
-                val digest=MessageDigest.getInstance("SHA-256");val buffer=ByteArray(8192)
-                while(true) {val n=input.read(buffer);if(n<0)break;digest.update(buffer,0,n)}
-                digest.digest().joinToString("") {"%02x".format(it)}
-            }
-            check(font==TaskProductVisualStyle.FONT_SHA);manifest.put("fontSha256",font)
-            main {
-                val window=captured.target
-                check(window.getDouble("fontScale").toFloat()==scale && window.getString("uiModeNightMeaning")==theme &&
-                    window.getInt("densityDpi")==360 && window.getString("locale").startsWith("zh") && !window.getBoolean("imeVisible"))
-                if(page=="scale") {
-                    check(whole(observation(field(activity,"weight") as View)))
-                    check(whole(observation(field(activity,"tare") as View)))
-                    check((field(activity,"timer") as LocalScaleTimer).elapsedMs(124600)==24600L)
+            if (batteryScreen != null) {
+                manifest.put("batteryStates", batteryStatus(active, activity, directory, batteryScreen))
+            } else {
+                if(page=="scale")mainScale(active,activity,directory) else {
+                    setCandidates(active,activity,candidates(3));File(directory,"fixture.json").writeText(active.fixture.put("candidateCount",3).toString(2))
                 }
+                val captured=capture(activity,directory)
+                val png=android.graphics.BitmapFactory.Options().apply {inJustDecodeBounds=true}
+                android.graphics.BitmapFactory.decodeFile(File(directory,"window.png").absolutePath,png)
+                check(png.outWidth==2560 && png.outHeight==1600)
+                manifest.put("wholeWindowPngSizePx",JSONArray(listOf(png.outWidth,png.outHeight)))
+                    .put("initialFrameSync",captured.proof).put("window",captured.target)
+                val font=context.resources.openRawResource(R.font.noto_sans_sc_variable).use {input->
+                    val digest=MessageDigest.getInstance("SHA-256");val buffer=ByteArray(8192)
+                    while(true) {val n=input.read(buffer);if(n<0)break;digest.update(buffer,0,n)}
+                    digest.digest().joinToString("") {"%02x".format(it)}
+                }
+                check(font==TaskProductVisualStyle.FONT_SHA);manifest.put("fontSha256",font)
+                main {
+                    val window=captured.target
+                    check(window.getDouble("fontScale").toFloat()==scale && window.getString("uiModeNightMeaning")==theme &&
+                        window.getInt("densityDpi")==360 && window.getString("locale").startsWith("zh") && !window.getBoolean("imeVisible"))
+                    if(page=="scale") {
+                        check(whole(observation(field(activity,"weight") as View)))
+                        check(whole(observation(field(activity,"tare") as View)))
+                        check((field(activity,"timer") as LocalScaleTimer).elapsedMs(124600)==24600L)
+                    }
+                }
+                if(page=="scale") {
+                    main { verifySnapshotValueContract(activity,directory) }
+                    trendEvidence(activity,File(directory,"trend-main-data"),scale==1f)
+                    supportReachability(active,activity,directory)
+                    scaleSpecials(active,activity,File(directory,"special-states"))
+                } else connectionSpecials(active,activity,File(directory,"special-states"))
             }
-            if(page=="scale") {
-                main { verifySnapshotValueContract(activity,directory) }
-                trendEvidence(activity,File(directory,"trend-main-data"),scale==1f)
-                supportReachability(active,activity,directory)
-                scaleSpecials(active,activity,File(directory,"special-states"))
-            } else connectionSpecials(active,activity,File(directory,"special-states"))
             manifest.put("layoutStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
         } catch(error:Throwable) {
             failure=error;manifest.put("layoutStatus","FAIL").put("failure",error.stackTraceToString())

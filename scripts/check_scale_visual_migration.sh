@@ -7,6 +7,20 @@ package=io.openhoyi.mobile.mock
 source_sha=$(git rev-parse HEAD)
 source_dirty=false
 [[ -z "$(git status --porcelain)" ]] || source_dirty=true
+battery_mode="${SCALE_BATTERY_ONLY:-false}"
+case "$battery_mode" in
+  false) ;;
+  true)
+    [[ "${GITHUB_EVENT_NAME:-}" == workflow_dispatch &&
+      "${GITHUB_REF:-}" == refs/heads/fix/bookoo-battery-status &&
+      "$source_sha" == "${GITHUB_SHA:-}" && "$source_sha" == "${PRODUCT_PR_HEAD_SHA:-}" &&
+      "$source_dirty" == false && -n "${SCALE_SNAPSHOT_SCOPE_FILE:-}" ]] || {
+        echo 'Battery fixtures require the exact clean dispatched branch and owned emulator snapshot' >&2
+        exit 1
+      }
+    ;;
+  *) echo 'Invalid battery fixture mode' >&2; exit 1 ;;
+esac
 output_dir="$PWD/build/task-first-evidence/scale-visual-migration"
 mkdir -p "$output_dir"
 if [[ -n "${SCALE_SNAPSHOT_SCOPE_FILE:-}" ]]; then
@@ -87,25 +101,58 @@ FONT_RESTORE_PY
   return "$exit_status"
 }
 trap 'original_exit=$?; trap - EXIT; if collect "$original_exit"; then exit 0; else exit "$?"; fi' EXIT
-adb shell wm size 2560x1600
-adb shell wm density 360
+if [[ "$battery_mode" == false ]]; then
+  adb shell wm size 2560x1600
+  adb shell wm density 360
+fi
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 # APKs were built by the workflow. Installation is confined to this guarded emulator.
-adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
-adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
-for product_theme in light dark; do
-  if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
-  # End with two real 1.0 pages; this removes delete's explicit 1.3 -> default-1.0 transition,
-  # not a persistence-queue ACK. Strict key presence/value restoration below remains mandatory.
-  for font_scale in 1.3 1.0; do
-    adb shell settings put system font_scale "$font_scale"
-    for scale_page in scale connection; do
-      adb shell am force-stop "$package"
-      python3 - "$output_dir/$product_theme-$font_scale-$scale_page-result.txt" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$scale_page" <<'RUN_PY'
+app_apk=mobile/build/outputs/apk/mock/mobile-mock.apk
+test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+if [[ "$battery_mode" == true ]]; then
+  aapt="${ANDROID_HOME:?}/build-tools/35.0.0/aapt"
+  package_of() { "$aapt" dump badging "$1" | sed -n "s/^package: name='\([^']*\)'.*/\1/p"; }
+  [[ "$(package_of "$app_apk")" == "$package" &&
+    "$(package_of "$test_apk")" == "$package.test" ]] || {
+      echo 'Only the Mock and its test package may be installed' >&2; exit 1;
+    }
+  installed="$(adb shell pm list packages -u | tr -d '\r')"
+  for expected in "$package" "$package.test"; do
+    if grep -Fxq "package:$expected" <<< "$installed"; then
+      echo "Existing package or retained data: $expected" >&2
+      exit 1
+    fi
+  done
+  adb install "$app_apk"
+  adb install "$test_apk"
+  # Hash PackageManager's exact installed file instead of trusting install output alone.
+  {
+    printf 'sourceCommit=%s\n' "$source_sha"
+    for expected in "$package" "$package.test"; do
+      local_apk="$app_apk"
+      [[ "$expected" != "$package.test" ]] || local_apk="$test_apk"
+      reported="$(adb shell pm path "$expected" | tr -d '\r')"
+      [[ "$reported" =~ ^package:(/data/app/[-a-zA-Z0-9_./~=]+/base\.apk)$ ]]
+      local_hash="$(sha256sum "$local_apk" | cut -d' ' -f1)"
+      device_digest="$(adb shell sha256sum "${BASH_REMATCH[1]}" | tr -d '\r')"
+      [[ "${device_digest%% *}" == "$local_hash" ]]
+      printf '%s sha256=%s installed=true\n' "$expected" "$local_hash"
+    done
+  } > "$output_dir/battery-apk-identity.txt"
+else
+  adb install -r "$app_apk"
+  adb install -r "$test_apk"
+fi
+run_case() {
+  local product_theme=$1 font_scale=$2 scale_page=$3 battery_screen=${4:-none}
+  local label="$product_theme-$font_scale-$scale_page"
+  [[ "$battery_screen" == none ]] || label="battery-$battery_screen"
+  adb shell am force-stop "$package"
+  python3 - "$output_dir/$label-result.txt" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$scale_page" "$battery_screen" <<'RUN_PY'
 from pathlib import Path
 import json, os, subprocess, sys
-result_path, source, dirty, apk, theme, scale, page = sys.argv[1:]
+result_path, source, dirty, apk, theme, scale, page, battery_screen = sys.argv[1:]
 def fresh_process_absent(probe):
     # Exact remote marker proves pidof actually ran. Unknown status, output, stderr or transport failure is not absence.
     return probe.returncode == 0 and probe.stdout.replace('\r\n','\n') == 'FRESH_PIDOF_STATUS=1\nFRESH_PIDOF_OUTPUT=\n' and probe.stderr == ''
@@ -135,18 +182,89 @@ for key,value in {'scaleVisualMigration':'true','disposableCiEmulator':'true','f
     'sourceDirty':dirty,'apkSha':apk,'sampleTheme':theme,'expectedFontScale':scale,
     'ciRun':os.environ['GITHUB_RUN_ID'],'ciJob':os.environ['GITHUB_JOB']}.items():
     command += ['-e',key,value]
+if battery_screen != 'none':
+    assert battery_screen in {'phone', 'tablet'} and page == 'connection'
+    command += ['-e', 'batteryOnly', 'true', '-e', 'batteryScreen', battery_screen]
 command += ['io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation']
 with Path(result_path).open('w') as capture:
     result = subprocess.run(command, stdout=capture, stderr=subprocess.STDOUT, timeout=600)
 text = Path(result_path).read_text()
-if result.returncode or 'SCALE_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true' not in text:
+if result.returncode or 'SCALE_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true' not in text or (
+        battery_screen != 'none' and 'INSTRUMENTATION_CODE: -1' not in text):
     print(text)
     raise SystemExit('Real product capture failed; partial evidence retained, no automatic reset/retry')
 RUN_PY
+}
+if [[ "$battery_mode" == true ]]; then
+  adb shell cmd uimode night no
+  adb shell settings put system font_scale 1.0
+  adb shell input keyevent KEYCODE_WAKEUP
+  adb shell wm dismiss-keyguard
+  adb shell wm size 1080x2340
+  adb shell wm density 420
+  run_case light 1.0 connection phone
+  adb shell wm size 2560x1600
+  adb shell wm density 360
+  run_case light 1.0 connection tablet
+else
+  for product_theme in light dark; do
+    if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
+    # End with two real 1.0 pages; this removes delete's explicit 1.3 -> default-1.0 transition,
+    # not a persistence-queue ACK. Strict key presence/value restoration below remains mandatory.
+    for font_scale in 1.3 1.0; do
+      adb shell settings put system font_scale "$font_scale"
+      for scale_page in scale connection; do
+        run_case "$product_theme" "$font_scale" "$scale_page"
+      done
     done
   done
-done
+fi
 adb pull "/sdcard/Android/data/$package/files/scale-visual-migration/$source_sha" "$output_dir/"
+if [[ "$battery_mode" == true ]]; then
+  python3 - "$output_dir/$source_sha" "$apk_sha" <<'VERIFY_BATTERY_PY'
+from pathlib import Path
+import hashlib, json, os, struct, sys
+
+root = Path(sys.argv[1])
+assert len(list(root.glob('*/*/manifest.json'))) == 2, 'Expected exactly two real-device layout profiles'
+percentages = dict(awaiting=None, **{'valid-zero': 0, 'full': 100, 'visible': 62,
+    'invalid': None, 'before-stale': 62, 'stale': None, 'switch': None,
+    'unsupported': None, 'disconnected': None})
+profiles = {}
+for screen in ('phone', 'tablet'):
+    profile = f'battery-{screen}-light-font-1.0'
+    folder = root / profile / 'connection'
+    manifest = json.loads((folder / 'manifest.json').read_text())
+    assert manifest['sourceSha'] == manifest['headSha'] == root.name and manifest['sourceDirty'] == 'false'
+    assert manifest['apkSha256'] == sys.argv[2] and manifest['profile'] == profile and manifest['page'] == 'connection'
+    assert manifest['ciRun'] == os.environ['GITHUB_RUN_ID'] and manifest['ciJob'] == os.environ['GITHUB_JOB']
+    assert manifest['realProductActivity'] is True and manifest['specimenOnly'] is False
+    assert manifest['overallStatus'] == 'PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
+    assert manifest['isolationStatus'] == 'PASS_ISOLATION_ONLY' and manifest['visualAcceptance'] == 'ASTRA_PENDING'
+    states = manifest['batteryStates']
+    assert set(states) == set(percentages)
+    for label, percent in percentages.items():
+        row = states[label]
+        assert row['percent'] == percent
+        if percent is not None:
+            assert row['lineCount'] == 1
+            if screen == 'phone':
+                assert row['changeVisible'] is True
+    for name in ('battery-visible.png', 'battery-hidden.png'):
+        data = (folder / name).read_bytes()
+        assert data.startswith(b'\x89PNG\r\n\x1a\n') and data[12:16] == b'IHDR'
+        assert hashlib.sha256(data).hexdigest() == manifest['fileSha256'][name]
+        w, h = struct.unpack('>II', data[16:24])
+        assert min(w, h) >= 1000 and (w > h) == (screen == 'tablet'), (name, w, h)
+    assert (folder / 'battery-visible.png').read_bytes() != (folder / 'battery-hidden.png').read_bytes()
+    profiles[screen] = str(folder.relative_to(root))
+(root / 'battery-capture-summary.json').write_text(json.dumps(
+    {'sourceSha':root.name, 'apkSha256':sys.argv[2], 'realConfigurations':2,
+     'profiles':profiles, 'visualAcceptance':'ASTRA_PENDING'}, indent=2) + '\n')
+print('SCALE_BATTERY_RETAINED configurations=2 actualActivities=true visualAcceptance=ASTRA_PENDING')
+VERIFY_BATTERY_PY
+  exit 0
+fi
 python3 - "$output_dir/$source_sha" <<'VERIFY_PY'
 from pathlib import Path
 import hashlib,json,struct,sys

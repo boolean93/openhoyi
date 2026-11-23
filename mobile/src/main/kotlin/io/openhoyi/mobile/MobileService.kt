@@ -573,6 +573,18 @@ class MobileService : Service() {
     /** Invalidates UI stability even if a disconnect/reconnect occurs between page refreshes. */
     private val scaleTrend = ScaleTrendWindow()
     private var mockScaleVisualObservationSerial = 0L
+    /** Only the selected adapter's live observation is eligible in production. */
+    internal fun settingsScaleBatteryAt(now: Long): Int? {
+        val current = snapshot
+        val sample = current.scaleObservation
+        val state = current.scaleState
+        return if (BuildConfig.MOCK_MODE && mockScaleVisualInput.isInstalled) {
+            // The opt-in visual fixture strips live transport/control claims before injecting.
+            LiveTelemetry.observedBattery(sample, state, now, io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY)
+        } else {
+            LiveTelemetry.scaleBattery(hub?.scaleProtocolId, sample, state, now)
+        }
+    }
     internal fun scaleTrendAt(now: Long): List<ScaleTrendWindow.Point> = scaleTrend.points(now)
     private var scaleConnectionEpoch = 0L
     private val beanDoseCapture = BeanDoseCapturePolicy()
