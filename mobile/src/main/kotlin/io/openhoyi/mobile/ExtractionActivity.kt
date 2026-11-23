@@ -500,12 +500,9 @@ class ExtractionActivity : ThemedActivity() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(this, snapshot.coffeeState), DeviceStatusText.label(this, snapshot.scaleState)))
-        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else when (startObservation) {
-            io.openhoyi.session.ShotStartObservation.WAITING_FOR_MACHINE -> getString(R.string.extraction_start_sent_waiting)
-            io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> getString(R.string.extraction_start_not_confirmed)
-            io.openhoyi.session.ShotStartObservation.MACHINE_EXTRACTION_OBSERVED -> getString(R.string.extraction_start_flow_observed)
-            null -> shotLabel(state)
-        }, owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
+        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else (
+            ExtractionStartObservationPresentation.label(startObservation)?.let { getString(it) } ?: shotLabel(state)
+        ), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)

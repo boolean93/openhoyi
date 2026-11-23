@@ -3445,6 +3445,17 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         }
         fun advance(deltaMs:Long) {valid();caseStage("case-advance");clock.advance(deltaMs,hub::tickDetached);watchShotIfIsolated()}
         private fun watchShotIfIsolated(){if(service.fixtureShotEffects!=null)service.watchShot.run()}
+        val liveFrame:HoyiMessage? get(){valid()
+            val current=service.snapshot
+            return LiveTelemetry.machine(current.coffee,current.coffeeState,current.coffeeAt,clock.now)
+        }
+        val heatingAdmission:BoilerHeatingAdmission get(){valid()
+            return BoilerHeatingAdmission.evaluate(service,service.snapshot,clock.now)
+        }
+        val stopPresentation:StopActionPresentation.State get(){valid()
+            // The fake port is the active execution owner while open; no Android Service start is permitted.
+            return StopActionPresentation.describe(service.shotState,service.snapshot.coffeeState,serviceRunning=true)
+        }
         val shotState:ExtractionState get(){valid();return service.shotState}
         val startEvidence:ShotStartObservation? get(){valid();return service.shotStartObservation}
         val terminalHistory:ShotHistory.Status? get(){valid();return service.fixtureShotEffects?.history?.entries?.singleOrNull()?.status}
@@ -3508,6 +3519,21 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,
             allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,
             progress:(String)->Unit={},run:(DetachedCorePort)->T):T {
+            openDetachedCore(context,allowImmutableCurves,allowSyntheticShot,ownerRoot,progress).use { scope ->
+                return run(scope.port).also { progress("cleanup") }
+            }
+        }
+        internal class DetachedCoreScope internal constructor(val port:DetachedCorePort,
+            private val retire:()->Unit):AutoCloseable {
+            private var closed=false
+            override fun close() {
+                check(Looper.myLooper()===Looper.getMainLooper())
+                if(!closed){closed=true;retire()}
+            }
+        }
+        internal fun openDetachedCore(context:Context,allowImmutableCurves:Boolean=false,
+            allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,
+            progress:(String)->Unit={}):DetachedCoreScope {
             check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
                 Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
             require(!allowSyntheticShot || allowImmutableCurves)
@@ -3527,7 +3553,32 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             var trace:TraceStore?=null
             var hub:NativeDeviceHub?=null
             var port:DetachedCorePort?=null
-            var primary:Throwable?=null
+            fun retire() {
+                port?.invalidate()
+                service?.machineWriterFence?.beginDrain(retire=true)
+                var safelyClosed=false
+                try {
+                    hub?.close()
+                    safelyClosed=true
+                } finally {
+                    service?.hub=null
+                    service?.machineWriterFence?.finishDrain(safelyClosed)
+                    var leaseReleased=false
+                    try {
+                        service?.machineOperations?.close()
+                        leaseReleased=safelyClosed
+                    } finally {
+                        clock.close()
+                        service?.handler?.removeCallbacksAndMessages(null)
+                        trace?.close()
+                        val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
+                        // No deletion or reuse when a previous owner, pin or trace could still be active.
+                        fixtureRoot.ownerClosedSafely=leaseReleased && settled
+                        check(fixtureRoot.ownerClosedSafely)
+                        if(ownerRoot==null)deleteDetachedCoreRoot(root)
+                    }
+                }
+            }
             try {
                 val ownerTrace=TraceStore(java.io.File(root,"trace"))
                 trace=ownerTrace
@@ -3573,43 +3624,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 ownerService.hub=owner
                 val bound=DetachedCorePort(ownerService,owner,clock,driver,progress)
                 port=bound
-                val value=run(bound)
-                progress("cleanup")
-                return value
+                return DetachedCoreScope(bound,::retire)
             } catch(failure:Throwable) {
-                primary=failure
-                throw failure
-            } finally {
-                try {
-                    port?.invalidate()
-                    service?.machineWriterFence?.beginDrain(retire=true)
-                    var safelyClosed=false
-                    try {
-                        hub?.close()
-                        safelyClosed=true
-                    } finally {
-                        service?.hub=null
-                        service?.machineWriterFence?.finishDrain(safelyClosed)
-                        var leaseReleased=false
-                        try {
-                            service?.machineOperations?.close()
-                            leaseReleased=safelyClosed
-                        } finally {
-                            clock.close()
-                            service?.handler?.removeCallbacksAndMessages(null)
-                            trace?.close()
-                            val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
-                            // No deletion or reuse when a previous owner, pin or trace could still be active.
-                            fixtureRoot.ownerClosedSafely=leaseReleased && settled
-                            check(fixtureRoot.ownerClosedSafely)
-                            if(ownerRoot==null)deleteDetachedCoreRoot(root)
-                        }
-                    }
-                } catch(cleanup:Throwable) {
-                    val original=primary
-                    if(original==null)throw cleanup
-                    if(original!==cleanup)original.addSuppressed(cleanup)
+                try {retire()} catch(cleanup:Throwable) {
+                    if(failure!==cleanup)failure.addSuppressed(cleanup)
                 }
+                throw failure
             }
         }
         const val STOP = "io.openhoyi.mobile.STOP"

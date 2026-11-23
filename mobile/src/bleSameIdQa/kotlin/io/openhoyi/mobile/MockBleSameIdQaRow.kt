@@ -62,6 +62,17 @@ internal object MockBleSameIdQaRow {
             }
             if (!handler.post(task)) finish()
         }
+        for (shot in listOf(false,true)) {
+            val text = if (shot) { if (chinese) "模拟：萃取等待与停止" else "Fixture: extraction wait and stop" }
+                else { if (chinese) "模拟：周表、导航与蒸汽" else "Fixture: schedule, navigation and steam" }
+            HoyiUi.button(activity,card,text) {
+                if(!running) runCatching { MockBleVisibleProof.open(activity,shot) }.onFailure {
+                    result.text = if(chinese) "无法打开隔离界面，未操作真实设备。" else "Cannot open fixture; no real device was used."
+                    result.visibility = View.VISIBLE
+                }
+            }
+                .tag = if(shot) "settings/maintenance/ble-v2-shot-ui" else "settings/maintenance/ble-v2-week-ui"
+        }
         style.add(card, result, 4)
     }
 }
