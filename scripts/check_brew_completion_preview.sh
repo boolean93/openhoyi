@@ -68,17 +68,33 @@ capture() {
     "${ADB[@]}" shell uiautomator dump /sdcard/brew-completion-preview.xml > /dev/null
     "${ADB[@]}" exec-out cat /sdcard/brew-completion-preview.xml > "$out/$name.xml"
     if python3 - "$out/$name.xml" "$app" "$show" <<'PY'
+import re
 import sys
 import xml.etree.ElementTree as ET
 
 path, package, show = sys.argv[1:]
 nodes = [n.attrib for n in ET.parse(path).iter("node") if n.get("package") == package]
-action = lambda label: [n for n in nodes if n.get("text") == label and
+def labeled(n, label):
+    return n.get("content-desc") == label or (n.get("text") or "").replace("\ufffc", "").strip() == label
+action = lambda label: [n for n in nodes if labeled(n, label) and
                         n.get("clickable") == "true" and n.get("enabled") == "true"]
 close = [n for n in nodes if n.get("content-desc") == "关闭" and n.get("clickable") == "true"]
-review_visible = [n for n in nodes if n.get("text") == "AI 评价"]
+review_visible = [n for n in nodes if labeled(n, "AI 评价")]
 assert len(close) == 1 and len(action("分享")) == 1, "Expected close and Share"
 assert len(review_visible) == (show == "true") and len(action("AI 评价")) == (show == "true"), "Wrong AI review action state"
+assert all(n.get("text") != "本次萃取" for n in nodes), "Duplicate external title"
+photo = [n for n in nodes if n.get("class") == "android.widget.ImageView"
+         and (n.get("content-desc") or "").startswith("本次萃取")]
+assert len(photo) == 1, "A single accessible share image is expected"
+def bounds(n):
+    return [int(x) for x in re.findall(r"-?\d+", n["bounds"])]
+picture = bounds(photo[0])
+assert abs((picture[2] - picture[0]) * 1.25 - (picture[3] - picture[1])) <= 4, "Image view is not fitted to the full 4:5 card"
+share = bounds(action("分享")[0])
+leading = bounds(action("AI 评价")[0]) if show == "true" else share
+assert abs(leading[0] - picture[0]) <= 4 and abs(share[2] - picture[2]) <= 4, "Image and outer action edges differ"
+assert abs(leading[1] - share[1]) <= 4 and abs(leading[3] - share[3]) <= 4, "Unequal action heights"
+assert picture[3] <= share[1], "Actions overlap the image"
 PY
     then
       "${ADB[@]}" exec-out screencap -p > "$out/$name.png.tmp"
@@ -101,10 +117,14 @@ PY
 "${ADB[@]}" shell wm density 420
 capture phone-no-ai false false 1080 2400
 capture phone-with-ai true false 1080 2400
+"${ADB[@]}" shell cmd uimode night yes
+capture phone-dark-with-ai true false 1080 2400
+"${ADB[@]}" shell cmd uimode night no
 "${ADB[@]}" shell wm size 2560x1600
 "${ADB[@]}" shell wm density 360
 capture tablet-long-no-ai false true 2560 1600
 cmp "$out/phone-no-ai-card.png" "$out/phone-with-ai-card.png"
+cmp "$out/phone-dark-with-ai-card.png" "$out/phone-with-ai-card.png"
 if cmp -s "$out/phone-no-ai-card.png" "$out/tablet-long-no-ai-card.png"; then
   echo 'Different synthetic fixtures unexpectedly produced the same image' >&2; exit 1
 fi

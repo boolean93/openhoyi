@@ -2,14 +2,24 @@ package io.openhoyi.mobile
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ReplacementSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
-import kotlin.math.min
+import android.graphics.drawable.GradientDrawable
 
 /** The visible graphic and the exported bitmap are the very same artifact. */
 internal class BrewCompletionCardDialog(
@@ -20,19 +30,36 @@ internal class BrewCompletionCardDialog(
 ) {
     private val style = TaskProductVisualStyle(activity)
     private val bitmap = ShotShareCardRenderer.render(activity, graphic)
+    private val dark = HoyiUi.dark(activity)
+    private val shellColor = if (dark) 0xFF241D19.toInt() else 0xFFFAF8F5.toInt()
+    private val closeInk = if (dark) 0xFFDCC8B9.toInt() else 0xFF65534A.toInt()
+    private val secondaryInk = if (dark) 0xFFEED6C5.toInt() else 0xFF673D2D.toInt()
     val dialog: AlertDialog
     private val review: Button
     private val share: Button
 
     init {
+        val size = activity.resources.configuration
+        val inset = if (size.screenWidthDp >= 600) 20 else 16
+        // Solve the 4:5 picture first, then derive the shell and action width from it.
+        // Height-limited tablet/landscape windows therefore never get a wider empty tray.
+        val horizontalBudget = (size.screenWidthDp - 24 - 2 * inset).coerceAtLeast(96)
+        val verticalBudget = (size.screenHeightDp - 168).coerceAtLeast(88)
+        val imageWidth = minOf(horizontalBudget, 414,
+            (verticalBudget.toDouble() * bitmap.width / bitmap.height).toInt())
+        val imageHeight = (imageWidth.toDouble() * bitmap.height / bitmap.width).toInt()
         val shell = style.column("completion-card-dialog").apply {
-            background = style.shape(style.surface, true, 20)
-            setPadding(style.dp(12), 0, style.dp(12), style.dp(12))
+            background = shape(shellColor, 24)
+            elevation = style.dp(5).toFloat()
+            setPadding(style.dp(inset), 0, style.dp(inset), style.dp(20))
         }
         val header = style.row("completion-card-header").apply { gravity = Gravity.END }
-        val close = style.text("×", TaskProductVisualStyle.section).apply {
-            style.clickable(this)
+        val close = style.text("", TaskProductVisualStyle.section).apply {
             gravity = Gravity.CENTER
+            text = iconLabel("", ChromeIcon.CLOSE)
+            setTextColor(closeInk)
+            background = interactive(Color.TRANSPARENT, focus = closeInk, radius = 24)
+            isFocusable = true
             contentDescription = activity.getString(R.string.completion_card_close)
             tag = "completion-card-close"
             setOnClickListener { dismiss() }
@@ -58,32 +85,31 @@ internal class BrewCompletionCardDialog(
             adjustViewBounds = false
             scaleType = ImageView.ScaleType.FIT_CENTER
             setImageBitmap(bitmap)
+            background = shape(shellColor, 15)
+            clipToOutline = true
+            elevation = style.dp(3).toFloat()
             contentDescription = spoken
         }
-        val max = style.dp((activity.resources.configuration.screenHeightDp - 172).coerceAtLeast(56))
-        val scaled = ((activity.resources.configuration.screenWidthDp - 48).coerceIn(180, 466)
-            .toDouble() * bitmap.height / bitmap.width).toInt()
-        shell.addView(photo, LinearLayout.LayoutParams(-1, min(max, style.dp(scaled))))
+        shell.addView(photo, LinearLayout.LayoutParams(-1, style.dp(imageHeight)))
 
         val actions = style.row("completion-card-actions").apply { gravity = Gravity.CENTER }
-        share = style.button(Button(activity), primary = true).apply {
-            text = activity.getString(R.string.completion_card_share)
+        share = action(primary = true).apply {
+            setActionLabel(R.string.completion_card_share, ChromeIcon.SHARE)
             tag = "completion-card-share"
             setOnClickListener { onShare(bitmap) }
         }
-        review = style.button(Button(activity), outline = true).apply {
-            text = activity.getString(R.string.completion_card_review)
+        review = action(primary = false).apply {
+            setActionLabel(R.string.completion_card_review, ChromeIcon.SPARK)
             tag = "completion-card-review"
             setOnClickListener { onReview() }
         }
-        actions.addView(review, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = style.dp(8) })
-        actions.addView(share, LinearLayout.LayoutParams(0, -2, 1.45f))
-        style.add(shell, actions, top = 10)
+        actions.addView(review, LinearLayout.LayoutParams(0, -1, 1f).apply { marginEnd = style.dp(10) })
+        actions.addView(share, LinearLayout.LayoutParams(0, -1, 1.25f))
+        style.add(shell, actions, top = 18)
         dialog = AlertDialog.Builder(activity).setView(shell).create().apply {
             setOnShowListener {
                 window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                val width = (activity.resources.configuration.screenWidthDp - 32).coerceIn(180, 490)
-                window?.setLayout(style.dp(width), -2)
+                window?.setLayout(style.dp(imageWidth + 2 * inset), -2)
             }
         }
     }
@@ -91,11 +117,103 @@ internal class BrewCompletionCardDialog(
     fun refresh(canShowReview: Boolean, reviewReady: Boolean, saving: Boolean = false) {
         review.visibility = if (canShowReview) View.VISIBLE else View.GONE
         review.isEnabled = reviewReady
-        review.text = activity.getString(when {
+        review.setActionLabel(when {
             !canShowReview || reviewReady -> R.string.completion_card_review
             saving -> R.string.completion_card_saving
             else -> R.string.completion_card_no_samples
-        })
+        }, ChromeIcon.SPARK)
+    }
+
+    private fun shape(fill: Int, radius: Int, border: Int? = null) = GradientDrawable().apply {
+        cornerRadius = style.dp(radius).toFloat()
+        setColor(fill)
+        border?.let { setStroke(style.dp(1).coerceAtLeast(1), it) }
+    }
+
+    private fun interactive(fill: Int, focus: Int, radius: Int, border: Int? = null, lightRipple: Boolean = false): Drawable {
+        fun ripple(color: Int, outline: Int?) = RippleDrawable(
+            ColorStateList.valueOf(if (lightRipple) 0x33FFFFFF else if (dark) 0x33FFD8C2 else 0x23764C37),
+            shape(color, radius, outline), shape(Color.WHITE, radius),
+        )
+        return StateListDrawable().apply {
+            addState(intArrayOf(-android.R.attr.state_enabled), shape(if (dark) 0xFF3A2E27.toInt() else 0xFFECE5DE.toInt(), radius))
+            addState(intArrayOf(android.R.attr.state_focused), ripple(fill, focus))
+            addState(intArrayOf(), ripple(fill, border))
+        }
+    }
+
+    private fun action(primary: Boolean): Button = style.button(Button(activity)).apply {
+        minHeight = style.dp(50)
+        minimumHeight = minHeight
+        setPadding(style.dp(8), style.dp(8), style.dp(8), style.dp(8))
+        val fill = if (primary) {
+            if (dark) 0xFFE6AD8B.toInt() else 0xFF874B32.toInt()
+        } else if (dark) 0xFF4C3024.toInt() else 0xFFF1E7DE.toInt()
+        val border = when { primary -> null; dark -> 0xFF5F473A.toInt(); else -> 0xFFE3D4C7.toInt() }
+        val focus = if (primary) {
+            if (dark) 0xFF503022.toInt() else 0xFFFFDCC7.toInt()
+        } else secondaryInk
+        background = interactive(fill, focus, 12, border, primary && !dark)
+        setTextColor(ColorStateList(
+            arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+            intArrayOf(if (dark) 0xFFBAA79B.toInt() else 0xFF746258.toInt(),
+                if (primary) {
+                    if (dark) 0xFF291A14.toInt() else 0xFFFFF8F2.toInt()
+                } else secondaryInk),
+        ))
+    }
+
+    private fun Button.setActionLabel(resource: Int, icon: ChromeIcon) {
+        val label = activity.getString(resource)
+        text = iconLabel(label, icon)
+        contentDescription = label
+    }
+
+    private enum class ChromeIcon { CLOSE, SPARK, SHARE }
+
+    /** Inline icons keep the icon and label centered as one text run, including when a label wraps. */
+    private fun iconLabel(label: String, icon: ChromeIcon) = SpannableString("\uFFFC" + label).apply {
+        val size = style.dp(if (icon == ChromeIcon.CLOSE) 14 else 18)
+        val gap = if (label.isEmpty()) 0 else style.dp(7)
+        setSpan(object : ReplacementSpan() {
+            override fun getSize(paint: Paint, text: CharSequence?, start: Int, end: Int, fm: Paint.FontMetricsInt?): Int = size + gap
+
+            override fun draw(canvas: Canvas, text: CharSequence?, start: Int, end: Int, x: Float,
+                              top: Int, y: Int, bottom: Int, paint: Paint) {
+                val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = paint.color
+                    style = Paint.Style.STROKE
+                    strokeWidth = 1.55f
+                    strokeJoin = Paint.Join.ROUND
+                    strokeCap = Paint.Cap.ROUND
+                }
+                val metrics = paint.fontMetrics
+                canvas.save()
+                canvas.translate(x, y + (metrics.ascent + metrics.descent - size) / 2f)
+                canvas.scale(size / 24f, size / 24f)
+                fun path(draw: Path.() -> Unit) = canvas.drawPath(Path().apply(draw), ink)
+                when (icon) {
+                    ChromeIcon.CLOSE -> {
+                        canvas.drawLine(6f, 6f, 18f, 18f, ink)
+                        canvas.drawLine(18f, 6f, 6f, 18f, ink)
+                    }
+                    ChromeIcon.SPARK -> {
+                        path {
+                            moveTo(10f, 4f); quadTo(11f, 9f, 16f, 10f); quadTo(11f, 11f, 10f, 16f)
+                            quadTo(9f, 11f, 4f, 10f); quadTo(9f, 9f, 10f, 4f); close()
+                        }
+                        canvas.drawLine(18f, 13f, 18f, 19f, ink)
+                        canvas.drawLine(15f, 16f, 21f, 16f, ink)
+                    }
+                    ChromeIcon.SHARE -> {
+                        path { moveTo(6f, 10f); lineTo(4f, 10f); lineTo(4f, 20f); lineTo(20f, 20f); lineTo(20f, 10f); lineTo(18f, 10f) }
+                        path { moveTo(8f, 7f); lineTo(12f, 3f); lineTo(16f, 7f) }
+                        canvas.drawLine(12f, 3f, 12f, 15f, ink)
+                    }
+                }
+                canvas.restore()
+            }
+        }, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
     fun dismiss() = dialog.dismiss()
