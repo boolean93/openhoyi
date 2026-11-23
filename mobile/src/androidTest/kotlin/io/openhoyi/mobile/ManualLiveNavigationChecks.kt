@@ -44,7 +44,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
         } finally { test.removeMonitor(monitor) }
     }
 
-    fun run() {
+    fun run(recordCompletion: Boolean = false) {
         check(BuildConfig.MOCK_MODE && android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
         val clock = Any()
         test.runOnMainSync { MobileMonotonicClock.installForMock(clock, SystemClock.elapsedRealtime()) }
@@ -57,7 +57,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             val service = requireNotNull(runningHost.activity.currentService)
             activeService = service
             test.runOnMainSync { service.installMockExtractionScenario(clock) }
-            runCases(runningHost, service, includeDraftEditors = true, clock = clock)
+            runCases(runningHost, service, includeDraftEditors = true, clock = clock, recordCompletion = recordCompletion)
         } finally {
             test.runOnMainSync {
                 activeService?.let { service ->
@@ -73,7 +73,8 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
     fun run(host: MainPageTestHost, service: MobileService, includeDraftEditors: Boolean = false) =
         runCases(host, service, includeDraftEditors, null)
 
-    private fun runCases(host: MainPageTestHost, service: MobileService, includeDraftEditors: Boolean, clock: Any?) {
+    private fun runCases(host: MainPageTestHost, service: MobileService, includeDraftEditors: Boolean, clock: Any?,
+        recordCompletion: Boolean = false) {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         val main = host.activity
         val app = main.application as MobileApplication
@@ -269,7 +270,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                         25, 0, ByteFrame(byteArrayOf())))
                 }
                 await("Back retains Home after disconnect") { foregroundPage() === homeAgain }
-                verifySavedManualCompletion(host, service, clock)
+                verifySavedManualCompletion(host, service, clock, recordCompletion)
                 host.select(TaskDestination.BREW)
                 start("next-app-shot")
                 await("live route for last short flush") { foregroundPage() is ExtractionFragment }
@@ -306,7 +307,8 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
         }
     }
     /** Uses the real service + visible Extraction result delivery, never the screenshot preview. */
-    private fun verifySavedManualCompletion(host: MainPageTestHost, service: MobileService, clock: Any) {
+    private fun verifySavedManualCompletion(host: MainPageTestHost, service: MobileService, clock: Any,
+        recordCompletion: Boolean) {
         val page = host.extraction()
         val main = host.activity
         val app = main.application as MobileApplication
@@ -315,7 +317,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
         // The repository may return queued samples; a separate store proves disk readback.
         val persistedSamples = ShotSamplesStore(File(app.filesDir, "shot_samples"))
 
-        fun manualCup(seconds: Int): Pair<String, ShotHistory.Entry> {
+        fun manualCup(seconds: Int, paced: Boolean = false): Pair<String, ShotHistory.Entry> {
             val knownIds = app.history.entries.map { it.id }.toSet()
             fun offer(frame: io.openhoyi.protocol.HoyiMessage, delta: Long) {
                 MobileMonotonicClock.advanceForMock(clock, MobileMonotonicClock.elapsedRealtime() + delta)
@@ -323,16 +325,30 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             }
             fun frame(second: Int) = ExtractionTelemetry(6, second, 89, second * 10, 9300,
                 25, 64, 0, ByteFrame(byteArrayOf()))
-            lateinit var feedbackId: String
-            test.runOnMainSync {
+            fun begin(): String {
                 check(!page.feedbackUi.isShowing && !service.manualShotActive)
                 offer(frame(1), 450)
                 offer(frame(2), 450)
-                feedbackId = requireNotNull(service.manualChartIdentity)
-                for (second in 3..seconds) offer(frame(second), 1000)
+                return requireNotNull(service.manualChartIdentity)
+            }
+            fun end() {
                 // End only after the existing passive idle gap; no fabricated completion call.
                 offer(IdleTelemetry(9300, 12000, 0, 0, 0, 0, 25, 0, ByteFrame(byteArrayOf())), 2901)
                 check(!service.manualShotActive)
+            }
+            lateinit var feedbackId: String
+            if (paced) {
+                test.runOnMainSync { feedbackId = begin() }
+                for (second in 3..seconds) {
+                    SystemClock.sleep(350)
+                    test.runOnMainSync { offer(frame(second), 1000) }
+                }
+                SystemClock.sleep(650)
+                test.runOnMainSync { end() }
+            } else test.runOnMainSync {
+                feedbackId = begin()
+                for (second in 3..seconds) offer(frame(second), 1000)
+                end()
             }
             val entry = app.history.entries.single { it.id !in knownIds }
             check(entry.curveId == "manual" && entry.status == ShotHistory.Status.ENDED && entry.id != feedbackId)
@@ -342,6 +358,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             return feedbackId to entry
         }
 
+        var screenrecord: ParcelFileDescriptor? = null
         try {
             test.runOnMainSync { check(feedback.setEnabled(true)) }
             manualCup(13) // first frame 1 + 12 seconds of actual progress
@@ -352,7 +369,13 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 }
             }
 
-            val (feedbackId, _) = manualCup(18)
+            if (recordCompletion) {
+                // This method is reachable only through disposable Mock instrumentation.
+                screenrecord = test.uiAutomation.executeShellCommand(
+                    "screenrecord --size 1536x960 --bit-rate 6000000 --time-limit 26 /sdcard/openhoyi-manual-completion.mp4")
+                SystemClock.sleep(700)
+            }
+            val (feedbackId, _) = manualCup(18, paced = recordCompletion)
             await("qualified manual cup opens the real completion dialog") {
                 service.brewFeedbackResult?.let { it.shotId == feedbackId &&
                     it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW } == true &&
@@ -365,6 +388,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 finally { matches.forEach { it.recycle() } }
             }) { "Qualified manual cup did not show its actual slow-flow label" }
 
+            if (recordCompletion) SystemClock.sleep(2600)
             val share = main.getString(R.string.completion_card_share)
             check(waitForActiveWindow { window ->
                 val matches = window.findAccessibilityNodeInfosByText(share)
@@ -377,6 +401,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             check(waitForActiveWindow { it.packageName?.toString() in systemChooser }) {
                 "Real completion dialog did not open the system chooser"
             }
+            if (recordCompletion) SystemClock.sleep(2400)
             // Back from the system window without sending the PNG to any app.
             ParcelFileDescriptor.AutoCloseInputStream(
                 test.uiAutomation.executeShellCommand("input keyevent KEYCODE_BACK")
@@ -391,6 +416,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             }
             test.sendStatus(0, Bundle().apply { putString("manualCompletionChooser",
                 "SYSTEM_BACK_SAME_EXTRACTION resultStillShowing=$restored externalSend=false") })
+            if (recordCompletion) SystemClock.sleep(1800)
             if (restored) {
                 test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
                 await("Back closes the result without leaving the same Extraction page") {
@@ -398,6 +424,9 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 }
             }
         } finally {
+            // Wait for end-of-stream so the remote encoder completes the MP4 moov atom
+            // before the runner pulls it. screenrecord itself has the fixed 26s limit.
+            screenrecord?.let { ParcelFileDescriptor.AutoCloseInputStream(it).use { input -> input.readBytes() } }
             test.runOnMainSync { check(feedback.setEnabled(previous)) }
         }
     }

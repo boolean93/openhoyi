@@ -63,6 +63,7 @@ jobs:
           PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           HOME_VIEWPORT_ONLY: ${{ inputs.home_only }}
           MANUAL_LIVE_ONLY: ${{ inputs.manual_live_only }}
+          MANUAL_LIVE_RECORDING: ${{ github.ref == 'refs/heads/chore/completion-recording' && inputs.manual_live_only }}
           COMPLETION_CARD_ONLY: ${{ inputs.completion_card_only }}
         uses: reactivecircus/android-emulator-runner@v2
         with:

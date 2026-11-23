@@ -43,13 +43,16 @@ adb install "$app_apk"
 adb install "$test_apk"
 python3 - "$results/result.txt" <<'PY'
 from pathlib import Path
-import subprocess, sys
+import os, subprocess, sys
 output = Path(sys.argv[1])
+recording = os.environ.get('MANUAL_LIVE_RECORDING') == 'true'
+command = ['adb', 'shell', 'am', 'instrument', '-w', '-r', '-e', 'mainNavigationChecks', 'manual-live',
+    '-e', 'disposableCiEmulator', 'true']
+if recording:
+    command += ['-e', 'manualCompletionRecording', 'true']
+command.append('io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation')
 with output.open('w') as capture:
-    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-r',
-        '-e', 'mainNavigationChecks', 'manual-live', '-e', 'disposableCiEmulator', 'true',
-        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
-        stdout=capture, stderr=subprocess.STDOUT, timeout=180)
+    result = subprocess.run(command, stdout=capture, stderr=subprocess.STDOUT, timeout=180)
 text = output.read_text()
 print(text)
 # With -r, the special stream is not substituted for the result bundle and exit code.
@@ -58,6 +61,24 @@ if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGAT
         or 'INSTRUMENTATION_CODE: -1' not in lines):
     raise SystemExit('Manual live navigation failed; evidence retained')
 PY
+
+if [[ "${MANUAL_LIVE_RECORDING:-false}" == true ]]; then
+  adb pull /sdcard/openhoyi-manual-completion.mp4 "$results/manual-completion.mp4"
+  [[ "$(wc -c < "$results/manual-completion.mp4")" -ge 100000 ]]
+  # Verify the MP4 container and ensure Android actually encoded video frames, not just a header.
+  ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,nb_frames \
+    -show_entries format=duration -of json "$results/manual-completion.mp4" > "$results/manual-completion-video.json"
+  python3 - "$results/manual-completion-video.json" <<'PY_VIDEO'
+import json, sys
+from pathlib import Path
+media = json.loads(Path(sys.argv[1]).read_text())
+stream, = media['streams']
+assert (stream['width'], stream['height']) == (1536, 960), stream
+assert 15 <= float(media['format']['duration']) <= 31, media
+assert int(stream['nb_frames']) > 20, stream
+PY_VIDEO
+  sha256sum "$results/manual-completion.mp4" > "$results/manual-completion-sha256.txt"
+fi
 
 # Check the app-owned Share action through the system chooser without choosing a destination.
 python3 - "$results/completion-share.txt" <<'PY'
