@@ -1089,5 +1089,4 @@
     <string name="update_title">"Develop test builds"</string>
     <string name="update_verifying">"Verifying the installation package…"</string>
     <string name="update_view_release">"View release page"</string>
-    <string name="manual_real_ble_scan_again">Ready. Tap Scan again.</string>
 </resources>
