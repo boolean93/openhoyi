@@ -63,7 +63,6 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private lateinit var connectionState: TextView
     private lateinit var settings: TextView
     private lateinit var settingsOverview: TextView
-    private lateinit var syncReadbackStatus: TextView
     private lateinit var brewTemperatureValue: TextView
     private lateinit var steamTemperatureValue: TextView
     private lateinit var runModeValue: TextView
@@ -150,10 +149,6 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         supplyValue = settingRow(R.string.machine_settings_supply_label)
         settingsDivider(host, settingsCard, visual)
         settingsOverview = text(settingsCard, getString(R.string.machine_settings_readback_missing), TaskVisualTokens.SUPPORTING_SP)
-        syncReadbackStatus=text(settingsCard,"",TaskVisualTokens.SUPPORTING_SP).apply {
-            visibility=View.GONE
-            accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
         settings = text(settingsCard, "", 14).apply {
             visibility = if (detailsExpanded) View.VISIBLE else View.GONE
         }
@@ -607,7 +602,6 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 DeviceStatusText.label(this, snapshot.coffeeState), getString(if (ready)
                     R.string.machine_settings_authenticated else R.string.machine_settings_not_current)))
         val reported = snapshot.settings
-        MachineSettingsSyncView.render(syncReadbackStatus,owner)
         settingsOverview.update(if (reported == null) getString(R.string.machine_settings_readback_missing) else
             getString(R.string.machine_settings_readback_summary,
                 getString(if (ready && owner?.machineSettingsFresh == true)

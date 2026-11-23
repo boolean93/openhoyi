@@ -55,7 +55,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var safetyWarning: TextView
     private lateinit var prominentAlarm: TextView
     private lateinit var acknowledgeManual: Button
-    private lateinit var syncBoilerStatus: TextView
     private lateinit var coffee: TextView
     private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
@@ -347,10 +346,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             MachineSettingChange.SteamHeating(it)
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
-        syncBoilerStatus=text(content,"",14).apply {
-            visibility=View.GONE
-            accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
         HomeViewportBudget.install(root, content, boilerRow, boilerDials, phoneHome, compactType, spaciousHome)
         // FillViewport supplies an exact height only when the natural stack fits.
         // Weighted empty space then absorbs the spare room, without moving the header.
@@ -944,7 +939,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val boilerEditable = heatingAdmission.canSubmit && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
-        MachineSettingsSyncView.render(syncBoilerStatus,owner)
         fun allowSwitchOrObservation(toggle:HoyiSwitch,recovery:Boolean,brew:Boolean) {
             val admit=boilerEditable && !recovery
             val observation=if(!admit && !BuildConfig.MOCK_MODE)owner?.captureBoilerReadbackRetry(recovery,brew) else null
