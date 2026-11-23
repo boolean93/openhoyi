@@ -108,6 +108,8 @@ class MobileService : Service() {
     private val feedbackDelivery = BrewFeedbackDelivery()
     private var feedbackShotId: String? = null
     private var feedbackAppShot = true
+    internal var brewCompletedShare: BrewCompletedShare? = null
+        private set
     internal var brewFeedbackResult: BrewFeedbackResult? = null
         private set
     private val passiveShot = PassiveShotDetector()
@@ -2405,7 +2407,9 @@ class MobileService : Service() {
         val id = feedbackShotId
         feedbackShotId = null
         if (!observedEnd) {
+            (application as MobileApplication).completionShotReview.invalidate()
             brewFeedbackResult = null
+            brewCompletedShare = null
             feedbackDelivery.clear()
         }
         if (id != null) {
@@ -2432,11 +2436,29 @@ class MobileService : Service() {
         val retainedIds = historyEntries?.map(ShotHistory.Entry::id)?.toSet()
         retainedIds?.let(app::updateShotReviewRetention)
         val entry = historyEntries?.firstOrNull { it.id == finished.first }
+        if (completedCup) brewCompletedShare = brewFeedbackResult?.let { feedback ->
+            val name = when {
+                entry?.curveId == "manual" -> getString(R.string.completion_card_manual)
+                else -> activeShotRecipe?.forTrace(finished.first)?.name
+            }
+            val doseMg = entry?.id?.let { id -> app.journalResult.getOrNull()?.find(id)?.notes?.doseMg }
+            BrewCompletedShare.create(getString(R.string.completion_card_title), name, feedback, entry, finished.second, doseMg)
+        }
         if (completedCup && finished.second.isNotEmpty() && entry != null) {
-            val reviewConfig = if (ShotReviewWire.eligible(entry, passiveConfirmed, appElapsedOutcomeWasUnknown))
-                app.shotReviewConfig() else null
-            app.samples.save(finished.first, finished.second, if (reviewConfig == null) null else { points ->
-                app.shotReviews.afterPersisted(entry, points, reviewConfig)
+            val eligible = ShotReviewWire.eligible(entry, passiveConfirmed, appElapsedOutcomeWasUnknown)
+            val reviewConfig = if (eligible) app.shotReviewConfig() else null
+            val capture = if (eligible) brewFeedbackResult?.let {
+                app.completionShotReview.begin(it, entry.id)
+            } else null
+            val language = if (capture != null) app.languagePreferences.current else null
+            app.samples.save(finished.first, finished.second, if (capture == null && reviewConfig == null) null else { points ->
+                if (capture != null && language != null) {
+                    val body = runCatching {
+                        ShotReviewWire.request(points, entry.observedMachineElapsedSeconds, language)
+                    }.getOrNull()
+                    app.completionShotReview.persisted(capture, body)
+                }
+                if (reviewConfig != null) app.shotReviews.afterPersisted(entry, points, reviewConfig)
             })
         }
         retainedIds?.let(app.samples::prune)

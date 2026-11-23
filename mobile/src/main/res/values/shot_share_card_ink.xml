@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shot_share_card_ink_time">时长</string>
+    <string name="shot_share_card_ink_yield">出液重</string>
+    <string name="shot_share_card_ink_ratio">粉液比</string>
+</resources>

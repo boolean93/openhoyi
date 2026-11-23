@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application android:name=".MobileApplication" android:label="@string/app_name" android:theme="@style/MobileTheme" android:allowBackup="false" android:fullBackupContent="@xml/backup_rules" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@mipmap/ic_mobile" android:supportsRtl="true">
         <activity android:name=".AiChatActivity" android:exported="false" />
+        <activity android:name=".CompletionReviewChatActivity" android:exported="false" />
         <activity android:name=".AiKeyActivity" android:exported="false" />
         <activity android:name=".CurveEditorActivity" android:exported="false" />
         <activity android:name=".CurveShareActivity" android:exported="false" />
@@ -47,6 +48,10 @@
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates"
             android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
+        <provider android:name=".ShotShareCardFileProvider" android:authorities="${applicationId}.shot-share"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/shot_share_paths" />
         </provider>
         <service android:name=".MobileService" android:exported="false" android:foregroundServiceType="connectedDevice" android:stopWithTask="false" />
     </application>

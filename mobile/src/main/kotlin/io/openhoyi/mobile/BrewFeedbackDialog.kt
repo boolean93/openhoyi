@@ -7,6 +7,12 @@ import android.util.Log
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.session.DeviceState
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 /** One Activity's display/audio owner. Configuration restoration restores text, never playback. */
 internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?) {
@@ -14,6 +20,9 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
     private val audioOwner = lazy { BrewFeedbackAudio(AndroidBrewFeedbackAudio(activity.applicationContext)) }
     private val audio by audioOwner
     private fun stopAudio() { if (audioOwner.isInitialized()) audio.stop() }
+    private val reviewAccess get() = (activity.application as MobileApplication).completionShotReviewAccess
+    private var outcome: BrewCompletionCardDialog? = null
+    private var reviewObserver: Job? = null
     private var dialog: AlertDialog? = null
     private var shownId: String? = null
     private var variant = 0
@@ -40,7 +49,8 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
         val restored = restoreId == result!!.shotId
         restoreId = null
         val value = if (restored) result else owner.claimBrewFeedback() ?: return
-        show(value, if (restored) restoreVariant else Random.nextInt(4), autoplay = !restored)
+        show(value, owner.brewCompletedShare?.takeIf { it.feedback === value }?.model,
+            if (restored) restoreVariant else Random.nextInt(4), autoplay = !restored)
     }
     fun start() {
         prefs.observe(this) { enabled -> if (!enabled) { restoreId = null; stop() } }
@@ -56,26 +66,49 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
     }
     fun stop() {
         val previous = dialog
-        dialog = null; shownId = null
+        dialog = null; shownId = null; outcome = null
+        reviewObserver?.cancel(); reviewObserver = null
         stopAudio()
         try { previous?.dismiss() } catch (_: RuntimeException) { /* Local window cleanup only. */ }
     }
-    private fun show(result: BrewFeedbackResult, voice: Int, autoplay: Boolean) {
+    private fun show(result: BrewFeedbackResult, model: ShotShareCardRenderer.Model?, voice: Int, autoplay: Boolean) {
         variant = voice
-        val message = activity.getString(when (result.level) {
-            BrewFeedbackClips.Level.BRAVO -> R.string.feedback_bravo
-            BrewFeedbackClips.Level.HIGH_FLOW -> R.string.feedback_high_flow
-            BrewFeedbackClips.Level.LOW_FLOW -> R.string.feedback_low_flow
-        }) + "\n\n" + activity.getString(R.string.feedback_note)
-        val created = AlertDialog.Builder(activity).setTitle(R.string.feedback_title).setMessage(message)
-            .setPositiveButton(R.string.feedback_done, null).create()
+        val graphic = model ?: BrewCompletedShare.create(activity.getString(R.string.completion_card_title),
+            null, result, null, emptyList()).model
+        val card = BrewCompletionCardDialog(activity, graphic, { ShotShareCardShare.launch(activity, it) }) {
+            val ticket = reviewAccess.issue(result) ?: return@BrewCompletionCardDialog
+            stop()
+            try { activity.startActivity(CompletionReviewChatActivity.intent(activity, ticket)) }
+            catch (_: RuntimeException) { reviewAccess.abandon(ticket) }
+        }
+        var saveTimedOut = false
+        fun refreshReview() {
+            if (outcome !== card) return
+            val hasKey = reviewAccess.hasConfiguredKey()
+            val availability = reviewAccess.availability(result)
+            card.refresh(hasKey, availability == CompletionShotReview.Availability.READY,
+                availability == CompletionShotReview.Availability.SAVING && !saveTimedOut)
+        }
+        outcome = card
+        refreshReview()
+        reviewObserver = CoroutineScope(Dispatchers.Main.immediate).launch {
+            launch { reviewAccess.changes.collect { refreshReview() } }
+            delay(5_000)
+            saveTimedOut = true
+            refreshReview()
+        }
+        val created = card.dialog
         dialog = created; shownId = result.shotId
         created.setOnDismissListener {
             // A delayed dismissal from an old dialog cannot cancel a newer request.
-            if (dialog === created) { dialog = null; shownId = null; stopAudio() }
+            if (dialog === created) {
+                dialog = null; shownId = null; outcome = null
+                reviewObserver?.cancel(); reviewObserver = null
+                stopAudio()
+            }
         }
         try {
-            AppDialog.show(created)
+            created.show()
             if (autoplay) {
                 if (BuildConfig.MOCK_MODE) Log.i("OpenHoyiFeedback", "dialog.autoplay:${result.shotId}")
                 audio.play(result.level, variant)
