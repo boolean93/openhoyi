@@ -126,6 +126,9 @@ class MobileApplication : Application() {
     internal fun historicalCurveName(id: String): String? =
         runCatching { curves.find(id)?.name }.getOrNull() ?: customCurvesResult.getOrNull()?.historicalName(id)
 
+    internal val completionShotReview = CompletionShotReview()
+    internal val completionShotReviewAccess by lazy { CompletionShotReviewAccess(this, completionShotReview) }
+
     private val shotReviewOwner = lazy { AppShotReview(this) }
     internal val shotReviews get() = shotReviewOwner.value
     internal fun updateShotReviewRetention(ids: Set<String>) {

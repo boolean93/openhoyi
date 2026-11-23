@@ -3,15 +3,20 @@ package io.openhoyi.mobile
 import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Intent
+import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
+import java.io.File
 
 /** Real visible MainActivity route, fed only by the existing synthetic Mock service on a disposable runner. */
 internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
@@ -264,6 +269,8 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                         25, 0, ByteFrame(byteArrayOf())))
                 }
                 await("Back retains Home after disconnect") { foregroundPage() === homeAgain }
+                verifySavedManualCompletion(host, service, clock)
+                host.select(TaskDestination.BREW)
                 start("next-app-shot")
                 await("live route for last short flush") { foregroundPage() is ExtractionFragment }
                 flushEnd()
@@ -298,4 +305,113 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             else if (service.manualShotActive) flushEnd()
         }
     }
+    /** Uses the real service + visible Extraction result delivery, never the screenshot preview. */
+    private fun verifySavedManualCompletion(host: MainPageTestHost, service: MobileService, clock: Any) {
+        val page = host.extraction()
+        val main = host.activity
+        val app = main.application as MobileApplication
+        val feedback = app.feedbackPreferences
+        val previous = feedback.enabled
+        // The repository may return queued samples; a separate store proves disk readback.
+        val persistedSamples = ShotSamplesStore(File(app.filesDir, "shot_samples"))
+
+        fun manualCup(seconds: Int): Pair<String, ShotHistory.Entry> {
+            val knownIds = app.history.entries.map { it.id }.toSet()
+            fun offer(frame: io.openhoyi.protocol.HoyiMessage, delta: Long) {
+                MobileMonotonicClock.advanceForMock(clock, MobileMonotonicClock.elapsedRealtime() + delta)
+                service.offerMockExtractionFrame(clock, frame)
+            }
+            fun frame(second: Int) = ExtractionTelemetry(6, second, 89, second * 10, 9300,
+                25, 64, 0, ByteFrame(byteArrayOf()))
+            lateinit var feedbackId: String
+            test.runOnMainSync {
+                check(!page.feedbackUi.isShowing && !service.manualShotActive)
+                offer(frame(1), 450)
+                offer(frame(2), 450)
+                feedbackId = requireNotNull(service.manualChartIdentity)
+                for (second in 3..seconds) offer(frame(second), 1000)
+                // End only after the existing passive idle gap; no fabricated completion call.
+                offer(IdleTelemetry(9300, 12000, 0, 0, 0, 0, 25, 0, ByteFrame(byteArrayOf())), 2901)
+                check(!service.manualShotActive)
+            }
+            val entry = app.history.entries.single { it.id !in knownIds }
+            check(entry.curveId == "manual" && entry.status == ShotHistory.Status.ENDED && entry.id != feedbackId)
+            await("manual $seconds-second cup has samples on disk under its committed ID") {
+                persistedSamples.load(entry.id).size >= 2
+            }
+            return feedbackId to entry
+        }
+
+        try {
+            test.runOnMainSync { check(feedback.setEnabled(true)) }
+            manualCup(13) // first frame 1 + 12 seconds of actual progress
+            test.waitForIdleSync()
+            test.runOnMainSync {
+                check(service.brewFeedbackResult == null && !page.feedbackUi.isShowing) {
+                    "A saved 13-second manual cup must not widen the legacy feedback trigger"
+                }
+            }
+
+            val (feedbackId, _) = manualCup(18)
+            await("qualified manual cup opens the real completion dialog") {
+                service.brewFeedbackResult?.let { it.shotId == feedbackId &&
+                    it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW } == true &&
+                    page.feedbackUi.isShowing
+            }
+            val expectedPace = main.getString(R.string.completion_flow_pace_slow)
+            check(waitForActiveWindow { window ->
+                val matches = window.findAccessibilityNodeInfosByText(expectedPace)
+                try { matches.any { it.text?.toString() == expectedPace && it.isVisibleToUser } }
+                finally { matches.forEach { it.recycle() } }
+            }) { "Qualified manual cup did not show its actual slow-flow label" }
+
+            val share = main.getString(R.string.completion_card_share)
+            check(waitForActiveWindow { window ->
+                val matches = window.findAccessibilityNodeInfosByText(share)
+                try {
+                    matches.any { it.contentDescription?.toString() == share && it.isVisibleToUser &&
+                        it.isEnabled && it.isClickable && it.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+                } finally { matches.forEach { it.recycle() } }
+            }) { "Real completion dialog Share could not be clicked" }
+            val systemChooser = setOf("android", "com.android.intentresolver", "com.google.android.intentresolver")
+            check(waitForActiveWindow { it.packageName?.toString() in systemChooser }) {
+                "Real completion dialog did not open the system chooser"
+            }
+            // Back from the system window without sending the PNG to any app.
+            ParcelFileDescriptor.AutoCloseInputStream(
+                test.uiAutomation.executeShellCommand("input keyevent KEYCODE_BACK")
+            ).use { it.readBytes() }
+            check(waitForActiveWindow { it.packageName?.toString() == main.packageName })
+            var restored = false
+            await("system Back returns to the same Extraction page") {
+                restored = page.feedbackUi.isShowing
+                main.supportFragmentManager.primaryNavigationFragment === page &&
+                    page.lifecycle.currentState == Lifecycle.State.RESUMED &&
+                    (restored || main.hasWindowFocus())
+            }
+            test.sendStatus(0, Bundle().apply { putString("manualCompletionChooser",
+                "SYSTEM_BACK_SAME_EXTRACTION resultStillShowing=$restored externalSend=false") })
+            if (restored) {
+                test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+                await("Back closes the result without leaving the same Extraction page") {
+                    !page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page
+                }
+            }
+        } finally {
+            test.runOnMainSync { check(feedback.setEnabled(previous)) }
+        }
+    }
+
+    private fun waitForActiveWindow(matches: (AccessibilityNodeInfo) -> Boolean): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + 5000
+        do {
+            val window = test.uiAutomation.rootInActiveWindow
+            if (window != null) try {
+                if (matches(window)) return true
+            } finally { window.recycle() }
+            SystemClock.sleep(50)
+        } while (SystemClock.elapsedRealtime() < deadline)
+        return false
+    }
+
 }
