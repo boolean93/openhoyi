@@ -129,10 +129,11 @@ internal class BrewCompletionCardDialog(
         actions.addView(share, LinearLayout.LayoutParams(0, -1, 1.25f))
         style.add(shell, actions, top = 18)
         dialog = AlertDialog.Builder(activity).setView(shell).create().apply {
-            setOnShowListener {
-                window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                window?.setLayout(style.dp(imageWidth + 2 * inset), -2)
-            }
+            // Install AlertDialog content before configuring its window, but before show adds
+            // the decor to WindowManager. OnShow can run after the default-width first frame.
+            create()
+            window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            window?.setLayout(style.dp(imageWidth + 2 * inset), -2)
         }
     }
 
