@@ -547,6 +547,7 @@ class HomeActivity : ThemedActivity() {
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
     private fun startRememberedScaleService(): Boolean {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return false
         if (BuildConfig.MOCK_MODE) {
             startService(Intent(this, MobileService::class.java))
             if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)

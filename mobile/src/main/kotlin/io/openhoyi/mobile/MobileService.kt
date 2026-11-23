@@ -600,7 +600,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         hub?.scanner?.cancel(io.openhoyi.bluetooth.ScanCoordinator.Owner.MANUAL)
         snapshot=snapshot.copy(scanning=false)
     }
-    private fun automaticAllowed(role:DeviceRole):Boolean = holdsMachineWriter() && io.openhoyi.session.AutomaticConnectionGate.allows(
+    private fun automaticAllowed(role:DeviceRole):Boolean = !BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && holdsMachineWriter() && io.openhoyi.session.AutomaticConnectionGate.allows(
         role,autoConnect.enabled(role),autoConnect.paused(role),appVisibility.visible,
         selectingDevice || snapshot.scanning,manualShotActive,shotState,shotRecovery.pending,
         machineWriteRecovery.kind!=null,cupResetBusy || scheduleBusy || brewPreparation.active)
@@ -768,7 +768,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         // Consume every notification, not just the last frame at the UI refresh.
         beanDoseCaptureAt(elapsedNow())
     }
-    fun requestCoffeeRecoverySoon(){if(appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
+    fun requestCoffeeRecoverySoon(){if(!BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
         if (role == DeviceRole.COFFEE && state != DeviceState.READY) settleLeverWriteUnknown()
 
@@ -1119,8 +1119,13 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && (intent==null || intent.action in setOf(AUTO_SCALE,AUTO_KNOWN_DEVICES))) {
+            if(!running)stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (BuildConfig.BLE_V2_DELIVERY && (machineOperations?.canStartHub!=true || machineOperations?.restoredAndResolved==true)) {
             event(ResourceMessage(R.string.service_unavailable), "service.machine_writer_fenced")
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && !running)stopSelf(startId)
             return START_NOT_STICKY
         }
         if (running) {
@@ -1285,6 +1290,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     fun connectRememberedCoffee(address: String): RememberedCoffeeConnection = connectRememberedCoffee(address,automatic=false)
     fun ensureKnownDevices() {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return
         if(mock!=null || !running || initialKnownCoffeeChecked || machineOperations?.splitOwned==true || opaqueV2RecoveryFence)return
         initialKnownCoffeeChecked=true
         val prefs=getSharedPreferences("devices",MODE_PRIVATE)
@@ -1480,6 +1486,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         !io.openhoyi.session.DeviceConnectionGate.unsettled(shotState) && !brewPreparation.active && !cupResetBusy && !scheduleBusy &&
         sleepNow.state !in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN)
     private fun attemptBoilerFallback() {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return
         val pending=boilerFallback ?: return
         val current=hub ?: return
         val now=elapsedNow()
@@ -1812,6 +1819,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     /** A bounded settings synchronization, not a retry of the user's machine command. */
     private fun refreshStaleMachineSettings(explicit: Boolean = false) {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && !explicit)return
         if (staleSettingsRefreshBusy || machineSettingsFresh || !settingsRefreshSafe()) return
         val current = hub ?: return
         val generation = current.coffeeGeneration
