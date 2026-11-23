@@ -33,6 +33,14 @@ mkdir -p "$results"
   sha256sum "$app_apk" "$test_apk"
 } | tee "$results/apk-identity.txt"
 trap 'adb logcat -d -s AndroidRuntime:E > "$results/logcat.txt" || true' EXIT
+if [[ "${MANUAL_LIVE_RECORDING:-false}" == true ]]; then
+  # The disposable runner normally disables animation for deterministic screenshots.
+  # Re-enable only window animation for motion recordings, not unrelated animators.
+  adb shell settings put global window_animation_scale 1.0
+  window_scale="$(adb shell settings get global window_animation_scale | tr -d '\r')"
+  [[ "$window_scale" == 1.0 ]]
+  printf 'windowAnimationScale=%s\n' "$window_scale" > "$results/recording-animation.txt"
+fi
 adb shell wm size 2560x1600
 adb shell wm density 360
 adb shell settings put system accelerometer_rotation 0
