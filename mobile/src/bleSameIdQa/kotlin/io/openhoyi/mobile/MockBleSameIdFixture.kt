@@ -8,15 +8,15 @@ import io.openhoyi.session.SettingsWriteTracker.State.WAITING_READBACK
 
 /** Scripted evidence traverses the detached real service, codec, hub and guarded fake driver. */
 internal object MockBleSameIdFixture {
-    data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int)
+    data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int, val diagnostic: String? = null)
     class Result(private val outcomes: List<Outcome>, private val edges: List<Outcome>) {
         fun render(zh: Boolean): String {
             val intents = outcomes.filterNot { it.row.startsWith("detached-") || it.row.endsWith("/active-sync") || it.row.contains("/rebind-") || it.row.startsWith("canonical/") }
             val header = if (zh) "命令行为用例（部分阶段）：${intents.count { it.passed }}/${intents.size}，拒绝用例：${edges.count { it.passed }}/${edges.size}\n非实机测试"
                 else "Intent cases (partial stages): ${intents.count { it.passed }}/${intents.size}; deny cases: ${edges.count { it.passed }}/${edges.size}\nNot a hardware test"
             return (listOf(header) + outcomes.map {
-                "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})"
-            } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})" } +
+                "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})${it.diagnostic?.let { d -> " · $d" }.orEmpty()}"
+            } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})${it.diagnostic?.let { d -> " · $d" }.orEmpty()}" } +
                 if (zh) "未测：真实进程恢复和版本回退。"
                 else "NOT RUN: process restore and app downgrade.")
                 .joinToString("\n")
@@ -29,15 +29,24 @@ internal object MockBleSameIdFixture {
         fun case(row: String, curves: Boolean = false, shot: Boolean = false, run: MobileService.DetachedCorePort.() -> Unit) {
             tests += {
                 var writes = 0
+                var stage = "setup"
+                var diagnostic: String? = null
                 val passed = try {
-                    MobileService.withDetachedCore(context, allowImmutableCurves = curves, allowSyntheticShot = shot) { port ->
+                    MobileService.withDetachedCore(context, allowImmutableCurves = curves, allowSyntheticShot = shot,
+                        progress = { stage = it }) { port ->
                         try { port.run() } finally {
                             writes = port.calls.count { it.operation is GattOperation.Write }
                         }
                     }
                     true
-                } catch (_: Exception) { false } catch (_: AssertionError) { false }
-                Outcome(row, passed, writes)
+                } catch (failure: Exception) {
+                    diagnostic = diagnostic(stage, failure)
+                    false
+                } catch (failure: AssertionError) {
+                    diagnostic = diagnostic(stage, failure)
+                    false
+                }
+                Outcome(row, passed, writes, diagnostic)
             }
         }
         case("01") {
@@ -284,6 +293,28 @@ internal object MockBleSameIdFixture {
             check(scheduleState.name=="CONFIRMED" && !splitActive && writeCount()==4)
         }
         return tests + listOf({ detachedLifecycle(context) }, { persistedTwoOwnerRecovery(context) })
+    }
+
+    /** Throwable messages can include paths or values; only fixed stage and code locations are allowed. */
+    private fun diagnostic(stage: String, failure: Throwable): String {
+        val stages = setOf("setup", "discover", "subscribe", "auth-enqueued", "auth-completed",
+            "fresh-83", "native-idle", "ready-verified", "case-body", "cleanup")
+        fun kind(error: Throwable) = when (error) {
+            is NullPointerException -> "NullPointer"
+            is SecurityException -> "Security"
+            is java.io.IOException -> "IO"
+            is IllegalArgumentException -> "Argument"
+            is IllegalStateException -> "State"
+            is AssertionError -> "Assertion"
+            else -> "Other"
+        }
+        val first = (sequenceOf(failure) + listOfNotNull(failure.cause).asSequence() + failure.suppressed.asSequence())
+            .take(2).map { error ->
+                val location = error.stackTrace.firstOrNull { it.className.startsWith("io.openhoyi.") }
+                val code = location?.let { "${it.className.substringAfterLast('.').substringBefore('$')}:${it.lineNumber}" }
+                kind(error) + (code?.let { "@$it" }.orEmpty())
+            }.joinToString("/")
+        return "${stage.takeIf(stages::contains) ?: "other"}/$first"
     }
 
     /** Never builds legacy payloads or supplies these to a DeviceSession/real transport. */

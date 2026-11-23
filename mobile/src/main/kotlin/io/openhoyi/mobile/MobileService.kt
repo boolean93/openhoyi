@@ -137,7 +137,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private var passiveHistoryId: String? = null
     /** A started passive observation only owns history/series/navigation after it is committed. */
     private var passiveCommitted = false
-    private val manualPresentation get() = (application as MobileApplication).manualShotPresentation
+    private var fixtureManualPresentation:ManualShotPresentationGate?=null
+    private val manualPresentation get() = fixtureManualPresentation ?: (application as MobileApplication).manualShotPresentation
     private var recentReadyCoffeeAddress: String? = null
     private var initialKnownCoffeeChecked=false
     private var passiveMayClearRecovery = false
@@ -3384,7 +3385,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     /** Narrow detached core only: no extraction/recipe API, no custom Application/Android Service lifecycle. */
     internal class DetachedCorePort internal constructor(private val service:MobileService,
-        private val hub:NativeDeviceHub,private val clock:DetachedCoreClock,private val driver:DetachedCoreDriver) {
+        private val hub:NativeDeviceHub,private val clock:DetachedCoreClock,private val driver:DetachedCoreDriver,
+        private val progress:(String)->Unit) {
         private var active=true
         internal fun invalidate(){active=false}
         private fun valid(){ check(active && Looper.myLooper()===Looper.getMainLooper()) }
@@ -3454,23 +3456,31 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             valid()
             check(calls.last().operation is GattOperation.Connect)
             complete()
+            progress("discover")
             check(calls.last().operation == GattOperation.Discover)
             complete(result=OperationResult.Success(listOf(
                 CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
                 CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            progress("subscribe")
             complete()
+            progress("auth-enqueued")
             val auth=calls.last().operation as? GattOperation.Write ?: error("Expected fake authentication")
             check(auth.endpoint==KnownGatt.coffeeWrite && auth.bytes.first().toInt() and 255 == 1)
             complete()
+            progress("auth-completed")
             check(service.snapshot.coffeeState!=DeviceState.READY)
         }
         fun bootstrap() {
             valid();require(calls.isEmpty())
             hub.connectCoffee("AA:BB:CC:DD:EE:01",CoffeeAuthentication(LocalDateTime.of(2026,1,1,0,0),"123456"))
             completeFakeHandshakeTransport()
+            progress("fresh-83")
             observe(byteArrayOf(0x83.toByte(),1,0x13,0xfd.toByte(),92,0,125,15,53,0,25,0,0x6e))
+            progress("native-idle")
             observe(byteArrayOf(0x40,0,0x24,0xbf.toByte(),0x2f,0x1c,0x77,0x0b,0,0,0,0,0,0,0,25,3,0x21,0xaf.toByte()))
+            progress("ready-verified")
             check(service.snapshot.coffeeState==DeviceState.READY && service.snapshot.settings!=null)
+            progress("case-body")
         }
     }
 
@@ -3492,7 +3502,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             }
         }
         internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,
-            allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,run:(DetachedCorePort)->T):T {
+            allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,
+            progress:(String)->Unit={},run:(DetachedCorePort)->T):T {
             check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
                 Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
             require(!allowSyntheticShot || allowImmutableCurves)
@@ -3512,12 +3523,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             var trace:TraceStore?=null
             var hub:NativeDeviceHub?=null
             var port:DetachedCorePort?=null
+            var primary:Throwable?=null
             try {
                 val ownerTrace=TraceStore(java.io.File(root,"trace"))
                 trace=ownerTrace
                 val ownerService=MobileService(detachedCore=true).also { service=it }.apply {
                     attachBaseContext(DetachedCoreContext(app.resources,root))
                     fixtureClock=clock
+                    fixtureManualPresentation=ManualShotPresentationGate()
                     fixtureLeverRecipes=MachineLeverRecipeStore(object:MachineLeverRecipeStore.Storage {
                         private var synthetic:String?=null
                         override fun read():String?=synthetic
@@ -3554,33 +3567,44 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     trackCoffeeDelivery=true,detachedDrivers=detachedDrivers(driver,clock))
                 hub=owner
                 ownerService.hub=owner
-                val bound=DetachedCorePort(ownerService,owner,clock,driver)
+                val bound=DetachedCorePort(ownerService,owner,clock,driver,progress)
                 port=bound
-                return run(bound)
+                val value=run(bound)
+                progress("cleanup")
+                return value
+            } catch(failure:Throwable) {
+                primary=failure
+                throw failure
             } finally {
-                port?.invalidate()
-                service?.machineWriterFence?.beginDrain(retire=true)
-                var safelyClosed=false
                 try {
-                    hub?.close()
-                    safelyClosed=true
-                } finally {
-                    service?.hub=null
-                    service?.machineWriterFence?.finishDrain(safelyClosed)
-                    var leaseReleased=false
+                    port?.invalidate()
+                    service?.machineWriterFence?.beginDrain(retire=true)
+                    var safelyClosed=false
                     try {
-                        service?.machineOperations?.close()
-                        leaseReleased=safelyClosed
+                        hub?.close()
+                        safelyClosed=true
                     } finally {
-                        clock.close()
-                        service?.handler?.removeCallbacksAndMessages(null)
-                        trace?.close()
-                        val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
-                        // No deletion or reuse when a previous owner, pin or trace could still be active.
-                        fixtureRoot.ownerClosedSafely=leaseReleased && settled
-                        check(fixtureRoot.ownerClosedSafely)
-                        if(ownerRoot==null)deleteDetachedCoreRoot(root)
+                        service?.hub=null
+                        service?.machineWriterFence?.finishDrain(safelyClosed)
+                        var leaseReleased=false
+                        try {
+                            service?.machineOperations?.close()
+                            leaseReleased=safelyClosed
+                        } finally {
+                            clock.close()
+                            service?.handler?.removeCallbacksAndMessages(null)
+                            trace?.close()
+                            val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
+                            // No deletion or reuse when a previous owner, pin or trace could still be active.
+                            fixtureRoot.ownerClosedSafely=leaseReleased && settled
+                            check(fixtureRoot.ownerClosedSafely)
+                            if(ownerRoot==null)deleteDetachedCoreRoot(root)
+                        }
                     }
+                } catch(cleanup:Throwable) {
+                    val original=primary
+                    if(original==null)throw cleanup
+                    if(original!==cleanup)original.addSuppressed(cleanup)
                 }
             }
         }

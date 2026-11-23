@@ -86,6 +86,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     private var splitMachineWriteFileChecks = false
+    private var bleV2DetachedBootstrap = false
     override fun onCreate(arguments: Bundle?) {
         splitMachineWriteFileChecks = arguments?.getString("splitMachineWriteFileChecks") == "true"
         aiSafetyArguments = arguments?.takeIf { it.getString("aiSafetyChecks") == "true" }?.let(::Bundle)
@@ -134,6 +135,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         editorBArguments = arguments?.takeIf { it.getString("editorBChecks") == "true" }?.let(::Bundle)
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
+        bleV2DetachedBootstrap = arguments?.getString("bleV2DetachedBootstrap") == "true"
         quickCurveVisualTheme = arguments?.getString("quickCurveVisualTheme")
         quickCurveVisualBackground = arguments?.getString("quickCurveVisualBackground") ?: "wallpaper"
         quickCurveShortPortrait = arguments?.getString("quickCurveShortPortrait") == "true"
@@ -167,6 +169,24 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (bleV2DetachedBootstrap) {
+                check(disposableCiEmulator && BuildConfig.BLE_SAME_ID_QA &&
+                    android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
+                var outcome: Result<Unit>? = null
+                runOnMainSync {
+                    outcome = runCatching {
+                        val stages = mutableListOf<String>()
+                        MobileService.withDetachedCore(targetContext, progress = { stages.add(it) }) { port ->
+                            port.bootstrap() // Includes application-free native idle projection.
+                            check(port.calls.count { it.operation is io.openhoyi.session.GattOperation.Write } == 1)
+                        }
+                        check(stages.takeLast(4) == listOf("native-idle", "ready-verified", "case-body", "cleanup"))
+                    }
+                }
+                requireNotNull(outcome).getOrThrow()
+                report.putString("stream", "BLE_V2_DETACHED_BOOTSTRAP_PASSED fakeAuth=1 freshSettings=true idle=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             aiPreviewArguments?.let { args ->
                 AiChatPreviewChecks(this).run(args)
                 report.putString("stream", "AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true\n")
