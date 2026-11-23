@@ -127,9 +127,9 @@ class MainActivity : ThemedActivity() {
     }
 
     internal override val extractionPageHost: ExtractionPageHost = object : ExtractionPageHost {
-        override val observeOnly get() = isAutomaticManualExtraction
-        override fun visibleService(candidate:MobileService?):MobileService? =
-            manualEntryId?.let { id -> candidate?.takeIf {it.manualChartIdentity==id} } ?: candidate.takeIf {manualEntryId==null}
+        override val observeOnly get() = isAutomaticManualExtraction &&
+            (service?.manualShotActive == true || service?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN)
+        override val allowAutomaticPermissionPrompt get() = !isAutomaticManualExtraction
         override fun observeService(observer:(MobileService?)->Unit) = this@MainActivity.observeService(observer)
         override fun removeServiceObserver(observer:(MobileService?)->Unit) = this@MainActivity.removeServiceObserver(observer)
         override fun select(destination:TaskDestination) = this@MainActivity.select(destination)
@@ -164,7 +164,7 @@ class MainActivity : ThemedActivity() {
         val entry = manualEntryId
         val entryOutcome = entry?.let(manualGate::terminalFor)?.outcome
         if (manualEntryUntouched && entry != null && extractionVisible && entry != manualGate.activeId &&
-            (entryOutcome == null || entryOutcome == ManualShotPresentationGate.Outcome.DISCARDED)) {
+            entryOutcome == null && service?.chartCurveId == "manual") {
             restoreManualEntryOrigin()
             return
         }
@@ -184,6 +184,7 @@ class MainActivity : ThemedActivity() {
         extractionOrigin = destination
         extractionVisible = true
         manualEntryId = shot
+        extractionSlot = 7
         manualEntryUntouched = true
         destination = TaskDestination.BREW
         // Reuse the retained extraction page directly; showExtraction/routeShortcut may select a recipe.

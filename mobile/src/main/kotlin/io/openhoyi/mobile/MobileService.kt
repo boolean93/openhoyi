@@ -329,6 +329,8 @@ class MobileService : Service() {
         mockExtractionScenario.completeStop(owner, id, result)
     internal fun offerMockExtractionCoffeeState(owner: Any, state: DeviceState) =
         mockExtractionScenario.coffeeState(owner, state)
+    internal fun offerMockExtractionSettings(owner: Any, settings: Settings) =
+        mockExtractionScenario.offerReadOnlySettings(owner, settings)
     internal fun offerMockExtractionFrame(owner: Any, frame: HoyiMessage) =
         mockExtractionScenario.offerCoffeeFrame(owner, frame)
     internal fun tickMockExtraction(owner: Any) = mockExtractionScenario.tick(owner)
@@ -651,7 +653,8 @@ class MobileService : Service() {
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             val committed = passiveCommitted
             passiveCommitted = false
-            markManualTerminal(ManualShotPresentationGate.Outcome.UNKNOWN)
+            markManualTerminal(if (committed) ManualShotPresentationGate.Outcome.UNKNOWN
+                else ManualShotPresentationGate.Outcome.DISCARDED)
             manualPresentation.disconnected(requireIdle = committed, points = terminalManualPoints())
             if (committed) {
                 passiveHistoryId?.let { id ->

@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 /** The same ExtractionFragment can be owned by the shell or a passive task-stack host. */
 internal interface ExtractionPageHost {
     val observeOnly: Boolean
+    val allowAutomaticPermissionPrompt: Boolean get() = !observeOnly
     fun visibleService(candidate: MobileService?): MobileService? = candidate
     fun observeService(observer: (MobileService?) -> Unit)
     fun removeServiceObserver(observer: (MobileService?) -> Unit)

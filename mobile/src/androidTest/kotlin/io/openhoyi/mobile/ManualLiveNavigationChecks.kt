@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.TextView
 import androidx.lifecycle.Lifecycle
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
@@ -70,7 +71,10 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
     private fun runCases(host: MainPageTestHost, service: MobileService, includeDraftEditors: Boolean, clock: Any?) {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         val main = host.activity
-        val gate = (main.application as MobileApplication).manualShotPresentation
+        val app = main.application as MobileApplication
+        val gate = app.manualShotPresentation
+        val historyBefore = app.history.entries.map { it.id }
+        val curvePrefs = main.getSharedPreferences("curves", 0)
         val series = if (clock == null) MobileService::class.java.getDeclaredField("series")
             .apply { isAccessible = true }.get(service) as ShotSeries else null
         val beforeSelected = main.getSharedPreferences("curves", 0).getString("selected", null)
@@ -107,6 +111,13 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             } else gate.discarded()
         }
         fun noOldPopup() = main.supportFragmentManager.fragments.none { it is ManualLiveDialog }
+        fun retainsManualLabel(root: View): Boolean {
+            val labels = descendants(root).filterIsInstance<TextView>().filter { it.isShown }
+                .map { it.text.toString() }.toList()
+            val manual = main.getString(R.string.extraction_manual_label)
+            val completed = main.getString(R.string.extraction_ended_guidance)
+            return labels.any { manual in it } && labels.none { completed in it }
+        }
         val home = host.select(TaskDestination.BREW)
         var child: ThemedActivity? = null
         try {
@@ -121,8 +132,22 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                         (chart?.points?.size ?: 0) >= 2 && noOldPopup()
                 }
             }
+            val provisionalId = service.manualChartIdentity
+            if (clock != null) test.runOnMainSync {
+                elapsed(1000); service.offerMockExtractionFrame(clock, frame(3))
+                elapsed(1000); service.offerMockExtractionFrame(clock, frame(4))
+                elapsed(1000); service.offerMockExtractionFrame(clock, frame(5))
+            }
             flushEnd()
-            await("short flush returns to same home instance") { foregroundPage() === home }
+            await("short flush retains the real chart and manual identity without history") {
+                val view = (foregroundPage() as? ExtractionFragment)?.view ?: return@await false
+                noOldPopup() && app.history.entries.map { it.id } == historyBefore &&
+                    (clock == null || (service.manualChartIdentity == provisionalId && service.chartCurveId == "manual" &&
+                        service.chartPoints.size >= 3 && service.manualTerminalOutcome == ManualShotPresentationGate.Outcome.DISCARDED &&
+                        retainsManualLabel(view)))
+            }
+            test.runOnMainSync { main.onBackPressedDispatcher.onBackPressed() }
+            await("explicit Back returns to same home instance") { foregroundPage() === home }
 
             val existingExtraction = host.extraction()
             start("existing-extraction")
@@ -170,6 +195,14 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                             (chart?.points?.size ?: 0)>=2 &&
                             live.supportFragmentManager.fragments.none { it is ManualLiveDialog }
                     }
+                    flushEnd()
+                    await("short flush stays on shared standalone route until Back") {
+                        val frame = live.supportFragmentManager.primaryNavigationFragment as? ExtractionFragment
+                        live.hasWindowFocus() && !live.isFinishing && frame?.view?.let { content ->
+                            retainsManualLabel(content) &&
+                                descendants(content).filterIsInstance<ExtractionOverlayView>().singleOrNull()?.points?.isNotEmpty() == true
+                        } == true && service.chartCurveId == "manual" && app.history.entries.map { it.id } == historyBefore
+                    }
                     test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
                     await("same underlying standalone Activity resumes") {
                         owner.hasWindowFocus() && owner.lifecycle.currentState==Lifecycle.State.RESUMED
@@ -179,7 +212,6 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                         check(owner.hasWindowFocus() && !owner.isFinishing)
                         verifyDraft()
                     }
-                    flushEnd()
                 }
                 val editor = open(main, AiChatActivity::class.java).also { child = it }
                 lateinit var edit: EditText
@@ -210,7 +242,57 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 check(main.getSharedPreferences("curves", 0).getString("selected", null) == beforeSelected)
                 check(!ShotGate.active(service.shotState))
             }
+            if (clock != null && includeDraftEditors) {
+                val homeAgain = host.select(TaskDestination.BREW)
+                val settings = requireNotNull(service.snapshot.settings)
+                start("short-interrupted")
+                await("short interruption starts in real shared page") { foregroundPage() is ExtractionFragment }
+                val interruptedId = service.manualChartIdentity
+                test.runOnMainSync {
+                    service.offerMockExtractionCoffeeState(clock, io.openhoyi.session.DeviceState.DISCONNECTED)
+                }
+                await("short disconnect retains last manual trace with no saved cup") {
+                    foregroundPage() is ExtractionFragment && !service.manualShotActive &&
+                        service.manualChartIdentity == interruptedId && service.chartPoints.size >= 2 &&
+                        app.history.entries.map { it.id } == historyBefore && noOldPopup()
+                }
+                test.runOnMainSync {
+                    main.onBackPressedDispatcher.onBackPressed()
+                    service.offerMockExtractionCoffeeState(clock, io.openhoyi.session.DeviceState.READY)
+                    service.offerMockExtractionSettings(clock, settings)
+                    elapsed(1); service.offerMockExtractionFrame(clock, IdleTelemetry(9300, 12000, 0, 0, 0, 0,
+                        25, 0, ByteFrame(byteArrayOf())))
+                }
+                await("Back retains Home after disconnect") { foregroundPage() === homeAgain }
+                start("next-app-shot")
+                await("live route for last short flush") { foregroundPage() is ExtractionFragment }
+                flushEnd()
+                val oldId = service.manualChartIdentity
+                var selectedId: String? = null
+                test.runOnMainSync {
+                    val scaleReady = service.snapshot.scaleState == io.openhoyi.session.DeviceState.READY
+                    val next = app.curves.items.asSequence().mapNotNull { app.curves.resolve(it.id, scaleReady, 7) }
+                        .first { it.targetHundredthsGram == 0 && service.extractionStartBlock(it) == null && service.studioStartBlock(it) == null }
+                    selectedId = next.id
+                    // Disposable CI only: set the existing explicit selection without changing route.
+                    curvePrefs.edit().putString("selected", next.id).apply()
+                }
+                await("normal next-cup Start available on retained shared route") {
+                    (foregroundPage() as? ExtractionFragment)?.view?.findViewWithTag<View>("product/extraction/start")
+                        ?.let { it.isShown && it.isEnabled } == true
+                }
+                test.runOnMainSync {
+                    val startButton = (foregroundPage() as ExtractionFragment).requireView().findViewWithTag<View>("product/extraction/start")
+                    check(startButton.performClick())
+                }
+                await("the explicit App action replaces the short flush with its own identity and selected curve") {
+                    service.mockExtractionPendingStartId != null && service.chartCurveId == selectedId &&
+                        service.chartTraceIdentity != oldId && service.manualChartIdentity == null && service.chartPoints.isEmpty() &&
+                        foregroundPage() is ExtractionFragment && noOldPopup()
+                }
+            }
         } finally {
+            if (clock != null) test.runOnMainSync { curvePrefs.edit().putString("selected", beforeSelected).apply() }
             test.runOnMainSync { child?.finish() }
             if (clock == null) test.runOnMainSync { gate.ended() }
             else if (service.manualShotActive) flushEnd()

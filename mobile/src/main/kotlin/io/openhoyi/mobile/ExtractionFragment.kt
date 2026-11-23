@@ -456,7 +456,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     override fun onResume() {
         super.onResume();feedbackUi.start();visible=true
         taskHost.observeService(serviceObserver);handler.post(refresh)
-        if (!BuildConfig.MOCK_MODE && !taskHost.observeOnly && service?.manualShotActive != true)
+        if (!BuildConfig.MOCK_MODE && taskHost.allowAutomaticPermissionPrompt && service?.manualShotActive != true)
             requestSafetyNotificationsOnce()
     }
     override fun onPause() {
@@ -764,6 +764,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_label)
             owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
             owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> getString(R.string.extraction_manual_label)
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_label)
             else -> shotLabel(state)
         }
@@ -774,6 +775,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
             owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> getString(R.string.extraction_ended_guidance)
             owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> getString(R.string.extraction_unknown_guidance)
+            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> ""
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
             state == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
             state == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)

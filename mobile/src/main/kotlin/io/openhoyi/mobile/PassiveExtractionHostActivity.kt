@@ -13,7 +13,6 @@ class PassiveExtractionHostActivity : ThemedActivity() {
     private val gate get() = (application as MobileApplication).manualShotPresentation
     private var observation: String? = null
     private var shown = false
-    private var touched = false
     private var bound = false
     private var service: MobileService? = null
     private val observers = mutableSetOf<(MobileService?) -> Unit>()
@@ -47,7 +46,6 @@ class PassiveExtractionHostActivity : ThemedActivity() {
         super.onCreate(savedInstanceState)
         observation=intent.getStringExtra(EXTRA_OBSERVATION)
         shown=savedInstanceState?.getBoolean("shown")==true
-        touched=savedInstanceState?.getBoolean("touched")==true
         val id=observation
         if (id==null || if (shown) gate.activeId!=id && gate.terminalFor(id)==null else !gate.hasWindowOffer(id)) {
             finish()
@@ -81,7 +79,6 @@ class PassiveExtractionHostActivity : ThemedActivity() {
         super.onTopResumedActivityChanged(isTopResumedActivity)
         if(isTopResumedActivity)schedule()
     }
-    override fun onUserInteraction() {super.onUserInteraction();touched=true}
     private fun schedule() {
         window.decorView.removeCallbacks(examine)
         window.decorView.post(examine)
@@ -93,9 +90,7 @@ class PassiveExtractionHostActivity : ThemedActivity() {
             // Never reuse this visible lease for a different cup.
             if(gate.activeId?.let {it!=id}==true ||
                 service?.let {it.running && it.manualChartIdentity!=id}==true) {finish();return}
-            val outcome=gate.terminalFor(id)?.outcome
-            if(!touched && (outcome==ManualShotPresentationGate.Outcome.DISCARDED ||
-                outcome==null && gate.activeId!=id)) finish()
+            if (gate.terminalFor(id) == null && gate.activeId != id) finish()
             return
         }
         if (!gate.hasWindowOffer(id)) {finish();return}
@@ -106,7 +101,7 @@ class PassiveExtractionHostActivity : ThemedActivity() {
         if (gate.acceptWindow(id,true)) shown=true else finish()
     }
     override fun onSaveInstanceState(outState:Bundle) {
-        outState.putInt("container",containerId);outState.putBoolean("shown",shown);outState.putBoolean("touched",touched)
+        outState.putInt("container",containerId);outState.putBoolean("shown",shown)
         super.onSaveInstanceState(outState)
     }
     override fun onDestroy() {
