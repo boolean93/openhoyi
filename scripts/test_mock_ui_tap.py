@@ -222,8 +222,8 @@ class MockRunnerContractTest(unittest.TestCase):
         android = '{http://schemas.android.com/apk/res/android}'
         entries = root.findall('instrumentation')
         actual = {entry.get(android + 'name'): entry.get(android + 'targetPackage') for entry in entries}
-        self.assertEqual(5, len(entries))
-        self.assertEqual(5, len(tap.RUNNERS))
+        self.assertEqual(6, len(entries))
+        self.assertEqual(6, len(tap.RUNNERS))
         self.assertEqual(actual, tap.RUNNERS)
         self.assertIs(shared.RUNNERS, tap.RUNNERS)
 

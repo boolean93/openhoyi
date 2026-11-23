@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shot_share_sheet_title">分享萃取卡片</string>
+    <string name="shot_share_failed">没能生成分享图片，请重试。</string>
+    <string name="shot_share_no_target">没有可分享图片的应用。</string>
+</resources>

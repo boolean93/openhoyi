@@ -58,3 +58,20 @@ if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGAT
         or 'INSTRUMENTATION_CODE: -1' not in lines):
     raise SystemExit('Manual live navigation failed; evidence retained')
 PY
+
+# Check the app-owned Share action through the system chooser without choosing a destination.
+python3 - "$results/completion-share.txt" <<'PY'
+from pathlib import Path
+import subprocess, sys
+output = Path(sys.argv[1])
+with output.open('w') as capture:
+    result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-r',
+        '-e', 'disposableEmulator', 'true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewCompletionShareInstrumentation'],
+        stdout=capture, stderr=subprocess.STDOUT, timeout=90)
+text = output.read_text()
+print(text)
+if (result.returncode or 'BREW_COMPLETION_SHARE_CHECKS_PASSED' not in text
+        or 'INSTRUMENTATION_CODE: -1' not in text.splitlines()):
+    raise SystemExit('Completion Share failed; evidence retained')
+PY

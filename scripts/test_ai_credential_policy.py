@@ -55,22 +55,32 @@ class AiCredentialPolicyTest(unittest.TestCase):
         self.assertIn("isLongClickable = false", key)
         self.assertIn("setTextIsSelectable(false)", key)
 
-    def test_file_provider_exposes_only_verified_update_apks(self):
+    def test_file_providers_are_private_and_share_only_verified_updates_or_shot_images(self):
         providers = self.application().findall("provider")
-        self.assertEqual(1, len(providers))
-        provider = providers[0]
-        self.assertEqual("androidx.core.content.FileProvider", provider.get(ANDROID + "name"))
-        self.assertEqual("false", provider.get(ANDROID + "exported"))
-        self.assertEqual("${applicationId}.updates", provider.get(ANDROID + "authorities"))
-        metadata = provider.findall("meta-data")
-        self.assertEqual(1, len(metadata))
-        self.assertEqual("android.support.FILE_PROVIDER_PATHS", metadata[0].get(ANDROID + "name"))
-        self.assertEqual("@xml/update_paths", metadata[0].get(ANDROID + "resource"))
-        paths = ET.parse(MAIN / "res/xml/update_paths.xml").getroot()
-        self.assertEqual("paths", paths.tag)
-        self.assertEqual(1, len(paths))
-        self.assertEqual("files-path", paths[0].tag)
-        self.assertEqual({"name": "verified_updates", "path": "updates/verified/"}, paths[0].attrib)
+        contracts = {
+            "${applicationId}.updates": ("androidx.core.content.FileProvider", "update_paths",
+                "files-path", {"name": "verified_updates", "path": "updates/verified/"}),
+            "${applicationId}.shot-share": (".ShotShareCardFileProvider", "shot_share_paths",
+                "cache-path", {"name": "shot-images", "path": "shot-share/"}),
+        }
+        self.assertEqual(len(contracts), len(providers))
+        self.assertEqual(set(contracts), {provider.get(ANDROID + "authorities") for provider in providers})
+        for provider in providers:
+            authority = provider.get(ANDROID + "authorities")
+            with self.subTest(authority=authority):
+                class_name, resource, tag, attrib = contracts[authority]
+                self.assertEqual(class_name, provider.get(ANDROID + "name"))
+                self.assertEqual("false", provider.get(ANDROID + "exported"))
+                self.assertEqual("true", provider.get(ANDROID + "grantUriPermissions"))
+                metadata = provider.findall("meta-data")
+                self.assertEqual(1, len(metadata))
+                self.assertEqual("android.support.FILE_PROVIDER_PATHS", metadata[0].get(ANDROID + "name"))
+                self.assertEqual(f"@xml/{resource}", metadata[0].get(ANDROID + "resource"))
+                paths = ET.parse(MAIN / f"res/xml/{resource}.xml").getroot()
+                self.assertEqual("paths", paths.tag)
+                self.assertEqual(1, len(paths))
+                self.assertEqual(tag, paths[0].tag)
+                self.assertEqual(attrib, paths[0].attrib)
 
     def test_full_verification_runs_this_static_policy_check(self):
         script = (ROOT / "scripts/verify-pr-checks").read_text()
