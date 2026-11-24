@@ -29,7 +29,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     rememberedScaleSuppressed:Boolean=false,
     private val automaticAllowed:(DeviceRole)->Boolean={true},
     trackCoffeeDelivery:Boolean=false,
-    private val detachedDrivers:DetachedNativeDrivers?=null) : AutoCloseable {
+    private val detachedDrivers:DetachedNativeDrivers?=null,
+    private val onCoffeeTimed:((HoyiMessage,Long)->Unit)?=null) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=ScaleSelectionPolicy.remembered(rememberedScaleAddress,rememberedScaleProtocolId)
@@ -70,7 +71,10 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             }
             onState(DeviceRole.COFFEE,state)
         },
-        coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,
+        coffeeFrame={frame,time->
+            extraction.machineFrame(frame,time)
+            if(onCoffeeTimed==null)onCoffee(frame) else onCoffeeTimed.invoke(frame,time)
+        },diagnostic=diagnostic,
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
         customPressureStartPermit=customPressureStartPermit,customCurveStartPermit=customCurveStartPermit,
         synchronizationRefreshPermit={foreground && automaticAllowed(DeviceRole.COFFEE) && !DeviceConnectionGate.unsettled(extraction.state)},
@@ -124,7 +128,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                 if(ownsScale(ticket,request)) {
                     if(sample.evidence in setOf(ScaleEvidence.VERIFIED_TRANSPORT,ScaleEvidence.DOCUMENTED_TRANSPORT) &&
                         sample.capabilities.weight && sample.capabilities.tare)
-                        standaloneTare.sample(++scaleSampleSerial,sample.hundredthsGram)
+                        standaloneTare.sample(++scaleSampleSerial,sample.hundredthsGram,sample.receivedAtMs)
                     if(ownsScale(ticket,request))extraction.weight(sample)
                     if(ownsScale(ticket,request))onScaleObservation(sample)
                 }
@@ -348,6 +352,11 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             done(OperationResult.Failed("extraction active"),null);return
         }
         coffee.session.writeSettingWithEvidence(change,beforeDispatch,done)
+    }
+    val settingsSyncBlocksStart get() = coffee.session.settingsSyncBlocksStart
+    fun yieldSettingsReadbackForStart(): Boolean {
+        usable()
+        return coffee.session.yieldSettingsReadbackForStart()
     }
     val canRefreshStaleSettings get() = coffee.session.canRefreshStaleSettings &&
         !DeviceConnectionGate.unsettled(extraction.state)

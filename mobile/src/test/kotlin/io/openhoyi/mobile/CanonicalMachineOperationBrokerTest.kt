@@ -20,7 +20,8 @@ class CanonicalMachineOperationBrokerTest {
     private class Mem:SplitMachineWriteFileStore.FileOps {
         var data:ByteArray?=null
         var beforeReplace:(()->Unit)?=null
-        override fun exists(file:File)=data!=null
+        var readFailure=false
+        override fun exists(file:File):Boolean { check(!readFailure);return data!=null }
         override fun readBounded(file:File,max:Int)=requireNotNull(data).copyOf()
         override fun replace(file:File,bytes:ByteArray){beforeReplace?.invoke();data=bytes.copyOf()}
         override fun unlink(file:File){data=null}
@@ -96,6 +97,52 @@ class CanonicalMachineOperationBrokerTest {
             assertTrue(broker.returnToLegacy())
             assertTrue(broker.legacyMayDispatch)
             assertFalse(broker.mayDispatch(heat,source))
+        } finally {
+            fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
+        }
+    }
+
+    @Test fun failedEmptyRetirementLeavesSplitFencedAndAllowsStop() {
+        val marker=File(root.newFolder(),"pending_machine_write.json")
+        val fence=MachineServiceWriterFence()
+        val pin=RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),null,{false})
+        val source=binding()
+        val broker=CanonicalMachineOperationBroker(pin,fence) {source}
+        val ops=Mem()
+        try {
+            assertTrue(broker.openSplit({true},ops))
+            val written=requireNotNull(broker.reserve(week,source))
+            assertTrue(broker.enteredReadback(written,source,OperationResult.Success()))
+            assertTrue(broker.settleVerified(written,source))
+            ops.readFailure=true
+            assertFalse(broker.returnToLegacy())
+            assertTrue(broker.splitRecoveryBlocked)
+            assertTrue(broker.splitOwned)
+            assertFalse(broker.legacyMayDispatch)
+            assertNull(broker.reserve(week,source))
+        } finally {
+            fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
+        }
+        requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)).close()
+    }
+
+    @Test fun exclusiveWeeklyEpochNeverReservesOverlappingBoilerWrite() {
+        val marker=File(root.newFolder(),"pending_machine_write.json")
+        val fence=MachineServiceWriterFence()
+        val pin=RecoveryPreferenceStorage.PinnedMachine(requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)),null,{false})
+        val source=binding()
+        val broker=CanonicalMachineOperationBroker(pin,fence) {source}
+        val ops=Mem()
+        try {
+            assertTrue(broker.openSplit({true},ops,allowBoilerOverlap=false))
+            val weekly=requireNotNull(broker.reserve(week,source))
+            assertTrue(broker.mayDispatch(weekly,source))
+            assertTrue(broker.enteredReadback(weekly,source,OperationResult.Success()))
+            assertFalse(broker.acceptsBoilerAfterWeek(source))
+            assertNull(broker.reserve(boiler,source))
+            assertEquals(SplitMachineWriteJournal.Snapshot.Pending(listOf(week)),
+                SplitMachineWriteMarkerCodec.decode(requireNotNull(ops.data)))
+            assertTrue(broker.settleVerified(weekly,source) && broker.returnToLegacy())
         } finally {
             fence.beginDrain(retire=true);fence.finishDrain(safe=true);broker.close()
         }

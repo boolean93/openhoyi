@@ -407,7 +407,7 @@ class BoilerSettingsRefreshTest {
         changed.begin(intent);changed.complete();changed.advance(250);changed.complete();changed.advance(1250);changed.complete();changed.advance(3000)
         assertTrue(changed.session.canReconnectBoilerSettings)
         changed.now=3001
-        changed.receive(hex("400024BF2F1C770B01000000000000190321AF")) // Native now reports sleep.
+        changed.receive(hex("400024BF2F1C770B01000000000000190321AE")) // Native now reports sleep.
         changed.now=3002
         changed.receive(hex("400024BF2F1C770B00000000000000190321AF"),capturedAt=3000)
         assertFalse(changed.session.canReconnectBoilerSettings) // Late awake must not outrank it.

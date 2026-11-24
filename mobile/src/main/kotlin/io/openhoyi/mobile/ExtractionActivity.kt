@@ -444,6 +444,12 @@ class ExtractionActivity : ThemedActivity() {
         val startObservation = owner?.shotStartObservation.takeIf {
             state == ExtractionState.STARTING || state == ExtractionState.RUNNING
         }
+        val now = MobileMonotonicClock.elapsedRealtime()
+        val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
+        val liveFlow = frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait
+        val displayState = ExtractionStartObservationPresentation.displayState(state, startObservation, liveFlow)
+        val statusLabel = ExtractionStartObservationPresentation.label(startObservation)?.let { getString(it) }
+            ?: shotLabel(displayState)
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         pageHeader.visibility = View.VISIBLE
@@ -483,8 +489,7 @@ class ExtractionActivity : ThemedActivity() {
         val displayCurveName = recipe?.name ?: displayCurve?.name ?: getString(if (observedCup) {
             if (owner?.chartCurveId == "manual") R.string.extraction_manual_label else R.string.profiles_missing
         } else R.string.extraction_unselected)
-        val elapsed = (LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
-            MobileMonotonicClock.elapsedRealtime()) as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.elapsedSeconds
+        val elapsed = (frame as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.elapsedSeconds
         val elapsedText = elapsed?.let { String.format(Locale.ROOT, "%02d:%02d", it / 60, it % 60) } ?: "—"
         curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
             if (observedCup) "" else slotLabel))
@@ -500,17 +505,20 @@ class ExtractionActivity : ThemedActivity() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(this, snapshot.coffeeState), DeviceStatusText.label(this, snapshot.scaleState)))
-        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else (
-            ExtractionStartObservationPresentation.label(startObservation)?.let { getString(it) } ?: shotLabel(state)
-        ), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
+        val summaryLabel = when {
+            owner?.scalePreflight == true -> getString(R.string.extraction_preflight_label)
+            owner?.manualShotActive == true -> getString(R.string.extraction_manual_label)
+            else -> statusLabel
+        }
+        shotSummary.show(getString(R.string.extraction_shot_summary, summaryLabel,
+            owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) }.orEmpty()))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
             startObservation == io.openhoyi.session.ShotStartObservation.WAITING_FOR_MACHINE -> getString(R.string.extraction_start_sent_guidance)
             startObservation == io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> getString(R.string.extraction_start_no_observation_guidance)
-            startObservation == io.openhoyi.session.ShotStartObservation.MACHINE_EXTRACTION_OBSERVED -> getString(R.string.extraction_running_guidance)
-            state == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
-            state == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
+            displayState == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
+            displayState == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
             state == ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_stopping_guidance)
             state == ExtractionState.OUTCOME_UNKNOWN -> getString(R.string.extraction_unknown_guidance)
             state == ExtractionState.ENDED_OBSERVED -> getString(R.string.extraction_ended_guidance)
@@ -531,11 +539,11 @@ class ExtractionActivity : ThemedActivity() {
         val inlineGuidance = owner?.manualShotActive != true && owner?.scalePreflight != true &&
             unknownAdvice.isEmpty() && owner?.machineControlSafetyMessage == null &&
             preparation == BrewPreparation.State.IDLE && !settingBusy && !sleepBusy &&
-            (state == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
+            (displayState == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
                 state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
         compactIdentity.show(displayCurveName)
         compactIdentity.contentDescription = displayCurveName
-        compactClock.show((if (inlineGuidance) "" else shotLabel(state) + " · ") + elapsedText +
+        compactClock.show((if (inlineGuidance) "" else statusLabel + " · ") + elapsedText +
             if (BuildConfig.MOCK_MODE) " · Mock" else "")
         compactClock.contentDescription = compactClock.text.toString() +
             if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
@@ -590,12 +598,9 @@ class ExtractionActivity : ThemedActivity() {
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             getString(R.string.extraction_notification_warning))
         notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
-        alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
-            MobileMonotonicClock.elapsedRealtime()))
-        val now = MobileMonotonicClock.elapsedRealtime()
+        alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt, now))
         alarmStatus.visibility = if (machineAlarms.showExtractionStatus(active, snapshot.alarmBits, snapshot.alarmAt, now))
             View.VISIBLE else View.GONE
-        val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
         elapsedValue.show(owner?.extractionElapsedSeconds(now)?.let { "$it s" } ?: "—")
         pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {
             is ExtractionTelemetry -> String.format(Locale.ROOT, "%.1f", frame.pressureTenthsBar / 10.0)
@@ -635,7 +640,7 @@ class ExtractionActivity : ThemedActivity() {
                 owner?.stopReason == StopReason.TARGET_WEIGHT.name -> getString(R.string.extraction_target_stop_advice)
                 owner?.stopReason == StopReason.MANUAL.name -> getString(R.string.extraction_manual_stop_advice)
                 owner?.stopReason == StopReason.SCALE_UNAVAILABLE.name -> getString(R.string.extraction_scale_stop_advice)
-                state == ExtractionState.RUNNING -> getString(R.string.extraction_auto_stop_advice)
+                displayState == ExtractionState.RUNNING -> getString(R.string.extraction_auto_stop_advice)
                 state == ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_pending_stop_advice)
                 else -> getString(R.string.extraction_weight_control_advice)
             }
@@ -755,14 +760,7 @@ class ExtractionActivity : ThemedActivity() {
             else getString(if (id == null) R.string.reference_off else R.string.reference_unavailable))
         chart.referenceLabel = source
     }
-    private fun shotLabel(state: ExtractionState) = when (state) {
-        ExtractionState.IDLE -> getString(R.string.machine_settings_tab_standby)
-        ExtractionState.STARTING -> getString(R.string.extraction_state_starting)
-        ExtractionState.RUNNING -> getString(R.string.extraction_state_running)
-        ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_state_stopping)
-        ExtractionState.ENDED_OBSERVED -> getString(R.string.extraction_state_ended)
-        ExtractionState.OUTCOME_UNKNOWN -> getString(R.string.extraction_state_unknown)
-    }
+    private fun shotLabel(state: ExtractionState) = getString(ExtractionStartObservationPresentation.stateLabel(state))
     private fun stopLabel(reason: String) = when (reason) {
         StopReason.TARGET_WEIGHT.name -> getString(R.string.extraction_stop_target)
         StopReason.SCALE_UNAVAILABLE.name -> getString(R.string.extraction_stop_scale)

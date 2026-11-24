@@ -237,11 +237,19 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             field(session,"coffeeAuthentication").set(session,CoffeeAuthentication(
                                 java.time.LocalDateTime.of(2026,11,22,0,0),"123456"))
                             field(session,"notifyEndpoint").set(session,KnownGatt.coffeeNotify)
+                            field(session,"coffeeAuthenticationHandoffAt").set(session,0L)
+                            fun syntheticNotification(hex:String):ByteArray =
+                                hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray().apply {
+                                    if ((first().toInt() and 255) in setOf(0x40,0x83))
+                                        this[lastIndex]=dropLast(1).fold(0) { acc, value ->
+                                            acc xor (value.toInt() and 255)
+                                        }.toByte()
+                                }
                             fun ingest(hex:String,capturedHint:Long?=null) {
                                 // Advance the detached queue's clock, not the Android app's wall clock.
                                 now=SystemClock.elapsedRealtime()
                                 session.onNotification(session.generation,KnownGatt.coffeeNotify,
-                                    hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray(),capturedHint ?: now)
+                                    syntheticNotification(hex),capturedHint ?: now)
                             }
                             fun writeCount() = calls.count { it.third is GattOperation.Write }
                             // Same monotonic clock as the ACK cut; no wall clock or future samples.
@@ -271,8 +279,11 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                 check(!instance.resolveSplitObservation(observed) && original.isFile)
                                 check(instance.splitRecoveryChoices==listOf(week) && instance.splitObservation(week)==null)
                                 freshTick();ingest("83800A00071E0A00071E0A00071E10")
-                                check(instance.splitObservation(week)==null)
+                                check(instance.splitObservation(week)==null &&
+                                    instance.splitRecoveryMessage(week)==R.string.service_v2_split_week_first_missing)
                                 freshTick();ingest("83407E0A00071E0A00071E0A00071E0A00071E3D")
+                                check(instance.splitObservation(week)==null &&
+                                    instance.splitRecoveryMessage(week)==R.string.service_v2_split_week_second_missing)
                                 freshTick();ingest("83800A00071E0A00071E0A00071E10")
                                 check(instance.resolveSplitObservation(checkNotNull(instance.splitObservation(week))))
                                 check(!original.exists() && instance.machineControlSafetyMessage!=null &&
@@ -311,6 +322,37 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                 check(state()=="WAITING_READBACK")
                                 freshTick();ingest(p1.replace("FE","7E"));freshTick();ingest(p2)
                                 check(state()=="CONFIRMED" && instance.machineControlSafetyMessage==null && writeCount()==3)
+
+                                val temperature=(field(instance,"temperatureWrite\$delegate").get(instance) as Lazy<*>)
+                                    .value as BackgroundTemperatureWrite
+                                val temperatureTarget=MachineSettingChange.BrewTemperature(93)
+                                val temperaturePrefs=context.getSharedPreferences("temperature_confirmation",Context.MODE_PRIVATE)
+                                check(instance.changeMachineSetting(temperatureTarget)==null && writeCount()==4)
+                                check(instance.changeSleepSchedule(target,expected)!=null && writeCount()==4)
+                                complete(calls.last())
+                                val temperatureRecord=temperaturePrefs.all.toMap()
+                                check(temperatureRecord.isNotEmpty() && temperature.state==SettingsWriteTracker.State.WAITING_READBACK)
+
+                                fun verifyExclusiveWeek(before:WeeklySleepSchedule,after:WeeklySleepSchedule,
+                                    weeklyFirst:String,priorWrites:Int) {
+                                    freshTick();ingest(idleHex)
+                                    check(instance.changeSleepSchedule(before,after)==null && writeCount()==priorWrites+1)
+                                    complete(calls.last())
+                                    SystemClock.sleep(505);now=SystemClock.elapsedRealtime();session.tick()
+                                    check(writeCount()==priorWrites+2)
+                                    complete(calls.last())
+                                    check(state()=="WAITING_READBACK" && !instance.allowsSplitBoiler())
+                                    check(instance.changeMachineSetting(temperatureTarget)!=null && writeCount()==priorWrites+2)
+                                    freshTick();ingest(weeklyFirst);freshTick();ingest(p2)
+                                    check(state()=="CONFIRMED" && instance.machineControlSafetyMessage==null)
+                                    check(temperature.change==temperatureTarget && temperaturePrefs.all==temperatureRecord)
+                                }
+                                verifyExclusiveWeek(target,expected,p1,priorWrites=4)
+                                check(temperature.state==SettingsWriteTracker.State.WAITING_READBACK)
+                                temperature.disconnected(field(instance,"settingsSampleSerial").getLong(instance))
+                                check(temperature.state==SettingsWriteTracker.State.UNKNOWN)
+                                verifyExclusiveWeek(expected,target,p1.replace("FE","7E"),priorWrites=6)
+                                check(temperature.state==SettingsWriteTracker.State.UNKNOWN)
                             } else if (v2Boiler) {
                                 val intent=if(mode=="V2_BOILER_BREW") MachineSettingChange.BrewHeating(false)
                                     else MachineSettingChange.SteamHeating(false)
@@ -334,7 +376,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                     fun simulated(hex:String,at:Long) {
                                         now=at
                                         session.onNotification(session.generation,KnownGatt.coffeeNotify,
-                                            hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray(),at)
+                                            syntheticNotification(hex),at)
                                     }
                                     simulated(idleHex,base+250);session.tick();complete(calls.last())
                                     simulated(idleHex,base+1250);session.tick();complete(calls.last())
@@ -782,7 +824,9 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                 cleanupFailure?.let { throw it }
             }
         }
-        if(v2Boiler)check(checkedFixtures==3 && fakeWrites==9 && fakeBarriers==0)
+        if(v2SplitRecovery)check(checkedFixtures==1 && fakeWrites==0 && fakeBarriers==0)
+        else if(v2Split)check(checkedFixtures==1 && fakeWrites==8 && fakeBarriers==0)
+        else if(v2Boiler)check(checkedFixtures==3 && fakeWrites==9 && fakeBarriers==0)
         else if(v2Passive)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==0)
         else if(v2Settings)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==3)
         else if(ownership)check(checkedFixtures==12 && fakeWrites==9 && fakeBarriers==12 && clearedReloads==0 && retainedReloads==12)

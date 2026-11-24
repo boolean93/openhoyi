@@ -15,12 +15,16 @@ class PassiveCoffeeReadbackTest {
             result=value
             if(value is OperationResult.Success) cut=PassiveCoffeeReadback.after(source,s.coffeeReadbackCursor,f.now)
         }
-        fun receive(hex:String,now:Long,captured:Long=now,generation:Long=s.generation) {
-            f.now=now;s.onNotification(generation,KnownGatt.coffeeNotify,f.hex(hex),captured)
+        fun receive(hex:String,now:Long,captured:Long=now,generation:Long=s.generation) =
+            receive(f.hex(hex),now,captured,generation)
+        private fun receive(frame:ByteArray,now:Long,captured:Long=now,generation:Long=s.generation) {
+            f.now=now;s.onNotification(generation,KnownGatt.coffeeNotify,frame,captured)
         }
         fun idle(now:Long,count:Int=25,sleep:Int=0,captured:Long=now,generation:Long=s.generation) =
-            receive("400024BF2F1C770B%02X0000000000%04X0321AF".format(sleep,count),now,captured,generation)
-        fun settings(now:Long,count:Int=25) = receive("830113FD5C007D0F35%04X006E".format(count),now)
+            receive(f.hex("400024BF2F1C770B%02X0000000000%04X032100".format(sleep,count))
+                .withCoffeeNotificationChecksum(),now,captured,generation)
+        fun settings(now:Long,count:Int=25) = receive(f.hex("830113FD5C007D0F35%04X0000".format(count))
+            .withCoffeeNotificationChecksum(),now)
         fun weekly(first:String,second:String,now:Long) {
             receive(first,now)
             receive(second,now+1)
@@ -37,7 +41,7 @@ class PassiveCoffeeReadbackTest {
     @Test fun weeklyWaitsForRealSecondResultAndPairedFreshPostCutEvidence()=with(Rig()) {
         weekly(p1,p2,10);idle(20)
         val expected=schedule(f)
-        val firstTarget=p1.replace("FE0A","FE0B")
+        val firstTarget="8340FE0B00071E0A00071E0A00071E0A00071E3C"
         val target=schedule(f,firstTarget)
         s.writeSleepSchedule(target,expected,::done)
         f.complete()
@@ -95,7 +99,7 @@ class PassiveCoffeeReadbackTest {
         val expired=requireNotNull(PassiveCoffeeReadback.after(source,s.coffeeReadbackCursor,13))
         idle(14,count=0)
         assertFalse(expired.cupPair(s.latestOrdinaryCoffeeSettings,s.latestNativeIdle,f.now))
-        receive("830113FD5C007D0F350000006E",15,captured=12)
+        receive("830113FD5C007D0F3500000077",15,captured=12)
         assertFalse(expired.cupPair(s.latestOrdinaryCoffeeSettings,s.latestNativeIdle,f.now))
         settings(16,0)
         assertTrue(expired.cupPair(s.latestOrdinaryCoffeeSettings,s.latestNativeIdle,f.now))
@@ -106,7 +110,7 @@ class PassiveCoffeeReadbackTest {
         assertNull(s.latestOrdinaryCoffeeSettings)
         assertSame(source,bootstrap.cursor.source)
         assertTrue(BrewSettingsEvidence.isAvailable(true,true,bootstrap.capturedAtMs,200_000L))
-        receive("830113FD5C147D0F350019006E", 101)
+        receive("830113FD5C147D0F350019007A", 101)
         val newer=requireNotNull(s.preheatSettingsBaseline)
         assertEquals(20,newer.value.brewCompensationTenthsC)
         receive("830113FD5C007D0F350019006E", 102,captured=100)

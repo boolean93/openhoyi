@@ -87,7 +87,7 @@ class CoffeeReadbackEvidenceTest {
             assertTrue(result is OperationResult.Success)
             receipt=cut
         }
-        val matching=settings.replace("0F35","1E35")
+        val matching="830113FD5C007D1E350019007F"
         f.now=101; f.receive(matching)
         f.now=102; f.complete()
         val proof=requireNotNull(receipt)
@@ -96,7 +96,7 @@ class CoffeeReadbackEvidenceTest {
         assertNull(check())
         f.now=103; f.receive(matching,capturedAt=101)
         assertNull(check()) // Arrived late to the owner but captured before the transport cut.
-        f.now=104; f.receive(settings.replace("0F35","1E36"))
+        f.now=104; f.receive("830113FD5C007D1E360019007C")
         assertEquals(CoffeeReadbackEvidence.Setting.Observation.DIFFERENT,check())
         f.now=105; f.receive(matching)
         assertEquals(CoffeeReadbackEvidence.Setting.Observation.MATCH,check())
@@ -106,8 +106,15 @@ class CoffeeReadbackEvidenceTest {
         f.now=106; f.receive(settings)
         assertNull(proof.evaluate(target,(stale as CoffeeReadbackFrame.OrdinarySettings).value,
             stale,f.cursor(),f.now))
+        val latest=f.latest()
+        val published=f.legacy.last()
         f.now=107; f.receive(matching,capturedAt=105)
-        assertNull(check()) // Newer than transport, but older than the latest native observation.
+        // Rejected at ingress. It cannot replace the current mismatch or serve as proof.
+        assertSame(latest,f.latest())
+        assertSame(published,f.legacy.last())
+        assertEquals(CoffeeReadbackEvidence.Setting.Observation.DIFFERENT,check())
+        val rejected=(HoyiCodec.decode(packet(matching)) as DecodeResult.Valid).value as Settings
+        assertNull(check(report=rejected))
         val other=Fixture(track=true)
         other.connect()
         other.now=107;other.receive(matching)
@@ -117,7 +124,7 @@ class CoffeeReadbackEvidenceTest {
     @Test fun weeklyMasterUsesBothNativeHalvesAndCannotEnableChangedPlanWhileQueued() {
         val f=Fixture(track=true)
         f.connect()
-        f.receive(settings.replace("FD","FC"))
+        f.receive("830113FC5C007D0F350019006F")
         f.receive("400024BF2F1C770B00000000000000190321AF")
         val enable=MachineSettingChange.SleepScheduleEnabled(true)
         var result:OperationResult?=null
@@ -141,7 +148,7 @@ class CoffeeReadbackEvidenceTest {
         sent=f.driver.submitted.size
         submit()
         assertNull(result)
-        f.now=102; f.receive(first.replace("FE0A","FE0B"))
+        f.now=102; f.receive("8340FE0B00071E0A00071E0A00071E0A00071E3C")
         f.now=103; f.receive(second)
         f.complete()
         assertTrue(result is OperationResult.Failed)

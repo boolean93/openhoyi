@@ -2,8 +2,11 @@ package io.openhoyi.mobile
 
 import android.app.AlertDialog
 import android.os.SystemClock
+import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.LinearLayout
 import io.openhoyi.protocol.CoffeeCommands
 import io.openhoyi.protocol.DecodeResult
@@ -53,18 +56,33 @@ internal object MockBleVisibleProof {
             var fresh=false
             var renderingSwitch=false
             var gestureProbe=false
+            var readKeyProbe=false
             var freshOwner=Any() // Synthetic presentation identity, not a Bluetooth disconnect.
             fun writePackets()=port.calls.mapNotNull {it.operation as? io.openhoyi.session.GattOperation.Write}
                 .drop(initialWrites)
             fun writes()=writePackets().map {it.bytes.first().toInt() and 255}
             fun freshIdentity():Pair<Any,Boolean>?=if(fresh && port.heatingAdmission.canSubmit)freshOwner to confirmedBit else null
-            fun conduct(tap:()->Unit) {
-                if(completed || failed)return
-                try {tap();render()}
-                catch(_:Exception) {failed=true;runCatching {scope.close()};state.text=label("用例失败，请关闭。","Fixture failed; close it.")}
+            var stage = "setup"
+            fun conduct(action: String, tap: () -> Unit) {
+                if (completed || failed) return
+                stage = action
+                try {
+                    tap()
+                    if (!failed) {
+                        stage = "$action/render"
+                        render()
+                    }
+                } catch (error: Exception) {
+                    failed = true
+                    val line = error.stackTrace.firstOrNull { it.fileName == "MockBleVisibleProof.kt" }
+                        ?.lineNumber?.takeIf { it > 0 }
+                    runCatching { scope.close() }
+                    state.text = label("用例失败，请关闭。", "Fixture failed; close it.") +
+                        " [${stage}${line?.let { ":$it" }.orEmpty()}]"
+                }
             }
             val quiet=HoyiUi.button(activity,body,label("模拟被动等待","Advance fake passive wait")) {
-                conduct {
+                conduct("passive-wait") {
                     port.pollAutomaticStaleSettings()
                     port.advance(349)
                     port.pollAutomaticStaleSettings()
@@ -78,9 +96,10 @@ internal object MockBleVisibleProof {
             val retrySwitch=HoyiSwitch(activity).apply {
                 tag="qa/v2/stale-settings/same-switch"
                 contentDescription=label("冲泡锅炉","Brew boiler")
+                isFocusableInTouchMode = true
                 authoritativeToggleIdentity=::freshIdentity
                 setOnCheckedChangeListener {_,checked->
-                    if(!renderingSwitch)conduct {
+                    if(!renderingSwitch)conduct("fresh-toggle") {
                         check(fresh && !gestureProbe && checked!=confirmedBit)
                         check(writes()==List(1+retries){1})
                         check(port.apply(MachineSettingChange.BrewHeating(checked))==null)
@@ -91,7 +110,17 @@ internal object MockBleVisibleProof {
                     }
                 }
             }
-            style.add(body,retrySwitch)
+            val switchRow = style.row().apply { gravity = Gravity.CENTER_VERTICAL }
+            style.add(body, switchRow)
+            switchRow.addView(retrySwitch, LinearLayout.LayoutParams(-2, -2))
+            val readbackButton = HoyiUi.button(activity, switchRow, activity.getString(R.string.home_boiler_refresh)) {
+                retrySwitch.readbackRetry?.invoke()
+            }.apply {
+                tag = "qa/v2/stale-settings/readback-action"
+                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(8) }
+                contentDescription = "${retrySwitch.contentDescription} · $text · " +
+                    activity.getString(R.string.machine_settings_sync_retry_state)
+            }
             fun motion(action:Int,down:Long) {
                 check(retrySwitch.isAttachedToWindow && retrySwitch.width>0 && retrySwitch.height>0)
                 val event=MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,
@@ -100,37 +129,80 @@ internal object MockBleVisibleProof {
                 }
                 try {check(retrySwitch.dispatchTouchEvent(event))} finally {event.recycle()}
             }
+            fun confirmKey(action: Int, down: Long) {
+                val event = KeyEvent(down, SystemClock.uptimeMillis(), action, KeyEvent.KEYCODE_DPAD_CENTER, 0)
+                check(retrySwitch.dispatchKeyEvent(event))
+            }
             val retryClock=HoyiUi.button(activity,body,label("模拟重试冷却结束","Advance fake retry cooldown")) {
-                conduct {
+                conduct("retry-cooldown") {
                     repeat(2){port.advance(1000);port.observe(idle(9400));port.pollAutomaticStaleSettings()}
                     check(!port.settingsSyncPending && port.canRetrySettingsFromSwitch && writes()==List(1+retries){1})
                 }
             }
             val ack=HoyiUi.button(activity,body,label("模拟写入回执","Deliver fake write callback")) {
-                conduct {port.complete();acked=true;check(port.settingsSyncPending && !port.heatingAdmission.canSubmit)}
+                conduct("read-write-ack") {port.complete();acked=true;check(port.settingsSyncPending && !port.heatingAdmission.canSubmit)}
             }
             val good=HoyiUi.button(activity,body,label("模拟新设置回报","Deliver current settings report")) {
-                conduct {
-                    // A finger down before fresh evidence must not become a write on release.
+                conduct("readback-mode") {
                     gestureProbe=true
                     val staleDown=SystemClock.uptimeMillis()
+                    // After timeout and cooldown, begin both gestures on the enabled read-only retry.
+                    val offeredRead = port.canRetrySettingsFromSwitch
+                    if (offeredRead) {
+                        check(retrySwitch.isEnabled && retrySwitch.readbackRetry != null)
+                        stage = "readback-accessibility"
+                        val switchNode = retrySwitch.createAccessibilityNodeInfo()
+                        val readbackNode = readbackButton.createAccessibilityNodeInfo()
+                        check(retrySwitch.importantForAccessibility == View.IMPORTANT_FOR_ACCESSIBILITY_NO &&
+                            switchNode.actionList.none { it.id == AccessibilityNodeInfo.ACTION_CLICK } &&
+                            !retrySwitch.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+                        check(readbackButton.isShown && readbackNode.isClickable && !readbackNode.isCheckable)
+                        stage = "readback-key-down"
+                        check(retrySwitch.requestFocus())
+                        confirmKey(KeyEvent.ACTION_DOWN, staleDown)
+                    }
+                    stage = "readback-touch-down"
                     motion(MotionEvent.ACTION_DOWN,staleDown)
+                    stage = "fresh-report"
+                    if (offeredRead) {
+                        port.advance(1); port.observe(confirmedBytes, generation = port.generation + 1)
+                        port.renderSettingsSync(result)
+                        check(result.text.toString() == activity.getString(R.string.machine_settings_sync_unconfirmed))
+                        check(!port.heatingAdmission.canSubmit && writes() == List(1 + retries) { 1 })
+                    }
                     port.advance(1);port.observe(confirmedBytes)
                     check(!port.settingsSyncPending && port.heatingAdmission.canSubmit && writes()==List(1+retries){1})
                     expectedStatus=R.string.machine_settings_sync_observed
                     fresh=true
+                    stage = "fresh-render"
                     render()
+                    stage = "readback-touch-up"
                     motion(MotionEvent.ACTION_UP,staleDown)
+                    if (offeredRead) {
+                        check(retrySwitch.isEnabled && retrySwitch.readbackRetry == null)
+                        stage = "readback-key-up"
+                        confirmKey(KeyEvent.ACTION_UP, staleDown)
+                        stage = "delayed-accessibility-action"
+                        // Model a delayed action directed at the old read-only button's retained view identity.
+                        check(!readbackButton.isShown)
+                        readbackButton.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
+                        check(readbackButton.performClick())
+                        check(writes() == List(1 + retries) { 1 } && retrySwitch.isChecked == confirmedBit)
+                        check(retrySwitch.importantForAccessibility != View.IMPORTANT_FOR_ACCESSIBILITY_NO &&
+                            retrySwitch.createAccessibilityNodeInfo().actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK })
+                        readKeyProbe = true
+                    }
                     check(retrySwitch.isChecked==confirmedBit && writes()==List(1+retries){1})
                     // Exercise Android's posted native click with a changed presentation owner
                     // after UP. This is not a simulated physical reconnection.
+                    stage = "native-posted-tap"
                     val nativeDown=SystemClock.uptimeMillis()
                     motion(MotionEvent.ACTION_DOWN,nativeDown)
                     motion(MotionEvent.ACTION_UP,nativeDown)
                     freshOwner=Any()
                     render()
                     check(retrySwitch.post {
-                        conduct {
+                        conduct("native-posted-verification") {
                             check(retrySwitch.isChecked==confirmedBit && writes()==List(1+retries){1})
                             gestureProbe=false
                         }
@@ -138,7 +210,7 @@ internal object MockBleVisibleProof {
                 }
             }
             val timeout=HoyiUi.button(activity,body,label("模拟等待超时","Advance to timeout")) {
-                conduct {
+                conduct("readback-timeout") {
                     repeat(5) {port.advance(1000);port.observe(idle(9400));port.pollAutomaticStaleSettings()}
                     check(!port.settingsSyncPending && !port.heatingAdmission.canSubmit &&
                         port.liveFrame is IdleTelemetry && writes()==List(1+retries){1})
@@ -160,13 +232,16 @@ internal object MockBleVisibleProof {
                         "Gesture checks passed with no boiler write. Tap the same switch again.")
                     else if(fresh)label("正在检查回读与点击之间的手势边界。","Checking the gesture transition after readback.")
                     else label("机器已就绪；开关暂不可操作。","Machine ready; switch not available yet.")
+                if (readKeyProbe) state.append(label("\n已检查：回读键抬起和延迟的无障碍回读均未发送控制命令。",
+                    "\nChecked: neither read-only key release nor delayed accessibility readback sent a control command."))
                 renderingSwitch=true
                 try {if(!completed && retrySwitch.isChecked!=confirmedBit)retrySwitch.isChecked=confirmedBit}
                 finally {renderingSwitch=false}
                 retryClock.isEnabled=!completed && expectedStatus==R.string.machine_settings_sync_unconfirmed &&
                     !port.canRetrySettingsFromSwitch
                 retrySwitch.readbackRetry=if(!completed && port.canRetrySettingsFromSwitch) ({
-                    conduct {
+                    conduct("readback-retry") {
+                        if (!port.canRetrySettingsFromSwitch) return@conduct
                         check(port.retrySettingsFromSwitch())
                         retries++
                         acked=false
@@ -174,12 +249,14 @@ internal object MockBleVisibleProof {
                         check(port.settingsSyncPending && writes()==List(1+retries){1})
                     }
                 }) else null
+                readbackButton.visibility = if (retrySwitch.readbackRetry != null) View.VISIBLE else View.GONE
+                readbackButton.isEnabled = retrySwitch.readbackRetry != null
                 retrySwitch.drawnToggleIdentity=freshIdentity()
                 retrySwitch.isEnabled=!completed && (retrySwitch.readbackRetry!=null || freshIdentity()!=null)
                 quiet.isEnabled=!completed && !acked && !port.settingsSyncPending && writes().isEmpty()
                 ack.isEnabled=!completed && !acked && port.settingsSyncPending
-                good.isEnabled=!completed && acked && port.settingsSyncPending
-                timeout.isEnabled=good.isEnabled
+                timeout.isEnabled=!completed && acked && port.settingsSyncPending
+                good.isEnabled=!completed && (timeout.isEnabled || port.canRetrySettingsFromSwitch)
             }
             render()
             check(!port.heatingAdmission.canSubmit && quiet.isEnabled && writes().isEmpty())
@@ -363,13 +440,19 @@ internal object MockBleVisibleProof {
     }
     private fun formatC(hundredths: Int) =
         String.format(java.util.Locale.ROOT, "%.2f °C", hundredths / 100.0)
-    private fun b(vararg values: Int) = values.map(Int::toByte).toByteArray()
-    private fun settings(flags: Int) = b(0x83, 1, 0x13, flags, 92, 0, 125, 15, 53, 0, 25, 0, 0x6e)
+    private fun b(vararg values: Int): ByteArray {
+        val frame = values.map(Int::toByte).toByteArray()
+        if (values[0] == 0x40 || values[0] == 0x83) {
+            frame[frame.lastIndex] = values.dropLast(1).fold(0) { checksum, value -> checksum xor value }.toByte()
+        }
+        return frame
+    }
+    private fun settings(flags: Int) = b(0x83, 1, 0x13, flags, 92, 0, 125, 15, 53, 0, 25, 0, 0)
     private fun first(enabled: Int) =
-        b(0x83, 0x40, enabled, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 0x3d)
-    private fun second() = b(0x83, 0x80, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 0x10)
+        b(0x83, 0x40, enabled, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 0)
+    private fun second() = b(0x83, 0x80, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 0)
     private fun idle(c: Int) =
-        b(0x40, 0, c shr 8, c and 255, 0x2f, 0x1c, 0x77, 0x0b, 0, 0, 0, 0, 0, 0, 0, 25, 3, 0x21, 0xaf)
+        b(0x40, 0, c shr 8, c and 255, 0x2f, 0x1c, 0x77, 0x0b, 0, 0, 0, 0, 0, 0, 0, 25, 3, 0x21, 0)
     private fun extraction(elapsed: Int) = b(0x80, 0, 8, 0, elapsed, 40, 0, 15, 0x24, 0xbf, 10, 0x40, 0xff)
     private fun part(bytes: ByteArray) = (HoyiCodec.decode(bytes) as DecodeResult.Valid).value as SleepPart
 }

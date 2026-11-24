@@ -28,11 +28,13 @@ import android.widget.LinearLayout
 import android.widget.HorizontalScrollView
 import android.widget.TextView
 import android.widget.Toast
+import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.SleepDay
 import io.openhoyi.protocol.WeeklySleepDay
 import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.DeviceState
+import io.openhoyi.session.ExtractionState
 import java.util.Locale
 
 internal fun weeklyTileHeadingInk(style: TaskProductVisualStyle, wide: Boolean, enabled: Boolean): Int =
@@ -573,25 +575,43 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         try { renderContent() } finally {
             if (::connectionState.isInitialized && ::writeStatus.isInitialized) {
                 val snapshot = service?.snapshot
-                val freshness = getString(if(snapshot?.settings == null) R.string.machine_settings_readback_missing
+                val syncNotice = service?.machineSettingsSyncStatus?.let { getString(it) }
+                val freshness = syncNotice ?: getString(if(snapshot?.settings == null) R.string.machine_settings_readback_missing
                     else if(snapshot.coffeeState == DeviceState.READY && service?.machineSettingsFresh == true) R.string.machine_settings_readback_current
                     else R.string.machine_settings_readback_stale)
                 val idle = service?.pendingSetting == null &&
                     (service?.settingWriteState ?: SettingsWriteTracker.State.IDLE) == SettingsWriteTracker.State.IDLE
                 val connection = if (BuildConfig.MOCK_MODE && documentMode) "Mock" else connectionState.text.toString()
-                val activityStatus = when {
-                    service?.let { it.manualShotActive || ShotGate.active(it.shotState) } == true ->
-                        getString(R.string.settings_hig_machine_extracting)
-                    else -> null
-                }
+                val activityStatus = service?.let(::extractionStatus)
                 val base = listOfNotNull(connection, freshness, activityStatus).joinToString(" · ")
                 val ready = documentMode && snapshot?.coffeeState == DeviceState.READY &&
                     snapshot.settings != null && service?.machineSettingsFresh == true && activityStatus == null
-                val concise = if (ready) getString(R.string.settings_hig_machine_read_back) else base
+                val concise = if (ready) syncNotice ?: getString(R.string.settings_hig_machine_read_back) else base
                 statusChanged(if (documentMode && idle) concise else "$concise\n${writeStatus.text}")
             }
         }
     }
+    private fun extractionStatus(owner: MobileService): String? {
+        if (owner.manualShotActive) return getString(R.string.settings_hig_machine_extracting)
+        val state = owner.shotState
+        if (!ShotGate.active(state)) return null
+        val snapshot = owner.snapshot
+        val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
+            MobileMonotonicClock.elapsedRealtime())
+        val liveFlow = frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait
+        val observation = owner.shotStartObservation.takeIf {
+            state == ExtractionState.STARTING || state == ExtractionState.RUNNING
+        }
+        val displayState = ExtractionStartObservationPresentation.displayState(state, observation, liveFlow)
+        val label = ExtractionStartObservationPresentation.label(observation) ?: when (displayState) {
+            ExtractionState.RUNNING -> R.string.settings_hig_machine_extracting
+            ExtractionState.STOP_REQUESTED -> R.string.extraction_state_stopping
+            ExtractionState.OUTCOME_UNKNOWN -> R.string.extraction_state_unknown
+            else -> R.string.extraction_state_starting
+        }
+        return getString(label)
+    }
+
     private fun renderContent() {
         if (!::connectionState.isInitialized) return
         val owner = service
@@ -777,7 +797,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         if(owner?.usesAutomaticBoilerSettingsSync==true &&
             (change is MachineSettingChange.BrewHeating || change is MachineSettingChange.SteamHeating)) {
             // Still performs service-side admission on this explicit fresh toggle.
-            owner.changeMachineSetting(change)
+            owner.changeMachineSetting(change)?.let {
+                Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
+            }
             render()
             return
         }

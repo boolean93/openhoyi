@@ -331,7 +331,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
             }
-            boilerExceptions[toggle] = button(card, "") { changeBoilerSetting(change(toggle.isChecked)) }.apply {
+            boilerExceptions[toggle] = button(card, "") {
+                val retry = toggle.readbackRetry
+                if (retry != null) retry() else refreshBoilerSettings()
+            }.apply {
                 tag = "product/home/$tagName/exception"
                 visibility = View.GONE
                 layoutParams = LinearLayout.LayoutParams(-1, -2)
@@ -726,9 +729,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         AlertDialog.Builder(host).setTitle(R.string.home_recovery_button)
             .setItems(choices.map(::title).toTypedArray()) { _,index ->
                 val choice=choices[index]
+                fun unavailable() {
+                    val message = owner.takeIf { service === it }?.splitRecoveryMessage(choice)
+                        ?: R.string.service_v2_split_recovery_wait
+                    toast(getString(message))
+                }
                 val observed=owner.takeIf {service===it}?.splitObservation(choice)
                 if(observed==null) {
-                    toast(getString(R.string.service_v2_split_recovery_wait))
+                    unavailable()
                 } else {
                     val evidence=if(choice.entry.target==observed.observed) R.string.service_v2_split_observed_match
                         else R.string.service_v2_split_observed_different
@@ -736,7 +744,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                         splitObservationText(observed.observed) + "\n\n" + getString(evidence))
                         .setPositiveButton(R.string.home_recovery_clear) { _,_ ->
                             if(service!==owner || !owner.resolveSplitObservation(observed))
-                                toast(getString(R.string.service_v2_split_recovery_wait))
+                                unavailable()
                             render()
                         }.setNegativeButton(R.string.machine_settings_cancel,null).let(::showTransient)
                 }
@@ -781,23 +789,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         try {
             if (BuildConfig.MOCK_MODE) return
             val owner = service ?: return
-            val recovery = owner.settingWriteState == SettingsWriteTracker.State.UNKNOWN &&
-                (change is MachineSettingChange.BrewHeating && owner.pendingSetting is MachineSettingChange.BrewHeating ||
-                    change is MachineSettingChange.SteamHeating && owner.pendingSetting is MachineSettingChange.SteamHeating)
-            if (recovery) {
-                owner.refreshUnknownBoilerSettings()?.let(::toast)
-            } else {
-                val admission = BoilerHeatingAdmission.evaluate(owner)
-                if (!admission.canSubmit) {
-                    admission.reason?.let { toast(getString(it)) }
-                    return
-                }
-                owner.changeMachineSetting(change)?.let(::toast)
+            val admission = BoilerHeatingAdmission.evaluate(owner)
+            if (!admission.canSubmit) {
+                admission.reason?.let { toast(getString(it)) }
+                return
             }
+            owner.changeMachineSetting(change)?.let(::toast)
         } finally {
             render()
         }
     }
+    private fun refreshBoilerSettings() {
+        if (!BuildConfig.MOCK_MODE) service?.refreshUnknownBoilerSettings()?.let(::toast)
+        render()
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         feedbackUi.save(outState)
         super.onSaveInstanceState(outState)
@@ -971,27 +977,28 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     owner?.boilerReadbackReconnecting==true, preheatOccupied,
                     heatingAdmission.reason.takeUnless { BuildConfig.MOCK_MODE })
                 val state = getString(label)
+                val heading = getString(if (brew) R.string.home_brew_boiler else R.string.home_steam_boiler)
                 boilerExceptions[toggle]?.let { status ->
-                    val exceptional = HomeBoilerSwitchPresentation.showInline(label)
+                    val switchOffersRetry = toggle.readbackRetry != null
                     val refresh = label == R.string.home_boiler_refresh
-                    val actionable = refresh && owner?.canRefreshUnknownBoilerSettings == true
-                    val visible = if (exceptional) View.VISIBLE else View.GONE
+                    val actionable = switchOffersRetry || refresh && owner?.canRefreshUnknownBoilerSettings == true
+                    val visible = if (actionable || HomeBoilerSwitchPresentation.showInline(label)) View.VISIBLE else View.GONE
                     if (status.visibility != visible) status.visibility = visible
                     status.isEnabled = actionable
                     status.isClickable = actionable
-                    status.show(state)
+                    status.show(if (actionable) getString(R.string.home_boiler_refresh) else state)
+                    status.contentDescription = if (actionable)
+                        "$heading · ${getString(R.string.home_boiler_refresh)} · ${getString(R.string.machine_settings_sync_retry_state)}"
+                        else null
                 }
-                val heading = getString(if (brew) R.string.home_brew_boiler else R.string.home_steam_boiler)
                 if (android.os.Build.VERSION.SDK_INT >= 30) {
                     if (toggle.stateDescription != state) toggle.stateDescription = state
                 } else {
                     val description = "$heading, $state"
                     if (toggle.contentDescription != description) toggle.contentDescription = description
                 }
-                toggle.keepPendingAppearance = inFlight(brew)
-                val displayed = HomeBoilerSwitchPresentation.checked(
-                    brew, checked, pending, writeState, ownsPending, recoveryRunning = boilerRecoveryActive)
-                if (toggle.isChecked != displayed) toggle.isChecked = displayed
+                val reported = checked == true
+                if (toggle.isChecked != reported) toggle.isChecked = reported
             }
             project(brewBoilerToggle, true, s.settings?.brewHeating)
             project(steamBoilerToggle, false, s.settings?.steamHeating)

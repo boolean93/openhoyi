@@ -189,7 +189,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private val opaqueV2RecoveryFence:Boolean get()=splitAdmissionEnabled && machineOperations?.splitOwned!=true &&
         (unclassifiedSplitMarkerAtStartup || machineWriteRecovery.kind==MachineWriteRecoveryState.Kind.UNKNOWN)
     private val machineWriteSafetyResource: Int? get() =
-        if(machineOperations?.restoredAndResolved==true) R.string.service_v2_split_restart_required
+        if(machineOperations?.splitStorageFailed==true) R.string.service_v2_split_storage_failed
+        else if(machineOperations?.restoredAndResolved==true) R.string.service_v2_split_restart_required
         else if(machineOperations?.splitRecoveryBlocked==true || opaqueV2RecoveryFence) R.string.service_v2_split_recovery_blocked
         else if(machineOperations?.splitOwned==true) R.string.service_v2_split_pending
         else MachineRecoveryText.resource(machineWriteRecovery.kind,brewPreparation.state)
@@ -643,6 +644,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 snapshot.scaleState in setOf(DeviceState.DISCONNECTED, DeviceState.FAILED)) shutdown()
         }
     }
+    private var lastHistoryState = ExtractionState.IDLE
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
     private val shortcutConfiguration = ShortcutContentRevision<List<Any?>>(
@@ -697,17 +699,26 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             observeTare()
             refreshStaleMachineSettings()
             val current = shotState
-            if (current != lastShotState) {
-                val previous = lastShotState
-                lastShotState = current
-                val now = elapsedNow()
-                val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, now)
-                if (current == ExtractionState.OUTCOME_UNKNOWN) series.interruptElapsed()
+            val historyState = if (v2SettingEvidence && mock == null)
+                ExtractionStartObservationPresentation.displayState(current, shotStartObservation, liveFlow = false)
+            else current
+            if (current == ExtractionState.OUTCOME_UNKNOWN && current != lastShotState) series.interruptElapsed()
+            if (historyState != lastHistoryState) {
+                lastHistoryState = historyState
+                val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, elapsedNow())
                 val timing = if (current == ExtractionState.OUTCOME_UNKNOWN ||
                     current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE)
                     currentTimingEvidence() else null
-                runCatching { history?.transition(current, stopReason, weight, timing = timing) }
+                runCatching { history?.transition(historyState, stopReason, weight, timing = timing) }
                     .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
+                val label = if (current == ExtractionState.RUNNING || current == ExtractionState.STARTING)
+                    ExtractionStartObservationPresentation.label(shotStartObservation) else null
+                event(ResourceMessage(R.string.service_event_shot_state, ResourceMessage(
+                    label ?: ExtractionStartObservationPresentation.stateLabel(historyState))), "shot.state")
+            }
+            if (current != lastShotState) {
+                val previous = lastShotState
+                lastShotState = current
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
                     val originalOwner=appRecoveryOwner
@@ -731,7 +742,6 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     finishBrewFeedback(false)
                 }
                 if (fixtureShotEffects==null && !appVisibility.visible && !ShotGate.active(current) && !manualShotActive) hub?.background()
-                event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
                     event(ResourceMessage(if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
@@ -854,7 +864,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if (role == DeviceRole.COFFEE) refreshSafetyNotification()
     }
 
-    private fun onCoffeeFrame(frame: HoyiMessage) {
+    private fun onCoffeeFrame(frame: HoyiMessage) = onCoffeeFrame(frame, elapsedNow())
+
+    private fun onCoffeeFrame(frame: HoyiMessage, receivedAtMs: Long) {
         if (frame is io.openhoyi.protocol.ExtractionTelemetry && (frame.valveOpen || frame.brewWait))
             interruptUpdateInstallation()
         snapshot = when (frame) {
@@ -883,10 +895,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             is SleepPart -> {
                 if (frame.firstDaySundayIndex == 0) {
                     firstSleepSerial++
-                    snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = elapsedNow(), sleepSecondAt = null)
+                    snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = receivedAtMs, sleepSecondAt = null)
                 } else {
                     secondSleepSerial++
-                    snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = elapsedNow())
+                    snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = receivedAtMs)
                 }
                 val qualifies=if (!v2SettingEvidence) true else livePassive(PassiveKind.WEEKLY)?.let { request ->
                     val first=request.hub.latestNativeWeeklyFirst
@@ -930,9 +942,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
                             currentSettings.brewCompensationTenthsC)))
                     event(ResourceMessage(R.string.service_event_preheat_ready), "brew_wait.ready")
-                val observedAt = elapsedNow()
-                snapshot.copy(coffee = frame, coffeeAt = observedAt,
-                    alarmBits = frame.alarmBits, alarmAt = observedAt)
+                snapshot.copy(coffee = frame, coffeeAt = receivedAtMs,
+                    alarmBits = frame.alarmBits, alarmAt = receivedAtMs)
             }
             is ExtractionTelemetry -> {
                 val now=elapsedNow()
@@ -943,7 +954,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     prep.machineWaiting=true
                     event(ResourceMessage(R.string.service_event_preheat_machine_waiting), "brew_wait.machine_waiting")
                 }
-                snapshot.copy(coffee = frame, coffeeAt = now)
+                snapshot.copy(coffee = frame, coffeeAt = receivedAtMs)
             }
             else -> snapshot
         }
@@ -1159,7 +1170,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         event(ResourceMessage(R.string.scale_memory_failed), "scale.memory_failed")
                 },
                 onState = ::onDeviceState,
-                onCoffee = ::onCoffeeFrame,
+                onCoffeeTimed = ::onCoffeeFrame,
                 onScaleObservation = ::onScaleObservation,
                 diagnostic = { detail ->
                     if(detail.startsWith("coffee.auto_reconnect.trigger=") || detail.startsWith("coffee.auto_reconnect.blocked="))
@@ -1336,7 +1347,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if(machineOperations?.splitOwned==true) {
             if(automatic || machineOperations?.canObserveOriginal(address)!=true ||
                 brewPreparation.active || !ShotGate.mayReconnectCoffee(shotState) || cupResetBusy || scheduleBusy) {
-                event(ResourceMessage(R.string.service_v2_split_pending),"v2.recovery.connection_denied")
+                event(ResourceMessage(splitWriteFeedback(R.string.service_v2_split_pending)),"v2.recovery.connection_denied")
                 return false
             }
             if(snapshot.coffeeState==DeviceState.READY) {
@@ -1804,10 +1815,21 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private val settingsRefreshBudget = SettingsRefreshBudget()
     private var staleSettingsRefreshBusy = false
     private val automaticSettingsSync=AutomaticSettingsRefresh()
-    private var automaticSettingsSyncResult:Pair<Long,Int>?=null
-    internal val machineSettingsSyncStatus get()=
-        if(staleSettingsRefreshBusy) R.string.machine_settings_sync_pending
-        else automaticSettingsSyncResult?.takeIf { elapsedNow()<it.first }?.second
+    private var automaticSettingsSyncResult: AutomaticSettingsSyncNotice? = null
+    internal val machineSettingsSyncStatus: Int? get() {
+        if (staleSettingsRefreshBusy) return R.string.machine_settings_sync_pending
+        val current = hub ?: return null
+        val report = current.latestOrdinaryCoffeeSettings
+        val status = automaticSettingsSyncResult?.status(
+            current.coffeeReadbackCursor?.source, report?.cursor?.source, report?.cursor?.sequence,
+            report?.receivedAtMs, report != null && report.value === snapshot.settings && machineSettingsFresh,
+            elapsedNow())
+        return when (status) {
+            AutomaticSettingsSyncNotice.Status.OBSERVED -> R.string.machine_settings_sync_observed
+            AutomaticSettingsSyncNotice.Status.WAITING_FOR_NEW_REPORT -> R.string.machine_settings_sync_unconfirmed
+            null -> null
+        }
+    }
     internal val machineSettingsSyncPending get()=staleSettingsRefreshBusy
     internal val usesAutomaticBoilerSettingsSync get()=v2SettingEvidence
     private var nextSettingsTapRetryAt=0L
@@ -1875,13 +1897,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val eligible=!staleSettingsRefreshBusy && !machineSettingsFresh && settingsRefreshSafe() &&
             current.canRefreshStaleSettings
         val proactive=v2SettingEvidence
-        if(proactive) {
-            val owner=current.coffeeReadbackCursor?.source ?: return false
+        val cursorAtStart = if (proactive) current.coffeeReadbackCursor ?: return false else null
+        if(cursorAtStart != null) {
+            val owner=cursorAtStart.source
             val observation=current.preheatSettingsBaseline?.takeIf {it.cursor.source===owner}?.cursor?.sequence ?: return false
             if(switchRetry) {
                 if(!eligible || !canRetryStaleMachineSettings)return false
                 nextSettingsTapRetryAt=now+2_000L
-            } else if(!automaticSettingsSync.claim(owner,generation,observation,now,eligible))return false
+            } else if(!automaticSettingsSync.claim(owner,generation,observation,now,eligible,explicit))return false
         } else if(!eligible || !settingsRefreshBudget.claim(generation,snapshot.settingsAt,now,explicit))return false
         if(proactive)automaticSettingsSyncResult=null
         staleSettingsRefreshBusy=true
@@ -1891,11 +1914,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             staleSettingsRefreshBusy=false
             logs.record("settings.refresh_finished",mapOf("result" to result.javaClass.simpleName,
                 "version" to BuildConfig.VERSION_NAME))
-            if(proactive && hub===current && current.coffeeGeneration==generation) {
-                val message=if(result is OperationResult.Success && machineSettingsFresh)
-                    R.string.machine_settings_sync_observed else R.string.machine_settings_sync_unconfirmed
-                if(result !is OperationResult.Success)nextSettingsTapRetryAt=elapsedNow()+2_000L
-                automaticSettingsSyncResult=(elapsedNow()+6_000L) to message
+            if (cursorAtStart != null && hub === current && current.coffeeGeneration == generation &&
+                current.coffeeReadbackCursor?.source === cursorAtStart.source) {
+                val finished = elapsedNow()
+                if(result !is OperationResult.Success)nextSettingsTapRetryAt=finished+2_000L
+                automaticSettingsSyncResult = AutomaticSettingsSyncNotice(
+                    cursorAtStart.source, cursorAtStart.sequence, now, finished + 6_000L)
             }
         }
         return true
@@ -2021,9 +2045,11 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     internal fun acknowledgeLeverRecipeUnknown(): String? {
         if (leverInFlight != null) return getString(R.string.lever_sending)
         val record = leverStore.blockingAttempt ?: return getString(R.string.lever_record_failed)
-        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true) || leverRecipeConditions() != null) {
-            refreshStaleMachineSettings(explicit = true)
+        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true))
             return getString(R.string.lever_reconnect_original)
+        leverRecipeConditions()?.let { reason ->
+            if (!machineSettingsFresh) refreshStaleMachineSettings(explicit = true)
+            return reason
         }
         if (!leverStore.acknowledge(record.token)) return getString(R.string.lever_record_failed)
         event(ResourceMessage(R.string.lever_result_unknown), "lever_recipe.acknowledged")
@@ -2226,22 +2252,27 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private fun requestSplitWeek(current:NativeDeviceHub,expected:WeeklySleepSchedule,target:WeeklySleepSchedule):String? {
         val broker=machineOperations ?: return getString(R.string.service_unavailable)
         val binding=splitBinding() ?: return getString(R.string.service_unavailable)
+        // Temperature confirmation has its own journal. Do not overlap another command with
+        // a weekly write admitted while that confirmation is still open.
         if (!splitWriteSafe() || !broker.openSplit({
                 splitWriteSafe() && !machineWriteRecovery.pending && !scheduleBusy &&
-                    !temperatureWrite.requiresExplicitRetry && settingRecoveryOwner?.let(machineWriteRecovery::owns)!=true
-            })) return getString(R.string.service_write_schedule_record_failed)
+                    settingRecoveryOwner?.let(machineWriteRecovery::owns)!=true
+            },allowBoilerOverlap=!temperatureWrite.requiresExplicitRetry))
+            return getString(R.string.service_write_schedule_record_failed)
         val entry=SplitMachineWriteJournal.Entry(SplitMachineWriteJournal.Kind.SCHEDULE,
             binding.source.address.uppercase(java.util.Locale.ROOT),SplitMachineWriteJournal.Target.Weekly(target.days))
         val send=broker.reserve(entry,binding)
         if(send==null) {
             broker.returnToLegacy()
-            return getString(R.string.service_write_schedule_record_failed)
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_schedule_record_failed))
         }
         val token=scheduleWrite.begin(target,firstSleepSerial,secondSleepSerial)
         if(token==null) {
             broker.abortUnsent(send,binding,OperationResult.Cancelled("tracker refused before queue"))
             broker.returnToLegacy()
-            return getString(R.string.service_write_schedule_pending)
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_schedule_pending))
         }
         val item=SplitPending(send,binding,token)
         splitWeek=item
@@ -2258,14 +2289,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 event(ResourceMessage(R.string.service_write_schedule_written),"v2.week.written")
                 writeWatchdog.await(token,MachineWriteWatchdog.Request.Schedule(scheduleWrite)) {
                     markSplitUnknown(item)
-                    event(ResourceMessage(R.string.service_write_schedule_no_readback),"v2.week.unknown")
+                    publishSplitWriteFeedback(R.string.service_write_schedule_no_readback,"v2.week.unknown")
                 }
             } else if(outcome==MachineWriteResult.Outcome.FAILED && broker.abortUnsent(send,binding,result)) {
                 splitWeek=null;broker.returnToLegacy()
-                event(ResourceMessage(R.string.service_write_schedule_first_not_written),"v2.week.not_sent")
+                publishSplitWriteFeedback(R.string.service_write_schedule_first_not_written,"v2.week.not_sent")
             } else {
                 markSplitUnknown(item)
-                event(ResourceMessage(R.string.service_write_schedule_partial_unknown),"v2.week.unknown")
+                publishSplitWriteFeedback(R.string.service_write_schedule_partial_unknown,"v2.week.unknown")
             }
             refreshSafetyNotification()
         }
@@ -2285,11 +2316,15 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         }
         val entry=SplitMachineWriteJournal.Entry(SplitMachineWriteJournal.Kind.BOILER,
             binding.source.address.uppercase(java.util.Locale.ROOT),target)
-        val send=broker.reserve(entry,binding) ?: return getString(R.string.service_write_setting_record_failed)
+        val send=broker.reserve(entry,binding) ?: run {
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_setting_record_failed))
+        }
         val token=settingsWrite.begin(intent)
         if(token==null) {
             broker.abortUnsent(send,binding,OperationResult.Cancelled("tracker refused before queue"))
-            return getString(R.string.service_write_setting_pending)
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_setting_pending))
         }
         val item=SplitPending(send,binding,token)
         splitBoiler=item
@@ -2306,14 +2341,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 maybeRefreshSplitBoiler()
                 writeWatchdog.await(token,MachineWriteWatchdog.Request.Setting(settingsWrite)) {
                     markSplitUnknown(item)
-                    event(ResourceMessage(R.string.service_write_setting_no_readback),"v2.boiler.unknown")
+                    publishSplitWriteFeedback(R.string.service_write_setting_no_readback,"v2.boiler.unknown")
                 }
             } else if(outcome==MachineWriteResult.Outcome.FAILED && broker.abortUnsent(send,binding,result)) {
                 splitBoiler=null;broker.returnToLegacy()
-                event(ResourceMessage(R.string.service_write_setting_not_written),"v2.boiler.not_sent")
+                publishSplitWriteFeedback(R.string.service_write_setting_not_written,"v2.boiler.not_sent")
             } else {
                 markSplitUnknown(item)
-                event(ResourceMessage(R.string.service_write_setting_unknown),"v2.boiler.unknown")
+                publishSplitWriteFeedback(R.string.service_write_setting_unknown,"v2.boiler.unknown")
             }
             refreshSafetyNotification()
         }
@@ -2343,12 +2378,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if(first?.value!==snapshot.sleepFirst || second?.value!==frame)return false
         val plan=item.passiveCut?.weeklyPair(first,second,elapsedNow()) ?: return false
         val target=item.send.entry.target as? SplitMachineWriteJournal.Target.Weekly ?: return false
-        if(plan.days!=target.days || !broker.settleVerified(item.send,item.binding))return false
+        if(plan.days!=target.days || !settleSplitVerified(broker,item))return false
         scheduleWrite.observe(firstSleepSerial,secondSleepSerial,first?.value,second?.value)
         splitWeek=null
         maybeRefreshSplitBoiler()
         broker.returnToLegacy()
-        event(ResourceMessage(R.string.service_write_schedule_confirmed),"v2.week.confirmed")
+        publishSplitWriteFeedback(R.string.service_write_schedule_confirmed,"v2.week.confirmed")
         return true
     }
 
@@ -2358,12 +2393,30 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val broker=machineOperations ?: return false
         val change=settingsWrite.change
         if(observedSetting(change,item.settingCut,frame)!=CoffeeReadbackEvidence.Setting.Observation.MATCH ||
-            !broker.settleVerified(item.send,item.binding))return false
+            !settleSplitVerified(broker,item))return false
         settingsWrite.observe(settingsSampleSerial,frame)
         splitBoiler=null
         broker.returnToLegacy()
-        event(ResourceMessage(R.string.service_event_setting_confirmed),"v2.boiler.confirmed")
+        publishSplitWriteFeedback(R.string.service_event_setting_confirmed,"v2.boiler.confirmed")
         return true
+    }
+
+    private fun splitWriteFeedback(resource:Int):Int =
+        if(machineOperations?.splitStorageFailed==true) R.string.service_v2_split_storage_failed else resource
+
+    private fun publishSplitWriteFeedback(resource:Int,kind:String) {
+        val message=splitWriteFeedback(resource)
+        event(ResourceMessage(message),if(message==resource) kind else "v2.recovery.storage_failed")
+    }
+
+    private fun settleSplitVerified(broker:CanonicalMachineOperationBroker,item:SplitPending):Boolean {
+        if(broker.splitStorageFailed)return false
+        if(broker.settleVerified(item.send,item.binding))return true
+        if(broker.splitStorageFailed) {
+            event(ResourceMessage(R.string.service_v2_split_storage_failed),"v2.recovery.storage_failed")
+            refreshSafetyNotification()
+        }
+        return false
     }
 
     internal data class SplitObservation(val choice:CanonicalMachineOperationBroker.RecoveryChoice,
@@ -2371,7 +2424,19 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
 
     internal val splitRecoveryChoices get()=machineOperations?.recoveryChoices().orEmpty()
 
-    internal fun splitObservation(choice:CanonicalMachineOperationBroker.RecoveryChoice):SplitObservation? {
+    internal fun splitRecoveryMessage(choice:CanonicalMachineOperationBroker.RecoveryChoice):Int {
+        if(machineOperations?.splitRecoveryBlocked==true || opaqueV2RecoveryFence)
+            return splitWriteFeedback(R.string.service_v2_split_recovery_blocked)
+        var resource=R.string.service_v2_split_recovery_wait
+        splitObservation(choice) {resource=it}
+        return resource
+    }
+
+    internal fun splitObservation(choice:CanonicalMachineOperationBroker.RecoveryChoice):SplitObservation? =
+        splitObservation(choice) {}
+
+    private fun splitObservation(choice:CanonicalMachineOperationBroker.RecoveryChoice,
+        needsReport:(Int)->Unit):SplitObservation? {
         if(choice !in splitRecoveryChoices)return null
         val current=hub ?: return null
         val binding=splitBinding() ?: return null
@@ -2396,12 +2461,23 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 SplitMachineWriteJournal.Target.Boiler(target.boiler,enabled)
             }
             is SplitMachineWriteJournal.Target.Weekly -> {
-                val first=current.latestNativeWeeklyFirst ?: return null
-                val second=current.latestNativeWeeklySecond ?: return null
-                if(first.cursor.source!==binding.source || second.cursor.source!==binding.source ||
-                    first.value!==snapshot.sleepFirst || second.value!==snapshot.sleepSecond ||
-                    first.cursor.sequence>=second.cursor.sequence || first.receivedAtMs<=after || second.receivedAtMs<=after ||
-                    !SleepScheduleFreshness.isFresh(first.value,first.receivedAtMs,second.value,second.receivedAtMs,now))return null
+                val first=current.latestNativeWeeklyFirst?.takeIf {
+                    it.cursor.source===binding.source && it.value===snapshot.sleepFirst &&
+                        it.receivedAtMs>after && SettingsFreshness.isFresh(it.receivedAtMs,now)
+                }
+                if(first==null) {
+                    needsReport(R.string.service_v2_split_week_first_missing)
+                    return null
+                }
+                val second=current.latestNativeWeeklySecond?.takeIf {
+                    it.cursor.source===binding.source && it.value===snapshot.sleepSecond &&
+                        it.receivedAtMs>after && it.cursor.sequence>first.cursor.sequence &&
+                        SleepScheduleFreshness.isFresh(first.value,first.receivedAtMs,it.value,it.receivedAtMs,now)
+                }
+                if(second==null) {
+                    needsReport(R.string.service_v2_split_week_second_missing)
+                    return null
+                }
                 val plan=WeeklySleepSchedule.fromReadback(first.value,second.value) ?: return null
                 SplitMachineWriteJournal.Target.Weekly(plan.days)
             }
@@ -2417,7 +2493,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         // Revalidate before accepting. The broker invokes this inline on the same pinned owner.
         if(!broker.resolveObserved(observation.choice,binding) {
                 splitBinding()?.source===observation.source && snapshot.coffeeState==DeviceState.READY
-            })return false
+            }) {
+            if(broker.splitStorageFailed)refreshSafetyNotification()
+            return false
+        }
         when(observation.choice.entry.kind) {
             SplitMachineWriteJournal.Kind.SCHEDULE -> {
                 splitWeek?.let {scheduleWrite.acknowledgeUnknown(it.trackerToken)}
@@ -2430,6 +2509,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         }
         if(!broker.restoredAndResolved)broker.returnToLegacy()
         refreshSafetyNotification()
+        if(broker.splitStorageFailed)return false
         event(ResourceMessage(if(broker.restoredAndResolved) R.string.service_v2_split_restart_required
             else R.string.service_v2_split_reconciled),"v2.recovery.observed_not_command_confirmation")
         return true
@@ -2540,6 +2620,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         machineControlSafetyMessage?.let { return it }
         if (manualShotActive) return getString(R.string.extraction_manual_block)
         if (invalidCurve) return getString(R.string.extraction_invalid_curve_block)
+        if (hub?.settingsSyncBlocksStart == true) return getString(R.string.ble_settings_sync_before_start)
         customCurveFirmwareBlock(profile)?.let { return it }
         tareStartBlock?.let { return it }
         shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
@@ -2831,7 +2912,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             return getString(R.string.dose_start_unavailable)
         preparation.current()?.takeIf { it.shotId == null }?.let { dose ->
             if (!dose.confirmed) return getString(R.string.dose_start_unconfirmed)
-            if (runCatching { preparation.verifyConfirmed(requireNotNull(app).beanInventoryResult.getOrThrow()) }.isFailure)
+            if (runCatching {
+                    preparation.verifyConfirmed(fixtureShotEffects?.inventory ?: requireNotNull(app).beanInventoryResult.getOrThrow())
+                }.isFailure)
                 return getString(R.string.dose_start_unavailable)
         }
         if (mock != null) {
@@ -2847,7 +2930,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 brewPreparation.consumed()
             }
             if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
-            val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
+            val shotId = beginPreparedShot(profile.id, slot, preparation) ?: return getString(R.string.dose_start_unavailable)
             val scenarioOwner = mockExtractionOwner
             if (scenarioOwner == null) mock.start(now, slot)
             else if (!mockExtractionScenario.start(scenarioOwner, profile.parameters,
@@ -2856,9 +2939,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         customCurveFirmwareBlock(profile) == null &&
                         mockExtractionOwner === scenarioOwner
                 }) {
-                runCatching { history?.transition(ExtractionState.IDLE, null, null) }
-                return getString(R.string.service_shot_session_rejected)
+                rejectPreparedShot(shotId, preparation)
+                return getString(R.string.ble_start_conditions_changed)
             }
+            associateStartedShot()
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
             series.begin(shotId, elapsedNow(), profile.id)
             extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram)
@@ -2902,6 +2986,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         requireNotNull(profile)
         customCurveFirmwareBlock(profile)?.let { return it }
         studioStartBlock(profile)?.let { return it }
+        if (!current.yieldSettingsReadbackForStart()) return getString(R.string.ble_settings_sync_before_start)
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null, timing = currentTimingEvidence()) }
                 .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
@@ -2911,10 +2996,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
             "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
         val coffeeAddress=current.coffeeAddress ?: return getString(R.string.service_shot_identity_missing)
-        val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
+        val shotId = beginPreparedShot(profile.id, slot, preparation) ?: return getString(R.string.dose_start_unavailable)
         val originalMachineIntent=MachineWriteRecoveryState.Record(machineWriteRecovery.kind,machineWriteRecovery.address)
         if (!shotRecovery.arm(coffeeAddress)) {
-            runCatching { history?.transition(ExtractionState.IDLE, null, null) }
+            rejectPreparedShot(shotId, preparation)
             return getString(R.string.service_shot_record_failed)
         }
         val shotOwner=requireNotNull(shotRecovery.captureOwnership())
@@ -2936,10 +3021,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear(shotOwner)) manualSafetyResource = R.string.machine_recovery_shot_restart
             else appRecoveryOwner=null
-            runCatching { history?.transition(ExtractionState.IDLE, null, null) }
-            event(ResourceMessage(R.string.service_shot_session_rejected), "shot.rejected")
-            return getString(R.string.service_shot_session_rejected)
+            rejectPreparedShot(shotId, preparation)
+            event(ResourceMessage(R.string.ble_start_conditions_changed), "shot.rejected")
+            return getString(R.string.ble_start_conditions_changed)
         }
+        if (current.extraction.state == ExtractionState.STARTING) lastShotState = ExtractionState.STARTING
+        associateStartedShot()
         activeShotTargetHundredthsGram = profile.targetHundredthsGram
         if (brewPreparation.active) brewPreparation.consumed()
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
@@ -2959,25 +3046,34 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         return null
     }
     /** Persist shot identity and consumed-dose ownership before any start dispatch. */
-    private fun beginPreparedShot(curveId: String, slot: Int): String? {
+    private fun beginPreparedShot(curveId: String, slot: Int, preparation: BeanPreparation): String? {
         val id = runCatching { requireNotNull(history).begin(curveId, slot = slot) }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
             .getOrNull() ?: return null
+        lastHistoryState = ExtractionState.STARTING
         return runCatching {
-            val fixture=fixtureShotEffects
-            if(fixture!=null) {
-                check(fixture.beans.claim(id)==null)
-            } else {
-                val app=application as MobileApplication
-                app.beanPreparationResult.getOrThrow().claim(id)
-                // Journal association is recoverable; durable ownership is not optional.
-                app.reconcileJournal()
-            }
+            preparation.claim(id)
             id
         }.onFailure {
             runCatching { history?.transition(ExtractionState.IDLE, null, null) }
             event(ResourceMessage(R.string.dose_start_unavailable), "bean.shot_claim_failed")
         }.getOrNull()
+    }
+    private fun rejectPreparedShot(shotId: String, preparation: BeanPreparation) {
+        // Persist the definitive outcome so a failed dose release can be recovered on restart.
+        runCatching { history?.transition(ExtractionState.IDLE, null, null) }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
+        runCatching { preparation.releaseUnsentClaim(shotId) }
+            .onFailure { event(ResourceMessage(R.string.dose_start_unavailable), "bean.shot_release_failed") }
+    }
+
+    private fun associateStartedShot() {
+        // The durable claim survives a failed association and remains bound to this shot.
+        runCatching {
+            val fixture=fixtureShotEffects
+            if(fixture!=null) fixture.reconcileBeans()
+            else (application as MobileApplication).reconcileJournal()
+        }.onFailure { event(ResourceMessage(R.string.dose_start_unavailable), "bean.journal_association_pending") }
     }
     internal val shotStartObservation get() = hub?.shotStartObservation
     internal val coffeeDeliveries get() = hub?.coffeeDeliveries.orEmpty()
@@ -3377,7 +3473,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             event(ResourceMessage(R.string.service_event_cups_shutdown_block), "service.stop_deferred")
             return
         }
-        if (scheduleBusy) {
+        // A failed split store has fenced every pending dispatch. Drain without clearing it.
+        if (scheduleBusy && machineOperations?.splitStorageFailed!=true) {
             event(ResourceMessage(R.string.service_event_schedule_shutdown_block), "service.stop_deferred")
             return
         }
@@ -3516,6 +3613,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         }
         fun sleep():String? {valid();caseStage("request-sleep");return service.enterSleepNow()}
         fun recoveryChoices():List<CanonicalMachineOperationBroker.RecoveryChoice>{valid();return service.splitRecoveryChoices}
+        fun recoveryMessage(choice: CanonicalMachineOperationBroker.RecoveryChoice): Int {
+            valid(); return service.splitRecoveryMessage(choice)
+        }
         fun observation(choice:CanonicalMachineOperationBroker.RecoveryChoice):SplitObservation? {
             valid();return service.splitObservation(choice)
         }
@@ -3557,10 +3657,18 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val startEvidence:ShotStartObservation? get(){valid();return service.shotStartObservation}
         val terminalHistory:ShotHistory.Status? get(){valid();return service.fixtureShotEffects?.history?.entries?.singleOrNull()?.status}
         val syntheticSamples:Int get(){valid();return requireNotNull(service.fixtureShotEffects).persistedSampleCount}
-        fun start(profile:CurveProfile):String? {
+        val historyCount:Int get(){valid();return requireNotNull(service.fixtureShotEffects).history.entries.size}
+        val preparedDose:BeanPreparation.Dose? get(){valid();return requireNotNull(service.fixtureShotEffects).beans.current()}
+        val associatedDoseMg:Long? get(){valid()
+            val fixture=requireNotNull(service.fixtureShotEffects)
+            return fixture.history.entries.lastOrNull()?.id?.let { fixture.journal.find(it)?.notes?.doseMg }
+        }
+        val beanBalanceMg:Long get(){valid();return requireNotNull(service.fixtureShotEffects).inventory.batches().single().balanceMg}
+        fun prepareDose() {valid();requireNotNull(service.fixtureShotEffects).prepareDose()}
+        fun start(profile:CurveProfile,startPermit:(()->Boolean)?=null):String? {
             valid();check(service.fixtureShotEffects!=null)
             caseStage("request-start")
-            return service.startShot(profile.id,profile.scaleMode,7).also {watchShotIfIsolated()}
+            return service.startShot(profile.id,profile.scaleMode,7,startPermit).also {watchShotIfIsolated()}
         }
         fun stop(){valid();check(service.fixtureShotEffects!=null);caseStage("request-stop");service.stopShot();watchShotIfIsolated()}
         fun completeFakeHandshakeTransport() {
@@ -3714,7 +3822,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 }
                 val driver=DetachedCoreDriver()
                 val owner=NativeDeviceHub(ownerService.applicationContext,automaticAllowed={false},
-                    onState=ownerService::onDeviceState,onCoffee=ownerService::onCoffeeFrame,
+                    onState=ownerService::onDeviceState,onCoffeeTimed=ownerService::onCoffeeFrame,
                     legacyVerifiedStartFrames=ownerService.fixtureCurveLibrary?.legacyVerifiedStartFrames.orEmpty(),
                     trackCoffeeDelivery=true,detachedDrivers=detachedDrivers(driver,clock))
                 hub=owner

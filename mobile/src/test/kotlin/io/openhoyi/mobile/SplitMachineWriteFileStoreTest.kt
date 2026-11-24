@@ -17,6 +17,7 @@ class SplitMachineWriteFileStoreTest {
     private class MemoryOps : SplitMachineWriteFileStore.FileOps {
         var current: ByteArray? = null
         var lateFailure = false
+        var lateUnlinkFailure = false
         var beforeReplace:(()->Unit)?=null
         val events = mutableListOf<String>()
         override fun exists(file: File) = current != null
@@ -30,7 +31,7 @@ class SplitMachineWriteFileStoreTest {
         override fun unlink(file: File) {
             events += "unlink"
             current = null
-            if (lateFailure) error("after unlink before directory sync")
+            if (lateUnlinkFailure) error("after unlink before directory sync")
         }
     }
 
@@ -79,6 +80,27 @@ class SplitMachineWriteFileStoreTest {
             assertFalse(it.clear())
             assertEquals(listOf("replace"), ops.events)
             assertTrue(it.read() is SplitMachineWriteJournal.Snapshot.Pending)
+        }
+    }
+
+    @Test fun failedFinalUnlinkRestoresExactMarkerAndLatchesMutation() {
+        for (recovering in listOf(false,true)) {
+            val bytes=SplitMachineWriteMarkerCodec.encode(listOf(typedWeekly)).toString().toByteArray()
+            val ops=MemoryOps().apply { if(recovering) current=bytes.copyOf() }
+            val parent=temporary.newFolder()
+            requireNotNull(SplitMachineWriteFileStore.tryOpen(parent,{false},{true},ops)).use { store ->
+                val journal=SplitMachineWriteJournal(store)
+                val live=if(recovering) null else requireNotNull(journal.reserve(typedWeekly))
+                val restored=if(recovering) requireNotNull(journal.recoveryOwner(typedWeekly)) else null
+                ops.lateUnlinkFailure=true
+                assertFalse(if(restored!=null) journal.settleRecovered(restored) else journal.settle(requireNotNull(live)))
+                assertEquals(SplitMachineWriteJournal.Snapshot.Blocked,journal.pending)
+                assertArrayEquals(bytes,ops.current)
+                assertFalse(store.clear())
+            }
+            requireNotNull(SplitMachineWriteFileStore.tryOpen(parent,{false},{true},ops)).use { restarted ->
+                assertEquals(SplitMachineWriteJournal.Snapshot.Pending(listOf(typedWeekly)),restarted.read())
+            }
         }
     }
 

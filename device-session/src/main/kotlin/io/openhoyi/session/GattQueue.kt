@@ -23,6 +23,7 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     var active=false; private set
     var transportCloseFailure: Exception? = null; private set
     val inFlight:Boolean get()=current!=null
+    internal val settingsRefreshInFlight: Boolean get() = current?.coffeeKind == CoffeeDeliveryKind.SETTINGS_REFRESH
     private fun assertThread()=check(Thread.currentThread()===owner){"GattQueue accessed outside owner thread"}
     fun open():Long {
         assertThread();check(!opening){"reentrant queue open"}

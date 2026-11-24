@@ -38,3 +38,8 @@ internal class CoffeeSessionFixture(trackCoffeeDelivery:Boolean=false, customPre
         idle(0)
     }
 }
+
+/** Regenerate the final byte after mutating a synthetic Settings, weekly, or Idle report. */
+internal fun ByteArray.withCoffeeNotificationChecksum(): ByteArray = apply {
+    this[lastIndex] = dropLast(1).fold(0) { acc, value -> acc xor (value.toInt() and 255) }.toByte()
+}

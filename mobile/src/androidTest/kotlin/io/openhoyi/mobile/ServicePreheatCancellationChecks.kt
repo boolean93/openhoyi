@@ -142,6 +142,9 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                         field(session, "state").set(session, DeviceState.READY)
                         field(session, "activeAddress").set(session, address)
                         val stamp = SystemClock.elapsedRealtime()
+                        field(session,"coffeeAuthentication").set(session,CoffeeAuthentication(
+                            java.time.LocalDateTime.of(2026,11,22,0,0),"123456"))
+                        field(session,"coffeeAuthenticationHandoffAt").set(session,stamp)
                         val idle = IdleTelemetry(8000, 12000, 0, 0, 0, 0, settings.cupCount, 0, ByteFrame(byteArrayOf()))
                         mapOf("lastIdle" to idle, "lastIdleAtMs" to stamp, "lastSettings" to settings,
                             "lastSettingsAtMs" to stamp, "sleepFirst" to first, "sleepSecond" to second,

@@ -21,7 +21,7 @@ class ShotStartEvidenceTest {
 
     private fun readyIdle(f: CoffeeSessionFixture, at:Long) {
         f.now=at
-        f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,f.hex("400023F02F1C770B00000000000000190321AF"))
+        f.session.onNotification(f.session.generation,KnownGatt.coffeeNotify,f.hex("400023F02F1C770B00000000000000190321E7"))
     }
     private fun session(): CoffeeSessionFixture = CoffeeSessionFixture(trackCoffeeDelivery=true).also { readyIdle(it,0) }
 

@@ -89,6 +89,17 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     private var staleSettingsRefresh:StaleSettingsRefresh?=null
     val staleSettingsRefreshBusy:Boolean get()=staleSettingsRefresh!=null
+    val settingsSyncBlocksStart: Boolean get() = queue.settingsRefreshInFlight ||
+        staleSettingsRefresh?.let { !trackCoffeeDelivery || !it.written } == true
+
+    /** Only the observation can yield. A write still awaiting its ATT result keeps the queue. */
+    fun yieldSettingsReadbackForStart(): Boolean {
+        if (settingsSyncBlocksStart) return false
+        val task = staleSettingsRefresh ?: return true
+        finishStaleSettingsRefresh(task, OperationResult.Cancelled("superseded by explicit extraction"))
+        return staleSettingsRefresh == null
+    }
+
     /** Availability only; the caller still supplies its app-level control/recovery guard. */
     val canRefreshStaleSettings:Boolean get()=stopAdmissionGeneration!=generation && !staleSettingsRefreshBusy && !queue.inFlight &&
         coffeeAuthentication!=null && address!=null && canControlFromIdle() && sleepWrite==null &&
@@ -226,11 +237,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         var settings:Pair<Settings,Long>?=null
     }
     private var initialAuthentication:InitialAuthentication?=null
+    private var coffeeAuthenticationHandoffAt:Long?=null
+    private var lastTelemetryCapturedAt:Long?=null
+    private var lastScalePacketCapturedAt:Long?=null
     private class InitialSynchronization(val generation:Long,val address:String,val authentication:CoffeeAuthentication,val startedAt:Long) {
         var idleAt:Long?=null
         var cancelled=false
         var used=false
         var inFlight=false
+        var dispatchAt:Long?=null
         var dispatchDeadline:Long?=null
         var settings:Pair<Settings,Long>?=null
     }
@@ -369,7 +384,12 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             urgent=false,kind=CoffeeDeliveryKind.AUTHENTICATE,beforeDispatch={
                 if(initialAuthentication!==attempt || !ownsInitialization(expected) || state!=DeviceState.INITIALIZING)false
                 else if(clock()>=attempt.stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);false}
-                else {attempt.dispatchDeadline=clock()+5000;true}
+                else {
+                    val now=clock()
+                    coffeeAuthenticationHandoffAt=now
+                    attempt.dispatchDeadline=now+5000
+                    true
+                }
             }) { result ->
             if(initialAuthentication!==attempt || !ownsInitialization(expected) || state!=DeviceState.INITIALIZING)return@enqueueTagged
             val cached=attempt.settings
@@ -457,14 +477,12 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     val latestOrdinaryCoffeeSettings: CoffeeReadbackFrame.OrdinarySettings? get() =
         lastOrdinarySettings?.takeIf { it.cursor.source === currentReadbackSource() }
 
-    private fun recordLiveReadback(frame: HoyiMessage, now: Long) {
+    private fun recordLiveReadback(frame: HoyiMessage, now: Long): Boolean {
         // Called at ingress only, never on buffered initialization/replayed packets.
-        if (frame !is Settings && frame !is SleepPart) return
-        val source = currentReadbackSource() ?: return
-        if (frame is Settings && initialSettingsBaseline?.let {
-                it.cursor.source === source && now < it.capturedAtMs
-            } == true) return
-        if (lastReadback?.let { it.cursor.source === source && now < it.receivedAtMs } == true) return
+        if (frame !is Settings && frame !is SleepPart) return false
+        val source = currentReadbackSource() ?: return false
+        if (frame is Settings && lastSettingsAtMs?.let { now < it } == true) return false
+        if (lastReadback?.let { it.cursor.source === source && now < it.receivedAtMs } == true) return false
         val cursor = CoffeeReadbackCursor(source, ++readbackSequence)
         lastReadback = when (frame) {
             is Settings -> CoffeeReadbackFrame.OrdinarySettings(cursor, now, frame).also { lastOrdinarySettings=it }
@@ -477,6 +495,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 }
             }
         }
+        return true
     }
 
     fun onNotification(generation:Long,endpoint:Endpoint,bytes:ByteArray,capturedAtMs:Long=clock()) {
@@ -486,53 +505,66 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             // No pre-subscription unit/status packet may seed the new decoder's trusted state.
             if(state !in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING,DeviceState.READY))return
             if(state!=DeviceState.READY && now>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return}
+            if(!TelemetryFreshness.isFresh(capturedAtMs,now) ||
+                lastScalePacketCapturedAt?.let {capturedAtMs<it}==true)return
+            lastScalePacketCapturedAt=capturedAtMs
+            when(val decoded=scaleDecoder(bytes,capturedAtMs)) {
+                is DecodeResult.Valid -> {
+                    if(!ownsInitialization(generation))return
+                    val expectedEvidence=scaleAdapter.observationEvidence
+                    if(decoded.value.evidence!=expectedEvidence) {diagnostic("scale evidence rejected");return}
+                    if(state==DeviceState.SYNCHRONIZING)setState(DeviceState.READY)
+                    if(!ownsInitialization(generation) || lastScalePacketCapturedAt!=capturedAtMs)return
+                    if(state==DeviceState.READY)scaleObservation(decoded.value)
+                }
+                else -> diagnostic("scale decode: ${decoded::class.simpleName}")
+            }
+            return
         }
-        if(role==DeviceRole.COFFEE)when(val decoded=HoyiCodec.decode(bytes)) {
+        when(val decoded=if(trackCoffeeDelivery)HoyiCodec.decodeLive(bytes) else HoyiCodec.decode(bytes)) {
             is DecodeResult.Valid -> {
                 val frame=decoded.value
+                val handoff=coffeeAuthenticationHandoffAt ?: return
+                if(capturedAtMs<handoff)return
+                val telemetry=frame is IdleTelemetry || frame is ExtractionTelemetry
+                if(telemetry) {
+                    if(!TelemetryFreshness.isFresh(capturedAtMs,now) ||
+                        lastTelemetryCapturedAt?.let {capturedAtMs<it}==true)return
+                } else if(!SettingsFreshness.isFresh(capturedAtMs,now))return
+
                 if(state==DeviceState.INITIALIZING && frame is Settings) {
                     initialAuthentication?.takeIf {it.generation==generation && it.dispatchDeadline!=null}?.let {
                         if(now>=it.stageDeadline || now>=it.dispatchDeadline!!)fail(PROTOCOL_TIMEOUT_REASON)
-                        else it.settings=frame to now
+                        else if(it.settings?.let { sample -> capturedAtMs<sample.second }!=true)
+                            it.settings=frame to capturedAtMs
                     }
                     return
                 }
                 if(state==DeviceState.SYNCHRONIZING && now>=stageDeadline){fail(PROTOCOL_TIMEOUT_REASON);return}
-                if(state==DeviceState.SYNCHRONIZING && frame is Settings && initialSynchronization?.inFlight==true) {
-                    initialSynchronization?.settings=frame to now
-                    return
-                }
-                if (SettingsFreshness.isFresh(capturedAtMs,now)) recordLiveReadback(frame,capturedAtMs)
-                if (TelemetryFreshness.isFresh(capturedAtMs,now)) recordNativeTelemetry(frame,capturedAtMs)
-                shotStartEvidence?.let { evidence ->
-                    currentReadbackSource()?.let { source ->
-                        if (TelemetryFreshness.isFresh(capturedAtMs,now) &&
-                            evidence.status(source,now) == ShotStartObservation.WAITING_FOR_MACHINE) {
-                            if (frame is ExtractionTelemetry) evidence.observe(source,capturedAtMs,frame)
-                            else if (frame is IdleTelemetry) evidence.observeIdle(source,capturedAtMs)
-                        }
+                if(state==DeviceState.SYNCHRONIZING && frame is Settings) {
+                    initialSynchronization?.takeIf {it.inFlight}?.let { sync ->
+                        val dispatchedAt=sync.dispatchAt ?: return
+                        if(capturedAtMs>=dispatchedAt && sync.settings?.let {capturedAtMs<it.second}!=true)
+                            sync.settings=frame to capturedAtMs
+                        return
                     }
                 }
-                // For READY V2 settings, do not re-age an old native notification at app delivery.
-                if(trackCoffeeDelivery && state==DeviceState.READY && frame is Settings) {
-                    val native=latestOrdinaryCoffeeSettings
-                    if(native?.value!==frame)return
-                    processCoffeeFrame(generation,frame,native.receivedAtMs)
-                } else processCoffeeFrame(generation,frame,now)
+                if(state!=DeviceState.SYNCHRONIZING && state!=DeviceState.READY)return
+                if(telemetry) {
+                    lastTelemetryCapturedAt=capturedAtMs
+                    recordNativeTelemetry(frame,capturedAtMs)
+                    shotStartEvidence?.let { evidence ->
+                        currentReadbackSource()?.let { source ->
+                            if(evidence.status(source,now)==ShotStartObservation.WAITING_FOR_MACHINE) {
+                                if(frame is ExtractionTelemetry)evidence.observe(source,capturedAtMs,frame)
+                                else if(frame is IdleTelemetry)evidence.observeIdle(source,capturedAtMs)
+                            }
+                        }
+                    }
+                } else if(state==DeviceState.READY && !recordLiveReadback(frame,capturedAtMs))return
+                processCoffeeFrame(generation,frame,capturedAtMs)
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
-        }else when(val decoded=scaleDecoder(bytes,now)) {
-            is DecodeResult.Valid -> {
-                if(!ownsInitialization(generation))return
-                val expectedEvidence=scaleAdapter.observationEvidence
-                if(decoded.value.evidence!=expectedEvidence) {diagnostic("scale evidence rejected");return}
-                if(state==DeviceState.SYNCHRONIZING)setState(DeviceState.READY)
-                if(this.generation!=generation||!queue.active)return
-                if(state==DeviceState.READY) {
-                    scaleObservation(decoded.value)
-                }
-            }
-            else -> diagnostic("scale decode: ${decoded::class.simpleName}")
         }
     }
     /** Shared live/replayed path; timestamps always describe reception, never replay. */
@@ -546,11 +578,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 else -> Unit
             }
         }
-        val bootstrapping=state==DeviceState.SYNCHRONIZING && frame is Settings
+        val bootstrapping=state==DeviceState.SYNCHRONIZING
         val authenticated=state==DeviceState.SYNCHRONIZING||state==DeviceState.READY
         if(frame is Settings && authenticated){lastSettingsAtMs=now;lastSettings=frame;acceptSettings(frame)}
         // READY observers may synchronously replace this connection or publish a newer frame.
-        if(!ownsInitialization(expected))return
+        if(!ownsInitialization(expected) || (frame is Settings && lastSettings !== frame))return
         if(state==DeviceState.READY){
             if (trackCoffeeDelivery && bootstrapping && frame is Settings && lastSettings === frame &&
                 latestOrdinaryCoffeeSettings==null) currentReadbackSource()?.let { source ->
@@ -633,7 +665,14 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         queue.enqueueTagged(GattOperation.Write(requireNotNull(writeEndpoint),command.frame.toByteArray(),withResponse),
             minOf(5000,hardDeadline-clock()).coerceAtLeast(1),urgent=false,kind=CoffeeDeliveryKind.INITIAL_SETTINGS_SYNC,beforeDispatch={
                 if(!eligible() || !synchronizationRefreshPermit() || !eligible())false
-                else {sync.dispatchDeadline=minOf(clock()+5000,hardDeadline);stageDeadline=hardDeadline;diagnostic("coffee.initial_sync.refresh=dispatched");true}
+                else {
+                    val now=clock()
+                    sync.dispatchAt=now
+                    sync.dispatchDeadline=minOf(now+5000,hardDeadline)
+                    stageDeadline=hardDeadline
+                    diagnostic("coffee.initial_sync.refresh=dispatched")
+                    true
+                }
             }) { result ->
             if(initialSynchronization!==sync || !ownsInitialization(sync.generation) || state!=DeviceState.SYNCHRONIZING)return@enqueueTagged
             if(clock()>=stageDeadline || sync.dispatchDeadline?.let {clock()>=it}!=false)fail(PROTOCOL_TIMEOUT_REASON)
@@ -751,6 +790,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=permittedStart(parameters)
         if(command==null){callback(OperationResult.Failed("curve outside validated profile set"));return}
+        if (!yieldSettingsReadbackForStart()) {
+            callback(OperationResult.Failed("settings sync write still pending"))
+            return
+        }
         var evidence: ShotStartEvidence? = null
         send(command,DeviceRole.COFFEE,kind=CoffeeDeliveryKind.START,
             beforeDispatch={beforeDispatch() && startConditionsValid(parameters,context)}, onHandoff={
@@ -1133,6 +1176,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val detachedTare=scaleTare;scaleTare=null
         initialAuthentication=null
         initialSynchronization=null
+        coffeeAuthenticationHandoffAt=null
+        lastTelemetryCapturedAt=null
+        lastScalePacketCapturedAt=null
         coffeeAuthentication=null;boilerReadback=null;boilerRefreshTask=null;boilerReconnectLimit=null
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
         try { setState(terminal) }

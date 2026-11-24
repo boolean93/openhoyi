@@ -37,7 +37,7 @@ class StaleSettingsRefreshTest {
         fun receive(bytes:ByteArray)=session.onNotification(session.generation,KnownGatt.coffeeNotify,bytes)
         fun idle(sleep:Int=0,alarms:Int=0) {
             val b=hex("400024BF2F1C770B00000000000000190321AF")
-            b[8]=sleep.toByte();b[12]=(alarms shr 8).toByte();b[13]=alarms.toByte();receive(b)
+            b[8]=sleep.toByte();b[12]=(alarms shr 8).toByte();b[13]=alarms.toByte();receive(b.withCoffeeNotificationChecksum())
         }
         fun stale() {now=180_001;idle()}
         fun refresh(guard:()->Boolean={true})=session.refreshStaleSettings(guard){results+=it}
@@ -93,6 +93,43 @@ class StaleSettingsRefreshTest {
         assertTrue(f.results.single() is OperationResult.Failed)
         assertEquals(listOf(1),f.driver.writes.drop(baseline).map { it.bytes[0].toInt() })
     }
+    @Test fun explicitStartTakesOverOnlyAfterTheClockWriteCompletes() {
+        val f = Fixture(trackV2 = true)
+        f.receive(hex("830113F95C007D0F350019006A")) // Café mode, no studio temperature interlock.
+        f.stale()
+        val parameters = StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
+        assertNotNull(f.session.captureStartContext(parameters))
+        val before = f.driver.writes.size
+        f.refresh()
+        var result: OperationResult? = null
+        f.session.startExtraction(parameters) { result = it }
+        assertTrue(result is OperationResult.Failed)
+        assertEquals(listOf(1), f.driver.writes.drop(before).map { it.bytes.first().toInt() })
+
+        f.complete()
+        assertTrue(f.session.staleSettingsRefreshBusy)
+        result = null
+        f.session.startExtraction(parameters) { result = it }
+        assertEquals(listOf(1, 2), f.driver.writes.drop(before).map { it.bytes.first().toInt() })
+        assertFalse(f.session.staleSettingsRefreshBusy)
+        assertTrue(f.results.single() is OperationResult.Cancelled)
+        f.complete()
+        assertTrue(result is OperationResult.Success)
+    }
+
+    @Test fun expiringTheObserverCannotReleaseAnOutstandingSettingsWrite() {
+        val f = Fixture(trackV2 = true)
+        f.stale()
+        f.refresh()
+        f.now += 3_100
+        f.session.tick()
+        f.idle()
+        assertFalse(f.session.staleSettingsRefreshBusy)
+        assertFalse(f.session.yieldSettingsReadbackForStart())
+        f.complete()
+        assertTrue(f.session.yieldSettingsReadbackForStart())
+    }
+
     @Test fun v2ExplicitReadAgainAfterAckOnlyTimeoutIsNotABoilerToggle() {
         val f=Fixture(trackV2=true)
         f.stale()

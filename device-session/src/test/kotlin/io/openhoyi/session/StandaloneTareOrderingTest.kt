@@ -9,6 +9,18 @@ class StandaloneTareOrderingTest {
         val token = requireNotNull(it.begin())
         assertTrue(it.written(token, OperationResult.Success(), 10))
     }
+    @Test fun zeroCapturedBeforeWriteCompletionCannotConfirmTareWhenDeliveredLater() {
+        var now = 100L
+        val tare = StandaloneTare { now }
+        tare.written(requireNotNull(tare.begin()), OperationResult.Success(), 10)
+        now = 150L
+        tare.sample(11, 0, capturedAtMs = 99)
+        tare.sample(12, 0, capturedAtMs = 100)
+        assertEquals(StandaloneTare.State.WAITING_ZERO, tare.state)
+        tare.sample(13, 0, capturedAtMs = 140)
+        assertEquals(StandaloneTare.State.CONFIRMED, tare.state)
+    }
+
     @Test fun olderZeroCannotOverrideNewerNonzeroSample() {
         val t = waiting()
         t.sample(12, 2500)

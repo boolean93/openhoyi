@@ -6,7 +6,10 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.util.SparseArray
 import android.os.Parcelable
+import android.view.KeyEvent
 import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
 import android.widget.Switch
 import android.widget.TextView
 import io.openhoyi.protocol.ByteFrame
@@ -63,6 +66,7 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
                     repeat(8) { toggle.performClick() }
                     check(toggle.isChecked) { "Repeated toggles must preserve final native state" }
                     off.recycle(); on.recycle(); rtl.recycle()
+                    verifyBoilerKeyboardActivation(context)
                     verifyBoilerPendingInk(context)
                     verifyBoilerArc(context)
                 }
@@ -70,6 +74,46 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
         }
         failure?.let { throw it }
     }
+    private fun verifyBoilerKeyboardActivation(context: android.content.Context) {
+        val power = HoyiSwitch(context)
+        var reads = 0
+        var writes = 0
+        val fresh = Any()
+        power.authoritativeToggleIdentity = { power.drawnToggleIdentity }
+        power.setOnCheckedChangeListener { _, _ -> writes++ }
+        val readOnly = Button(context).apply { setOnClickListener { power.readbackRetry?.invoke() } }
+        fun key(action: Int, code: Int = KeyEvent.KEYCODE_DPAD_CENTER) =
+            power.dispatchKeyEvent(KeyEvent(action, code))
+
+        for ((index, code) in listOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_SPACE).withIndex()) {
+            power.drawnToggleIdentity = null
+            power.readbackRetry = { reads++ }
+            check(power.importantForAccessibility == View.IMPORTANT_FOR_ACCESSIBILITY_NO)
+            check(!power.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+            check(readOnly.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+            check(key(KeyEvent.ACTION_DOWN, code))
+            power.readbackRetry = null
+            power.drawnToggleIdentity = fresh
+            check(key(KeyEvent.ACTION_UP, code))
+            check(readOnly.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+            check(reads == (index + 1) * 2 && writes == 0 && !power.isChecked)
+        }
+
+        check(key(KeyEvent.ACTION_DOWN))
+        power.readbackRetry = { reads++ }
+        power.drawnToggleIdentity = null
+        power.readbackRetry = null
+        power.drawnToggleIdentity = fresh
+        check(key(KeyEvent.ACTION_UP))
+        check(reads == 4 && writes == 0 && !power.isChecked)
+
+        check(key(KeyEvent.ACTION_DOWN) && power.isPressed)
+        // CompoundButton toggles synchronously, then returns whether View called an OnClickListener.
+        // These switches write through OnCheckedChangeListener and have no OnClickListener.
+        key(KeyEvent.ACTION_UP)
+        check(writes == 1 && power.isChecked && !power.isPressed)
+    }
+
     private fun verifyBoilerArc(context: android.content.Context) {
         for ((steam, goal) in listOf(false to 92f, true to 120f)) {
             val current = TextView(context)
@@ -138,28 +182,27 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
         val enabled = render()
         val pending = MachineSettingChange.BrewHeating(true)
         val waiting = SettingsWriteTracker.State.WAITING_READBACK
-        fun project(state: SettingsWriteTracker.State) {
+        fun project() {
             power.isEnabled = false
-            power.keepPendingAppearance = HomeBoilerSwitchPresentation.pendingAppearance(true, pending, state, true)
             // Match Home’s rendering guard: projecting readback is not a second user click.
             power.setOnCheckedChangeListener(null)
-            power.isChecked = HomeBoilerSwitchPresentation.checked(true, false, pending, state, true)
+            power.isChecked = false
         }
         try {
-            project(waiting)
+            project()
             present(hold.resolve(owner, address, null, null, null, null, 2800, hold = true))
             check(temperature.text.toString() == "91.4 °C" && target.text.toString() == "92 °C")
-            check(power.isChecked && !power.isEnabled)
-            check(!HomeBoilerSwitchPresentation.showInline(
+            check(!power.isChecked && !power.isEnabled)
+            check(HomeBoilerSwitchPresentation.showInline(
                 HomeBoilerSwitchPresentation.label(true, false, pending, waiting)))
-            check(render().let { image -> try { enabled.sameAs(image) } finally { image.recycle() } }) {
-                "Pending boiler switch must retain the same dial pixels as enabled"
+            check(render().let { image -> try { !enabled.sameAs(image) } finally { image.recycle() } }) {
+                "Pending boiler switch must remain visually distinct from a confirmed ON"
             }
             val failed = SettingsWriteTracker.State.FAILED
-            project(failed)
+            project()
             present(hold.resolve(owner, address, null, null, null, null, 4000, hold = false))
             check(temperature.text.toString() == "—" && target.text.toString() == "—")
-            check(!power.isChecked && !power.keepPendingAppearance && writes == 1)
+            check(!power.isChecked && writes == 1)
             check(HomeBoilerSwitchPresentation.showInline(
                 HomeBoilerSwitchPresentation.label(true, false, pending, failed)))
             check(render().let { image -> try { !enabled.sameAs(image) } finally { image.recycle() } })

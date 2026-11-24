@@ -228,20 +228,50 @@ internal object MockBleSameIdFixture {
                 check(preparationState == BrewPreparation.State.READY && writeCount() == 2)
             }
         }
+        case("02/start-unsent-dose", curves = true, shot = true) {
+            bootstrap()
+            advance(1); observe(settings(flags = 0xf9))
+            val profile = selectImmutableCurve { it.targetHundredthsGram <= 0 }
+            prepareDose()
+            val dose = checkNotNull(preparedDose)
+            var permits = 0
+            check(start(profile) { ++permits == 1 } != null)
+            check(writeCount() == 1 && terminalHistory == ShotHistory.Status.NOT_STARTED)
+            check(preparedDose == dose && associatedDoseMg == null && beanBalanceMg == 82_000L)
+        }
         for (stop in listOf(false, true)) case(if (stop) "02/stop-evidence" else "02/start-evidence", curves = true, shot = true) {
             bootstrap()
             advance(1); observe(settings(flags = 0xf9)) // Synthetic café mode, no configure/heater write.
             val profile = selectImmutableCurve { it.targetHundredthsGram <= 0 }
+            val dose = if (stop) null else {
+                prepareDose()
+                val prepared = checkNotNull(preparedDose)
+                repeat(3) { advance(60_000) }
+                advance(1)
+                observe(idle())
+                advance(350)
+                check(settingsSyncPending && lastWriteOpcode() == 1 && writeCount() == 2)
+                check(start(profile) != null && writeCount() == 2)
+                check(historyCount == 0 && preparedDose == prepared && beanBalanceMg == 82_000L)
+                complete()
+                check(settingsSyncPending)
+                prepared
+            }
             check(start(profile) == null)
+            if (dose != null) {
+                check(preparedDose?.eventId == dose.eventId && preparedDose?.shotId != null)
+                check(associatedDoseMg == null && beanBalanceMg == 82_000L)
+            }
             expectLastWrite(CoffeeCommands.start(profile.parameters).frame.toByteArray())
             complete()
-            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE)
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE && terminalHistory == ShotHistory.Status.STARTING)
             advance(10); observe(extraction(0), generation = generation + 1)
-            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE)
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE && terminalHistory == ShotHistory.Status.STARTING)
             advance(10); observe(extraction(0))
-            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE)
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE && terminalHistory == ShotHistory.Status.STARTING)
             advance(1000); observe(extraction(1))
-            check(startEvidence == ShotStartObservation.MACHINE_EXTRACTION_OBSERVED)
+            check(startEvidence == ShotStartObservation.MACHINE_EXTRACTION_OBSERVED && terminalHistory == ShotHistory.Status.RUNNING)
+            if (dose != null) check(preparedDose?.associated == true && associatedDoseMg == 18_000L)
             if (stop) {
                 stop()
                 expectLastWrite(CoffeeCommands.stop(7).frame.toByteArray())
@@ -254,8 +284,27 @@ internal object MockBleSameIdFixture {
                 check(shotState == ExtractionState.ENDED_OBSERVED && terminalHistory == ShotHistory.Status.ENDED)
                 check(syntheticSamples > 0 && writeCount() == 3)
             } else {
-                check(writeCount() == 2)
+                check(writeCount() == 3)
             }
+        }
+        for (unknown in listOf(false, true)) case("canonical/temperature-${if (unknown) "unknown" else "waiting"}-week") {
+            bootstrap()
+            val (base, target) = openWeek()
+            val temp = MachineSettingChange.BrewTemperature(93)
+            check(apply(temp) == null)
+            check(changeSchedule(base, target) != null)
+            complete(result = if (unknown) OperationResult.Unknown("no transport result") else OperationResult.Success())
+            advance(1); observe(idle())
+            check(changeSchedule(base, target) == null)
+            complete()
+            advance(500)
+            expectLastWrite(CoffeeCommands.sleepSchedule(target)[1].frame.toByteArray())
+            complete()
+            check(scheduleState.name == "WAITING_READBACK")
+            check(apply(MachineSettingChange.BrewHeating(false)) != null)
+            advance(1); observe(weeklyFirst(enabled = 0x7e))
+            advance(1); observe(weeklySecond())
+            check(scheduleState.name == "CONFIRMED" && writeCount() == 4)
         }
         case("canonical/weekly+boiler") {
             bootstrap()
@@ -379,10 +428,11 @@ internal object MockBleSameIdFixture {
                         val boiler=previous.single { it.entry.kind==SplitMachineWriteJournal.Kind.BOILER }
                         check(observation(week)==null && observation(boiler)==null)
                         advance(1);observe(idle())
+                        check(recoveryMessage(week) == R.string.service_v2_split_week_first_missing)
                         advance(1);observe(settings(flags=0xdd),generation=generation+1)
                         check(observation(boiler)==null)
                         advance(1);observe(weeklyFirst(enabled=0x7e))
-                        check(observation(week)==null)
+                        check(observation(week)==null && recoveryMessage(week) == R.string.service_v2_split_week_second_missing)
                         advance(1);observe(settings(flags=0xdd))
                         val proof=requireNotNull(observation(boiler))
                         check(resolve(proof) && recoveryChoices().size==1 && observation(week)==null)
@@ -426,15 +476,16 @@ internal object MockBleSameIdFixture {
     }
     private fun settings(flags: Int = 0xfd, brew: Int = 92, compensation: Int = 0, steam: Int = 125,
         delay: Int = 15, standby: Int = 53, cups: Int = 25) =
-        bytes(0x83, 1, 0x13, flags, brew, compensation, steam, delay, standby, 0, cups, 0, 0x6e)
+        checked(0x83, 1, 0x13, flags, brew, compensation, steam, delay, standby, 0, cups, 0)
     private fun extraction(elapsed: Int) =
         bytes(0x80, 0, 8, 0, elapsed, 40, 0, 15, 0x24, 0xbf, 10, 0x40, 0xff)
     private fun idle(cups: Int = 25, asleep: Int = 0, brewHundredths: Int = 0x24bf) =
-        bytes(0x40, 0, brewHundredths shr 8, brewHundredths and 255, 0x2f, 0x1c, 0x77, 0x0b, asleep, 0, 0, 0, 0, 0, 0, cups, 3, 0x21, 0xaf)
+        checked(0x40, 0, brewHundredths shr 8, brewHundredths and 255, 0x2f, 0x1c, 0x77, 0x0b, asleep, 0, 0, 0, 0, 0, 0, cups, 3, 0x21)
     private fun weeklyFirst(enabled: Int = 0xfe) =
-        bytes(0x83, 0x40, enabled, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 0x3d)
+        checked(0x83, 0x40, enabled, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30)
     private fun weeklySecond() =
-        bytes(0x83, 0x80, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 0x10)
+        checked(0x83, 0x80, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30)
+    private fun checked(vararg data: Int) = bytes(*data, data.fold(0) { acc, value -> acc xor value })
     private fun bytes(vararg data: Int) = data.map { it.toByte() }.toByteArray()
     private fun week(a: ByteArray, b: ByteArray) = requireNotNull(WeeklySleepSchedule.fromReadback(
         (HoyiCodec.decode(a) as DecodeResult.Valid).value as SleepPart,

@@ -3,7 +3,7 @@ package io.openhoyi.mobile
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.SettingsWriteTracker
 
-/** Pending intent affects the matching Home switch only, not the reported heating state. */
+/** Pending intent and the reported heating state are presented separately. */
 internal object HomeBoilerSwitchPresentation {
     fun localProgress(ownsOriginal:Boolean,pending:MachineSettingChange?,state:SettingsWriteTracker.State,
         reconnecting:Boolean,manualBusy:Boolean):Boolean = ownsOriginal &&
@@ -23,15 +23,8 @@ internal object HomeBoilerSwitchPresentation {
             (state == SettingsWriteTracker.State.WRITING || state == SettingsWriteTracker.State.WAITING_READBACK ||
                 state == SettingsWriteTracker.State.UNKNOWN && recoveryRunning)
 
-    fun checked(brew: Boolean, reportedEnabled: Boolean?, pending: MachineSettingChange?,
-        state: SettingsWriteTracker.State?, ownsPending: Boolean, recoveryRunning: Boolean = false): Boolean =
-        (target(brew, pending).takeIf { pendingAppearance(brew, pending, state, ownsPending, recoveryRunning) }
-            ?: reportedEnabled) == true
-
     fun showInline(label: Int): Boolean = when (label) {
-        R.string.setting_on, R.string.setting_off, R.string.home_boiler_turning_on,
-        R.string.home_boiler_turning_off, R.string.home_boiler_syncing,
-        R.string.home_boiler_reconnecting -> false
+        R.string.setting_on, R.string.setting_off, R.string.settings_unknown -> false
         else -> true
     }
 
@@ -40,7 +33,8 @@ internal object HomeBoilerSwitchPresentation {
         if(target!=null) {
             if(reconnecting)return R.string.home_boiler_reconnecting
             if(recovering)return R.string.home_boiler_syncing
-            if(state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK))
+            if(state==SettingsWriteTracker.State.WAITING_READBACK)return R.string.home_setting_waiting
+            if(state==SettingsWriteTracker.State.WRITING)
                 return if(target) R.string.home_boiler_turning_on else R.string.home_boiler_turning_off
             if(state==SettingsWriteTracker.State.UNKNOWN)return R.string.home_boiler_refresh
             if(state==SettingsWriteTracker.State.FAILED)return R.string.home_setting_failed
@@ -49,6 +43,10 @@ internal object HomeBoilerSwitchPresentation {
         if(admissionReason!=null)return admissionReason
         if(target!=null && state==SettingsWriteTracker.State.RECONCILED)
             return if(target) R.string.home_boiler_retry_on else R.string.home_boiler_retry_off
-        return if(reportedEnabled==true) R.string.setting_off else R.string.setting_on
+        return when (reportedEnabled) {
+            true -> R.string.setting_on
+            false -> R.string.setting_off
+            null -> R.string.settings_unknown
+        }
     }
 }

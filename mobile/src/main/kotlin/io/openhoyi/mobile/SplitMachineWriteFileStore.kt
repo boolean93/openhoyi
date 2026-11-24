@@ -83,8 +83,9 @@ internal class SplitMachineWriteFileStore private constructor(
     @Synchronized override fun clearExpected(expected:List<SplitMachineWriteJournal.Entry>):Boolean {
         if(expected!=liveEntries)return false
         return mutate {
-            if (lastWritten == null || !clearCachedLegacy() || cachedLegacyPending()) return@mutate false
-            ops.unlink(marker)
+            val bytes=lastWritten ?: return@mutate false
+            if (!clearCachedLegacy() || cachedLegacyPending()) return@mutate false
+            unlinkOwnedMarker(bytes)
             lastWritten=null
             liveEntries=emptyList()
             true
@@ -102,7 +103,7 @@ internal class SplitMachineWriteFileStore private constructor(
             if(remaining.isEmpty()) {
                 // Keep the legacy-visible fence through the complete cache-clear boundary.
                 if (!clearCachedLegacy() || cachedLegacyPending()) return@performMutation false
-                ops.unlink(marker)
+                unlinkOwnedMarker(bytes)
                 recoveryBytes=null
                 recoveryEntries=null
             } else {
@@ -112,6 +113,17 @@ internal class SplitMachineWriteFileStore private constructor(
                 recoveryEntries=remaining
             }
             true
+        }
+    }
+
+    private fun unlinkOwnedMarker(bytes:ByteArray) {
+        try {
+            ops.unlink(marker)
+        } catch (error:Exception) {
+            // A failed directory sync can follow a successful unlink. Restore only the exact
+            // bytes verified by this mutation, under the same lease, and only if absent.
+            runCatching { if(!ops.exists(marker)) ops.replace(marker,bytes) }
+            throw error
         }
     }
 
@@ -143,6 +155,7 @@ internal class SplitMachineWriteFileStore private constructor(
     }
 
     private var failed = false
+    val mutationFailed:Boolean @Synchronized get()=failed
 
     @Synchronized override fun close() {
         if(!ownsLease)check(lease.isOwnerThread) { "Borrowed writer must retire on its service owner thread" }

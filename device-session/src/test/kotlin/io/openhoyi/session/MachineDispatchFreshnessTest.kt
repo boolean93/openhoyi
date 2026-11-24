@@ -7,7 +7,8 @@ import org.junit.Test
 /** Synthetic authenticated endpoint and fake driver only; checks representative writes in seven control families. */
 class MachineDispatchFreshnessTest {
     private enum class Control { SETTING, CUPS, SLEEP, PREHEAT, CANCEL_PREHEAT, START, SCHEDULE }
-    private val badClocks = listOf(-1L to 0L, Long.MIN_VALUE to Long.MAX_VALUE, 501L to 500L, 0L to 1501L)
+    private val expiredAt = 1_501L
+    private val badCaptures = listOf(-1L, Long.MIN_VALUE, expiredAt + 1, 0L)
     private fun receive(f: CoffeeSessionFixture, hex: String) =
         f.session.onNotification(f.session.generation, KnownGatt.coffeeNotify, f.hex(hex))
     private fun freshOtherReadbacks(f: CoffeeSessionFixture, now: Long) {
@@ -18,8 +19,11 @@ class MachineDispatchFreshnessTest {
     }
     private fun idle(f: CoffeeSessionFixture, at: Long) {
         f.now = at
-        receive(f, "400023F02F1C770B00000000000000190321AF")
+        queuedIdle(f, at)
     }
+    private fun queuedIdle(f: CoffeeSessionFixture, capturedAt: Long) =
+        f.session.onNotification(f.session.generation, KnownGatt.coffeeNotify,
+            f.hex("400023F02F1C770B00000000000000190321AF"), capturedAt)
     private fun plan(): WeeklySleepSchedule {
         // Decode only: no additional fixture or transport belongs to this plan.
         fun decode(hex: String) = (HoyiCodec.decode(hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()) as DecodeResult.Valid).value as SleepPart
@@ -68,30 +72,31 @@ class MachineDispatchFreshnessTest {
     }
 
     @Test fun everyControlRejectsInvalidIdleBeforeAnyWrite() {
-        for (control in Control.entries) for ((at, now) in badClocks) {
+        for (control in Control.entries) for (at in badCaptures) {
             val f = CoffeeSessionFixture()
-            freshOtherReadbacks(f, now); idle(f, at); f.now = now
+            freshOtherReadbacks(f, expiredAt); queuedIdle(f, at)
             val before = f.calls.size
             var result: OperationResult? = null
             submit(f, control) { result = it }
-            assertTrue("$control/$at/$now: $result", result is OperationResult.Failed)
+            assertTrue("$control/$at: $result", result is OperationResult.Failed)
             assertEquals(before, f.calls.size)
             f.session.disconnect()
         }
     }
     @Test fun everyQueuedControlRechecksIdleWithoutAControllerTick() {
-        for (control in Control.entries) for ((at, now) in badClocks) {
+        for (control in Control.entries) for (at in badCaptures) {
             val f = CoffeeSessionFixture()
-            freshOtherReadbacks(f, now); idle(f, now)
+            freshOtherReadbacks(f, 0); idle(f, 0)
             f.session.setBrewWait(0, { true }) { }
             val before = f.calls.size
             var result: OperationResult? = null
             submit(f, control) { result = it }
             assertNull("$control must actually queue", result)
             assertEquals(before, f.calls.size)
-            idle(f, at); f.now = now
+            f.now = expiredAt
+            queuedIdle(f, at)
             f.complete()
-            assertTrue("$control/$at/$now: $result", result is OperationResult.Failed)
+            assertTrue("$control/$at: $result", result is OperationResult.Failed)
             assertEquals(before, f.calls.size)
             f.session.disconnect()
         }
@@ -99,7 +104,7 @@ class MachineDispatchFreshnessTest {
     @Test fun everyControlKeepsInclusiveFreshBoundaryAndValidLargeClocks() {
         for (control in Control.entries) for ((at, now) in listOf(0L to 0L, 0L to 1500L, (Long.MAX_VALUE - 1500) to Long.MAX_VALUE)) {
             val f = CoffeeSessionFixture()
-            freshOtherReadbacks(f, now); idle(f, at); f.now = now
+            freshOtherReadbacks(f, now); queuedIdle(f, at)
             val before = f.calls.size
             var result: OperationResult? = null
             submit(f, control) { result = it }
@@ -110,26 +115,24 @@ class MachineDispatchFreshnessTest {
         }
     }
     @Test fun partiallySentScheduleCannotSendSecondPartWithInvalidIdle() {
-        for ((at, now) in badClocks) {
+        for (at in badCaptures) {
             val f = CoffeeSessionFixture()
-            val dispatchAt = maxOf(500, now)
-            val firstAt = dispatchAt - 500
-            freshOtherReadbacks(f, firstAt); idle(f, firstAt)
+            freshOtherReadbacks(f, 0); idle(f, 0)
             var result: OperationResult? = null
             submit(f, Control.SCHEDULE) { result = it }
             f.complete()
             val before = f.calls.size
-            freshOtherReadbacks(f, dispatchAt); idle(f, at); f.now = dispatchAt
+            freshOtherReadbacks(f, expiredAt); queuedIdle(f, at)
             f.session.tick()
-            assertTrue("$at/$now: $result", result is OperationResult.Unknown)
+            assertTrue("$at: $result", result is OperationResult.Unknown)
             assertEquals(before, f.calls.size)
             f.session.disconnect()
         }
     }
     @Test fun emergencyStopStillSendsWhenIdleEvidenceIsInvalid() {
-        for ((at, now) in badClocks) {
+        for (at in badCaptures) {
             val f = CoffeeSessionFixture()
-            freshOtherReadbacks(f, now); idle(f, at); f.now = now
+            freshOtherReadbacks(f, expiredAt); queuedIdle(f, at)
             val before = f.calls.size
             var result: OperationResult? = null
             f.session.stopExtraction(7) { result = it }

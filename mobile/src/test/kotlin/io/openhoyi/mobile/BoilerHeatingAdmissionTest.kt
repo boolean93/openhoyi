@@ -25,7 +25,7 @@ class BoilerHeatingAdmissionTest {
             assertTrue(p.showInline(label))
             for (brew in listOf(true, false)) {
                 assertEquals(label, p.label(brew, true, null, null, admissionReason = admission.reason))
-                assertTrue(p.checked(brew, true, null, null, ownsPending = false))
+                assertEquals(label, p.label(brew, false, null, null, admissionReason = admission.reason))
                 assertFalse(p.pendingAppearance(brew, null, null, ownsPending = false))
             }
         }

@@ -4,6 +4,10 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
 import android.content.res.Resources
+import io.openhoyi.bean.Bean
+import io.openhoyi.bean.BeanBatch
+import io.openhoyi.bean.BeanInventory
+import io.openhoyi.bean.InventoryStorage
 import io.openhoyi.bluetooth.DetachedNativeDrivers
 import io.openhoyi.session.GattDriver
 import io.openhoyi.session.GattOperation
@@ -122,9 +126,32 @@ internal class DetachedShotEffects(private val clock: DetachedCoreClock) {
     private var samplesById = emptyMap<String, Int>()
     private var nextId = 0
     val beans = BeanPreparation(object : BeanPreparation.Storage {
-        override fun read(): String? = null
-        override fun write(value: String) = error("QA has no prepared dose")
+        private var bytes: String? = null
+        override fun read() = bytes
+        override fun write(value: String) { bytes = value }
     })
+    val inventory = BeanInventory(object : InventoryStorage {
+        private var data: ByteArray? = null
+        override fun read() = data
+        override fun write(bytes: ByteArray) { data = bytes }
+    })
+    val journal = BrewJournal(object : BrewJournal.Storage {
+        private var data: String? = null
+        override fun read() = data
+        override fun write(value: String) { data = value }
+    })
+
+    fun prepareDose() {
+        inventory.addBatch("synthetic-purchase", BeanBatch("synthetic-batch", Bean("synthetic-bean", "QA coffee"), 100_000))
+        beans.select("synthetic-dose", "synthetic-batch", "synthetic-bean", "QA coffee", 18_000)
+        beans.confirm(inventory)
+    }
+
+    fun reconcileBeans() {
+        journal.reconcileRecent(history.entries.map { it.journalObservation() })
+        beans.associatePending(journal,inventory)
+    }
+
     val history = ShotHistory(object : ShotHistory.AtomicTimingStorage {
         override fun read() = shotRows
         override fun readTiming() = timingRows
@@ -133,7 +160,11 @@ internal class DetachedShotEffects(private val clock: DetachedCoreClock) {
             shotRows = value
             timingRows = timing
         }
-    }, now = { 1_700_000_000_000L + clock.now }, newId = {"synthetic-shot-${++nextId}"})
+    }, now = { 1_700_000_000_000L + clock.now }, newId = {"synthetic-shot-${++nextId}"},
+        onEntryChanged = { entry ->
+            journal.observe(entry.journalObservation())
+            if (beans.current()?.shotId == entry.id) beans.associatePending(journal, inventory)
+        })
 
     fun recordSamples(shotId: String, pointCount: Int) {
         check(history.entries.any { it.id == shotId } && pointCount >= 0)

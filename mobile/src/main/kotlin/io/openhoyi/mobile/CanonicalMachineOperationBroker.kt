@@ -23,11 +23,13 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         }
     }
     class RecoveryChoice internal constructor(val entry:SplitMachineWriteJournal.Entry)
-    private class Epoch(val view:SplitMachineWriteFileStore) {
+    private class Epoch(val view:SplitMachineWriteFileStore,val allowBoilerOverlap:Boolean) {
         val journal=SplitMachineWriteJournal(view)
         val live=mutableMapOf<SplitMachineWriteJournal.Kind,Send>()
         val restored=journal.pending is SplitMachineWriteJournal.Snapshot.Pending
         var boilerOverlapConsumed=false
+        var retirementFailed=false
+        val storageFailed:Boolean get()=retirementFailed || view.mutationFailed
         val choices=mutableMapOf<SplitMachineWriteJournal.Kind,RecoveryChoice>()
     }
 
@@ -45,21 +47,24 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
     }
 
     /** Product must still prove that no legacy control phases occupy ATT, ownership or recovery. */
-    fun openSplit(legacyDispatchIdle:()->Boolean,ops:SplitMachineWriteFileStore.FileOps?=null):Boolean=mutate(false) {
+    fun openSplit(legacyDispatchIdle:()->Boolean,ops:SplitMachineWriteFileStore.FileOps?=null,
+        allowBoilerOverlap:Boolean=true):Boolean=mutate(false) {
         if(!legacyMayDispatch || epoch!=null)return@mutate false
         val view=pinned.openSplitViewForV2(legacyDispatchIdle,ops) ?: return@mutate false
-        epoch=Epoch(view)
+        epoch=Epoch(view,allowBoilerOverlap)
         true
     }
 
     fun restoreSplit(ops:SplitMachineWriteFileStore.FileOps?=null):Boolean=mutate(false) {
         if(!legacyMayDispatch || epoch!=null)return@mutate false
         val view=pinned.openSplitViewForV2({true},ops,restoreOnly=true) ?: return@mutate false
-        epoch=Epoch(view)
+        epoch=Epoch(view,allowBoilerOverlap=false)
         true
     }
 
-    val splitRecoveryBlocked:Boolean get()=epoch?.journal?.pending==SplitMachineWriteJournal.Snapshot.Blocked
+    val splitStorageFailed:Boolean get()=epoch?.storageFailed==true
+    val splitRecoveryBlocked:Boolean get()=splitStorageFailed ||
+        epoch?.journal?.pending==SplitMachineWriteJournal.Snapshot.Blocked
 
     val restoredAndResolved:Boolean get()=epoch?.let {
         it.restored && it.journal.pending==SplitMachineWriteJournal.Snapshot.Empty
@@ -98,7 +103,10 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
     }
 
     fun acceptsBoilerAfterWeek(binding:Binding):Boolean {
-        val current=epoch?.takeIf { !mutating && active(it) && !it.restored && !it.boilerOverlapConsumed && isCurrent(binding) } ?: return false
+        val current=epoch?.takeIf {
+            !mutating && active(it) && !it.restored && it.allowBoilerOverlap &&
+                !it.boilerOverlapConsumed && isCurrent(binding)
+        } ?: return false
         val weekly=current.live.values.singleOrNull() ?: return false
         return weekly.entry.kind==SplitMachineWriteJournal.Kind.SCHEDULE && weekly.phase==Phase.WAITING_READBACK &&
             weekly.binding.same(binding) && current.journal.owns(weekly.durable)
@@ -110,7 +118,8 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
         if(!isCurrent(binding) || entry.target==null || !entry.address.equals(binding.source.address,ignoreCase=true) ||
             current.live.values.any { !it.binding.same(binding) } || entry.kind in current.live) return@mutate null
         val existing=current.live.values.singleOrNull()
-        if(current.live.size>1 || existing!=null && (entry.kind!=SplitMachineWriteJournal.Kind.BOILER ||
+        if(current.live.size>1 || existing!=null && (!current.allowBoilerOverlap ||
+            entry.kind!=SplitMachineWriteJournal.Kind.BOILER ||
             existing.entry.kind!=SplitMachineWriteJournal.Kind.SCHEDULE || existing.phase!=Phase.WAITING_READBACK ||
             current.boilerOverlapConsumed)) return@mutate null
         val token=current.journal.reserve(entry) ?: return@mutate null
@@ -165,14 +174,17 @@ internal class CanonicalMachineOperationBroker(private val pinned:RecoveryPrefer
     fun returnToLegacy():Boolean=mutate(false) {
         val current=epoch ?: return@mutate false
         if(!active(current) || current.restored || current.live.isNotEmpty() ||
-            current.journal.pending!=SplitMachineWriteJournal.Snapshot.Empty ||
-            !pinned.retireEmptySplit(current.view))return@mutate false
+            current.journal.pending!=SplitMachineWriteJournal.Snapshot.Empty)return@mutate false
+        if(!pinned.retireEmptySplit(current.view)) {
+            current.retirementFailed=true
+            return@mutate false
+        }
         epoch=null
         true
     }
 
     private fun active(current:Epoch):Boolean =
-        transport.mayStartOrDispatch && pinned.holdsSplit(current.view)
+        transport.mayStartOrDispatch && pinned.holdsSplit(current.view) && !current.storageFailed
     private fun isCurrent(binding:Binding):Boolean = currentBinding()?.same(binding)==true
     private fun exact(send:Send,binding:Binding):Epoch? = epoch?.takeIf {
         active(it) && isCurrent(binding) && send.binding.same(binding) && it.live[send.entry.kind]===send && it.journal.owns(send.durable)
