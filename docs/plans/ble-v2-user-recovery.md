@@ -17,3 +17,14 @@
 - 启动回执和第一条有效萃取帧都保持等待，停止按钮可用；同次萃取计时向前后显示已观察到机器萃取。历史沿用相同证据。[等待界面](../evidence/ble-v2-user-recovery/shot-waiting.png) · [确认界面](../evidence/ble-v2-user-recovery/shot-confirmed.png)
 
 界面和持久化回归使用平板上的隔离服务、模拟 GATT 和独立库存。断电、系统 TalkBack 手势和真实咖啡机或秤的操作未做实测。
+
+## 平板安装核验
+
+源码提交 `fec74b86b7c538f0a046b7964485ad2e2609aefa`。两份 APK 均为 versionCode 170，证书 SHA-256 均为 `c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54`。
+
+| 顺序 | 构建与执行 | APK SHA-256 |
+| --- | --- | --- |
+| 1 | `:mobile:assembleMock`，显式开启同包 Mock 验收。在最终 APK 重跑 52 项矩阵、刷新手势、键盘、无障碍动作、萃取等待和停止。 | `bf5f06e4063ae2dfbe4b9e753168fef4748fc7ed922d70d789bd91d4705f3298` |
+| 2 | `:mobile:assembleRealBleExistingId`，覆盖到平板并核对已装 APK 与本地一致。最终安装版本为 `0.2.0-blev2debug.170`。 | `4c6084cf38d3d3e75b7ec6153a100eef0079a1d57a93bc53af8d94250ba651c0` |
+
+两个阶段均保留包的 Android 用户 ID。原测试辅助包已恢复。另行核对了开发渠道版 182 的已装 APK，文件哈希与验收前一致。
