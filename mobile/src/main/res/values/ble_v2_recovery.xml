@@ -8,6 +8,8 @@
     <string name="service_v2_split_pending">还有咖啡机操作待确认，请查看状态。</string>
     <string name="service_preheat_observed_waiting_temperature">咖啡机正在预热，尚未达到目标温度。</string>
     <string name="service_event_preheat_machine_waiting">已观察到咖啡机进入预热等待，尚未达到目标温度</string>
+    <string name="home_boiler_schedule_writing">正在写入睡眠计划</string>
+    <string name="home_boiler_schedule_readback">等待机器确认睡眠计划</string>
     <string name="home_boiler_schedule_saving">正在保存睡眠计划</string>
     <string name="service_v2_split_restart_required">待核对记录已清除。请选择「停止设备服务」，再重新连接咖啡机。</string>
     <string name="service_v2_split_reconciled">已核对这一项当前状态，没有重发原操作。</string>
@@ -15,4 +17,7 @@
     <string name="service_v2_split_observed_match">机器当前配置与目标一致。这不证明上次命令成功；清除只处理选中的这一项，也不会补发。</string>
     <string name="service_v2_split_observed_different">机器当前配置与目标不同。清除只处理选中的这一项，不会改动配置或补发。</string>
     <string name="service_v2_split_recovery_blocked">无法核对这份记录。记录已保留，不会自动重发。可停止设备服务后重新打开。</string>
+    <string name="sleep_entering">正在休眠</string>
+    <string name="settings_schedule_saved">已保存</string>
+    <string name="settings_cups_cleared">杯数已清零</string>
 </resources>

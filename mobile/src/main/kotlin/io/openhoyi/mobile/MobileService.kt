@@ -131,6 +131,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private val feedbackDelivery = BrewFeedbackDelivery()
     private var feedbackShotId: String? = null
     private var feedbackAppShot = true
+    internal var brewCompletedShare: BrewCompletedShare? = null
+        private set
     internal var brewFeedbackResult: BrewFeedbackResult? = null
         private set
     private val passiveShot = PassiveShotDetector()
@@ -152,7 +154,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     /** Warning shown before this round armed, restored only when the uncommitted round is dropped. */
     private var passiveSafetyBeforeArm: Int? = null
     private data class AppRecoveryOwner(val hub:NativeDeviceHub,val address:String,val shot:ShotRecoveryState.Ownership,
-        val machine:MachineWriteRecoveryState.Ownership?)
+        val machine:MachineWriteRecoveryState.Ownership?,val coffeeGeneration:Long)
     private var appRecoveryOwner:AppRecoveryOwner?=null
     val manualShotActive: Boolean get() = passiveShot.active
     /** Display-only projection for the task shell; gates remain with the connection owners. */
@@ -196,11 +198,28 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         else MachineRecoveryText.resource(machineWriteRecovery.kind,brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
     private val machineAttentionResource: Int? get() = SafetyNotificationPresentation.machineAttention(
-        machineWriteSafetyResource, ongoingSettingsWrite,
+        machineWriteSafetyResource, ongoingMachineWrite,
         restoredSplitAfter != null || splitWeek?.unknownAfter != null || splitBoiler?.unknownAfter != null)
     internal val machineAttentionMessage: String? get() = machineAttentionResource?.let { getString(it) }
-    internal val machineControlAttentionMessage: String? get() = leverWriteBlock ?: MachineControlGate.block(
-        shotRecovery.pending, machineAttentionMessage, restartShotWarning)
+    private val shotRecoveryAttentionResource: Int? get() {
+        val appOwner = appRecoveryOwner?.takeIf {
+            hub === it.hub && it.hub.coffeeGeneration == it.coffeeGeneration &&
+                it.hub.coffeeAddress?.equals(it.address, ignoreCase = true) == true
+        }?.shot
+        return ShotSafetyAlert.recoveryResource(shotRecovery, shotState, snapshot.coffeeState,
+            appOwner, passiveRecoveryOwner, newManualRecord = manualShotActive && passiveArmedRecovery)
+    }
+    internal val machineControlAttentionMessage: String? get() =
+        SafetyNotificationPresentation.leverAttention(leverStore, leverInFlight)?.let { getString(it) }
+            ?: shotRecoveryAttentionResource?.let { getString(it) } ?: machineAttentionMessage
+    private val ongoingMachineWrite: Boolean get() = when (machineWriteRecovery.kind) {
+        MachineWriteRecoveryState.Kind.SETTING -> ongoingSettingsWrite
+        MachineWriteRecoveryState.Kind.CUP_RESET -> cupResetBusy && machineWriteRecovery.owns(cupRecoveryOwner)
+        MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> scheduleBusy && machineWriteRecovery.owns(scheduleRecoveryOwner)
+        MachineWriteRecoveryState.Kind.SLEEP_NOW -> MachineRecoveryActivity.isBusy(sleepNow.state) &&
+            machineWriteRecovery.owns(sleepRecoveryOwner)
+        else -> false
+    }
     /** Display-only update gate. The service remains the sole machine-control authority. */
     internal val updateInterruptionBlocked: Boolean get() = releaseUpdateInterruptionBlocked(
         shotState, manualShotActive, scalePreflight, brewPreparation.active, tareState,
@@ -462,17 +481,18 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
 
-    internal fun manualLiveSamples(observationId: String): ManualLiveSamples? {
-        if (!running || manualPresentation.activeId != observationId || series.curveId != "manual") return null
-        val now = elapsedNow()
-        val current = snapshot
-        return ManualLiveSamples(series.points, buildSet {
-            if (LiveTelemetry.machine(current.coffee, current.coffeeState, current.coffeeAt, now) == null)
-                addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
-            if (LiveTelemetry.scale(current.scaleObservation, current.scaleState, now) == null)
-                addAll(listOf(ChartMetric.FLOW, ChartMetric.YIELD, ChartMetric.WEIGHT))
-        })
+    private data class ManualTerminalTrace(val traceId: String, val observationId: String, val outcome: ManualShotPresentationGate.Outcome)
+    private var manualTerminalTrace: ManualTerminalTrace? = null
+    private val matchingManualTerminal get() =
+        manualTerminalTrace?.takeIf { series.curveId == "manual" && it.traceId == series.traceIdentity }
+    internal val manualTerminalOutcome: ManualShotPresentationGate.Outcome? get() = matchingManualTerminal?.outcome
+    internal val manualChartIdentity: String? get() = if (series.curveId != "manual") null
+        else manualPresentation.activeId ?: matchingManualTerminal?.observationId
+    private fun markManualTerminal(outcome: ManualShotPresentationGate.Outcome) {
+        val observationId = manualPresentation.activeId ?: return
+        if (series.curveId == "manual") series.traceIdentity?.let { manualTerminalTrace = ManualTerminalTrace(it, observationId, outcome) }
     }
+
     private fun terminalManualPoints(): List<ShotPoint> =
         if (manualPresentation.activeId != null && series.curveId == "manual") series.points else emptyList()
 
@@ -518,6 +538,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         mockExtractionScenario.completeStop(owner, id, result)
     internal fun offerMockExtractionCoffeeState(owner: Any, state: DeviceState) =
         mockExtractionScenario.coffeeState(owner, state)
+    internal fun offerMockExtractionSettings(owner: Any, settings: Settings) =
+        mockExtractionScenario.offerReadOnlySettings(owner, settings)
     internal fun offerMockExtractionFrame(owner: Any, frame: HoyiMessage) =
         mockExtractionScenario.offerCoffeeFrame(owner, frame)
     internal fun tickMockExtraction(owner: Any) = mockExtractionScenario.tick(owner)
@@ -777,6 +799,18 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     /** Invalidates UI stability even if a disconnect/reconnect occurs between page refreshes. */
     private val scaleTrend = ScaleTrendWindow()
     private var mockScaleVisualObservationSerial = 0L
+    /** Only the selected adapter's live observation is eligible in production. */
+    internal fun settingsScaleBatteryAt(now: Long): Int? {
+        val current = snapshot
+        val sample = current.scaleObservation
+        val state = current.scaleState
+        return if (BuildConfig.MOCK_MODE && mockScaleVisualInput.isInstalled) {
+            // The opt-in visual fixture strips live transport/control claims before injecting.
+            LiveTelemetry.observedBattery(sample, state, now, io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY)
+        } else {
+            LiveTelemetry.scaleBattery(hub?.scaleProtocolId, sample, state, now)
+        }
+    }
     internal fun scaleTrendAt(now: Long): List<ScaleTrendWindow.Point> = scaleTrend.points(now)
     private var scaleConnectionEpoch = 0L
     private val beanDoseCapture = BeanDoseCapturePolicy()
@@ -859,6 +893,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             val committed = passiveCommitted
             passiveCommitted = false
+            markManualTerminal(if (committed) ManualShotPresentationGate.Outcome.UNKNOWN
+                else ManualShotPresentationGate.Outcome.DISCARDED)
             manualPresentation.disconnected(requireIdle = committed, points = terminalManualPoints())
             if (committed) {
                 passiveHistoryId?.let { id ->
@@ -1043,6 +1079,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     val committed = passiveCommitted
                     if (committed) {
                         passiveCommitted = false
+                        markManualTerminal(ManualShotPresentationGate.Outcome.ENDED)
                         manualPresentation.ended(terminalManualPoints())
                         clearPassiveRecovery(requireDeviceMatch = true)
                         val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, observedAt)
@@ -1088,7 +1125,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
      */
     private fun discardPassiveSeries(requireDeviceMatch: Boolean, observedEnd: Boolean) {
         passiveCommitted = false
-        if (observedEnd) manualPresentation.ended(terminalManualPoints())
+        if (observedEnd) {
+            markManualTerminal(ManualShotPresentationGate.Outcome.DISCARDED)
+            manualPresentation.discarded()
+        }
         finishSeries(observedEnd, countsAsCup = false)
         passiveHistoryId = null
         passiveStartedWallMs = 0L
@@ -2141,6 +2181,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         recoveryAfterSettingsSerial = serials.cupSettings
                         recoveryAfterIdleSerial = serials.cupIdle
                         event(ResourceMessage(R.string.service_write_cups_no_readback), "cups.unknown")
+                        refreshSafetyNotification()
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
@@ -2153,6 +2194,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     recoveryAfterSettingsSerial = cupSettingsSerial
                     recoveryAfterIdleSerial = cupIdleSerial
                     event(ResourceMessage(R.string.service_write_cups_unknown), "cups.unknown")
+                    refreshSafetyNotification()
                 }
                 else -> Unit
             }
@@ -2229,6 +2271,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         recoveryAfterFirstSleepSerial = serials.sleepFirst
                         recoveryAfterSecondSleepSerial = serials.sleepSecond
                         event(ResourceMessage(R.string.service_write_schedule_no_readback), "sleep_schedule.unknown")
+                        refreshSafetyNotification()
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
@@ -2241,6 +2284,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     recoveryAfterFirstSleepSerial = firstSleepSerial
                     recoveryAfterSecondSleepSerial = secondSleepSerial
                     event(ResourceMessage(R.string.service_write_schedule_partial_unknown), "sleep_schedule.unknown")
+                    refreshSafetyNotification()
                 }
                 else -> Unit
             }
@@ -2598,6 +2642,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         expirePassive(PassiveKind.SLEEP,passiveRequest)
                         recoveryAfterSleepSerial = serials.sleep
                         event(ResourceMessage(R.string.service_write_sleep_no_readback), "sleep.unknown")
+                        refreshSafetyNotification()
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
@@ -2609,6 +2654,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 MachineWriteResult.Outcome.UNKNOWN -> {
                     recoveryAfterSleepSerial = sleepSampleSerial
                     event(ResourceMessage(R.string.service_write_sleep_unknown), "sleep.unknown")
+                    refreshSafetyNotification()
                 }
                 else -> Unit
             }
@@ -2655,7 +2701,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private fun extractionStartBlock(profile: CurveProfile?, invalidCurve: Boolean, readiness: Boolean): String? {
         if (!running) return getString(R.string.service_unavailable)
         val quietReadback = readiness && v2SettingEvidence && !BuildConfig.BLE_SAME_ID_QA
-        (if(quietReadback) machineControlAttentionMessage else machineControlSafetyMessage)?.let { return it }
+        (if(readiness) machineControlAttentionMessage else machineControlSafetyMessage)?.let { return it }
         if (manualShotActive) return getString(R.string.extraction_manual_block)
         if (invalidCurve) return getString(R.string.extraction_invalid_curve_block)
         if (!quietReadback && hub?.settingsSyncBlocksStart == true) return getString(R.string.ble_settings_sync_before_start)
@@ -2667,8 +2713,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if ((!quietReadback || !ongoingSettingsWrite) &&
             blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
                 SettingsWriteTracker.State.UNKNOWN)) return getString(R.string.service_shot_settings_start_block)
-        if (sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP,
-                SleepNowTracker.State.UNKNOWN)) return getString(R.string.service_shot_sleep_start_block)
+        if (sleepNowState == SleepNowTracker.State.UNKNOWN) return getString(R.string.service_shot_sleep_start_block)
+        if (MachineRecoveryActivity.isBusy(sleepNowState))
+            return getString(if(readiness) R.string.sleep_entering else R.string.service_shot_sleep_start_block)
         // Temperature preparation is start-only: callers must still be able to preheat.
         return null
     }
@@ -3045,7 +3092,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         }
         val shotOwner=requireNotNull(shotRecovery.captureOwnership())
         val machineOwner=machineWriteRecovery.captureOwnership()
-        appRecoveryOwner=AppRecoveryOwner(current,coffeeAddress,shotOwner,machineOwner)
+        appRecoveryOwner=AppRecoveryOwner(current,coffeeAddress,shotOwner,machineOwner,current.coffeeGeneration)
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) {
                 val selected=selectedCurve(profileId,slot)
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
@@ -3161,7 +3208,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val id = feedbackShotId
         feedbackShotId = null
         if (!observedEnd) {
+            if (fixtureShotEffects == null) (application as? MobileApplication)?.completionShotReview?.invalidate()
             brewFeedbackResult = null
+            brewCompletedShare = null
             feedbackDelivery.clear()
         }
         if (id != null) {
@@ -3189,11 +3238,29 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val retainedIds = historyEntries?.map(ShotHistory.Entry::id)?.toSet()
         retainedIds?.let(app::updateShotReviewRetention)
         val entry = historyEntries?.firstOrNull { it.id == finished.first }
+        if (completedCup) brewCompletedShare = brewFeedbackResult?.let { feedback ->
+            val name = when {
+                entry?.curveId == "manual" -> getString(R.string.completion_card_manual)
+                else -> activeShotRecipe?.forTrace(finished.first)?.name
+            }
+            val doseMg = entry?.id?.let { id -> app.journalResult.getOrNull()?.find(id)?.notes?.doseMg }
+            BrewCompletedShare.create(getString(R.string.completion_card_title), name, feedback, entry, finished.second, doseMg)
+        }
         if (completedCup && finished.second.isNotEmpty() && entry != null) {
-            val reviewConfig = if (ShotReviewWire.eligible(entry, passiveConfirmed, appElapsedOutcomeWasUnknown))
-                app.shotReviewConfig() else null
-            app.samples.save(finished.first, finished.second, if (reviewConfig == null) null else { points ->
-                app.shotReviews.afterPersisted(entry, points, reviewConfig)
+            val eligible = ShotReviewWire.eligible(entry, passiveConfirmed, appElapsedOutcomeWasUnknown)
+            val reviewConfig = if (eligible) app.shotReviewConfig() else null
+            val capture = if (eligible) brewFeedbackResult?.let {
+                app.completionShotReview.begin(it, entry.id)
+            } else null
+            val language = if (capture != null) app.languagePreferences.current else null
+            app.samples.save(finished.first, finished.second, if (capture == null && reviewConfig == null) null else { points ->
+                if (capture != null && language != null) {
+                    val body = runCatching {
+                        ShotReviewWire.request(points, entry.observedMachineElapsedSeconds, language)
+                    }.getOrNull()
+                    app.completionShotReview.persisted(capture, body)
+                }
+                if (reviewConfig != null) app.shotReviews.afterPersisted(entry, points, reviewConfig)
             })
         }
         retainedIds?.let(app.samples::prune)
@@ -3269,7 +3336,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private fun updateSafetyNotification(displayOnly: Boolean) {
         if (mock != null) return
         val presentation = SafetyNotificationPresentation.from(
-            ShotSafetyAlert.resource(shotState, snapshot.coffeeState), manualSafetyResource,
+            ShotSafetyAlert.resource(shotState, snapshot.coffeeState), manualSafetyResource ?: shotRecoveryAttentionResource,
             machineAttentionResource)
         val warning = presentation.warning { id, args -> getString(id, *args) }
         if (!displayOnly && !safetyNotificationDirty && warning == safetyMessage) return
@@ -3695,6 +3762,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             return StopActionPresentation.describe(service.shotState,service.snapshot.coffeeState,serviceRunning=true)
         }
         val shotState:ExtractionState get(){valid();return service.shotState}
+        val needsControlAttention:Boolean get(){valid();return service.machineControlAttentionMessage!=null}
         val startEvidence:ShotStartObservation? get(){valid();return service.shotStartObservation}
         val terminalHistory:ShotHistory.Status? get(){valid();return service.fixtureShotEffects?.history?.entries?.singleOrNull()?.status}
         val syntheticSamples:Int get(){valid();return requireNotNull(service.fixtureShotEffects).persistedSampleCount}

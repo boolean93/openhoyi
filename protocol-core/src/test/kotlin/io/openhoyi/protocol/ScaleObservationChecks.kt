@@ -13,7 +13,7 @@ fun main() {
     check(generic.deviceFlowHundredths==old.deviceFlowHundredths)
     check(generic.raw==old.raw && generic.receivedAtMs==20L)
     check(generic.eligibleForControl && generic.capabilities.tare)
-    check(!generic.capabilities.battery && !generic.capabilities.deviceTimer && generic.batteryPercent==null)
+    check(generic.capabilities.battery && !generic.capabilities.deviceTimer && generic.batteryPercent==0)
     check(ScaleObservationDecoder.bookoo(frame.copyOf(19),20) is DecodeResult.Invalid)
     check(ScaleObservationDecoder.bookoo(frame.apply {this[19]=0},20) is DecodeResult.Invalid)
     check(ScaleObservationDecoder.bookoo(hex("0102"),20) is DecodeResult.Unknown)

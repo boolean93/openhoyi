@@ -510,15 +510,23 @@ class ExtractionActivity : ThemedActivity() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(this, snapshot.coffeeState), DeviceStatusText.label(this, snapshot.scaleState)))
-        val summaryLabel = when {
-            owner?.scalePreflight == true -> getString(R.string.extraction_preflight_label)
+        val manualOutcome = owner?.manualTerminalOutcome
+        val shownShotLabel = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_label)
+            manualOutcome == ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
+            manualOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
+            manualOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> getString(R.string.extraction_manual_label)
+            owner?.scalePreflight == true -> getString(R.string.extraction_preflight_label)
             else -> statusLabel
         }
-        shotSummary.show(getString(R.string.extraction_shot_summary, summaryLabel,
-            owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) }.orEmpty()))
+        val stopSuffix = owner?.stopReason?.takeUnless { owner.chartCurveId == "manual" }
+            ?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) }.orEmpty()
+        shotSummary.show(getString(R.string.extraction_shot_summary, shownShotLabel, stopSuffix))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
+            manualOutcome == ManualShotPresentationGate.Outcome.ENDED -> getString(R.string.extraction_ended_guidance)
+            manualOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> getString(R.string.extraction_unknown_guidance)
+            manualOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> ""
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
             startObservation == io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> getString(R.string.extraction_start_no_observation_guidance)
             displayState == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
@@ -540,14 +548,14 @@ class ExtractionActivity : ThemedActivity() {
         }
         readiness.show(guidance + unknownAdvice)
         // Only ordinary, complete guidance shares the compact chrome. Every warning keeps its full row.
-        val inlineGuidance = owner?.manualShotActive != true && owner?.scalePreflight != true &&
+        val inlineGuidance = owner?.manualShotActive != true && manualOutcome == null && owner?.scalePreflight != true &&
             unknownAdvice.isEmpty() && attention == null &&
             preparation == BrewPreparation.State.IDLE && !sleepBusy &&
             (displayState == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
                 state == ExtractionState.IDLE && readinessBlock == null && studioReadinessBlock == null)
         compactIdentity.show(displayCurveName)
         compactIdentity.contentDescription = displayCurveName
-        compactClock.show((if (inlineGuidance) "" else statusLabel + " · ") + elapsedText +
+        compactClock.show((if (inlineGuidance) "" else shownShotLabel + " · ") + elapsedText +
             if (BuildConfig.MOCK_MODE) " · Mock" else "")
         compactClock.contentDescription = compactClock.text.toString() +
             if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
@@ -555,15 +563,17 @@ class ExtractionActivity : ThemedActivity() {
         compactGuidance.visibility = if (inlineGuidance) View.VISIBLE else View.GONE
         readiness.visibility = if (inlineGuidance) View.GONE else View.VISIBLE
         compactIdentity.setOnLongClickListener { detailsButton.performClick(); true }
-        readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
+        val outcomeUnknown = manualOutcome == ManualShotPresentationGate.Outcome.UNKNOWN ||
+            displayState == ExtractionState.OUTCOME_UNKNOWN
+        readiness.setTextColor(getColor(if (outcomeUnknown ||
             (state == ExtractionState.IDLE && (readinessBlock != null || studioReadinessBlock != null)))
             R.color.mobile_danger else R.color.mobile_text))
         chooseCurve.visibility = if (presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
             !ShotGate.active(state) && owner?.manualShotActive != true) View.VISIBLE else View.GONE
         chooseCurve.show(if (item == null) getString(R.string.extraction_choose_curve) else getString(R.string.home_curve_replace))
-        readiness.setTextColor(if (state == ExtractionState.OUTCOME_UNKNOWN) visual.warningInk
+        readiness.setTextColor(if (outcomeUnknown) visual.warningInk
             else if (state == ExtractionState.IDLE && (readinessBlock != null || studioReadinessBlock != null)) visual.stop else style.ink)
-        readiness.background = if (state == ExtractionState.OUTCOME_UNKNOWN) android.graphics.drawable.GradientDrawable().apply {
+        readiness.background = if (outcomeUnknown) android.graphics.drawable.GradientDrawable().apply {
             setColor(visual.warningSurface); setStroke(dp(1), visual.warningBorder); cornerRadius = dp(12).toFloat()
         } else null
         val coffeeMissing = snapshot.coffeeState != DeviceState.READY
@@ -649,7 +659,7 @@ class ExtractionActivity : ThemedActivity() {
             }
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
-        chart.traceIdentity = owner?.chartTraceIdentity
+        chart.traceIdentity = owner?.manualChartIdentity ?: owner?.chartTraceIdentity
         // The selected recipe defines the final Y scale; manual/unknown cups keep the margin policy.
         chart.expectedRanges = if (owner?.manualShotActive == true || owner?.chartCurveId == "manual")
             emptyMap() else ChartAxisSeed.from(profile)
@@ -707,13 +717,14 @@ class ExtractionActivity : ThemedActivity() {
         start.contentDescription = listOfNotNull(start.contentDescription?.toString(), readinessBlock ?: studioReadinessBlock)
             .joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
-        stop.isEnabled = stopAction.enabled
-        stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
-        start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
+        val observeOnly = owner?.manualShotActive == true
+        stop.isEnabled = stopAction.enabled && !observeOnly
+        stop.visibility = if (stopAction.visible && !observeOnly) View.VISIBLE else View.GONE
+        start.visibility = if (stopAction.visible || observeOnly) View.GONE else View.VISIBLE
         // Same resolved profile/slot as startSelectedCurve(); observed records never select a recipe.
         pendingRecipeLabel.bind(PendingRecipePresentation.name(observedCup, owner?.chartCurveId,
             profile?.id, profile?.name, profile?.let(library::validated) == true,
-            startVisible = !stopAction.visible))
+            startVisible = !stopAction.visible && !observeOnly))
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
     }
     private fun TextView.show(value: String) {

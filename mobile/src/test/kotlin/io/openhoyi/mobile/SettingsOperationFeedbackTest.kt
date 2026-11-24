@@ -27,13 +27,13 @@ class SettingsOperationFeedbackTest {
     }
 
     @Test fun confirmationFailureAndUnresolvedFeedbackStayAvailable() {
-        assertEquals(R.string.machine_settings_setting_confirmed,
-            SettingsOperationFeedback.setting(SettingsWriteTracker.State.CONFIRMED))
+        assertNull(SettingsOperationFeedback.setting(SettingsWriteTracker.State.CONFIRMED))
+        assertEquals(R.string.settings_schedule_saved, SettingsOperationFeedback.schedule(SleepScheduleWriteTracker.State.CONFIRMED))
         assertEquals(R.string.machine_settings_setting_failed,
             SettingsOperationFeedback.setting(SettingsWriteTracker.State.FAILED))
         assertEquals(R.string.machine_settings_schedule_unknown,
             SettingsOperationFeedback.schedule(SleepScheduleWriteTracker.State.UNKNOWN))
-        assertEquals(R.string.machine_settings_cup_confirmed, SettingsOperationFeedback.cups(CupResetTracker.State.CONFIRMED))
+        assertEquals(R.string.settings_cups_cleared, SettingsOperationFeedback.cups(CupResetTracker.State.CONFIRMED))
         assertEquals(R.string.settings_target_unknown_unsent,
             SettingsOperationFeedback.target(BoilerTargetSteps.Feedback.UNKNOWN_WITH_UNSENT))
         assertEquals(R.string.home_setting_unknown, SettingsOperationFeedback.lever(SettingsWriteTracker.State.UNKNOWN))

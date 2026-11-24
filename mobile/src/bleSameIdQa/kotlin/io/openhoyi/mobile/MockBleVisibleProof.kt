@@ -406,9 +406,11 @@ internal object MockBleVisibleProof {
                     check(p.shotState == ExtractionState.STOP_REQUESTED)
                 }
                 render = {
-                    val observation = ExtractionStartObservationPresentation.label(p.startEvidence)
-                    status.text = if (phase == 4) activity.getString(R.string.stop_processing) else
-                        observation?.let(activity::getString) ?: label("尚未发出启动请求", "No start request sent")
+                    val displayState = ExtractionStartObservationPresentation.displayState(
+                        p.shotState, p.startEvidence, requiresStartObservation = true, legacyFlowObserved = false)
+                    if (phase in 1..4) check(!p.needsControlAttention)
+                    status.text = if (phase == 0) label("尚未发出启动请求", "No start request sent")
+                        else activity.getString(ExtractionStartObservationPresentation.stateLabel(displayState))
                     val live = p.liveFrame
                     readout.text = when (live) {
                         is io.openhoyi.protocol.ExtractionTelemetry -> formatC(live.brewTemperatureHundredthsC)

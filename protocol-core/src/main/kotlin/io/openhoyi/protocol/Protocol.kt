@@ -120,7 +120,7 @@ object HoyiCodec {
     }
 }
 data class BookooSample(val weightHundredthsGram: Int, val deviceFlowHundredths: Int,
-    val weightSignRaw: Int, val flowSignRaw: Int, val raw: ByteFrame)
+    val weightSignRaw: Int, val flowSignRaw: Int, val raw: ByteFrame, val batteryPercent: Int? = null)
 data class TimedCommand(val delayMs: Long, val frame: ByteFrame)
 class EncodedCommand(val frame: ByteFrame) { override fun toString(): String = "EncodedCommand($frame)" }
 object BookooCodec {
@@ -136,7 +136,10 @@ object BookooCodec {
         if(u(6) !in listOf(43,45) || u(10) !in listOf(43,45)) return invalid("Unverified BOOKOO sign encoding")
         val weight=((u(7) shl 16) or (u(8) shl 8) or u(9)) * if(u(6)==45)-1 else 1
         val flow=((u(11) shl 8) or u(12)) * if(u(10)==45)-1 else 1
-        return DecodeResult.Valid(BookooSample(weight,flow,u(6),u(10),raw))
+        // MINI and ULTRA document byte 14 as unsigned percent; reserved/invalid values
+        // do not invalidate an otherwise valid weight/flow notification.
+        val battery = u(13).takeIf { it in 0..100 }
+        return DecodeResult.Valid(BookooSample(weight,flow,u(6),u(10),raw,battery))
     }
     fun initializationCommands(): List<TimedCommand> = listOf(
         TimedCommand(500L,frameHex("030A02000308")),

@@ -6,6 +6,9 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.pm.PackageManager
 import android.os.Build
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ImageSpan
 import android.view.View
 import android.widget.*
 import io.openhoyi.session.DeviceRole
@@ -197,7 +200,10 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             HoyiUi.button(host,buttons,host.getString(R.string.home_visual_change)) {
                 owner?.beginDeviceSelection();selection.showRole(role);rendered="";render(owner)
                 revealScan()
-            }.apply {visual.action(this,outline=true); linked += this; changeButtons += this}
+            }.apply {
+                visual.action(this,outline=true); linked += this; changeButtons += this
+                tag = "settings/devices/change/${role.name}"
+            }
             HoyiUi.button(host,buttons,host.getString(label)) {
                 if(connectedActionAllowed())owner?.disconnect(role) else error(host.getString(R.string.scale_active_guard))
             }.apply {visual.action(this);asTaskTextAction();disconnectActions+=this;linked+=this;disconnectLabels[this] = text}
@@ -344,8 +350,35 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
                 host.getString(R.string.device_remembered_identity, prefs.getString(if (role == DeviceRole.COFFEE) "coffee" else "scale", "—"))
             val status=state?.let {if(role==DeviceRole.COFFEE)DeviceStatusText.coffeeLabel(host,it,snapshot?.coffeeFailure) else DeviceStatusText.label(host,it)} ?: "—"
             // Saved identity may belong to a different device until the new one reaches READY.
-            val value = if (identity.isEmpty()) status else DeviceStatusText.settingsSummary(status, identity)
-            if(text.text.toString()!=value)text.text=value
+            val battery = if (role == DeviceRole.BOOKOO)
+                service?.settingsScaleBatteryAt(MobileMonotonicClock.elapsedRealtime()) else null
+            val percent = battery?.let { host.getString(R.string.settings_scale_battery_percent, it) }
+            // Keep the short glyph/percent with the primary connection status, not the saved ID.
+            val glyphIndex = status.length + 2
+            val visibleStatus = if (percent == null) status else "$status\u00A0\u00A0\uFFFC\u00A0$percent"
+            val value = if (identity.isEmpty()) visibleStatus else DeviceStatusText.settingsSummary(visibleStatus, identity)
+            if (text.text.toString() != value) {
+                text.text = if (percent == null) value else SpannableString(value).apply {
+                    val icon = requireNotNull(host.getDrawable(R.drawable.ic_settings_scale_battery)).mutate()
+                    icon.setTint(text.currentTextColor)
+                    val size = style.dp(14)
+                    val center = (text.paint.fontMetrics.ascent + text.paint.fontMetrics.descent) / 2f
+                    icon.setBounds(0, 0, size, size)
+                    setSpan(object : ImageSpan(icon, ImageSpan.ALIGN_BASELINE) {
+                        override fun draw(canvas: android.graphics.Canvas, text: CharSequence?, start: Int, end: Int,
+                            x: Float, top: Int, y: Int, bottom: Int, paint: android.graphics.Paint) {
+                            canvas.save()
+                            canvas.translate(x, y + center - size / 2f)
+                            drawable.draw(canvas)
+                            canvas.restore()
+                        }
+                    }, glyphIndex, glyphIndex + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                text.contentDescription = percent?.let {
+                    val description = host.getString(R.string.settings_scale_battery_status, status, it)
+                    if (identity.isEmpty()) description else DeviceStatusText.settingsSummary(description, identity)
+                }
+            }
         }
         val display = localError ?: if (tablet) when {
             currentScan && snapshot?.scanning == true -> host.getString(R.string.settings_device_nearby_hint)

@@ -4,6 +4,7 @@ import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.HoyiMessage
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.ScaleCapabilities
+import io.openhoyi.protocol.Settings
 import io.openhoyi.protocol.StartParameters
 import io.openhoyi.session.CoffeeControl
 import io.openhoyi.session.DeviceState
@@ -136,6 +137,12 @@ internal class MockExtractionScenario(
         requireOwner(owner)
         requireNotNull(controller).tick()
     }
+    fun offerReadOnlySettings(owner: Any, settings: Settings) {
+        requireOwner(owner)
+        check(coffeeState == DeviceState.READY)
+        deliverCoffeeFrame(settings)
+    }
+
     fun offerCoffeeFrame(owner: Any, frame: HoyiMessage) {
         requireOwner(owner)
         require(frame is ExtractionTelemetry || frame is IdleTelemetry) { "Only typed machine telemetry is accepted" }

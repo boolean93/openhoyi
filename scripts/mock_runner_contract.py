@@ -11,4 +11,5 @@ RUNNERS = {
     'io.openhoyi.mobile.CurveFilterPopupInstrumentation': APP,
     'io.openhoyi.mobile.PendingRecipeLabelChecks': APP,
     'io.openhoyi.mobile.CloudflareDownloadLiveInstrumentation': APP,
+    'io.openhoyi.mobile.BrewCompletionShareInstrumentation': APP,
 }

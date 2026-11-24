@@ -13,7 +13,6 @@ internal object SettingsOperationFeedback {
     }
 
     fun setting(state: SettingsWriteTracker.State?): Int? = when (state) {
-        SettingsWriteTracker.State.CONFIRMED -> R.string.machine_settings_setting_confirmed
         SettingsWriteTracker.State.FAILED -> R.string.machine_settings_setting_failed
         SettingsWriteTracker.State.UNKNOWN -> R.string.machine_settings_setting_unknown
         SettingsWriteTracker.State.RECONCILED -> R.string.machine_settings_setting_reconciled
@@ -21,7 +20,7 @@ internal object SettingsOperationFeedback {
     }
 
     fun schedule(state: SleepScheduleWriteTracker.State?): Int? = when (state) {
-        SleepScheduleWriteTracker.State.CONFIRMED -> R.string.machine_settings_schedule_confirmed
+        SleepScheduleWriteTracker.State.CONFIRMED -> R.string.settings_schedule_saved
         SleepScheduleWriteTracker.State.FAILED -> R.string.machine_settings_schedule_failed
         SleepScheduleWriteTracker.State.UNKNOWN -> R.string.machine_settings_schedule_unknown
         SleepScheduleWriteTracker.State.RECONCILED -> R.string.machine_settings_schedule_reconciled
@@ -29,7 +28,7 @@ internal object SettingsOperationFeedback {
     }
 
     fun cups(state: CupResetTracker.State?): Int? = when (state) {
-        CupResetTracker.State.CONFIRMED -> R.string.machine_settings_cup_confirmed
+        CupResetTracker.State.CONFIRMED -> R.string.settings_cups_cleared
         CupResetTracker.State.FAILED -> R.string.machine_settings_cup_failed
         CupResetTracker.State.UNKNOWN -> R.string.machine_settings_cup_unknown
         CupResetTracker.State.RECONCILED -> R.string.machine_settings_cup_reconciled
