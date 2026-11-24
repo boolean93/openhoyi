@@ -28,13 +28,11 @@ import android.widget.LinearLayout
 import android.widget.HorizontalScrollView
 import android.widget.TextView
 import android.widget.Toast
-import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.SleepDay
 import io.openhoyi.protocol.WeeklySleepDay
 import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.DeviceState
-import io.openhoyi.session.ExtractionState
 import java.util.Locale
 
 internal fun weeklyTileHeadingInk(style: TaskProductVisualStyle, wide: Boolean, enabled: Boolean): Int =
@@ -76,6 +74,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private val targetRows = mutableListOf<SettingsBoilerTargetRow>()
     private val scheduleCards = mutableListOf<ScheduleCard>()
     private lateinit var writeStatus: TextView
+    private lateinit var writeCard: LinearLayout
+    private var inlineWriteCard = false
     private lateinit var scheduleWriteStatus: TextView
     private lateinit var cupCountValue: TextView
     private lateinit var cupResetStatus: TextView
@@ -166,7 +166,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
             visual.action(this,icon="chevron",atEnd=true)
         }
-        val writeCard = card(controlsPane, getString(R.string.machine_settings_feedback_title))
+        inlineWriteCard = !embedded
+        writeCard = card(controlsPane, getString(R.string.machine_settings_feedback_title))
         writeStatus = text(writeCard, getString(R.string.machine_settings_feedback_initial), 16).apply {tag="product/settings/machine/write-status"}
         val tabsScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         controlsPane.addView(tabsScroll, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
@@ -575,19 +576,17 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         try { renderContent() } finally {
             if (::connectionState.isInitialized && ::writeStatus.isInitialized) {
                 val snapshot = service?.snapshot
-                val syncNotice = service?.machineSettingsSyncStatus?.let { getString(it) }
-                val freshness = syncNotice ?: getString(if(snapshot?.settings == null) R.string.machine_settings_readback_missing
+                val freshness = getString(if(snapshot?.settings == null) R.string.machine_settings_readback_missing
                     else if(snapshot.coffeeState == DeviceState.READY && service?.machineSettingsFresh == true) R.string.machine_settings_readback_current
                     else R.string.machine_settings_readback_stale)
-                val idle = service?.pendingSetting == null &&
-                    (service?.settingWriteState ?: SettingsWriteTracker.State.IDLE) == SettingsWriteTracker.State.IDLE
                 val connection = if (BuildConfig.MOCK_MODE && documentMode) "Mock" else connectionState.text.toString()
                 val activityStatus = service?.let(::extractionStatus)
                 val base = listOfNotNull(connection, freshness, activityStatus).joinToString(" · ")
                 val ready = documentMode && snapshot?.coffeeState == DeviceState.READY &&
                     snapshot.settings != null && service?.machineSettingsFresh == true && activityStatus == null
-                val concise = if (ready) syncNotice ?: getString(R.string.settings_hig_machine_read_back) else base
-                statusChanged(if (documentMode && idle) concise else "$concise\n${writeStatus.text}")
+                val concise = if (ready) getString(R.string.settings_hig_machine_read_back) else base
+                val feedback = writeStatus.text.takeIf { it.isNotBlank() }
+                statusChanged(listOfNotNull(concise, feedback).joinToString("\n"))
             }
         }
     }
@@ -595,21 +594,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         if (owner.manualShotActive) return getString(R.string.settings_hig_machine_extracting)
         val state = owner.shotState
         if (!ShotGate.active(state)) return null
-        val snapshot = owner.snapshot
-        val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
-            MobileMonotonicClock.elapsedRealtime())
-        val liveFlow = frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait
-        val observation = owner.shotStartObservation.takeIf {
-            state == ExtractionState.STARTING || state == ExtractionState.RUNNING
-        }
-        val displayState = ExtractionStartObservationPresentation.displayState(state, observation, liveFlow)
-        val label = ExtractionStartObservationPresentation.label(observation) ?: when (displayState) {
-            ExtractionState.RUNNING -> R.string.settings_hig_machine_extracting
-            ExtractionState.STOP_REQUESTED -> R.string.extraction_state_stopping
-            ExtractionState.OUTCOME_UNKNOWN -> R.string.extraction_state_unknown
-            else -> R.string.extraction_state_starting
-        }
-        return getString(label)
+        val displayState = ExtractionStartObservationPresentation.displayState(state, owner.shotStartObservation,
+            requiresStartObservation = owner.usesAutomaticBoilerSettingsSync,
+            legacyFlowObserved = owner.hasObservedExtractionFlow)
+        return getString(ExtractionStartObservationPresentation.stateLabel(displayState))
     }
 
     private fun renderContent() {
@@ -673,41 +661,35 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                 tile.heading.setTextColor(weeklyTileHeadingInk(visual.palette, wideScheduleTiles, tile.enabled))
             }
         val scheduleState = owner?.scheduleWriteState
-        scheduleWriteStatus.visibility = if (documentMode && (scheduleState == null ||
-            scheduleState == SleepScheduleWriteTracker.State.IDLE)) View.GONE else View.VISIBLE
-        scheduleWriteStatus.update(getString(R.string.machine_settings_schedule_status_prefix) + when (owner?.scheduleWriteState) {
-            SleepScheduleWriteTracker.State.WRITING -> getString(R.string.machine_settings_schedule_writing)
-            SleepScheduleWriteTracker.State.WAITING_READBACK -> getString(R.string.machine_settings_schedule_waiting)
-            SleepScheduleWriteTracker.State.CONFIRMED -> getString(R.string.machine_settings_schedule_confirmed)
-            SleepScheduleWriteTracker.State.FAILED -> getString(R.string.machine_settings_schedule_failed)
-            SleepScheduleWriteTracker.State.UNKNOWN -> getString(R.string.machine_settings_schedule_unknown)
-            SleepScheduleWriteTracker.State.RECONCILED -> getString(R.string.machine_settings_schedule_reconciled)
-            else -> getString(R.string.machine_settings_unchanged)
-        })
+        val scheduleFeedback = SettingsOperationFeedback.schedule(scheduleState)
+            ?: R.string.machine_settings_unchanged.takeIf {
+                !documentMode && (scheduleState == null || scheduleState == SleepScheduleWriteTracker.State.IDLE)
+            }
+        scheduleWriteStatus.visibility = if (scheduleFeedback == null) View.GONE else View.VISIBLE
+        scheduleWriteStatus.update(scheduleFeedback?.let {
+            getString(R.string.machine_settings_schedule_status_prefix) + getString(it)
+        }.orEmpty())
         val cups = settingsPresentation.cupCount(reported, ready && owner?.machineSettingsFresh == true)
         cupCountValue.update(cups)
         cupCountChanged(cups)
-        val pending = owner?.settingWriteState ?: SettingsWriteTracker.State.IDLE
-        cupResetStatus.update(getString(R.string.machine_settings_cup_status_prefix) + when (owner?.cupResetState) {
-            CupResetTracker.State.WRITING -> getString(R.string.machine_settings_cup_writing)
-            CupResetTracker.State.WAITING_ZERO -> getString(R.string.machine_settings_cup_waiting)
-            CupResetTracker.State.CONFIRMED -> getString(R.string.machine_settings_cup_confirmed)
-            CupResetTracker.State.FAILED -> getString(R.string.machine_settings_cup_failed)
-            CupResetTracker.State.UNKNOWN -> getString(R.string.machine_settings_cup_unknown)
-            CupResetTracker.State.RECONCILED -> getString(R.string.machine_settings_cup_reconciled)
-            else -> getString(R.string.machine_settings_cups_initial)
-        })
-        writeStatus.update(if (owner?.pendingSetting == null && pending == SettingsWriteTracker.State.IDLE)
-            getString(R.string.machine_settings_feedback_initial) else "${owner?.pendingSetting?.let(settingsPresentation::change) ?: getString(R.string.machine_settings_generic_setting)} · " +
-            when (pending) {
-                SettingsWriteTracker.State.IDLE -> getString(R.string.machine_settings_unchanged)
-                SettingsWriteTracker.State.WRITING -> getString(R.string.machine_settings_setting_writing)
-                SettingsWriteTracker.State.WAITING_READBACK -> getString(R.string.machine_settings_setting_waiting)
-                SettingsWriteTracker.State.CONFIRMED -> getString(R.string.machine_settings_setting_confirmed)
-                SettingsWriteTracker.State.FAILED -> getString(R.string.machine_settings_setting_failed)
-                SettingsWriteTracker.State.UNKNOWN -> getString(R.string.machine_settings_setting_unknown)
-                SettingsWriteTracker.State.RECONCILED -> getString(R.string.machine_settings_setting_reconciled)
-            })
+        val cupState = owner?.cupResetState
+        val cupFeedback = SettingsOperationFeedback.cups(cupState)
+            ?: R.string.machine_settings_cups_initial.takeIf { cupState == null || cupState == CupResetTracker.State.IDLE }
+        cupResetStatus.visibility = if (cupFeedback == null) View.GONE else View.VISIBLE
+        cupResetStatus.update(cupFeedback?.let {
+            getString(R.string.machine_settings_cup_status_prefix) + getString(it)
+        }.orEmpty())
+        val settingState = owner?.settingWriteState
+        val settingFeedback = SettingsOperationFeedback.setting(settingState)
+        val settingMessage = settingFeedback?.let {
+            val change = owner?.pendingSetting?.let(settingsPresentation::change)
+                ?: getString(R.string.machine_settings_generic_setting)
+            "$change · ${getString(it)}"
+        } ?: getString(R.string.machine_settings_feedback_initial).takeIf {
+            !documentMode && (settingState == null || settingState == SettingsWriteTracker.State.IDLE)
+        }.orEmpty()
+        writeCard.visibility = if (inlineWriteCard && settingMessage.isNotEmpty()) View.VISIBLE else View.GONE
+        writeStatus.update(settingMessage)
         val idle = snapshot.coffee as? io.openhoyi.protocol.IdleTelemetry
         val now = android.os.SystemClock.elapsedRealtime()
         val freshIdle = idle?.sleepStateRaw == 0 &&

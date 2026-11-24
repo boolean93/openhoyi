@@ -24,8 +24,10 @@ internal object HomeBoilerSwitchPresentation {
                 state == SettingsWriteTracker.State.UNKNOWN && recoveryRunning)
 
     fun showInline(label: Int): Boolean = when (label) {
-        R.string.setting_on, R.string.setting_off, R.string.settings_unknown -> false
-        else -> true
+        R.string.home_boiler_refresh, R.string.home_setting_failed,
+        R.string.home_boiler_retry_on, R.string.home_boiler_retry_off,
+        R.string.home_boiler_preheat_occupied, R.string.home_boiler_schedule_saving -> true
+        else -> false
     }
 
     fun label(brew:Boolean,reportedEnabled:Boolean?,pending:MachineSettingChange?,state:SettingsWriteTracker.State?,recovering:Boolean=false,reconnecting:Boolean=false,preheatOccupied:Boolean=false, admissionReason:Int?=null):Int {
@@ -33,8 +35,7 @@ internal object HomeBoilerSwitchPresentation {
         if(target!=null) {
             if(reconnecting)return R.string.home_boiler_reconnecting
             if(recovering)return R.string.home_boiler_syncing
-            if(state==SettingsWriteTracker.State.WAITING_READBACK)return R.string.home_setting_waiting
-            if(state==SettingsWriteTracker.State.WRITING)
+            if(state==SettingsWriteTracker.State.WRITING || state==SettingsWriteTracker.State.WAITING_READBACK)
                 return if(target) R.string.home_boiler_turning_on else R.string.home_boiler_turning_off
             if(state==SettingsWriteTracker.State.UNKNOWN)return R.string.home_boiler_refresh
             if(state==SettingsWriteTracker.State.FAILED)return R.string.home_setting_failed

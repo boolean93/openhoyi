@@ -818,7 +818,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val boilerRecoveryActive=owner?.boilerReadbackRecoveryActive==true
         val localWriteProgress=boilerRecoveryActive || owner?.machineModeWritePending==true
         val warning = ShotSafetyAlert.resource(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)?.let { getString(it) }
-            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {localWriteProgress}
+            ?: owner?.manualSafetyMessage ?: owner?.machineAttentionMessage
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
         val splitRecovery=owner?.splitRecoveryChoices?.isNotEmpty()==true
@@ -858,32 +858,22 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             s.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshAwakeIdle
         machineModes.render(owner)
         dialogMachineModes?.render(owner)
+        val leverFeedback = owner?.takeIf { it.pendingSetting is MachineSettingChange.LeverMode }
+            ?.let { SettingsOperationFeedback.lever(it.settingWriteState) }
         leverStatus.show(settingsPresentation.leverMode(s.settings) +
-            when (owner?.pendingSetting) {
-                is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {
-                    SettingsWriteTracker.State.WRITING -> getString(R.string.home_setting_writing)
-                    SettingsWriteTracker.State.WAITING_READBACK -> getString(R.string.home_setting_waiting)
-                    SettingsWriteTracker.State.CONFIRMED -> getString(R.string.home_setting_confirmed)
-                    SettingsWriteTracker.State.FAILED -> getString(R.string.home_setting_failed)
-                    SettingsWriteTracker.State.UNKNOWN -> getString(R.string.home_setting_unknown)
-                    SettingsWriteTracker.State.RECONCILED -> getString(R.string.home_setting_reconciled)
-                    SettingsWriteTracker.State.IDLE, null -> ""
-                }
-                else -> ""
-            })
+            leverFeedback?.let { " · " + getString(it) }.orEmpty())
         firmwareStatus.show(firmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE,s.coffeeFailure))
         coffeeDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&
             owner?.tareState !in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO)
-        tareStatus.show(getString(R.string.home_tare_prefix) + when (owner?.tareState ?: StandaloneTare.State.IDLE) {
-            StandaloneTare.State.IDLE -> getString(R.string.home_tare_idle)
-            StandaloneTare.State.WRITING -> getString(R.string.home_tare_writing)
-            StandaloneTare.State.WAITING_ZERO -> getString(R.string.home_tare_waiting)
-            StandaloneTare.State.CONFIRMED -> getString(R.string.home_tare_confirmed)
-            StandaloneTare.State.FAILED -> getString(R.string.home_setting_failed)
-            StandaloneTare.State.UNKNOWN -> getString(R.string.home_tare_unknown)
-        })
+        tareStatus.show(getString(when (owner?.tareState ?: StandaloneTare.State.IDLE) {
+            StandaloneTare.State.IDLE -> R.string.scale_tare_idle
+            StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO -> R.string.scale_tare_waiting
+            StandaloneTare.State.CONFIRMED -> R.string.scale_tare_confirmed
+            StandaloneTare.State.FAILED -> R.string.scale_tare_failed
+            StandaloneTare.State.UNKNOWN -> R.string.scale_tare_unknown
+        }))
         val liveMachine = LiveTelemetry.machine(s.coffee, s.coffeeState, s.coffeeAt, now)
         val coffeeFresh = liveMachine != null
         val idle = liveMachine as? IdleTelemetry

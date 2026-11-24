@@ -6,9 +6,9 @@
     <string name="extraction_start_sent_guidance">正在等待咖啡机进入萃取。</string>
     <string name="extraction_start_no_observation_guidance">还未收到可靠的萃取数据，请看机器。需要时可停止萃取。</string>
     <string name="service_v2_split_pending">还有咖啡机操作待确认，请查看状态。</string>
+    <string name="service_preheat_observed_waiting_temperature">咖啡机正在预热，尚未达到目标温度。</string>
     <string name="service_event_preheat_machine_waiting">已观察到咖啡机进入预热等待，尚未达到目标温度</string>
-    <string name="home_boiler_schedule_writing">正在写入睡眠计划</string>
-    <string name="home_boiler_schedule_readback">等待机器确认睡眠计划</string>
+    <string name="home_boiler_schedule_saving">正在保存睡眠计划</string>
     <string name="service_v2_split_restart_required">待核对记录已清除。请选择「停止设备服务」，再重新连接咖啡机。</string>
     <string name="service_v2_split_reconciled">已核对这一项当前状态，没有重发原操作。</string>
     <string name="service_v2_split_recovery_wait">请连接原咖啡机并等待这项新的完整回报，再核对。</string>

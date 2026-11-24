@@ -5,13 +5,15 @@ import io.openhoyi.session.ShotStartObservation
 
 /** Labels derived from machine observation, not a GATT callback; shared with the isolated QA view. */
 internal object ExtractionStartObservationPresentation {
-    fun displayState(state: ExtractionState, observation: ShotStartObservation?, liveFlow: Boolean): ExtractionState {
+    fun displayState(state: ExtractionState, observation: ShotStartObservation?,
+        requiresStartObservation: Boolean, legacyFlowObserved: Boolean): ExtractionState {
         if (state != ExtractionState.STARTING && state != ExtractionState.RUNNING) return state
         return when (observation) {
             ShotStartObservation.WAITING_FOR_MACHINE -> ExtractionState.STARTING
             ShotStartObservation.NOT_CONFIRMED -> ExtractionState.OUTCOME_UNKNOWN
             ShotStartObservation.MACHINE_EXTRACTION_OBSERVED -> ExtractionState.RUNNING
-            null -> if (state == ExtractionState.RUNNING && !liveFlow) ExtractionState.STARTING else state
+            null -> if (state == ExtractionState.RUNNING && (requiresStartObservation || !legacyFlowObserved))
+                ExtractionState.STARTING else state
         }
     }
 

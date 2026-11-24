@@ -6,17 +6,25 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ExtractionStartObservationPresentationTest {
-    @Test fun writeSuccessCannotShowRunningWithoutMachineEvidence() {
+    @Test fun v2NeedsItsOwnStartEvidenceBeforeShowingRunning() {
         val view = ExtractionStartObservationPresentation
         val running = ExtractionState.RUNNING
-        assertEquals(ExtractionState.STARTING, view.displayState(running, null, false))
+        fun display(observation: ShotStartObservation?) =
+            view.displayState(running, observation, requiresStartObservation = true, legacyFlowObserved = true)
+        assertEquals(R.string.extraction_state_starting, view.stateLabel(display(null)))
+        assertEquals(R.string.extraction_state_starting, view.stateLabel(display(ShotStartObservation.WAITING_FOR_MACHINE)))
+        assertEquals(ExtractionState.OUTCOME_UNKNOWN, display(ShotStartObservation.NOT_CONFIRMED))
+        assertEquals(R.string.extraction_state_running, view.stateLabel(display(ShotStartObservation.MACHINE_EXTRACTION_OBSERVED)))
+        assertEquals(ExtractionState.STOP_REQUESTED, view.displayState(ExtractionState.STOP_REQUESTED,
+            ShotStartObservation.WAITING_FOR_MACHINE, requiresStartObservation = true, legacyFlowObserved = false))
+    }
+
+    @Test fun legacyAndMockStartAfterObservedFlowAndDoNotDependOnAPollFrame() {
+        val view = ExtractionStartObservationPresentation
+        val running = ExtractionState.RUNNING
         assertEquals(ExtractionState.STARTING,
-            view.displayState(running, ShotStartObservation.WAITING_FOR_MACHINE, true))
-        assertEquals(ExtractionState.OUTCOME_UNKNOWN,
-            view.displayState(running, ShotStartObservation.NOT_CONFIRMED, true))
-        assertEquals(running, view.displayState(running, ShotStartObservation.MACHINE_EXTRACTION_OBSERVED, false))
-        assertEquals(running, view.displayState(running, null, true))
-        assertEquals(ExtractionState.STOP_REQUESTED,
-            view.displayState(ExtractionState.STOP_REQUESTED, ShotStartObservation.WAITING_FOR_MACHINE, false))
+            view.displayState(running, null, requiresStartObservation = false, legacyFlowObserved = false))
+        assertEquals(running,
+            view.displayState(running, null, requiresStartObservation = false, legacyFlowObserved = true))
     }
 }

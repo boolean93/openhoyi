@@ -24,8 +24,8 @@ class HomeBoilerSwitchPresentationTest {
         val steam = MachineSettingChange.SteamHeating(false)
         assertEquals(R.string.home_boiler_turning_on, p.label(true, false, brew, State.WRITING))
         assertEquals(R.string.home_boiler_turning_off, p.label(false, true, steam, State.WRITING))
-        assertEquals(R.string.home_setting_waiting, p.label(true, false, brew, State.WAITING_READBACK))
-        assertEquals(R.string.home_setting_waiting, p.label(false, true, steam, State.WAITING_READBACK))
+        assertEquals(R.string.home_boiler_turning_on, p.label(true, false, brew, State.WAITING_READBACK))
+        assertEquals(R.string.home_boiler_turning_off, p.label(false, true, steam, State.WAITING_READBACK))
         assertEquals(R.string.setting_on, p.label(false, true, brew, State.WAITING_READBACK))
     }
     @Test fun onlyMatchingOwnedIntentHoldsPendingPresentation() {
@@ -41,14 +41,21 @@ class HomeBoilerSwitchPresentationTest {
         }
     }
 
-    @Test fun pendingLabelsAreVisibleAlongsideTheReportedSwitch() {
+    @Test fun normalBoilerToggleNeverAddsTextUnderEitherSwitch() {
         val p = HomeBoilerSwitchPresentation
-        for (label in listOf(R.string.setting_on, R.string.setting_off, R.string.settings_unknown)) {
-            assertFalse(p.showInline(label))
+        for (brew in listOf(true, false)) for (target in listOf(true, false)) {
+            val change = if (brew) MachineSettingChange.BrewHeating(target) else MachineSettingChange.SteamHeating(target)
+            for (state in listOf(State.WRITING, State.WAITING_READBACK, State.CONFIRMED)) {
+                val reported = if (state == State.CONFIRMED) target else !target
+                assertFalse(p.showInline(p.label(brew, reported, change, state)))
+                assertFalse(p.showInline(p.label(!brew, false, change, state)))
+            }
+            assertFalse(p.showInline(p.label(brew, !target, change, State.UNKNOWN, recovering = true)))
+            assertFalse(p.showInline(p.label(brew, !target, change, State.UNKNOWN, reconnecting = true)))
         }
-        for (label in listOf(R.string.home_boiler_refresh, R.string.home_setting_failed, R.string.home_setting_waiting, R.string.home_boiler_turning_on,
-            R.string.home_boiler_turning_off, R.string.home_boiler_syncing, R.string.home_boiler_reconnecting,
-            R.string.home_boiler_retry_on, R.string.home_boiler_preheat_occupied)) {
+        assertFalse(p.showInline(R.string.settings_unknown))
+        for (label in listOf(R.string.home_boiler_refresh, R.string.home_setting_failed,
+            R.string.home_boiler_retry_on, R.string.home_boiler_retry_off, R.string.home_boiler_preheat_occupied)) {
             assertTrue(p.showInline(label))
         }
     }

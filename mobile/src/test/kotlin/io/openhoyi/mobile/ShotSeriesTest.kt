@@ -99,6 +99,20 @@ class ShotSeriesTest {
         assertEquals(3,series.points.size)
         assertNull(ShotPoint(0,90,0,0,9200,null).brewing)
     }
+    @Test fun observedFlowSurvivesValveCloseUntilTheCupEnds() {
+        val series = ShotSeries()
+        series.begin("cup-1", 1000)
+        series.machine(frame.copy(statusBits = 0x60), 1100, null, null)
+        assertFalse(series.hasObservedExtractionFlow)
+        series.machine(frame, 1200, null, null)
+        assertTrue(series.hasObservedExtractionFlow)
+        series.machine(frame.copy(statusBits = 0), 3100, null, null)
+        assertTrue(series.hasObservedExtractionFlow)
+        series.finish()
+        series.begin("cup-2", 3200)
+        assertFalse(series.hasObservedExtractionFlow)
+    }
+
     @Test fun pressureProjectionKeepsTimelineAndMarksExplicitNonBrewingAsGaps() {
         val points=listOf(ShotPoint(250,900,0,0,9200,0,brewing=false),
             ShotPoint(750,90,0,0,9200,100,brewing=true),

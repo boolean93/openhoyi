@@ -193,7 +193,7 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
             present(hold.resolve(owner, address, null, null, null, null, 2800, hold = true))
             check(temperature.text.toString() == "91.4 °C" && target.text.toString() == "92 °C")
             check(!power.isChecked && !power.isEnabled)
-            check(HomeBoilerSwitchPresentation.showInline(
+            check(!HomeBoilerSwitchPresentation.showInline(
                 HomeBoilerSwitchPresentation.label(true, false, pending, waiting)))
             check(render().let { image -> try { !enabled.sameAs(image) } finally { image.recycle() } }) {
                 "Pending boiler switch must remain visually distinct from a confirmed ON"

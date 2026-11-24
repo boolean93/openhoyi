@@ -28,6 +28,23 @@ class SafetyNotificationPresentationTest {
         }
     }
 
+    @Test fun routineMachineProgressKeepsItsSafetyNotificationQuietUntilActionIsNeeded() {
+        val split=R.string.service_v2_split_pending
+        val setting=R.string.machine_recovery_setting
+        fun warning(resource:Int,settingsProgress:Boolean=false,splitRecovery:Boolean=false) =
+            SafetyNotificationPresentation.machineAttention(resource,settingsProgress,splitRecovery)
+
+        assertNull(warning(split))
+        assertEquals(split,warning(split,splitRecovery=true))
+        assertNull(warning(setting,settingsProgress=true))
+        assertEquals(setting,warning(setting))
+        for (resource in listOf(R.string.service_v2_split_storage_failed,
+            R.string.service_v2_split_recovery_blocked,R.string.service_v2_split_restart_required,
+            R.string.machine_recovery_unknown)) {
+            assertEquals(resource,warning(resource,settingsProgress=true))
+        }
+    }
+
     @Test fun absenceAndEmptyTranslationHaveDifferentWarningIdentity() {
         val none = SafetyNotificationPresentation.from(null, null, null)
         assertNull(none.warning { _, _ -> error("No warning must not resolve text") })

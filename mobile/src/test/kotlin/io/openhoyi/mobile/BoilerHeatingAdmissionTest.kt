@@ -14,10 +14,10 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BoilerHeatingAdmissionTest {
-    @Test fun scheduleWritingAndReadbackAreDistinctNonActionableReasons() {
+    @Test fun scheduleSavingHasOneStableNonActionableLabel() {
         val p = HomeBoilerSwitchPresentation
-        val cases = mapOf(State.WRITING to R.string.home_boiler_schedule_writing,
-            State.WAITING_READBACK to R.string.home_boiler_schedule_readback)
+        val cases = mapOf(State.WRITING to R.string.home_boiler_schedule_saving,
+            State.WAITING_READBACK to R.string.home_boiler_schedule_saving)
         for ((phase, label) in cases) {
             val admission = BoilerHeatingAdmission.resolve(false, phase)
             assertFalse(admission.canSubmit)

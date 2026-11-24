@@ -446,10 +446,10 @@ class ExtractionActivity : ThemedActivity() {
         }
         val now = MobileMonotonicClock.elapsedRealtime()
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
-        val liveFlow = frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait
-        val displayState = ExtractionStartObservationPresentation.displayState(state, startObservation, liveFlow)
-        val statusLabel = ExtractionStartObservationPresentation.label(startObservation)?.let { getString(it) }
-            ?: shotLabel(displayState)
+        val displayState = ExtractionStartObservationPresentation.displayState(state, startObservation,
+            requiresStartObservation = owner?.usesAutomaticBoilerSettingsSync == true,
+            legacyFlowObserved = owner?.hasObservedExtractionFlow == true)
+        val statusLabel = shotLabel(displayState)
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         pageHeader.visibility = View.VISIBLE
@@ -476,6 +476,11 @@ class ExtractionActivity : ThemedActivity() {
             BrewPreparation.isAtTarget(corrected, profile.temperatureC)
         val preparation = owner?.brewPreparationState ?: BrewPreparation.State.IDLE
         val studioBlocked = if (owner != null && profile != null) owner.studioStartBlock(profile) else null
+        val quietSettingsSync = owner?.machineSettingsSyncPending == true
+        val studioReadinessBlock = studioBlocked.takeUnless { quietSettingsSync && owner?.machineBrewSettingsAvailable == false }
+        val attention = owner?.machineControlAttentionMessage
+        val readinessBlock = if (owner == null) blocked
+            else owner.extractionReadinessMessage(profile, item != null && profile == null)
         val settingBusy = owner?.blockingSettingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
@@ -515,14 +520,13 @@ class ExtractionActivity : ThemedActivity() {
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
-            startObservation == io.openhoyi.session.ShotStartObservation.WAITING_FOR_MACHINE -> getString(R.string.extraction_start_sent_guidance)
             startObservation == io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> getString(R.string.extraction_start_no_observation_guidance)
             displayState == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
             displayState == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
             state == ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_stopping_guidance)
             state == ExtractionState.OUTCOME_UNKNOWN -> getString(R.string.extraction_unknown_guidance)
             state == ExtractionState.ENDED_OBSERVED -> getString(R.string.extraction_ended_guidance)
-            else -> owner?.machineControlSafetyMessage ?: blocked ?: studioBlocked ?: getString(R.string.extraction_ready_guidance)
+            else -> attention ?: readinessBlock ?: studioReadinessBlock ?: getString(R.string.extraction_ready_guidance)
         }
         val reviewId = owner?.chartTraceIdentity?.takeIf { observedCup && !active && owner.manualShotActive != true }
         if (reviewId != automaticReviewId) {
@@ -537,10 +541,10 @@ class ExtractionActivity : ThemedActivity() {
         readiness.show(guidance + unknownAdvice)
         // Only ordinary, complete guidance shares the compact chrome. Every warning keeps its full row.
         val inlineGuidance = owner?.manualShotActive != true && owner?.scalePreflight != true &&
-            unknownAdvice.isEmpty() && owner?.machineControlSafetyMessage == null &&
-            preparation == BrewPreparation.State.IDLE && !settingBusy && !sleepBusy &&
+            unknownAdvice.isEmpty() && attention == null &&
+            preparation == BrewPreparation.State.IDLE && !sleepBusy &&
             (displayState == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
-                state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
+                state == ExtractionState.IDLE && readinessBlock == null && studioReadinessBlock == null)
         compactIdentity.show(displayCurveName)
         compactIdentity.contentDescription = displayCurveName
         compactClock.show((if (inlineGuidance) "" else statusLabel + " · ") + elapsedText +
@@ -552,13 +556,13 @@ class ExtractionActivity : ThemedActivity() {
         readiness.visibility = if (inlineGuidance) View.GONE else View.VISIBLE
         compactIdentity.setOnLongClickListener { detailsButton.performClick(); true }
         readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
-            (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)))
+            (state == ExtractionState.IDLE && (readinessBlock != null || studioReadinessBlock != null)))
             R.color.mobile_danger else R.color.mobile_text))
         chooseCurve.visibility = if (presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
             !ShotGate.active(state) && owner?.manualShotActive != true) View.VISIBLE else View.GONE
         chooseCurve.show(if (item == null) getString(R.string.extraction_choose_curve) else getString(R.string.home_curve_replace))
         readiness.setTextColor(if (state == ExtractionState.OUTCOME_UNKNOWN) visual.warningInk
-            else if (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)) visual.stop else style.ink)
+            else if (state == ExtractionState.IDLE && (readinessBlock != null || studioReadinessBlock != null)) visual.stop else style.ink)
         readiness.background = if (state == ExtractionState.OUTCOME_UNKNOWN) android.graphics.drawable.GradientDrawable().apply {
             setColor(visual.warningSurface); setStroke(dp(1), visual.warningBorder); cornerRadius = dp(12).toFloat()
         } else null
@@ -577,10 +581,9 @@ class ExtractionActivity : ThemedActivity() {
             getString(R.string.extraction_studio_summary, corrected?.let(::number) ?: "—", (profile?.temperatureC ?: "—").toString()) +
                 when (preparation) {
                     BrewPreparation.State.IDLE -> if (temperatureReady) getString(R.string.extraction_temperature_ready) else getString(R.string.extraction_temperature_not_ready)
-                    BrewPreparation.State.WRITING -> getString(R.string.extraction_prepare_writing)
-                    BrewPreparation.State.WAITING_TEMP -> getString(
-                        if (owner?.preheatMachineWaitingObserved==true) R.string.service_event_preheat_machine_waiting
-                        else R.string.extraction_prepare_waiting)
+                    BrewPreparation.State.WRITING -> getString(R.string.task_shell_machine_preheating)
+                    BrewPreparation.State.WAITING_TEMP ->
+                        getString(PreheatStatusPresentation.waitingLabel(corrected, profile?.temperatureC))
                     BrewPreparation.State.READY -> if (temperatureReady) getString(R.string.extraction_prepare_ready) else getString(R.string.extraction_prepare_off_target)
                     BrewPreparation.State.CANCELLING -> getString(R.string.extraction_prepare_cancelling)
                     BrewPreparation.State.CANCEL_WRITTEN -> getString(R.string.extraction_prepare_cancel_written)
@@ -589,9 +592,9 @@ class ExtractionActivity : ThemedActivity() {
                 })
         // Only fresh, non-actionable idle prose may live with the supporting details.
         // Writing, temperature wait, cancellation, failures and unknown outcomes stay fixed.
-        val normalPreparation = snapshot.settings != null && owner?.machineBrewSettingsAvailable == true &&
-            owner.machineControlSafetyMessage == null && preparation == BrewPreparation.State.IDLE &&
-            (!studio || temperatureReady)
+        val normalPreparation = attention == null && preparation == BrewPreparation.State.IDLE &&
+            (quietSettingsSync || snapshot.settings != null && owner?.machineBrewSettingsAvailable == true &&
+                (!studio || temperatureReady))
         preparationSummary.show(preparationStatus.text.toString())
         preparationSummary.visibility = if (normalPreparation) View.VISIBLE else View.GONE
         preparationStatus.visibility = if (normalPreparation) View.GONE else View.VISIBLE
@@ -701,7 +704,7 @@ class ExtractionActivity : ThemedActivity() {
             corrected, owner?.autoPreheatInitialTemperature))
         AutoPreheatButton.bind(start, preheatModel, corrected, profile?.temperatureC,
             if (showPreheatStatus) owner?.autoPreheatMessage else null)
-        start.contentDescription = listOfNotNull(start.contentDescription?.toString(), blocked ?: studioBlocked)
+        start.contentDescription = listOfNotNull(start.contentDescription?.toString(), readinessBlock ?: studioReadinessBlock)
             .joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         stop.isEnabled = stopAction.enabled

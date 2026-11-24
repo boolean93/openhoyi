@@ -83,13 +83,7 @@ class AppSettingsFragment : Fragment() {
     private val serviceObserver: (MobileService?) -> Unit = {
         service = it
         deviceControls?.render(it)
-        fun badge(state:String?):String?=when(state) {
-            "UNKNOWN"->getString(R.string.task_shell_machine_unknown)
-            "FAILED"->getString(R.string.home_setting_failed)
-            "WRITING"->getString(R.string.home_setting_writing)
-            "WAITING_READBACK","WAITING_ZERO"->getString(R.string.home_setting_waiting)
-            else->null
-        }
+        fun badge(state: String?): String? = SettingsOperationFeedback.badge(state)?.let(::getString)
         document?.setStatus("machine",badge(it?.machineSettingStatusState?.name))
         document?.setStatus("schedule",badge(it?.scheduleWriteState?.name))
         document?.setStatus("maintenance",badge(it?.cupResetState?.name))

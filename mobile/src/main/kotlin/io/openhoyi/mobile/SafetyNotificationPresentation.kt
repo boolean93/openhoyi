@@ -11,6 +11,13 @@ data class SafetyNotificationPresentation private constructor(
         warningResource?.let { resolve(it, emptyArray()) }
 
     companion object {
+        internal fun machineAttention(resource: Int?, settingsProgress: Boolean, splitRecovery: Boolean): Int? =
+            when (resource) {
+                R.string.machine_recovery_setting -> resource.takeUnless { settingsProgress }
+                R.string.service_v2_split_pending -> resource.takeIf { splitRecovery }
+                else -> resource
+            }
+
         fun from(shotWarning: Int?, manualWarning: Int?, machineWarning: Int?) =
             SafetyNotificationPresentation(shotWarning ?: manualWarning ?: machineWarning,
                 if (machineWarning != null && manualWarning == null && shotWarning == null)

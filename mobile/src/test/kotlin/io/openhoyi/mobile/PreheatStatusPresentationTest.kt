@@ -14,6 +14,12 @@ class PreheatStatusPresentationTest {
         TaskShellDeviceStatus.coffee(false,sleep,setting,unavailable,true,connection,0,
             preparation=preparation,preparationAtTarget=atTarget)
 
+    @Test fun normalPreheatUsesProductLanguageAndRetainsCoolingAndMissingData() {
+        assertEquals(R.string.task_shell_machine_preheating, PreheatStatusPresentation.waitingLabel(9000, 94))
+        assertEquals(R.string.auto_preheat_cooling, PreheatStatusPresentation.waitingLabel(9600, 94))
+        assertEquals(R.string.extraction_prepare_waiting, PreheatStatusPresentation.waitingLabel(null, 94))
+    }
+
     @Test fun normalProgressIsNotDisconnectionAndLatchedReadyNeedsCurrentTemperature() {
         for(state in listOf(State.WRITING,State.WAITING_TEMP))
             assertEquals(R.string.auto_preheat_heating,status(state))

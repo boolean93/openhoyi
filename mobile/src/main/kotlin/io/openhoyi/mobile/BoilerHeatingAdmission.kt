@@ -7,8 +7,8 @@ import io.openhoyi.session.SleepScheduleWriteTracker
 internal enum class BoilerHeatingAdmission(val reason: Int? = null) {
     AVAILABLE,
     UNAVAILABLE,
-    SCHEDULE_WRITING(R.string.home_boiler_schedule_writing),
-    SCHEDULE_READBACK(R.string.home_boiler_schedule_readback);
+    SCHEDULE_WRITING(R.string.home_boiler_schedule_saving),
+    SCHEDULE_READBACK(R.string.home_boiler_schedule_saving);
 
     val canSubmit: Boolean get() = this == AVAILABLE
 
