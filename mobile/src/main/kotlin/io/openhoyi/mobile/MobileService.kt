@@ -1679,6 +1679,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             boilerTargetSteps.active && temperatureWrite.busy && machineControlSafetyMessage == null &&
             boilerRecoveryProductSafe())
 
+    internal fun mayStepHomeBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int): Boolean =
+        !boilerTargetSteps.active && mayStepBoilerTarget() &&
+            boiler.steppedTarget(measuredTarget(boiler), delta) != null
+
+    internal fun stepHomeBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int) {
+        if (mayStepHomeBoilerTarget(boiler, delta)) stepBoilerTarget(boiler, delta)
+    }
+
     internal fun stepBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int) {
         boilerTargetSteps.sessionChanged(boilerTargetSession())
         if (!mayStepBoilerTarget()) return

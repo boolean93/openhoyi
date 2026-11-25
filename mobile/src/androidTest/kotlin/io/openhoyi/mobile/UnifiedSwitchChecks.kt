@@ -127,9 +127,9 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
                 val bitmap = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
                 return try {
                     dial.draw(Canvas(bitmap))
-                    listOf(145.0, 230.0, 330.0).map { angle ->
+                    listOf(155.0, 230.0, 330.0).map { angle ->
                         val radians = Math.toRadians(angle)
-                        val r = side * .442
+                        val r = side * .459
                         bitmap.getPixel((side / 2 + r * kotlin.math.cos(radians)).toInt(),
                             (side / 2 + r * kotlin.math.sin(radians)).toInt())
                     }

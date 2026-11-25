@@ -3,10 +3,14 @@ package io.openhoyi.mobile
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.SettingsWriteTracker
 
-/** A Settings-only queue: one transport/readback owner, with only unsent intents coalesced. */
+/** One transport/readback owner; only unsent intents are coalesced. */
 internal class BoilerTargetSteps {
     enum class Boiler(val limits: IntRange) {
         BREW(75..105), STEAM(110..145);
+        fun steppedTarget(target: Int?, delta: Int): Int? {
+            if ((delta != -1 && delta != 1) || target == null || target !in limits) return null
+            return (target + delta).takeIf { it in limits }
+        }
         fun change(value: Int): MachineSettingChange = when (this) {
             BREW -> MachineSettingChange.BrewTemperature(value)
             STEAM -> MachineSettingChange.SteamTemperature(value)
@@ -56,8 +60,8 @@ internal class BoilerTargetSteps {
         else if (inFlight?.boiler == boiler) Feedback.CONFIRMING else notices[boiler]
 
     fun step(boiler: Boiler, delta: Int, observed: Int?): Boolean {
-        if (session == null || uncertain || delta !in listOf(-1, 1)) return false
-        val value = target(boiler, observed)?.takeIf { it in boiler.limits }?.plus(delta)?.takeIf { it in boiler.limits } ?: return false
+        if (session == null || uncertain) return false
+        val value = boiler.steppedTarget(target(boiler, observed), delta) ?: return false
         notices.remove(boiler)
         queued[boiler] = value
         return true

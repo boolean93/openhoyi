@@ -2,6 +2,9 @@
 <resources>
     <string name="home_machine_title">Machine</string>
     <string name="home_target_label">Target</string>
+    <string name="home_boiler_target_decrease">Decrease %1$s target temperature by 1 degree</string>
+    <string name="home_boiler_target_increase">Increase %1$s target temperature by 1 degree</string>
+    <string name="home_boiler_target_confirming">Confirming target temperature</string>
     <string name="home_slot_unconfigured">Unassigned</string>
     <string name="home_visual_details">Preparation details</string>
     <string name="home_visual_show_details">View preparation details ›</string>
