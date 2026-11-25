@@ -2,49 +2,35 @@ package io.openhoyi.mobile
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.view.View
-import android.widget.Toast
-import java.text.NumberFormat
 
-/** Displays and shares the same frozen cup summary, without rendering or exporting a file. */
+/** Shows the local completion feedback and the optional AI review action. */
 internal class BrewCompletionDialog(
     private val activity: Activity,
-    summary: BrewCompletionSummary,
-    private val launchShare: (Intent) -> Unit = activity::startActivity,
+    level: BrewFeedbackClips.Level,
     private val onReview: () -> Unit,
 ) {
     private val title = activity.getString(R.string.feedback_title)
     private val message = buildString {
-        val number = NumberFormat.getNumberInstance(activity.resources.configuration.locales[0]).apply {
-            maximumFractionDigits = 2
+        val prompt = when (level) {
+            BrewFeedbackClips.Level.BRAVO -> R.string.feedback_bravo
+            BrewFeedbackClips.Level.HIGH_FLOW -> R.string.feedback_high_flow
+            BrewFeedbackClips.Level.LOW_FLOW -> R.string.feedback_low_flow
         }
-        fun reading(value: Double?, units: String): String =
-            value?.let { "${number.format(it)} $units" } ?: "—"
-
-        appendLine(activity.getString(R.string.completion_average_flow, reading(summary.averageScaleFlowGramsPerSecond, "g/s")))
-        appendLine(activity.getString(R.string.completion_yield, reading(summary.outputGrams, "g")))
-        appendLine(activity.getString(R.string.completion_average_pressure, reading(summary.averagePressureBar, "bar")))
-        append(when (val count = summary.endCupCount) {
-            null -> activity.getString(R.string.completion_cup_count, "—")
-            0 -> activity.getString(R.string.completion_cup_count, activity.getString(R.string.completion_cup_number_zero))
-            else -> activity.getString(R.string.completion_cup_number, number.format(count))
-        })
+        appendLine(activity.getString(prompt))
+        appendLine()
+        append(activity.getString(R.string.feedback_note))
     }
 
     val dialog: AlertDialog = AlertDialog.Builder(activity)
         .setTitle(title)
         .setMessage(message)
-        .setPositiveButton(R.string.completion_card_close, null)
-        .setNegativeButton(R.string.completion_card_share, null)
+        .setPositiveButton(R.string.feedback_done, null)
         .setNeutralButton(R.string.completion_card_review, null)
         .create()
 
     fun show() {
         AppDialog.show(dialog)
-        // The result remains open when Android's share panel is dismissed.
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener { share() }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { onReview() }
     }
 
@@ -59,17 +45,5 @@ internal class BrewCompletionDialog(
             else -> R.string.completion_card_no_samples
         }
         dialog.setMessage(if (reviewStatus == null) message else "$message\n\n${activity.getString(reviewStatus)}")
-    }
-
-    private fun share() {
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, "$title\n$message")
-        }
-        try {
-            launchShare(Intent.createChooser(send, activity.getString(R.string.completion_card_share)))
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(activity, R.string.completion_share_no_target, Toast.LENGTH_SHORT).show()
-        }
     }
 }

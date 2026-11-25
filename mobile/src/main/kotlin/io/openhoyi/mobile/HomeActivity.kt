@@ -115,7 +115,7 @@ class HomeActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (redirectRoot(TaskDestination.BREW)) return
-        feedbackUi = BrewFeedbackDialog(this, this, savedInstanceState)
+        feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(productStyle.page)

@@ -47,27 +47,6 @@ class CompletionShotReviewTest {
         assertNull(route.consume("ticket", 2, true))
     }
 
-    @Test fun completionSummaryUsesBrewingPressureAndScaleFlowAndFrozenEndpoint() {
-        val cup = feedback("live-id")
-        val points = listOf(
-            ShotPoint(100, 40, 100, 3, 9100, 7711, scaleFlowHundredths = 100, brewing = true),
-            ShotPoint(1000, 80, 200, 600, 9200, 9999, scaleFlowHundredths = 200, brewing = true,
-                beverageHundredthsGram = 3500, beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0),
-            ShotPoint(21_000, 150, 300, 600, 9200, 9999, scaleFlowHundredths = 900, brewing = false),
-        )
-        val summary = BrewCompletionSummary.create(cup, points, terminalBeverageHundredthsGram = 3620, endCupCount = 128)
-        assertEquals(6.0, summary.averagePressureBar!!, 0.0)
-        assertEquals(1.5, summary.averageScaleFlowGramsPerSecond!!, 0.0)
-        assertEquals(36.2, summary.outputGrams!!, 0.0)
-        assertEquals(128, summary.endCupCount)
-
-        val noScaleFlow = BrewCompletionSummary.create(cup, points.map { it.copy(scaleFlowHundredths = null) })
-        assertNull(noScaleFlow.averageScaleFlowGramsPerSecond)
-        assertNull(noScaleFlow.outputGrams) // Do not substitute the last plotted net sample.
-        assertNull(noScaleFlow.endCupCount)
-        assertNull(BrewCompletionSummary.create(cup, emptyList()).averagePressureBar)
-    }
-
     @Test fun fakeProviderReceivesOnlyExplicitEvidenceOnce() = runBlocking {
         val request = CompletionShotReview.Request("record", "one-cup evidence", 3)
         var calls = 0

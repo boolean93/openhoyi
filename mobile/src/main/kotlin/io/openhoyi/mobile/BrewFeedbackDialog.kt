@@ -2,11 +2,8 @@ package io.openhoyi.mobile
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.ActivityNotFoundException
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.result.ActivityResultCaller
-import androidx.activity.result.contract.ActivityResultContracts
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.session.DeviceState
 import kotlin.random.Random
@@ -18,15 +15,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /** One Activity's display/audio owner. Configuration restoration restores text, never playback. */
-internal class BrewFeedbackDialog(
-    private val activity: Activity,
-    resultCaller: ActivityResultCaller,
-    saved: Bundle?,
-) {
-    private var sharing = false
-    private val shareLauncher = resultCaller.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        sharing = false
-    }
+internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?) {
     private val prefs = (activity.application as MobileApplication).feedbackPreferences
     private val audioOwner = lazy { BrewFeedbackAudio(AndroidBrewFeedbackAudio(activity.applicationContext)) }
     private val audio by audioOwner
@@ -59,15 +48,14 @@ internal class BrewFeedbackDialog(
         val restored = restoreId == result!!.shotId
         restoreId = null
         val value = if (restored) result else owner.claimBrewFeedback() ?: return
-        show(value, owner.brewCompletionSummary?.takeIf { it.feedback === value },
-            if (restored) restoreVariant else Random.nextInt(4), autoplay = !restored)
+        show(value, if (restored) restoreVariant else Random.nextInt(4), autoplay = !restored)
     }
     fun start() {
         prefs.observe(this) { enabled -> if (!enabled) { restoreId = null; stop() } }
     }
     fun leave(changingConfigurations: Boolean) {
         prefs.unobserve(this)
-        if ((changingConfigurations || sharing) && isShowing) { restoreId = shownId; restoreVariant = variant }
+        if (changingConfigurations && isShowing) { restoreId = shownId; restoreVariant = variant }
         stop()
     }
     fun save(out: Bundle) {
@@ -76,19 +64,14 @@ internal class BrewFeedbackDialog(
     }
     fun stop() {
         val previous = dialog
-        dialog = null; shownId = null; sharing = false
+        dialog = null; shownId = null
         reviewObserver?.cancel(); reviewObserver = null
         stopAudio()
         try { previous?.dismiss() } catch (_: RuntimeException) { /* Local window cleanup only. */ }
     }
-    private fun show(result: BrewFeedbackResult, summary: BrewCompletionSummary?, voice: Int, autoplay: Boolean) {
+    private fun show(result: BrewFeedbackResult, voice: Int, autoplay: Boolean) {
         variant = voice
-        val cup = summary ?: BrewCompletionSummary(result)
-        val card = BrewCompletionDialog(activity, cup, launchShare = { intent ->
-            sharing = true
-            try { shareLauncher.launch(intent) }
-            catch (failure: ActivityNotFoundException) { sharing = false; throw failure }
-        }) {
+        val card = BrewCompletionDialog(activity, result.level) {
             val ticket = reviewAccess.issue(result) ?: return@BrewCompletionDialog
             stop()
             try { activity.startActivity(CompletionReviewChatActivity.intent(activity, ticket)) }
@@ -107,7 +90,7 @@ internal class BrewFeedbackDialog(
         created.setOnDismissListener {
             // A delayed dismissal from an old dialog cannot cancel a newer request.
             if (dialog === created) {
-                dialog = null; shownId = null; sharing = false
+                dialog = null; shownId = null
                 reviewObserver?.cancel(); reviewObserver = null
                 stopAudio()
             }

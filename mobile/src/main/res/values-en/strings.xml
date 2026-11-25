@@ -273,12 +273,12 @@
     <string name="extraction_weight">"Scale weight"</string>
     <string name="extraction_weight_control_advice">"Scale controls stopping"</string>
     <string name="extraction_weight_progress">"Current %1$s g / Target %2$s g"</string>
-    <string name="feedback_bravo">"Enjoy your coffee."</string>
+    <string name="feedback_bravo">"This cup had a balanced flow. Enjoy your coffee."</string>
     <string name="feedback_done">"Got it"</string>
     <string name="feedback_enabled">"Extraction completion feedback"</string>
     <string name="feedback_enabled_description">"Show playful feedback and play an English audio prompt when extraction finishes. Off by default."</string>
-    <string name="feedback_high_flow">"This cup flowed a little faster. Give its flavor a try."</string>
-    <string name="feedback_low_flow">"This cup flowed a little slower. Give its flavor a try."</string>
+    <string name="feedback_high_flow">"This cup flowed a little fast. Give it a taste."</string>
+    <string name="feedback_low_flow">"This cup flowed a little slowly. Give it a taste."</string>
     <string name="feedback_note">"A playful prompt, not a flavor rating."</string>
     <string name="feedback_preferences_title">"App preferences"</string>
     <string name="feedback_preview">"Preview audio prompt"</string>

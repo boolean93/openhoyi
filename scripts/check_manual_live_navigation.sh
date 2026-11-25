@@ -68,19 +68,19 @@ if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGAT
 PY
 fi
 
-# Check the app-owned Share action through the system chooser without choosing a destination.
-python3 - "$results/completion-share.txt" <<'PY'
+# Check flow feedback, conditional AI review and dismissal in the native dialog.
+python3 - "$results/completion-dialog.txt" <<'PY'
 from pathlib import Path
 import subprocess, sys
 output = Path(sys.argv[1])
 with output.open('w') as capture:
     result = subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-r',
         '-e', 'disposableEmulator', 'true',
-        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewCompletionShareInstrumentation'],
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewCompletionDialogInstrumentation'],
         stdout=capture, stderr=subprocess.STDOUT, timeout=90)
 text = output.read_text()
 print(text)
-if (result.returncode or 'BREW_COMPLETION_SHARE_CHECKS_PASSED' not in text
+if (result.returncode or 'BREW_COMPLETION_DIALOG_CHECKS_PASSED' not in text
         or 'INSTRUMENTATION_CODE: -1' not in text.splitlines()):
-    raise SystemExit('Completion Share failed; evidence retained')
+    raise SystemExit('Completion Dialog failed; evidence retained')
 PY

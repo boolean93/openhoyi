@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
       completion_dialog_only:
-        description: Verify only the native completion dialog and text share on a compact Mock phone
+        description: Verify only the native completion dialog on a compact Mock phone
         type: boolean
         default: false
       manual_live_only:

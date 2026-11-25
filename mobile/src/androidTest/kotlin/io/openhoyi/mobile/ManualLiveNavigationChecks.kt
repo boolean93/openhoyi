@@ -4,9 +4,7 @@ import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Intent
 import android.os.Bundle
-import android.os.ParcelFileDescriptor
 import android.os.SystemClock
-import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
@@ -315,7 +313,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
         // The repository may return queued samples; a separate store proves disk readback.
         val persistedSamples = ShotSamplesStore(File(app.filesDir, "shot_samples"))
 
-        fun manualCup(seconds: Int, cupCount: Int): Pair<String, ShotHistory.Entry> {
+        fun manualCup(seconds: Int): Pair<String, ShotHistory.Entry> {
             val knownIds = app.history.entries.map { it.id }.toSet()
             fun offer(frame: io.openhoyi.protocol.HoyiMessage, delta: Long) {
                 MobileMonotonicClock.advanceForMock(clock, MobileMonotonicClock.elapsedRealtime() + delta)
@@ -331,7 +329,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 feedbackId = requireNotNull(service.manualChartIdentity)
                 for (second in 3..seconds) offer(frame(second), 1000)
                 // End only after the existing passive idle gap; no fabricated completion call.
-                offer(IdleTelemetry(9300, 12000, 0, 0, 0, 0, cupCount, 0, ByteFrame(byteArrayOf())), 2901)
+                offer(IdleTelemetry(9300, 12000, 0, 0, 0, 0, 25, 0, ByteFrame(byteArrayOf())), 2901)
                 check(!service.manualShotActive)
             }
             val entry = app.history.entries.single { it.id !in knownIds }
@@ -344,7 +342,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
 
         try {
             test.runOnMainSync { check(feedback.setEnabled(true)) }
-            manualCup(13, 127) // first frame 1 + 12 seconds of actual progress
+            manualCup(13) // first frame 1 + 12 seconds of actual progress
             test.waitForIdleSync()
             test.runOnMainSync {
                 check(service.brewFeedbackResult == null && !page.feedbackUi.isShowing) {
@@ -352,60 +350,32 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 }
             }
 
-            val (feedbackId, _) = manualCup(18, 128)
+            val (feedbackId, _) = manualCup(18)
             await("qualified manual cup opens the real completion dialog") {
                 service.brewFeedbackResult?.let { it.shotId == feedbackId &&
                     it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW } == true &&
                     page.feedbackUi.isShowing
             }
-            val number = java.text.NumberFormat.getNumberInstance(main.resources.configuration.locales[0])
-            val expectedCount = main.getString(R.string.completion_cup_number, number.format(128))
-            val expectedFlow = main.getString(R.string.completion_average_flow, "—")
-            val expectedYield = main.getString(R.string.completion_yield, "—")
-            val expectedPressure = main.getString(R.string.completion_average_pressure, "${number.format(8.9)} bar")
-            // A later idle (for example, following a device count reset) must not edit this cup.
-            test.runOnMainSync {
-                MobileMonotonicClock.advanceForMock(clock, MobileMonotonicClock.elapsedRealtime() + 500)
-                service.offerMockExtractionFrame(clock, IdleTelemetry(9300, 12000, 0, 0, 0, 0, 0, 0, ByteFrame(byteArrayOf())))
-                check(service.brewCompletionSummary?.endCupCount == 128)
-            }
+            val expectedPace = main.getString(R.string.feedback_low_flow)
+            val expectedNote = main.getString(R.string.feedback_note)
             check(waitForActiveWindow { window ->
-                val matches = window.findAccessibilityNodeInfosByText(expectedCount)
+                val matches = window.findAccessibilityNodeInfosByText(expectedPace)
                 try {
-                    matches.any {
-                        it.isVisibleToUser && it.text?.lines()?.containsAll(
-                            listOf(expectedCount, expectedFlow, expectedYield, expectedPressure)
-                        ) == true
-                    }
+                    matches.any { it.isVisibleToUser && it.text?.toString() == "$expectedPace\n\n$expectedNote" }
                 } finally { matches.forEach { it.recycle() } }
-            }) { "Qualified manual cup did not show its own count, pressure and missing scale flow" }
+            }) { "Qualified manual cup did not show the original slow-flow feedback" }
 
-            val share = main.getString(R.string.completion_card_share)
+            val close = main.getString(R.string.feedback_done)
             check(waitForActiveWindow { window ->
-                val matches = window.findAccessibilityNodeInfosByText(share)
+                val matches = window.findAccessibilityNodeInfosByText(close)
                 try {
-                    matches.any { it.text?.toString() == share && it.isVisibleToUser &&
+                    matches.any { it.text?.toString() == close && it.isVisibleToUser &&
                         it.isEnabled && it.isClickable && it.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
                 } finally { matches.forEach { it.recycle() } }
-            }) { "Real completion dialog Share could not be clicked" }
-            val systemChooser = setOf("android", "com.android.intentresolver", "com.google.android.intentresolver")
-            check(waitForActiveWindow { it.packageName?.toString() in systemChooser }) {
-                "Real completion dialog did not open the system chooser"
-            }
-            // Back from the system window without sending the text to any app.
-            ParcelFileDescriptor.AutoCloseInputStream(
-                test.uiAutomation.executeShellCommand("input keyevent KEYCODE_BACK")
-            ).use { it.readBytes() }
-            check(waitForActiveWindow { it.packageName?.toString() == main.packageName })
-            await("system Back restores the same cup result on the same Extraction page") {
-                page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page &&
+            }) { "Real completion dialog Close could not be clicked" }
+            await("Close dismisses the result without leaving the same Extraction page") {
+                !page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page &&
                     page.lifecycle.currentState == Lifecycle.State.RESUMED
-            }
-            test.sendStatus(0, Bundle().apply { putString("manualCompletionChooser",
-                "SYSTEM_BACK_SAME_EXTRACTION resultStillShowing=true externalSend=false") })
-            test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-            await("Back closes the result without leaving the same Extraction page") {
-                !page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page
             }
         } finally {
             test.runOnMainSync { check(feedback.setEnabled(previous)) }

@@ -108,9 +108,6 @@ class MobileService : Service() {
     private val feedbackDelivery = BrewFeedbackDelivery()
     private var feedbackShotId: String? = null
     private var feedbackAppShot = true
-    private var feedbackEndCupCount: Int? = null
-    internal var brewCompletionSummary: BrewCompletionSummary? = null
-        private set
     internal var brewFeedbackResult: BrewFeedbackResult? = null
         private set
     private val passiveShot = PassiveShotDetector()
@@ -384,10 +381,7 @@ class MobileService : Service() {
             snapshot.scaleObservation?.let(::onScaleObservation)
                 ?: scaleTrend.observe(null, snapshot.scaleState, now)
         }
-        snapshot.coffee?.let {
-            observeExtractionScaleEndpoint(it, now)
-            observeFeedbackEndCupCount(it)
-        }
+        snapshot.coffee?.let { observeExtractionScaleEndpoint(it, now) }
     }
     private val mockTick = object : Runnable {
         override fun run() {
@@ -770,7 +764,6 @@ class MobileService : Service() {
         }
         val observedAt = snapshot.coffeeAt ?: MobileMonotonicClock.elapsedRealtime()
         observeExtractionScaleEndpoint(frame, observedAt)
-        observeFeedbackEndCupCount(frame)
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
         val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
@@ -842,7 +835,7 @@ class MobileService : Service() {
                                 .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                         }
                         passiveHistoryId = null
-                        finishSeries(true, passiveConfirmed = true, endCupCount = (frame as? IdleTelemetry)?.cupCount)
+                        finishSeries(true, passiveConfirmed = true)
                         if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
                         event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
                     } else {
@@ -2416,16 +2409,6 @@ class MobileService : Service() {
             runCatching { brewFeedback.begin(shotId, slot, preinfusionSeconds) }.isSuccess)
             feedbackShotId = shotId
     }
-    private fun observeFeedbackEndCupCount(frame: HoyiMessage) {
-        // Both the real hub and Mock publish idle after updating the app-shot state.
-        // Freeze the first terminal frame, not a later count from settings or reset.
-        if (frame is IdleTelemetry && feedbackShotId != null && feedbackAppShot &&
-            shotState == ExtractionState.ENDED_OBSERVED && snapshot.coffeeState == DeviceState.READY &&
-            feedbackEndCupCount == null) {
-            feedbackEndCupCount = frame.cupCount
-        }
-    }
-
     private fun observeBrewFeedback(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
         val id = feedbackShotId ?: return
         if (runCatching { brewFeedback.observe(id, frame, atMs) }.isFailure) finishBrewFeedback(false)
@@ -2433,11 +2416,9 @@ class MobileService : Service() {
     private fun finishBrewFeedback(observedEnd: Boolean) {
         val id = feedbackShotId
         feedbackShotId = null
-        feedbackEndCupCount = null
         if (!observedEnd) {
             (application as MobileApplication).completionShotReview.invalidate()
             brewFeedbackResult = null
-            brewCompletionSummary = null
             feedbackDelivery.clear()
         }
         if (id != null) {
@@ -2454,12 +2435,7 @@ class MobileService : Service() {
     internal fun discardBrewFeedback() = feedbackDelivery.clear()
     private fun currentTimingEvidence() = series.timingEvidence(appElapsedOutcomeWasUnknown)
 
-    private fun finishSeries(
-        observedEnd: Boolean,
-        countsAsCup: Boolean = true,
-        passiveConfirmed: Boolean = false,
-        endCupCount: Int? = feedbackEndCupCount,
-    ) {
+    private fun finishSeries(observedEnd: Boolean, countsAsCup: Boolean = true, passiveConfirmed: Boolean = false) {
         val completedCup = observedEnd && countsAsCup
         finishBrewFeedback(completedCup)
         extractionScaleReadout.finish(observedEnd)
@@ -2469,10 +2445,6 @@ class MobileService : Service() {
         val retainedIds = historyEntries?.map(ShotHistory.Entry::id)?.toSet()
         retainedIds?.let(app::updateShotReviewRetention)
         val entry = historyEntries?.firstOrNull { it.id == finished.first }
-        if (completedCup) brewCompletionSummary = brewFeedbackResult?.let { feedback ->
-            BrewCompletionSummary.create(feedback, finished.second,
-                extractionScaleReadout.confirmedTerminalBeverage(feedback.shotId), endCupCount)
-        }
         if (completedCup && finished.second.isNotEmpty() && entry != null) {
             val eligible = ShotReviewWire.eligible(entry, passiveConfirmed, appElapsedOutcomeWasUnknown)
             val reviewConfig = if (eligible) app.shotReviewConfig() else null

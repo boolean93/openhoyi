@@ -30,7 +30,6 @@ class ExtractionScaleReadoutTest {
         val end = p.value(sample(-20000, 2000), ready, 2000)
         assertEquals(3520, end.hundredthsGram); assertTrue(end.ended)
         assertEquals(3600, end.targetHundredthsGram)
-        assertNull(p.confirmedTerminalBeverage("a"))
     }
     @Test fun missingEndCannotBeBackfilledByFreshPostEndSample() {
         val p=ExtractionScaleReadout();p.begin("a", null);p.brewing()
@@ -135,8 +134,6 @@ class ExtractionScaleReadoutTest {
         p.finish(true)
         val end=p.value(sample(-20000,3000),ready,3000)
         assertEquals(3500,end.hundredthsGram);assertEquals(ExtractionScaleReadout.Source.BEVERAGE,end.source)
-        assertEquals(3500, p.confirmedTerminalBeverage("app"))
-        assertNull(p.confirmedTerminalBeverage("next-passive"))
         p.observeProof(null,null,ExtractionState.IDLE)
         assertEquals(end,p.value(null,DeviceState.DISCONNECTED,9000))
         p.begin("next-passive",null)
@@ -147,7 +144,6 @@ class ExtractionScaleReadoutTest {
         val end=p.value(sample(),ready,1000)
         assertNull(end.hundredthsGram);assertEquals(ExtractionScaleReadout.Reason.UNKNOWN,end.reason)
         assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,end.source)
-        assertNull(p.confirmedTerminalBeverage("app"))
     }
 
 }

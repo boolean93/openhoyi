@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="completion_card_close">Close</string>
-    <string name="completion_card_share">Share</string>
     <string name="completion_card_review">AI review</string>
     <string name="completion_card_waiting">Reviewing this extraction…</string>
     <string name="completion_card_unavailable">Review unavailable</string>
@@ -9,11 +7,4 @@
     <string name="completion_card_request">Review the extraction curve for the shot I just finished and suggest the single most useful adjustment for the next shot.</string>
     <string name="completion_card_saving">Saving samples…</string>
     <string name="completion_card_no_samples">Samples unavailable</string>
-    <string name="completion_share_no_target">No app can share text.</string>
-    <string name="completion_average_flow">Average flow (scale estimate): %1$s</string>
-    <string name="completion_yield">Shot yield: %1$s</string>
-    <string name="completion_average_pressure">Average pressure: %1$s</string>
-    <string name="completion_cup_count">Total cups: %1$s</string>
-    <string name="completion_cup_number">Cup %1$s</string>
-    <string name="completion_cup_number_zero">0</string>
 </resources>

@@ -122,7 +122,7 @@ class ExtractionActivity : ThemedActivity() {
         super.onCreate(savedInstanceState)
         if (redirectRoot(TaskDestination.BREW, extraction = true)) return
         referenceId = savedInstanceState?.getString("referenceShotId")
-        feedbackUi = BrewFeedbackDialog(this, this, savedInstanceState)
+        feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(style.page)
