@@ -43,7 +43,7 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     private val marks = if (dark) 0xff839f98.toInt() else 0xff90b1a6.toInt()
     private val ruleColor = if (dark) 0xff456360.toInt() else 0xffc9dfd6.toInt()
     private val stripFill = if (dark) 0xff254440.toInt() else 0xffe4f4ed.toInt()
-    private val arcInk = if (dark) style.homeDialProgress else 0xff00bd69.toInt()
+    private val arcInk = if (!dark && context.themePalette() == AppThemePalette.CLASSIC) 0xff02c55b.toInt() else style.homeDialProgress
     private val decrease = decrease
     private val increase = increase
     private val steps = listOfNotNull(decrease, increase)
@@ -76,10 +76,11 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             field.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
             addView(field)
         }
-        heading.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        value.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        heading.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        value.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         target.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         pressure.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        pressure.textScaleX = 1.12f
 
         power.gravity = Gravity.CENTER
         power.setPaddingRelative(0, 0, 0, 0)
@@ -98,7 +99,8 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             if (step is TextView) {
                 step.gravity = Gravity.CENTER
                 step.includeFontPadding = false
-                step.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                step.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                step.textScaleX = 1.12f
                 step.setTextColor(ColorStateList(
                     arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
                     intArrayOf(if (dark) 0xff8aa8a0.toInt() else 0xff63847a.toInt(), buttonInk),
@@ -187,10 +189,10 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             setTextSize(field, fraction, minimumSp)
             field.measure(exact((diameter * width).roundToInt()), MeasureSpec.UNSPECIFIED)
         }
-        measureField(heading, .35f, .057f, 9f)
+        measureField(heading, .35f, .060f, 9f)
         measureField(value, .81f, .181f, 19f)
-        measureField(target, if (steps.isEmpty()) .66f else .38f, .055f, 9f)
-        measureField(pressure, .59f, .063f, 9f)
+        measureField(target, if (steps.isEmpty()) .66f else .43f, .058f, 9f)
+        measureField(pressure, .64f, .066f, 9f)
         power.setDialDiameter(diameter)
         // Native Switch lays its ink against END even without a label. Keep the small
         // artwork centered within a full 48dp keyboard, touch and accessibility target.
@@ -211,17 +213,17 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
             val t = (height * y - view.measuredHeight / 2f).roundToInt()
             view.layout(offset, t, offset + view.measuredWidth, t + view.measuredHeight)
         }
-        val actionY = .650f
+        val actionY = .645f
         // In a narrow dial the hit rectangle can extend outside the visible mint
         // bar; keep it disjoint from the power hit rectangle above it.
         at(heading, .244f, .452f)
         at(power, minOf(.249f, actionY - touch.toFloat() / height.coerceAtLeast(1))
-            .coerceAtLeast(touch / 2f / height.coerceAtLeast(1)), .712f)
-        at(value, .444f)
+            .coerceAtLeast(touch / 2f / height.coerceAtLeast(1)), .725f)
+        at(value, .427f)
         at(target, actionY)
         decrease?.let { at(it, actionY, .232f) }
         increase?.let { at(it, actionY, .768f) }
-        at(pressure, .843f)
+        at(pressure, .832f)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -242,11 +244,11 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         paint.strokeWidth = d * .026f
         paint.strokeCap = Paint.Cap.ROUND
         paint.color = style.homeDialTrack
-        canvas.drawArc(bounds, 147f, 246f, false, paint)
+        canvas.drawArc(bounds, 148f, 244f, false, paint)
         val fraction = homeBoilerArcFraction(currentTemperature, targetTemperature)
         if (fraction > 0f) {
             paint.color = arcInk
-            canvas.drawArc(bounds, 147f, 246f * fraction, false, paint)
+            canvas.drawArc(bounds, 148f, 244f * fraction, false, paint)
         }
         for (step in -12..12) {
             val angle = Math.toRadians(270.0 + step * 10)

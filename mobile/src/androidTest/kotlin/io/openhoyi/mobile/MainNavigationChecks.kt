@@ -52,6 +52,31 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         val steam = initial.steamTemperatureC
         val brewDelta = if (brew == BoilerTargetSteps.Boiler.BREW.limits.last) -1 else 1
         val steamDelta = if (steam == BoilerTargetSteps.Boiler.STEAM.limits.first) 1 else -1
+        val brewAction = if (brewDelta < 0) "decrease" else "increase"
+        val brewButton = checkNotNull(root.findViewWithTag<HomeBoilerTargetButton>("product/home/brew-boiler/target-$brewAction"))
+        test.runOnMainSync {
+            val baseline = checkNotNull(service.homeBoilerTargetInteraction(BoilerTargetSteps.Boiler.BREW, brewDelta))
+            fun replaceBaseline() {
+                brewButton.renderedIdentity = Any()
+                brewButton.renderedIdentity = baseline
+            }
+            brewButton.renderedIdentity = baseline
+            val now = SystemClock.uptimeMillis()
+            val touch = android.view.MotionEvent.obtain(now, now, android.view.MotionEvent.ACTION_DOWN, 20f, 20f, 0)
+            try {
+                brewButton.onTouchEvent(touch)
+                replaceBaseline()
+                check(!brewButton.performClick()) { "An old touch must not submit a target for the new baseline" }
+                touch.action = android.view.MotionEvent.ACTION_CANCEL
+                brewButton.onTouchEvent(touch)
+            } finally { touch.recycle() }
+            val confirm = android.view.KeyEvent.KEYCODE_ENTER
+            brewButton.onKeyDown(confirm, android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, confirm))
+            replaceBaseline()
+            check(!brewButton.performClick()) { "An old keyboard press must not submit a target for the new baseline" }
+            brewButton.onKeyUp(confirm, android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, confirm))
+            check(service.snapshot.settings?.brewTemperatureC == brew)
+        }
         step("brew-boiler", brewDelta, brew + brewDelta, steam)
         step("brew-boiler", -brewDelta, brew, steam)
         step("steam-boiler", steamDelta, brew, steam + steamDelta)
