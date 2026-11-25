@@ -335,7 +335,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         await("applied $fragmentTag visible") {
             root = host.supportFragmentManager.findFragmentByTag(fragmentTag)?.view?.let { outer ->
                 nodes(outer).firstOrNull { it.isShown && it.isLaidOut && !it.isLayoutRequested &&
-                    (it.background as? PageBackdrop)?.hasProtection() == true }
+                    (it.background as? PageBackdrop)?.protectedAreas != null }
             }
             root != null
         }
@@ -911,10 +911,12 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         inventoryForeground: (() -> InventoryForeground)? = null,
         protectedView: () -> View,
     ) {
-        await("$name has current backdrop and laid-out protected rows") {
+        await("$name has current backdrop and laid-out protected content") {
             (root.background as? PageBackdrop)?.let {
                 (it.snapshot.image != null || it.snapshot.config.choice == AppBackground.Mist) &&
-                    it.hasProtection()
+                    it.protectedAreas != null &&
+                    // Native surfaces such as the Home dial provide their own solid fill.
+                    (nativeCoverFill != null || it.hasProtection())
             } == true
         }
         // A two-level per-channel match is allowed for device compositing; a probe must exceed that
