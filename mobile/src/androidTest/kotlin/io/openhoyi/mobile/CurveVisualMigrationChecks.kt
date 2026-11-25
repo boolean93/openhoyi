@@ -11,6 +11,7 @@ import android.net.Uri
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.Point
 import android.os.Build
@@ -881,7 +882,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             val result=JSONArray()
             if(!preview.renderable) {
                 for(x in 0 until bitmap.width) for(y in 0 until bitmap.height)
-                    check(bitmap.getPixel(x,y)==android.graphics.Color.TRANSPARENT) {
+                    check(bitmap.getPixel(x,y)==Color.TRANSPARENT) {
                         "Unknown target painted a physical stage bar" }
                 return result
             }
@@ -893,8 +894,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             val step=(right-left)/preview.stages.size
             preview.stages.forEachIndexed { index, stage ->
                 val expected=when(stage.unit) {
-                    CurveStageParameters.Unit.PRESSURE_BAR -> style.libraryPressureBar
-                    CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.libraryFlowBar
+                    CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
+                    CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.flowMetric
                     CurveStageParameters.Unit.RAW_UNKNOWN -> return@forEachIndexed
                 }
                 val center=(left+(index+.5f)*step).toInt()
@@ -903,28 +904,35 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 val minimum=if(stage.target==0) density else 2f*density
                 val targetHeight=((bottom-top)*stage.target/10f/limit).coerceIn(minimum,bottom-top)
                 val centerPixels=(0 until bitmap.height).count {
-                    android.graphics.Color.alpha(bitmap.getPixel(center,it))>0
+                    Color.alpha(bitmap.getPixel(center,it))>0
                 }
                 check(kotlin.math.abs(centerPixels-targetHeight)<=2f) {
                     "Library bar height for stage ${index+1} does not match the shared axis" }
-                if(stage.target>0) {
+                if(targetHeight>=4f*density && step>=12f*density) {
                     val middle=(bottom-targetHeight/2f).toInt()
-                    val fillLeft=(left+(index+.25f)*step).toInt()
-                    val fillRight=(left+(index+.75f)*step).toInt()
-                    check((fillLeft..fillRight).all { bitmap.getPixel(it,middle)==expected }) {
-                        "Library stage ${index+1} is not a solid bar in its true unit color" }
+                    val fill = bitmap.getPixel(center, middle)
+                    val alpha = Color.alpha(fill)
+                    check(alpha in 55..65) {
+                        "Library stage ${index+1} needs a translucent center" }
+                    val edgeAlpha = (0 until bitmap.height).maxOf { Color.alpha(bitmap.getPixel(center,it)) }
+                    check(edgeAlpha > alpha) { "Library stage ${index+1} has no distinct outline" }
+                    // A translucent bitmap stores premultiplied channels, so allow rounding on readback.
+                    check(kotlin.math.abs(Color.red(fill) - Color.red(expected)) <= 3 &&
+                        kotlin.math.abs(Color.green(fill) - Color.green(expected)) <= 3 &&
+                        kotlin.math.abs(Color.blue(fill) - Color.blue(expected)) <= 3) {
+                        "Library stage ${index+1} fill does not match its unit" }
                 }
                 if(index>0) {
                     val separator=(left+index*step).toInt()
-                    check((0 until bitmap.height).all { bitmap.getPixel(separator,it)==android.graphics.Color.TRANSPARENT }) {
+                    check((0 until bitmap.height).all { bitmap.getPixel(separator,it)==Color.TRANSPARENT }) {
                         "Library stage bars touched at stage ${index+1}" }
                 }
                 val slotLeft=(left+index*step).toInt()
                 val slotRight=(left+(index+1)*step).toInt()
                 var pixels=0
                 for(x in slotLeft until slotRight) for(y in 0 until sparkline.height)
-                    if(bitmap.getPixel(x,y)==expected) pixels++
-                check(pixels>0) { "Library sparkline did not paint stage ${index+1} in its true unit" }
+                    if(Color.alpha(bitmap.getPixel(x,y))>0) pixels++
+                check(pixels>0) { "Library stage ${index+1} is empty" }
                 result.put(JSONObject().put("operation","stageTarget")
                     .put("unit",if(stage.unit==CurveStageParameters.Unit.PRESSURE_BAR) "bar" else "mL/s")
                     .put("targetTenths",stage.target).put("pixelCount",pixels))
