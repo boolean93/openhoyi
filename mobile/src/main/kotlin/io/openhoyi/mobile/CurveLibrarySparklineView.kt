@@ -41,8 +41,8 @@ internal class CurveLibrarySparklineView(
         if (left >= right || top >= bottom) return
         val step = (right - left) / stages.size
         fun color(stage: CurveStageParameters.Stage) = when (stage.unit) {
-            CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
-            CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.flowMetric
+            CurveStageParameters.Unit.PRESSURE_BAR -> if (stageBars) style.libraryPressureBar else style.pressure
+            CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> if (stageBars) style.libraryFlowBar else style.flowMetric
             CurveStageParameters.Unit.RAW_UNKNOWN -> style.muted
         }
         fun y(stage: CurveStageParameters.Stage): Float {

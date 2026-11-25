@@ -893,8 +893,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             val step=(right-left)/preview.stages.size
             preview.stages.forEachIndexed { index, stage ->
                 val expected=when(stage.unit) {
-                    CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
-                    CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.flowMetric
+                    CurveStageParameters.Unit.PRESSURE_BAR -> style.libraryPressureBar
+                    CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.libraryFlowBar
                     CurveStageParameters.Unit.RAW_UNKNOWN -> return@forEachIndexed
                 }
                 val center=(left+(index+.5f)*step).toInt()
