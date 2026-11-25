@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
+import android.os.SystemClock
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -130,10 +131,15 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
                                 "RESTORED_UNKNOWN"->OperationResult.Unknown("retry uncertain")
                                 else->OperationResult.Success()
                             }
+                            val beforeReceipt = SystemClock.elapsedRealtime()
                             scale.onComplete(call.first,call.second,result)
                             val zero="030B000000012B0000002D00024600C803010081".chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-                            if(result is OperationResult.Success)check(hub.scaleTareState==StandaloneTare.State.WAITING_ZERO)
-                            else check(hub.scaleTareState==StandaloneTare.State.UNKNOWN)
+                            if (result is OperationResult.Success) {
+                                check(hub.scaleTareState==StandaloneTare.State.WAITING_ZERO)
+                                scale.onNotification(scale.generation,KnownGatt.bookooNotify,zero,beforeReceipt)
+                                check(hub.scaleTareState==StandaloneTare.State.WAITING_ZERO)
+                                SystemClock.sleep(1) // The next sample must be captured strictly after the receipt.
+                            } else check(hub.scaleTareState==StandaloneTare.State.UNKNOWN)
                             scale.onNotification(scale.generation,KnownGatt.bookooNotify,zero)
                             val resolved=mode !in listOf("RESTORED_FAILED","RESTORED_UNKNOWN","RESTORED_CLEAR_FAIL")
                             check(hub.scaleTareState==if(resolved)StandaloneTare.State.CONFIRMED else StandaloneTare.State.UNKNOWN)
