@@ -79,6 +79,97 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         }
     }
 
+    /** One-time visual review for the dedicated cloud tablet. All records are synthetic. */
+    fun runWidePhotoReview() {
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock" &&
+            Build.HARDWARE in setOf("ranchu", "goldfish"))
+        check(output.mkdir() && realPrefs.all.isEmpty())
+        val shotId = main {
+            val inventory = app.beanInventoryResult.getOrThrow()
+            check(inventory.batches().isEmpty() && app.history.entries.isEmpty())
+            inventory.addBatch("photo-review-add", io.openhoyi.bean.BeanBatch(
+                "photo-review-batch", io.openhoyi.bean.Bean("photo-review-bean", "Mock Photo Review Beans"), 250000L))
+            val started = System.currentTimeMillis() - 28000L
+            app.history.begin("factory-v3-001", started, slot = 7).also {
+                app.history.transition(io.openhoyi.session.ExtractionState.RUNNING, null, null, started + 500)
+                app.history.transition(io.openhoyi.session.ExtractionState.ENDED_OBSERVED, null, 3600, started + 28000)
+                check(app.history.entries.single().status == ShotHistory.Status.ENDED)
+            }
+        }
+        val resolver = context.contentResolver
+        val sample = checkNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "photo-surface-review.jpg")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }))
+        try {
+            checkNotNull(resolver.openOutputStream(sample)).use { stream ->
+                test.context.assets.open("photo-surface-review.jpg").use { it.copyTo(stream) }
+            }
+            check(resolver.update(sample, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null) == 1)
+            val solid = main { owner.current.config }
+            check(solid.choice == AppBackground.Solid)
+            val draft = runBlocking { owner.import(sample, UUID.randomUUID().toString()) }
+            val photo = AppBackgroundConfig(draft.choice)
+            for ((backgroundName, background) in listOf("solid" to solid, "photo" to photo)) {
+                if (background == photo) {
+                    check(runBlocking { owner.apply(solid, photo, draft) } == AppBackgroundStore.Result.APPLIED)
+                }
+                for (dark in listOf(true, false)) {
+                    main {
+                        check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
+                    }
+                    val prefix = "${if (dark) "dark" else "light"}-$backgroundName"
+                    val controller = MainPageTestHost.launch(test, TaskDestination.SETTINGS, timeoutMs = 10000)
+                    val host = controller.activity
+                    try {
+                        check(main { host.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+                            host.resources.configuration.densityDpi == 360 })
+                        fun capture(name: String, root: View, requiredTag: String) {
+                            await("Visible seat for $prefix-$name ($requiredTag)") {
+                                val target = root.findViewWithTag<View>(requiredTag)
+                                target != null && target.isShown && target.getGlobalVisibleRect(Rect())
+                            }
+                            val window = captureCommittedFrame(root)
+                            try {
+                                check(window.width == 2560 && window.height == 1600) {
+                                    "Expected 2560x1600; got ${window.width}x${window.height}"
+                                }
+                                writeScreenshot("$prefix-$name.png", window)
+                            } finally { window.recycle() }
+                        }
+                        fun page(destination: TaskDestination): View {
+                            val tag = "root:${destination.name}"
+                            await("$tag is visible") {
+                                runCatching { controller.active(tag).requireView().isShown }.getOrDefault(false)
+                            }
+                            return main { controller.active(tag).requireView() }
+                        }
+                        val settings = page(TaskDestination.SETTINGS) as SettingsDocumentLayout
+                        capture("device", settings, "settings/heading/devices")
+                        if (background == photo) {
+                            main { settings.navigate("machine") }
+                            capture("machine", settings, "settings/heading/machine")
+                            main { settings.navigate("appearance") }
+                            capture("appearance", settings, "settings/heading/appearance")
+                        }
+                        main { host.select(TaskDestination.CURVES) }
+                        capture("curves", page(TaskDestination.CURVES), "product/curve-library/browser")
+                        main { host.select(TaskDestination.HISTORY) }
+                        capture("history", page(TaskDestination.HISTORY), "product/history/list/$shotId/name")
+                        main { host.select(TaskDestination.BEANS) }
+                        capture("beans", page(TaskDestination.BEANS), "product/inventory/list/photo-review-batch/name")
+                    } finally {
+                        main { host.finish() }
+                        await("Review host destroyed") { host.isDestroyed }
+                    }
+                }
+            }
+        } finally {
+            resolver.delete(sample, null, null)
+        }
+    }
+
     private fun verifyRollback() = main {
         val original = owner.current.config
         var commits = 0

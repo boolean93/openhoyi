@@ -134,7 +134,7 @@ jobs:
             printf '%s\n' 'hw.lcd.width=720' 'hw.lcd.height=1560' 'hw.lcd.density=280' 'skin.name=720x1560' 'skin.path=720x1560' >> "$config";
             fi
           script: >-
-            if [ "$PAGE_BACKGROUND_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py --with-backgrounds;
+            if [ "$PAGE_BACKGROUND_CHECKS" = "true" ]; then python3 scripts/capture_wide_photo_review.py;
             elif [ "$THEME_PALETTE_CHECKS" = "true" ]; then python3 scripts/check_theme_palette_ui.py;
             elif [ "$AI_CARD_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py;
             elif [ "$AI_COPY_CHECKS" = "true" ]; then python3 scripts/check_ai_card_construction.py --message-copy;

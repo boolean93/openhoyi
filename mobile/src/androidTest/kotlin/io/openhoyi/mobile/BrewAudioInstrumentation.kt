@@ -32,6 +32,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var quickCurveShortPortrait = false
     private var quickCurveEmptyRecent = false
     private var quickCurveNoLever = false
+    private var widePhotoReview = false
     private var pageBackgroundChecks = false
     private var liveScaleReadoutChecks = false
     private var shortcutDirectStartChecks = false
@@ -98,6 +99,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         homeBoilerVisualChecks = arguments?.getString("homeBoilerVisualChecks") == "true"
         fontSizeChecks = arguments?.getString("fontSizeChecks") == "true"
         themePaletteChecks = arguments?.getString("themePaletteChecks") == "true"
+        widePhotoReview = arguments?.getString("widePhotoReview") == "true"
         pageBackgroundChecks = arguments?.getString("pageBackgroundChecks") == "true"
         darkThemeWindow = arguments?.getString("darkThemeWindow")?.let { check(it in setOf("light", "dark")); it == "dark" }
         connectionSleepChecks=arguments?.getString("connectionSleepChecks")=="true"
@@ -217,6 +219,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                     wallpaperEnabled = quickCurveVisualBackground == "wallpaper", shortPortrait = quickCurveShortPortrait,
                     emptyRecent = quickCurveEmptyRecent, noLever = quickCurveNoLever)
                 report.putString("stream", "QUICK_CURVE_VISUAL_PASSED androidHome=true tap48=true noBle=true noShot=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
+            if (widePhotoReview) {
+                check(disposableCiEmulator)
+                PageBackgroundRuntimeChecks(this).runWidePhotoReview()
+                report.putString("stream", "WIDE_PHOTO_REVIEW_CAPTURED screenshots=20 mockOnly=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (pageBackgroundChecks) {
