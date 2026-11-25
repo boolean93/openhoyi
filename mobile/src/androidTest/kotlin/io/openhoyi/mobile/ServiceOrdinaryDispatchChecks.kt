@@ -179,7 +179,11 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                         field(session, "activeAddress").set(session, address)
                         val stamp = SystemClock.elapsedRealtime()
                         var now = stamp
-                        field(session, "clock").set(session, { now })
+                        // V2 notifications carry elapsedRealtime timestamps even between injected events.
+                        // ACKs use that same time base, including any explicit advance for scheduled work.
+                        field(session, "clock").set(session, {
+                            if (v2Native) maxOf(now, SystemClock.elapsedRealtime()) else now
+                        })
                         val scheduled = mutableListOf<Pair<Long, () -> Unit>>()
                         val serialNames = listOf("settingsSampleSerial", "cupSettingsSerial", "cupIdleSerial",
                             "firstSleepSerial", "secondSleepSerial", "sleepSampleSerial")
@@ -632,6 +636,9 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                 complete(calls.last())
                                 check(temp.state==SettingsWriteTracker.State.WAITING_READBACK)
                                 freshTick();ingest(matching,capturedHint=preAck)
+                                check(temp.state==SettingsWriteTracker.State.WAITING_READBACK) {
+                                    "$mode confirmed a notification captured before the write callback"
+                                }
                                 val other = if(delay) MachineSettingChange.StandbyTemperature(60,30)
                                     else MachineSettingChange.StandbyDelay(120,60)
                                 check(instance.changeMachineSetting(other)!=null && writeCount()==1)
@@ -639,6 +646,12 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                 check(temp.state==SettingsWriteTracker.State.WAITING_READBACK)
                                 freshTick();ingest(matching)
                                 check(temp.state==SettingsWriteTracker.State.CONFIRMED && writeCount()==1)
+                                check(instance.changeMachineSetting(other)==null && writeCount()==2)
+                                check((calls.last().third as GattOperation.Write).bytes.contentEquals(
+                                    CoffeeCommands.setting(other).frame.toByteArray()))
+                                complete(calls.last())
+                                freshTick();ingest(normal.replace("0F35",if(delay) "1E3C" else "783C"))
+                                check(temp.state==SettingsWriteTracker.State.CONFIRMED && writeCount()==2)
                             }
                             check(systemLookups==0 && permissionChecks==0 && componentCalls==0 && scaleExecutions==0)
                             fakeWrites+=writeCount(); checkedFixtures++
@@ -828,7 +841,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
         else if(v2Split)check(checkedFixtures==1 && fakeWrites==8 && fakeBarriers==0)
         else if(v2Boiler)check(checkedFixtures==3 && fakeWrites==9 && fakeBarriers==0)
         else if(v2Passive)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==0)
-        else if(v2Settings)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==3)
+        else if(v2Settings)check(checkedFixtures==5 && fakeWrites==10 && fakeBarriers==3)
         else if(ownership)check(checkedFixtures==12 && fakeWrites==9 && fakeBarriers==12 && clearedReloads==0 && retainedReloads==12)
         else check(checkedFixtures==39 && fakeWrites==12 && fakeBarriers==39 && clearedReloads==28 && retainedReloads==11)
     }
