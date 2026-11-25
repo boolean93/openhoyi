@@ -59,7 +59,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
     private val boilerExceptions = mutableMapOf<HoyiSwitch, Button>()
-    private data class BoilerTargetControls(val decrease: HomeBoilerTargetButton, val increase: HomeBoilerTargetButton, val status: Button)
+    private data class BoilerTargetControls(val decrease: HomeBoilerTargetButton, val increase: HomeBoilerTargetButton)
     private val boilerTargetControls = mutableMapOf<BoilerTargetSteps.Boiler, BoilerTargetControls>()
     private var renderingBoilerSwitch = false
     private val boilerDisplay = HomeBoilerDialHold()
@@ -323,7 +323,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     setPadding(0, 0, 0, 0)
                     isEnabled = false
                     setOnClickListener {
-                        service?.stepHomeBoilerTarget(boiler, delta)
+                        val owner = service
+                        val identity = owner?.boilerDialDisplayIdentity
+                        if (owner?.stepHomeBoilerTarget(boiler, delta) == true) boilerDisplay.arm(identity, target = true)
                         render()
                     }
                 }
@@ -373,16 +375,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 visibility = View.GONE
                 layoutParams = LinearLayout.LayoutParams(-1, -2)
             }
-            val targetStatus = button(card, "") {
-                service?.refreshBoilerTargetBaseline()
-                render()
-            }.apply {
-                tag = "product/home/$tagName/target-status"
-                visibility = View.GONE
-                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-                layoutParams = LinearLayout.LayoutParams(-1, -2)
-            }
-            boilerTargetControls[boiler] = BoilerTargetControls(decrease, increase, targetStatus)
+            boilerTargetControls[boiler] = BoilerTargetControls(decrease, increase)
             return listOf(value, pressure, target, toggle)
         }
         boiler(BoilerTargetSteps.Boiler.BREW, "brew-boiler") {
@@ -690,6 +683,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     override fun onPause() {
         feedbackUi.leave(host.isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
+        boilerDisplay.clear()
         boilerDials.forEach(BoilerTemperatureDial::suspendMotion)
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
         deviceDialog?.dismiss()
@@ -838,7 +832,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 admission.reason?.let { toast(getString(it)) }
                 return
             }
-            owner.changeMachineSetting(change)?.let(::toast)
+            val identity = owner.boilerDialDisplayIdentity
+            val blocked = owner.changeMachineSetting(change)
+            if (blocked == null) boilerDisplay.arm(identity) else toast(blocked)
         } finally {
             render()
         }
@@ -944,10 +940,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val ownsPending = owner?.ownsBoilerDisplayWrite == true
         fun inFlight(brew: Boolean) = HomeBoilerSwitchPresentation.pendingAppearance(
             brew, pending, writeState, ownsPending, recoveryRunning = boilerRecoveryActive)
-        val dial = boilerDisplay.resolve(owner, owner?.boilerDisplayAddress,
-            liveMachine, s.coffeeAt, s.settings?.brewTemperatureC, s.settings?.steamTemperatureC, now,
-            hold = !shotActive && owner?.manualShotActive != true && (inFlight(true) || inFlight(false)) &&
-                (s.coffeeState == DeviceState.READY || owner?.boilerReadbackReconnecting == true))
+        val boilerIdentity = owner?.boilerDialDisplayIdentity
+        val dial = boilerDisplay.resolve(boilerIdentity, liveMachine, s.coffeeAt,
+            s.settings.takeIf { boilerIdentity != null },
+            canHold = !shotActive && owner?.manualShotActive != true && preparationIdle &&
+                (idle == null || io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)),
+            active = inFlight(true) || inFlight(false), targetActive = owner?.boilerTargetDisplayWriteActive == true)
         val readings = MachineHomeReadings.from(dial.frame)
         val brewCurrent = when (val frame = dial.frame) {
             is IdleTelemetry -> frame.brewTemperatureHundredthsC / 100f
@@ -962,7 +960,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         boilerDials.getOrNull(0)?.present(brewCurrent, dial.brewTarget?.toFloat(), warmingSession)
         boilerDials.getOrNull(1)?.present((dial.frame as? IdleTelemetry)?.steamTemperatureHundredthsC?.div(100f),
             dial.steamTarget?.toFloat(), warmingSession)
-        // Only the round cards may hold the previous display; connection status, feed, and
+        // Only the boiler cards may hold the previous display; connection status, feed, and
         // control gates still use independently freshness-checked live telemetry.
         val liveReadings = if (dial.frame === liveMachine) readings else MachineHomeReadings.from(liveMachine)
         brewTemperature.show(liveReadings.brewTemperature)
@@ -1017,7 +1015,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     val switchOffersRetry = toggle.readbackRetry != null
                     val refresh = label == R.string.home_boiler_refresh
                     val actionable = switchOffersRetry || refresh && owner?.canRefreshUnknownBoilerSettings == true
-                    val visible = if (actionable || HomeBoilerSwitchPresentation.showInline(label)) View.VISIBLE else View.GONE
+                    // A transient stale sample during ±1 °C needs no extra refresh row.
+                    // Heating exceptions still offer their own recovery action.
+                    val showAction = actionable && !boilerDisplay.targetDisplayGap
+                    val visible = if (showAction || HomeBoilerSwitchPresentation.showInline(label)) View.VISIBLE else View.GONE
                     if (status.visibility != visible) status.visibility = visible
                     status.isEnabled = actionable
                     status.isClickable = actionable
@@ -1035,8 +1036,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 val reported = checked == true
                 if (toggle.isChecked != reported) toggle.isChecked = reported
             }
-            project(brewBoilerToggle, true, s.settings?.brewHeating)
-            project(steamBoilerToggle, false, s.settings?.steamHeating)
+            project(brewBoilerToggle, true, dial.settings?.brewHeating)
+            project(steamBoilerToggle, false, dial.settings?.steamHeating)
         } finally {
             renderingBoilerSwitch = false
         }
@@ -1265,27 +1266,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     }
 
     private fun renderBoilerTargetControls(owner: MobileService?) {
-        val steam = BoilerTargetSteps.Boiler.STEAM
-        val readbackBoiler = if (owner?.boilerTargetFeedback(steam) in setOf(
-                BoilerTargetSteps.Feedback.UNKNOWN, BoilerTargetSteps.Feedback.UNKNOWN_WITH_UNSENT))
-            steam else BoilerTargetSteps.Boiler.BREW
         boilerTargetControls.forEach { (boiler, controls) ->
             controls.decrease.renderedIdentity = owner?.homeBoilerTargetInteraction(boiler, -1)
             controls.increase.renderedIdentity = owner?.homeBoilerTargetInteraction(boiler, 1)
-            val feedback = owner?.boilerTargetFeedback(boiler)
-            val needsReadback = boiler == readbackBoiler && owner?.boilerTargetNeedsReadback() == true
-            val refresh = needsReadback && owner?.canRefreshBoilerTarget() == true
-            val message = when {
-                refresh -> R.string.settings_target_refresh
-                needsReadback -> R.string.settings_target_refresh_needed
-                feedback == BoilerTargetSteps.Feedback.CONFIRMING || feedback == BoilerTargetSteps.Feedback.QUEUED ->
-                    R.string.home_boiler_target_confirming
-                else -> SettingsOperationFeedback.target(feedback)
-            }
-            if (message != null) controls.status.show(getString(message))
-            controls.status.isEnabled = refresh
-            controls.status.isClickable = refresh
-            controls.status.visibility = if (message == null) View.GONE else View.VISIBLE
         }
     }
     private fun TextView.showBoilerPressure(reading: String) {

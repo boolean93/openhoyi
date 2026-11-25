@@ -424,8 +424,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     val sleepNowState: SleepNowTracker.State get() = if (mock?.isSleeping == true)
         SleepNowTracker.State.CONFIRMED else sleepNow.state
     private class BoilerFallback(val hub:NativeDeviceHub,val token:Long,val address:String,val generation:Long,
-        val owner:MachineWriteRecoveryState.Ownership,val startedAt:Long) { var used=false }
+        val owner:MachineWriteRecoveryState.Ownership,val startedAt:Long,val displayIdentity:Any?) { var used=false }
     private var boilerFallback:BoilerFallback?=null
+    private data class BoilerDisplayRebound(val address: String, val generation: Long, val identity: Any)
+    private var boilerDisplayRebound: BoilerDisplayRebound? = null
     private var settingsSampleSerial = 0L
     private val settingWriteUnresolved: Boolean get() = settingsWrite.state == SettingsWriteTracker.State.UNKNOWN
     private val settingWriteUnresolvedMessage: String get() = getString(R.string.service_setting_unresolved)
@@ -505,6 +507,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             firstSleepSerial, secondSleepSerial, sleepSampleSerial) })
     private val writeDisconnection = MachineWriteDisconnection(settingsWrite,cupReset,scheduleWrite,sleepNow,brewPreparation)
     private var hub: NativeDeviceHub? = null
+        set(value) {
+            if (field !== value) boilerDisplayRebound = null
+            field = value
+        }
     private val coffeeCredentials by lazy { CoffeeCredentialStore(this) }
     private val coffeeCredentialRetries by lazy {
         CoffeeCredentialRetryGate(store = SharedPreferencesCoffeeFailureStore(this))
@@ -834,7 +840,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     }
     fun requestCoffeeRecoverySoon(){if(!BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
-        if (role == DeviceRole.COFFEE && state != DeviceState.READY) settleLeverWriteUnknown()
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY) {
+            // An active planned reconnect carries its own display identity. No completed alias
+            // survives a later physical disconnect, even if the address reconnects again.
+            boilerDisplayRebound = null
+            settleLeverWriteUnknown()
+        }
 
         if(state==DeviceState.READY)selectingDevice=false
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
@@ -862,6 +873,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         else snapshot.copy(scaleState = state)
         if (role == DeviceRole.COFFEE) when (state) {
             DeviceState.READY -> {
+                boilerDisplayRebound = boilerDisplayRebound?.takeIf { rebound ->
+                    hub?.coffeeGeneration == rebound.generation && hub?.coffeeAddress.equals(rebound.address, true)
+                }
                 hub?.coffeeAddress?.let { address ->
                     recentReadyCoffeeAddress=address
                     if(!getSharedPreferences("devices",MODE_PRIVATE).edit().putString("coffee",address).commit())
@@ -941,6 +955,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 if(observeOrdinarySettings(frame) || observeSplitBoiler(frame)) refreshSafetyNotification()
                 if(!lastSettingWasTemperature && settingsWrite.state in setOf(SettingsWriteTracker.State.CONFIRMED,SettingsWriteTracker.State.RECONCILED) &&
                     !machineWriteRecovery.pending) {
+                    val current = hub
+                    boilerFallback?.takeIf { it.used && current != null && current === it.hub &&
+                        current.coffeeGeneration == it.generation + 1 && current.coffeeAddress.equals(it.address, true) }
+                        ?.let { rebound -> rebound.displayIdentity?.let { identity ->
+                            boilerDisplayRebound = BoilerDisplayRebound(rebound.address, rebound.generation + 1, identity)
+                        } }
                     boilerFallback=null
                     hub?.completeBoilerReadbackRecovery()
                 }
@@ -1592,6 +1612,19 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     internal val boilerDisplayAddress: String? get() = hub?.coffeeAddress ?: boilerFallback?.takeIf {
         it.used && hub === it.hub && boilerReadbackReconnecting && machineWriteRecovery.owns(it.owner)
     }?.address
+    internal val boilerDialDisplayIdentity: Any? get() {
+        if (!running) return null
+        mock?.let { return it.takeIf { snapshot.coffeeState == DeviceState.READY } }
+        val current = hub ?: return null
+        val address = boilerDisplayAddress?.lowercase() ?: return null
+        val generation = current.coffeeGeneration
+        val reconnect = boilerFallback?.takeIf { it.used && current === it.hub &&
+            address.equals(it.address, true) && machineWriteRecovery.owns(it.owner) &&
+            (boilerReadbackReconnecting || generation == it.generation + 1) }
+        if (snapshot.coffeeState != DeviceState.READY && reconnect == null) return null
+        val rebound = boilerDisplayRebound?.takeIf { address.equals(it.address, true) && generation == it.generation }
+        return reconnect?.displayIdentity ?: rebound?.identity ?: Triple(current, address, generation)
+    }
     internal val boilerPresentationSession: Any? get() {
         if (!running || snapshot.coffeeState != DeviceState.READY) return null
         mock?.let { return it }
@@ -1687,14 +1720,16 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         return Triple(session, hub?.coffeeReadbackCursor?.source, observed)
     }
 
-    internal fun stepHomeBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int) {
-        if (homeBoilerTargetInteraction(boiler, delta) != null) stepBoilerTarget(boiler, delta)
-    }
+    internal fun stepHomeBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int): Boolean =
+        homeBoilerTargetInteraction(boiler, delta) != null && stepBoilerTarget(boiler, delta)
 
-    internal fun stepBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int) {
+    internal val boilerTargetDisplayWriteActive get() = boilerTargetSteps.active
+
+    internal fun stepBoilerTarget(boiler: BoilerTargetSteps.Boiler, delta: Int): Boolean {
         boilerTargetSteps.sessionChanged(boilerTargetSession())
-        if (!mayStepBoilerTarget()) return
-        if (boilerTargetSteps.step(boiler, delta, measuredTarget(boiler))) pumpBoilerTargets()
+        if (!mayStepBoilerTarget() || !boilerTargetSteps.step(boiler, delta, measuredTarget(boiler))) return false
+        pumpBoilerTargets()
+        return true
     }
     private fun pumpBoilerTargets() {
         handler.removeCallbacks(boilerTargetPump)
@@ -1809,7 +1844,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         // time sync. Its GATT success is not evidence that the setting was applied.
                         if(io.openhoyi.session.SettingsReadbackPolicy.isBoiler(change)) {
                             val fallback=BoilerFallback(current,token,coffeeAddress,current.coffeeGeneration,recoveryOwner,
-                                elapsedNow())
+                                elapsedNow(),boilerDialDisplayIdentity)
                             boilerFallback=fallback
                             scheduleDelay(3000) { if(boilerFallback===fallback)attemptBoilerFallback() }
                         }
