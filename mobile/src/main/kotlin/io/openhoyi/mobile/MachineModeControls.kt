@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.View
 import android.widget.LinearLayout
 import io.openhoyi.protocol.MachineSettingChange
-import io.openhoyi.session.SettingsWriteTracker
 
 /** Two independent wire bits. Missing readback uses disabled labels, never a writable default. */
 internal class MachineModeControls(context: Context, private val submit: (MachineSettingChange.LeverMode) -> Unit, private val settingsPanel: Boolean) : LinearLayout(context) {
@@ -95,13 +94,8 @@ internal class MachineModeControls(context: Context, private val submit: (Machin
             if (android.os.Build.VERSION.SDK_INT >= 30) toggle.stateDescription =
                 if (known) null else context.getString(R.string.machine_mode_missing)
         }
-        val state = if (owner?.pendingSetting is MachineSettingChange.LeverMode) when (owner.settingWriteState) {
-            SettingsWriteTracker.State.WRITING -> R.string.home_setting_writing
-            SettingsWriteTracker.State.WAITING_READBACK -> R.string.home_setting_waiting
-            SettingsWriteTracker.State.FAILED -> R.string.home_setting_failed
-            SettingsWriteTracker.State.UNKNOWN -> R.string.home_setting_unknown
-            else -> null
-        } else null
+        val state = if (owner?.pendingSetting is MachineSettingChange.LeverMode)
+            SettingsOperationFeedback.lever(owner.settingWriteState) else null
         status.visibility = if (state == null) View.GONE else View.VISIBLE
         status.showLabel(state?.let(context::getString).orEmpty())
         contentDescription = context.getString(R.string.machine_mode_title) + (state?.let { " · " + context.getString(it) } ?: "")

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="machine_settings_sync_pending">正在同步机器设置…</string>
+    <string name="machine_settings_sync_observed">已收到新的机器设置。</string>
+    <string name="machine_settings_sync_unconfirmed">未收到新的机器设置，未重发任何设置。</string>
+    <string name="machine_settings_sync_retry_state">设置状态待核对；激活仅重新读取。</string>
+</resources>

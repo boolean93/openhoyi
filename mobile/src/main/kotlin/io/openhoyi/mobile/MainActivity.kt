@@ -57,7 +57,8 @@ class MainActivity : ThemedActivity() {
                 // Binding can precede onStartCommand. Re-evaluate once the owner really runs.
                 if (service?.running == true) {
                     service?.ensureKnownDevices()
-                    if(reconnectCoffeeAfterBind){reconnectCoffeeAfterBind=false;reconnectCoffee()}
+                    if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID) drainManualBleAction()
+                    else if(reconnectCoffeeAfterBind){reconnectCoffeeAfterBind=false;reconnectCoffee()}
                     publishService()
                 }
             })
@@ -66,13 +67,16 @@ class MainActivity : ThemedActivity() {
     private var scanOwnerAfterBind: Any? = null
     private var reconnectScaleAfterBind: Pair<String, String>? = null
     private var reconnectCoffeeAfterBind=false
+    private var manualBleDeadline=0L
+    private var manualCoffeeAfterSleep=false
+    private var manualCoffeeAddress:String?=null
     private var foreground = false
     private val handler = Handler(Looper.getMainLooper())
     private val shellRefresh = object : Runnable {
         override fun run() {
             shortcutStart?.allows()
             if (::shellStatus.isInitialized) shellStatus.present(service)
-        scheduleManualExtraction()
+            scheduleManualExtraction()
             if (foreground) handler.postDelayed(this, 250)
         }
     }
@@ -98,21 +102,27 @@ class MainActivity : ThemedActivity() {
             if (!bound) return // Ignore a delivery after the visible binding lease was released.
             service = (binder as MobileService.LocalBinder).service
             service?.ensureKnownDevices()
-            if(reconnectCoffeeAfterBind && service?.running==true){reconnectCoffeeAfterBind=false;reconnectCoffee()}
-            reconnectScaleAfterBind?.let { (address, protocol) ->
-                reconnectScaleAfterBind = null
-                service?.connectScale(address, protocol)
-            }
-            if (scanAfterBind) {
-                val owner = scanOwnerAfterBind
-                scanAfterBind = false; scanOwnerAfterBind = null
-                service?.scan(owner)
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)drainManualBleAction()
+            else {
+                if(reconnectCoffeeAfterBind && service?.running==true){reconnectCoffeeAfterBind=false;reconnectCoffee()}
+                reconnectScaleAfterBind?.let { (address, protocol) ->
+                    reconnectScaleAfterBind = null
+                    service?.connectScale(address, protocol)
+                }
+                if (scanAfterBind) {
+                    val owner = scanOwnerAfterBind
+                    scanAfterBind = false; scanOwnerAfterBind = null
+                    service?.scan(owner)
+                }
             }
             publishService()
         }
-        override fun onServiceDisconnected(name: ComponentName) { service = null; publishService() }
-        override fun onBindingDied(name: ComponentName) { serviceBinding.release() }
-        override fun onNullBinding(name: ComponentName) { serviceBinding.release() }
+        override fun onServiceDisconnected(name: ComponentName) {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)clearManualBleActions()
+            service = null; publishService()
+        }
+        override fun onBindingDied(name: ComponentName) { releaseServiceBinding() }
+        override fun onNullBinding(name: ComponentName) { releaseServiceBinding() }
     }
 
     internal fun observeService(observer: (MobileService?) -> Unit) {
@@ -241,6 +251,11 @@ class MainActivity : ThemedActivity() {
         }
         val owner=service
         if(owner==null || !owner.running){
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID) {
+                beginManualBleAction()
+                manualCoffeeAfterSleep=afterSleep
+                manualCoffeeAddress=address
+            }
             reconnectCoffeeAfterBind=true
             try {
                 startForegroundService(Intent(this,MobileService::class.java))
@@ -249,6 +264,7 @@ class MainActivity : ThemedActivity() {
             }catch(_:RuntimeException){reconnectCoffeeAfterBind=false;openSettingsSection("devices")}
             return
         }
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)clearManualBleActions()
         when(if (afterSleep) owner.reconnectAfterSleep(address) else owner.connectRememberedCoffee(address)){
             RememberedCoffeeConnection.PASSWORD_REQUIRED -> {
                 openSettingsSection("devices")
@@ -287,17 +303,67 @@ class MainActivity : ThemedActivity() {
         if (remembered == null) { openScale(); return }
         if (missingBle().isNotEmpty()) { openScale(); return }
         val owner = service
-        if (owner != null) owner.connectScale(remembered.address, remembered.protocolId)
-        else {
+        if (owner != null && (!BuildConfig.MANUAL_REAL_BLE_EXISTING_ID || owner.running)) {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)clearManualBleActions()
+            owner.connectScale(remembered.address, remembered.protocolId)
+        } else {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)beginManualBleAction()
             reconnectScaleAfterBind = remembered.address to remembered.protocolId
-            if (!startRememberedScaleService()) reconnectScaleAfterBind = null
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID) {
+                // This callsite is the explicit user-tapped reconnect, not Activity startup.
+                try {
+                    startForegroundService(Intent(this,MobileService::class.java))
+                    bindCreated()
+                    if(!bound)clearManualBleActions()
+                } catch(_:RuntimeException) {
+                    clearManualBleActions()
+                    openScale()
+                }
+            } else if (!startRememberedScaleService()) reconnectScaleAfterBind = null
         }
     }
-    internal fun releaseServiceBinding() { serviceBinding.release() }
+    private fun beginManualBleAction() {
+        clearManualBleActions()
+        manualBleDeadline=android.os.SystemClock.elapsedRealtime()+2500L
+    }
+    private fun drainManualBleAction() {
+        if(!foreground || android.os.SystemClock.elapsedRealtime()>=manualBleDeadline) {
+            clearManualBleActions()
+            return
+        }
+        val owner=service?.takeIf {it.running} ?: return
+        val target=reconnectScaleAfterBind
+        val coffee=reconnectCoffeeAfterBind
+        val afterSleep=manualCoffeeAfterSleep
+        val coffeeAddress=manualCoffeeAddress
+        val scan=scanAfterBind
+        val scanOwner=scanOwnerAfterBind
+        clearManualBleActions() // One actual dispatch, not a retained replay across binding.
+        when {
+            target!=null -> owner.connectScale(target.first,target.second)
+            coffee -> if(coffeeAddress!=null && coffeeAddress==getSharedPreferences("devices",MODE_PRIVATE).getString("coffee",null))
+                reconnectCoffee(afterSleep)
+            scan -> owner.scan(scanOwner)
+        }
+    }
+    private fun clearManualBleActions() {
+        scanAfterBind=false
+        scanOwnerAfterBind=null
+        reconnectCoffeeAfterBind=false
+        reconnectScaleAfterBind=null
+        manualCoffeeAfterSleep=false
+        manualCoffeeAddress=null
+        manualBleDeadline=0L
+    }
+    internal fun releaseServiceBinding() {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)clearManualBleActions()
+        serviceBinding.release()
+    }
 
     private fun bindExisting() { serviceBinding.bindExisting() }
     private fun bindCreated() { serviceBinding.bindCreated() }
     private fun startRememberedScaleService(): Boolean {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return false
         if (BuildConfig.MOCK_MODE) {
             startService(Intent(this, MobileService::class.java))
             bindCreated()
@@ -325,8 +391,15 @@ class MainActivity : ThemedActivity() {
         listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         else listOf(Manifest.permission.ACCESS_FINE_LOCATION)).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
     internal fun ensureServiceForScan(owner: Any? = null): Boolean {
-        if (service?.running == true) { service?.scan(owner); return true }
+        if (service?.running == true) {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)clearManualBleActions()
+            service?.scan(owner); return true
+        }
         return try {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID) {
+                if(!foreground)return false
+                beginManualBleAction()
+            }
             if (BuildConfig.MOCK_MODE) startService(Intent(this, MobileService::class.java))
             else startForegroundService(Intent(this, MobileService::class.java))
             scanAfterBind = true
@@ -427,6 +500,7 @@ class MainActivity : ThemedActivity() {
         handler.post(shellRefresh)
     }
     override fun onPause() {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)clearManualBleActions()
         manualGate.unobserve(onManualGateChanged)
         handler.removeCallbacks(manualRouteTick)
         revokeShortcutStart()

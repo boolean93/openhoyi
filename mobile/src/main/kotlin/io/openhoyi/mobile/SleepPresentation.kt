@@ -6,8 +6,7 @@ import io.openhoyi.session.SleepNowTracker
 internal object SleepPresentation {
     /** The 104dp navigation rail uses short labels; full process text remains on the page and in accessibility. */
     fun compactStatus(resource:Int):Int=when(resource){
-        R.string.sleep_status_writing -> R.string.task_shell_sleep_sending
-        R.string.sleep_status_waiting -> R.string.task_shell_sleep_pending
+        R.string.sleep_entering -> R.string.task_shell_sleep_pending
         R.string.sleep_status_unknown, R.string.task_shell_machine_unconfirmed -> R.string.task_shell_sleep_check
         R.string.sleep_status_last_confirmed -> R.string.task_shell_machine_asleep
         R.string.sleep_status_failed -> R.string.task_shell_sleep_unsent
@@ -20,8 +19,7 @@ internal object SleepPresentation {
     }
 
     fun status(state:SleepNowTracker.State?,freshSleepRaw:Int?,lastSleepRaw:Int?=freshSleepRaw):Int = when(state){
-        SleepNowTracker.State.WRITING -> R.string.sleep_status_writing
-        SleepNowTracker.State.WAITING_ASLEEP -> R.string.sleep_status_waiting
+        SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP -> R.string.sleep_entering
         SleepNowTracker.State.UNKNOWN -> R.string.sleep_status_unknown
         else -> when(freshSleepRaw){
             1 -> R.string.task_shell_machine_asleep

@@ -28,6 +28,46 @@ class SafetyNotificationPresentationTest {
         }
     }
 
+    @Test fun routineMachineProgressKeepsItsSafetyNotificationQuietUntilActionIsNeeded() {
+        val split=R.string.service_v2_split_pending
+        fun warning(resource:Int,writeProgress:Boolean=false,splitRecovery:Boolean=false) =
+            SafetyNotificationPresentation.machineAttention(resource,writeProgress,splitRecovery)
+
+        assertNull(warning(split))
+        assertEquals(split,warning(split,splitRecovery=true))
+        for (resource in listOf(R.string.machine_recovery_setting,R.string.machine_recovery_cup_reset,
+            R.string.machine_recovery_sleep_schedule,R.string.machine_recovery_sleep_now)) {
+            assertNull(warning(resource,writeProgress=true))
+            assertEquals(resource,warning(resource))
+        }
+        for (resource in listOf(R.string.service_v2_split_storage_failed,
+            R.string.service_v2_split_recovery_blocked,R.string.service_v2_split_restart_required,
+            R.string.machine_recovery_unknown)) {
+            assertEquals(resource,warning(resource,writeProgress=true))
+        }
+    }
+
+    @Test fun leverSuppressionRequiresTheExactPendingTokenAndAnAvailableJournal() {
+        val storage=object:MachineLeverRecipeStore.Storage {
+            var value:String?=null
+            override fun read()=value
+            override fun write(value:String):Boolean { this.value=value;return true }
+        }
+        val journal=MachineLeverRecipeStore(storage)
+        val snapshot=MachineLeverRecipeStore.Snapshot("AA:BB:CC:DD:EE:FF","draft-one","Recipe",
+            "08825c0046031e5a0000009608019000000000d8",1234L,"1.1.5")
+        val token=requireNotNull(journal.begin(snapshot))
+        val warning=R.string.lever_unresolved
+        assertNull(SafetyNotificationPresentation.leverAttention(journal,token))
+        assertEquals(warning,SafetyNotificationPresentation.leverAttention(journal,null))
+        assertEquals(warning,SafetyNotificationPresentation.leverAttention(journal,"different-token"))
+        assertEquals(warning,SafetyNotificationPresentation.leverAttention(MachineLeverRecipeStore(storage),token))
+        assertTrue(journal.complete(token,MachineLeverRecipeStore.State.UNKNOWN))
+        assertEquals(warning,SafetyNotificationPresentation.leverAttention(journal,token))
+        storage.value="damaged"
+        assertEquals(warning,SafetyNotificationPresentation.leverAttention(MachineLeverRecipeStore(storage),token))
+    }
+
     @Test fun absenceAndEmptyTranslationHaveDifferentWarningIdentity() {
         val none = SafetyNotificationPresentation.from(null, null, null)
         assertNull(none.warning { _, _ -> error("No warning must not resolve text") })

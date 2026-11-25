@@ -31,6 +31,15 @@ object OrdinaryWriteReadback {
             MachineWriteRecoveryState.Kind.SETTING,recovery,clearRecord,publish)
     }
 
+    fun reboundBoiler(tracker:SettingsWriteTracker,recovery:MachineWriteRecoveryState,token:Long,
+        intent:io.openhoyi.protocol.MachineSettingChange?,serial:Long,clearRecord:()->Boolean,
+        publish:(Event)->Unit):Boolean {
+        if (!tracker.ownsBoilerObservation(token,intent)) return false
+        if (tracker.observeReboundBoiler(token,intent,serial)) publish(Event.RECONCILED)
+        return clearIfConfirmed(tracker.state==SettingsWriteTracker.State.RECONCILED,
+            MachineWriteRecoveryState.Kind.SETTING,recovery,clearRecord,publish)
+    }
+
     fun sleep(tracker:SleepNowTracker,recovery:MachineWriteRecoveryState,
         serial:Long,sleepState:Int,publish:(Event)->Unit):Boolean =
         sleep(tracker,recovery,serial,sleepState,recovery::clear,publish)

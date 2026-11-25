@@ -85,4 +85,25 @@ class MachineWriteAcknowledgementTest(private val kind: MachineWriteRecoveryStat
             MachineWriteAcknowledgement.acknowledge(recovery, true, request()))
         assertEquals(2, disk.attempts)
     }
+
+    @Test fun explicitOwnerCannotClearAReplacementAndFailedExactClearRemainsPending() {
+        val disk=Memory().apply { writable=true }
+        val recovery=MachineWriteRecoveryState(disk)
+        val outdated=requireNotNull(recovery.captureOwnership())
+        assertTrue(recovery.clear(outdated))
+        assertTrue(recovery.arm(kind,address))
+        val active=requireNotNull(recovery.captureOwnership())
+        val before=disk.attempts
+        assertEquals(MachineWriteAcknowledgement.Result.WAITING,
+            MachineWriteAcknowledgement.acknowledge(recovery,true,request(),outdated))
+        assertEquals(before,disk.attempts)
+        disk.writable=false
+        assertEquals(MachineWriteAcknowledgement.Result.CLEAR_FAILED,
+            MachineWriteAcknowledgement.acknowledge(recovery,true,request(),active))
+        assertTrue(recovery.owns(active))
+        disk.writable=true
+        assertEquals(MachineWriteAcknowledgement.Result.ACKNOWLEDGED,
+            MachineWriteAcknowledgement.acknowledge(recovery,true,request(),active))
+        assertFalse(recovery.pending)
+    }
 }

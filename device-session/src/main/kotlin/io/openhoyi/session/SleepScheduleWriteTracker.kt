@@ -98,6 +98,16 @@ class SleepScheduleWriteTracker {
         return true
     }
 
+    fun unknownAcknowledgementToken():Long? = serial.takeIf { state==State.UNKNOWN }
+    fun acknowledgeUnknown(token:Long):Boolean {
+        if (serial!=token || state!=State.UNKNOWN) return false
+        ++serial
+        target=null
+        baseline(0,0)
+        state=State.IDLE
+        return true
+    }
+
     fun disconnected(firstSerial: Long, secondSerial: Long) {
         if (state == State.WRITING || state == State.WAITING_READBACK) {
             baseline(maxOf(latestFirst, firstSerial), maxOf(latestSecond, secondSerial))

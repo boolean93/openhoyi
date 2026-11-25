@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ble_settings_sync_before_start">正在读取咖啡机设置，请稍后再点开始。</string>
+    <string name="ble_start_conditions_changed">咖啡机状态已变化，本次未启动。请核对机器状态后再试。</string>
+</resources>

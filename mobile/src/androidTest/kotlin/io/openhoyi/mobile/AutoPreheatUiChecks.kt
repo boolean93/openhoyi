@@ -77,7 +77,7 @@ internal class AutoPreheatUiChecks(private val test: Instrumentation) {
                 "preparationProfile=${owner?.brewPreparationProfileId} flags=${owner?.snapshot?.settings?.flags} " +
                 "coffeeState=${owner?.snapshot?.coffeeState} shot=${owner?.shotState} " +
                 "block=${owner?.studioStartBlock(profile)} " +
-                "activityHeating=${host?.getString(R.string.auto_preheat_heating)} systemHeating=${context.getString(R.string.auto_preheat_heating)} ${intentDetails()}"
+                "activityHeating=${host?.getString(R.string.task_shell_machine_preheating)} systemHeating=${context.getString(R.string.task_shell_machine_preheating)} ${intentDetails()}"
         }
         timeoutCapture = { stage ->
             val name="failure-"+stage.replace(Regex("[^A-Za-z0-9]+"),"-")
@@ -123,7 +123,7 @@ internal class AutoPreheatUiChecks(private val test: Instrumentation) {
             await("waiting button") {
                 val prep=field(owner,"brewPreparation").get(owner) as BrewPreparation
                 prep.state==BrewPreparation.State.WAITING_TEMP && start().isShown &&
-                    start().text.toString().contains(activity.getString(R.string.auto_preheat_heating)) &&
+                    start().text.toString().contains(activity.getString(R.string.task_shell_machine_preheating)) &&
                     owner.studioStartBlock(profile)!=null &&
                     (owner.currentCorrectedBrewTemperature() ?: 0) in 8500..8900
             }

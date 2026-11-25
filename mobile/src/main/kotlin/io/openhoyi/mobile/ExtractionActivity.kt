@@ -441,6 +441,15 @@ class ExtractionActivity : ThemedActivity() {
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE
+        val startObservation = owner?.shotStartObservation.takeIf {
+            state == ExtractionState.STARTING || state == ExtractionState.RUNNING
+        }
+        val now = MobileMonotonicClock.elapsedRealtime()
+        val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
+        val displayState = ExtractionStartObservationPresentation.displayState(state, startObservation,
+            requiresStartObservation = owner?.usesAutomaticBoilerSettingsSync == true,
+            legacyFlowObserved = owner?.hasObservedExtractionFlow == true)
+        val statusLabel = shotLabel(displayState)
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         pageHeader.visibility = View.VISIBLE
@@ -467,6 +476,11 @@ class ExtractionActivity : ThemedActivity() {
             BrewPreparation.isAtTarget(corrected, profile.temperatureC)
         val preparation = owner?.brewPreparationState ?: BrewPreparation.State.IDLE
         val studioBlocked = if (owner != null && profile != null) owner.studioStartBlock(profile) else null
+        val quietSettingsSync = owner?.machineSettingsSyncPending == true
+        val studioReadinessBlock = studioBlocked.takeUnless { quietSettingsSync && owner?.machineBrewSettingsAvailable == false }
+        val attention = owner?.machineControlAttentionMessage
+        val readinessBlock = if (owner == null) blocked
+            else owner.extractionReadinessMessage(profile, item != null && profile == null)
         val settingBusy = owner?.blockingSettingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
@@ -480,8 +494,7 @@ class ExtractionActivity : ThemedActivity() {
         val displayCurveName = recipe?.name ?: displayCurve?.name ?: getString(if (observedCup) {
             if (owner?.chartCurveId == "manual") R.string.extraction_manual_label else R.string.profiles_missing
         } else R.string.extraction_unselected)
-        val elapsed = (LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
-            MobileMonotonicClock.elapsedRealtime()) as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.elapsedSeconds
+        val elapsed = (frame as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.elapsedSeconds
         val elapsedText = elapsed?.let { String.format(Locale.ROOT, "%02d:%02d", it / 60, it % 60) } ?: "—"
         curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
             if (observedCup) "" else slotLabel))
@@ -497,23 +510,31 @@ class ExtractionActivity : ThemedActivity() {
             R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
         ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(this, snapshot.coffeeState), DeviceStatusText.label(this, snapshot.scaleState)))
-        shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label)
-            else when(owner?.manualTerminalOutcome) {
-                ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
-                ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
-                else -> shotLabel(state)
-            }, owner?.stopReason?.takeUnless { owner.chartCurveId == "manual" }?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
+        val manualOutcome = owner?.manualTerminalOutcome
+        val shownShotLabel = when {
+            owner?.manualShotActive == true -> getString(R.string.extraction_manual_label)
+            manualOutcome == ManualShotPresentationGate.Outcome.ENDED -> shotLabel(ExtractionState.ENDED_OBSERVED)
+            manualOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> shotLabel(ExtractionState.OUTCOME_UNKNOWN)
+            manualOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> getString(R.string.extraction_manual_label)
+            owner?.scalePreflight == true -> getString(R.string.extraction_preflight_label)
+            else -> statusLabel
+        }
+        val stopSuffix = owner?.stopReason?.takeUnless { owner.chartCurveId == "manual" }
+            ?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) }.orEmpty()
+        shotSummary.show(getString(R.string.extraction_shot_summary, shownShotLabel, stopSuffix))
         val guidance = when {
             owner?.manualShotActive == true -> getString(R.string.extraction_manual_guidance)
-            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.ENDED -> getString(R.string.extraction_ended_guidance)
-            owner?.manualTerminalOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> getString(R.string.extraction_unknown_guidance)
+            manualOutcome == ManualShotPresentationGate.Outcome.ENDED -> getString(R.string.extraction_ended_guidance)
+            manualOutcome == ManualShotPresentationGate.Outcome.UNKNOWN -> getString(R.string.extraction_unknown_guidance)
+            manualOutcome == ManualShotPresentationGate.Outcome.DISCARDED -> ""
             owner?.scalePreflight == true -> getString(R.string.extraction_preflight_guidance)
-            state == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
-            state == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
+            startObservation == io.openhoyi.session.ShotStartObservation.NOT_CONFIRMED -> getString(R.string.extraction_start_no_observation_guidance)
+            displayState == ExtractionState.STARTING -> getString(R.string.extraction_starting_guidance)
+            displayState == ExtractionState.RUNNING -> getString(R.string.extraction_running_guidance)
             state == ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_stopping_guidance)
             state == ExtractionState.OUTCOME_UNKNOWN -> getString(R.string.extraction_unknown_guidance)
             state == ExtractionState.ENDED_OBSERVED -> getString(R.string.extraction_ended_guidance)
-            else -> owner?.machineControlSafetyMessage ?: blocked ?: studioBlocked ?: getString(R.string.extraction_ready_guidance)
+            else -> attention ?: readinessBlock ?: studioReadinessBlock ?: getString(R.string.extraction_ready_guidance)
         }
         val reviewId = owner?.chartTraceIdentity?.takeIf { observedCup && !active && owner.manualShotActive != true }
         if (reviewId != automaticReviewId) {
@@ -527,14 +548,14 @@ class ExtractionActivity : ThemedActivity() {
         }
         readiness.show(guidance + unknownAdvice)
         // Only ordinary, complete guidance shares the compact chrome. Every warning keeps its full row.
-        val inlineGuidance = owner?.manualShotActive != true && owner?.scalePreflight != true &&
-            unknownAdvice.isEmpty() && owner?.machineControlSafetyMessage == null &&
-            preparation == BrewPreparation.State.IDLE && !settingBusy && !sleepBusy &&
-            (state == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
-                state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
+        val inlineGuidance = owner?.manualShotActive != true && manualOutcome == null && owner?.scalePreflight != true &&
+            unknownAdvice.isEmpty() && attention == null &&
+            preparation == BrewPreparation.State.IDLE && !sleepBusy &&
+            (displayState == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
+                state == ExtractionState.IDLE && readinessBlock == null && studioReadinessBlock == null)
         compactIdentity.show(displayCurveName)
         compactIdentity.contentDescription = displayCurveName
-        compactClock.show((if (inlineGuidance) "" else shotLabel(state) + " · ") + elapsedText +
+        compactClock.show((if (inlineGuidance) "" else shownShotLabel + " · ") + elapsedText +
             if (BuildConfig.MOCK_MODE) " · Mock" else "")
         compactClock.contentDescription = compactClock.text.toString() +
             if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
@@ -542,15 +563,17 @@ class ExtractionActivity : ThemedActivity() {
         compactGuidance.visibility = if (inlineGuidance) View.VISIBLE else View.GONE
         readiness.visibility = if (inlineGuidance) View.GONE else View.VISIBLE
         compactIdentity.setOnLongClickListener { detailsButton.performClick(); true }
-        readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
-            (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)))
+        val outcomeUnknown = manualOutcome == ManualShotPresentationGate.Outcome.UNKNOWN ||
+            displayState == ExtractionState.OUTCOME_UNKNOWN
+        readiness.setTextColor(getColor(if (outcomeUnknown ||
+            (state == ExtractionState.IDLE && (readinessBlock != null || studioReadinessBlock != null)))
             R.color.mobile_danger else R.color.mobile_text))
         chooseCurve.visibility = if (presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
             !ShotGate.active(state) && owner?.manualShotActive != true) View.VISIBLE else View.GONE
         chooseCurve.show(if (item == null) getString(R.string.extraction_choose_curve) else getString(R.string.home_curve_replace))
-        readiness.setTextColor(if (state == ExtractionState.OUTCOME_UNKNOWN) visual.warningInk
-            else if (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)) visual.stop else style.ink)
-        readiness.background = if (state == ExtractionState.OUTCOME_UNKNOWN) android.graphics.drawable.GradientDrawable().apply {
+        readiness.setTextColor(if (outcomeUnknown) visual.warningInk
+            else if (state == ExtractionState.IDLE && (readinessBlock != null || studioReadinessBlock != null)) visual.stop else style.ink)
+        readiness.background = if (outcomeUnknown) android.graphics.drawable.GradientDrawable().apply {
             setColor(visual.warningSurface); setStroke(dp(1), visual.warningBorder); cornerRadius = dp(12).toFloat()
         } else null
         val coffeeMissing = snapshot.coffeeState != DeviceState.READY
@@ -568,8 +591,9 @@ class ExtractionActivity : ThemedActivity() {
             getString(R.string.extraction_studio_summary, corrected?.let(::number) ?: "—", (profile?.temperatureC ?: "—").toString()) +
                 when (preparation) {
                     BrewPreparation.State.IDLE -> if (temperatureReady) getString(R.string.extraction_temperature_ready) else getString(R.string.extraction_temperature_not_ready)
-                    BrewPreparation.State.WRITING -> getString(R.string.extraction_prepare_writing)
-                    BrewPreparation.State.WAITING_TEMP -> getString(R.string.extraction_prepare_waiting)
+                    BrewPreparation.State.WRITING -> getString(R.string.task_shell_machine_preheating)
+                    BrewPreparation.State.WAITING_TEMP ->
+                        getString(PreheatStatusPresentation.waitingLabel(corrected, profile?.temperatureC))
                     BrewPreparation.State.READY -> if (temperatureReady) getString(R.string.extraction_prepare_ready) else getString(R.string.extraction_prepare_off_target)
                     BrewPreparation.State.CANCELLING -> getString(R.string.extraction_prepare_cancelling)
                     BrewPreparation.State.CANCEL_WRITTEN -> getString(R.string.extraction_prepare_cancel_written)
@@ -578,21 +602,18 @@ class ExtractionActivity : ThemedActivity() {
                 })
         // Only fresh, non-actionable idle prose may live with the supporting details.
         // Writing, temperature wait, cancellation, failures and unknown outcomes stay fixed.
-        val normalPreparation = snapshot.settings != null && owner?.machineBrewSettingsAvailable == true &&
-            owner.machineControlSafetyMessage == null && preparation == BrewPreparation.State.IDLE &&
-            (!studio || temperatureReady)
+        val normalPreparation = attention == null && preparation == BrewPreparation.State.IDLE &&
+            (quietSettingsSync || snapshot.settings != null && owner?.machineBrewSettingsAvailable == true &&
+                (!studio || temperatureReady))
         preparationSummary.show(preparationStatus.text.toString())
         preparationSummary.visibility = if (normalPreparation) View.VISIBLE else View.GONE
         preparationStatus.visibility = if (normalPreparation) View.GONE else View.VISIBLE
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             getString(R.string.extraction_notification_warning))
         notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
-        alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
-            MobileMonotonicClock.elapsedRealtime()))
-        val now = MobileMonotonicClock.elapsedRealtime()
+        alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt, now))
         alarmStatus.visibility = if (machineAlarms.showExtractionStatus(active, snapshot.alarmBits, snapshot.alarmAt, now))
             View.VISIBLE else View.GONE
-        val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
         elapsedValue.show(owner?.extractionElapsedSeconds(now)?.let { "$it s" } ?: "—")
         pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {
             is ExtractionTelemetry -> String.format(Locale.ROOT, "%.1f", frame.pressureTenthsBar / 10.0)
@@ -632,7 +653,7 @@ class ExtractionActivity : ThemedActivity() {
                 owner?.stopReason == StopReason.TARGET_WEIGHT.name -> getString(R.string.extraction_target_stop_advice)
                 owner?.stopReason == StopReason.MANUAL.name -> getString(R.string.extraction_manual_stop_advice)
                 owner?.stopReason == StopReason.SCALE_UNAVAILABLE.name -> getString(R.string.extraction_scale_stop_advice)
-                state == ExtractionState.RUNNING -> getString(R.string.extraction_auto_stop_advice)
+                displayState == ExtractionState.RUNNING -> getString(R.string.extraction_auto_stop_advice)
                 state == ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_pending_stop_advice)
                 else -> getString(R.string.extraction_weight_control_advice)
             }
@@ -693,7 +714,7 @@ class ExtractionActivity : ThemedActivity() {
             corrected, owner?.autoPreheatInitialTemperature))
         AutoPreheatButton.bind(start, preheatModel, corrected, profile?.temperatureC,
             if (showPreheatStatus) owner?.autoPreheatMessage else null)
-        start.contentDescription = listOfNotNull(start.contentDescription?.toString(), blocked ?: studioBlocked)
+        start.contentDescription = listOfNotNull(start.contentDescription?.toString(), readinessBlock ?: studioReadinessBlock)
             .joinToString(" · ")
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         val observeOnly = owner?.manualShotActive == true
@@ -753,14 +774,7 @@ class ExtractionActivity : ThemedActivity() {
             else getString(if (id == null) R.string.reference_off else R.string.reference_unavailable))
         chart.referenceLabel = source
     }
-    private fun shotLabel(state: ExtractionState) = when (state) {
-        ExtractionState.IDLE -> getString(R.string.machine_settings_tab_standby)
-        ExtractionState.STARTING -> getString(R.string.extraction_state_starting)
-        ExtractionState.RUNNING -> getString(R.string.extraction_state_running)
-        ExtractionState.STOP_REQUESTED -> getString(R.string.extraction_state_stopping)
-        ExtractionState.ENDED_OBSERVED -> getString(R.string.extraction_state_ended)
-        ExtractionState.OUTCOME_UNKNOWN -> getString(R.string.extraction_state_unknown)
-    }
+    private fun shotLabel(state: ExtractionState) = getString(ExtractionStartObservationPresentation.stateLabel(state))
     private fun stopLabel(reason: String) = when (reason) {
         StopReason.TARGET_WEIGHT.name -> getString(R.string.extraction_stop_target)
         StopReason.SCALE_UNAVAILABLE.name -> getString(R.string.extraction_stop_scale)

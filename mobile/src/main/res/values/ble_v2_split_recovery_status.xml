@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="service_v2_split_week_first_missing">还未收到这次连接的周计划第一段。保持原咖啡机开机并处于空闲，等完整回报后再核对。</string>
+    <string name="service_v2_split_week_second_missing">已收到周计划第一段，还缺与它配对的第二段。保持原咖啡机开机并处于空闲，等完整回报后再核对。</string>
+    <string name="service_v2_split_storage_failed">设备服务无法更新本地待核对记录。请选择「停止设备服务」，重新打开后再检查。</string>
+</resources>

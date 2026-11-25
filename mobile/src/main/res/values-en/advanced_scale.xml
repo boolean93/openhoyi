@@ -14,8 +14,8 @@
     <string name="scale_tare_requested">Tare request accepted; zeroing is not yet confirmed</string>
     <string name="scale_tare_unsupported">Tare is unavailable on this scale</string>
     <string name="scale_tare_idle">Tare: not requested</string>
-    <string name="scale_tare_waiting">Tare: waiting for a zero reading</string>
-    <string name="scale_tare_confirmed">Tare: zero reading observed</string>
+    <string name="scale_tare_waiting">Taring</string>
+    <string name="scale_tare_confirmed">Scale zeroed</string>
     <string name="scale_tare_failed">Tare failed</string>
     <string name="scale_tare_unknown">Zero unconfirmed</string>
     <string name="scale_active_guard">Extraction is active or its result is unconfirmed. Taring, switching scales, and using the weight as a dose are unavailable.</string>

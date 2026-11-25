@@ -18,7 +18,11 @@ class TemperatureUiIsolationTest(unittest.TestCase):
         source = (MOBILE / 'TaskShellStatusView.kt').read_text()
         self.assertNotIn('owner?.settingWriteState', source)
         self.assertIn('owner?.machineSettingStatusState', source)
-        self.assertIn('owner?.machineControlSafetyMessage', source)
+        badge = source.split('val statusId = TaskShellDeviceStatus.coffee(', 1)[1].split('val status =', 1)[0]
+        self.assertIn('owner?.machineControlAttentionMessage', badge)
+        self.assertNotIn('machineControlSafetyMessage', badge)
+        sleep_gate = source.split('sleep.isEnabled =', 1)[1].split('val state =', 1)[0]
+        self.assertIn('owner.machineControlSafetyMessage == null', sleep_gate)
         self.assertIn('CoffeeAlarmPolicy.permitsNewControl', source)
 
     def test_edit_gate_and_dispatch_recheck_use_control_projection(self):

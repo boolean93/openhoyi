@@ -38,10 +38,11 @@ internal class DeviceAutoConnectOwner(private val app:MobileApplication) {
         else app.registerReceiver(receiver,filter)
         app.visibility.observe("device-use-session"){refresh()}
     }
-    fun enabled(role:DeviceRole)=prefs.getBoolean(if(role==DeviceRole.COFFEE)"coffeeAutoEnabled" else "scaleAutoEnabled",true)
+    fun enabled(role:DeviceRole)=!BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && prefs.getBoolean(if(role==DeviceRole.COFFEE)"coffeeAutoEnabled" else "scaleAutoEnabled",true)
     fun paused(role:DeviceRole)=prefs.getBoolean(if(role==DeviceRole.COFFEE)"coffeeAutoSuppressed" else "scaleAutoSuppressed",false)
     fun pause(role:DeviceRole,value:Boolean){
         session.pause(role,value)
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return
         check(prefs.edit().putBoolean(if(role==DeviceRole.COFFEE)"coffeeAutoSuppressed" else "scaleAutoSuppressed",value).commit())
     }
     fun refresh(notify:Boolean=true){
@@ -54,6 +55,7 @@ internal class DeviceAutoConnectOwner(private val app:MobileApplication) {
         val interactive=app.getSystemService(PowerManager::class.java).isInteractive &&
             !app.getSystemService(KeyguardManager::class.java).isKeyguardLocked
         app.visibility.interactive(interactive)
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return
         val visible=app.visibility.visible
         if(!initialized && !visible)return
         val legacyCoffee=paused(DeviceRole.COFFEE);val legacyScale=paused(DeviceRole.BOOKOO)

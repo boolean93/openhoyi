@@ -73,10 +73,34 @@ class SettingsWriteTracker {
         return true
     }
 
+    fun ownsBoilerObservation(token:Long,target:MachineSettingChange?):Boolean =
+        serial==token && change==target && SettingsReadbackPolicy.isBoiler(target) &&
+            state in setOf(State.WAITING_READBACK,State.UNKNOWN,State.RECONCILED)
+
+    fun observeReboundBoiler(token:Long,target:MachineSettingChange?,sampleSerial:Long):Boolean {
+        if (!ownsBoilerObservation(token,target) || state==State.RECONCILED || sampleSerial<=afterSample) return false
+        afterSample=sampleSerial
+        // A new authenticated owner only tells us the configured value now.
+        state=State.RECONCILED
+        return true
+    }
+
     fun timeout(token: Long, sampleSerial: Long): Boolean {
         if (token != serial || state != State.WAITING_READBACK) return false
         afterSample = maxOf(afterSample, sampleSerial)
         state = State.UNKNOWN
+        return true
+    }
+
+    /** User acknowledged a specific unknown operation after an independent fresh baseline;
+     * this does not confirm the requested value or grant automatic retry. */
+    fun unknownAcknowledgementToken():Long? = serial.takeIf { state==State.UNKNOWN }
+    fun acknowledgeUnknown(token:Long):Boolean {
+        if (serial!=token || state!=State.UNKNOWN) return false
+        serial++
+        change=null
+        afterSample=0
+        state=State.IDLE
         return true
     }
 

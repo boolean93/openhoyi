@@ -16,7 +16,8 @@ object MachineWriteAcknowledgement {
             val afterIdleSerial: Long) : Request
     }
 
-    fun acknowledge(recovery: MachineWriteRecoveryState, ready: Boolean, request: Request): Result {
+    fun acknowledge(recovery: MachineWriteRecoveryState, ready: Boolean, request: Request,
+        expectedOwner:MachineWriteRecoveryState.Ownership?=null): Result {
         if (!ready) return Result.WAITING
         val eligible = when (request) {
             is Request.CupReset -> recovery.canClearCupReset(request.evidence,
@@ -27,7 +28,8 @@ object MachineWriteAcknowledgement {
             is Request.Sleep -> recovery.canClearSleep(request.evidence, request.afterSleepSerial)
             is Request.BrewWait -> recovery.canClearBrewWait(request.evidence, request.afterIdleSerial)
         }
-        if (!eligible) return Result.WAITING
-        return if (recovery.clear()) Result.ACKNOWLEDGED else Result.CLEAR_FAILED
+        if (!eligible || (expectedOwner!=null && !recovery.owns(expectedOwner))) return Result.WAITING
+        val cleared=if(expectedOwner!=null) recovery.clear(expectedOwner) else recovery.clear()
+        return if (cleared) Result.ACKNOWLEDGED else Result.CLEAR_FAILED
     }
 }
