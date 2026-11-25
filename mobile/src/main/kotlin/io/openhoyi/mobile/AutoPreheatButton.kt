@@ -17,8 +17,8 @@ internal object AutoPreheatButton {
         val context = button.context
         val resource = when(model.phase) {
             AutoPreheatPresentation.Phase.HIDDEN -> null
-            AutoPreheatPresentation.Phase.SENDING -> R.string.auto_preheat_sending
-            AutoPreheatPresentation.Phase.WAITING -> R.string.auto_preheat_waiting
+            AutoPreheatPresentation.Phase.SENDING,
+            AutoPreheatPresentation.Phase.WAITING -> R.string.task_shell_machine_preheating
             AutoPreheatPresentation.Phase.COOLING -> R.string.auto_preheat_cooling
             AutoPreheatPresentation.Phase.TEMPERATURE_MISSING -> R.string.auto_preheat_temperature_missing
             AutoPreheatPresentation.Phase.FAILED -> R.string.auto_preheat_failed
@@ -29,9 +29,8 @@ internal object AutoPreheatButton {
             AutoPreheatPresentation.Phase.TARGET_CHANGED -> R.string.auto_preheat_target_changed
             AutoPreheatPresentation.Phase.NOT_READY -> R.string.auto_preheat_not_ready
         }
-        val title = if (!message.isNullOrBlank()) message else if(model.phase == AutoPreheatPresentation.Phase.WAITING)
-            context.getString(R.string.auto_preheat_heating)
-            else resource?.let(context::getString) ?: context.getString(R.string.extraction_start)
+        val title = message?.takeIf { it.isNotBlank() }
+            ?: resource?.let(context::getString) ?: context.getString(R.string.extraction_start)
         val percentage = model.progress?.let { " · ${(it * 100).toInt()}%" }.orEmpty()
         val temperature = if(message.isNullOrBlank() && resource != null && current != null && targetC != null)
             String.format(Locale.getDefault(), "%.1f / %d °C", current / 100.0, targetC) else ""
@@ -43,7 +42,7 @@ internal object AutoPreheatButton {
                 if(compact) text.indexOf('|') + 1 else text.indexOf('\n') + 1, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         button.foreground = model.progress?.takeIf { message.isNullOrBlank() }?.let { Line(it, button.resources.displayMetrics.density) }
-        button.contentDescription = listOf(text, resource?.let(context::getString), message).filterNotNull().filter(String::isNotBlank).joinToString(" · ")
+        button.contentDescription = listOf(text, resource?.let(context::getString), message).filterNotNull().filter(String::isNotBlank).distinct().joinToString(" · ")
     }
     private class Line(val progress: Float, val density: Float) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0xFF3DDBA0.toInt(); strokeWidth = 2 * density; strokeCap = Paint.Cap.ROUND }

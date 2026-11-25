@@ -16,6 +16,7 @@ class StandaloneTare(private val storage:Storage=VolatileStorage(),private val c
     val unresolved: Boolean get() = state in setOf(State.WRITING, State.WAITING_ZERO, State.UNKNOWN)
     private var priorUnknown = false
     private var serial = 0L
+    private var writtenAt = 0L
     private var writtenAfterSample = 0L
     private var deadline: Long? = null
 
@@ -34,7 +35,8 @@ class StandaloneTare(private val storage:Storage=VolatileStorage(),private val c
         state = when (result) {
             is OperationResult.Success -> {
                 writtenAfterSample = sampleSerial
-                deadline = clock() + 5000L
+                writtenAt = clock()
+                deadline = writtenAt + 5000L
                 State.WAITING_ZERO
             }
             is OperationResult.Failed, is OperationResult.Cancelled -> if (priorUnknown || !persist(false)) State.UNKNOWN else State.FAILED
@@ -43,10 +45,11 @@ class StandaloneTare(private val storage:Storage=VolatileStorage(),private val c
         return true
     }
 
-    fun sample(sampleSerial: Long, hundredthsGram: Int) {
+    fun sample(sampleSerial: Long, hundredthsGram: Int, capturedAtMs: Long? = null) {
         tick()
         if (state != State.WAITING_ZERO || sampleSerial <= writtenAfterSample) return
         writtenAfterSample = sampleSerial
+        if (capturedAtMs != null && (capturedAtMs <= writtenAt || !TelemetryFreshness.isFresh(capturedAtMs, clock()))) return
         if (abs(hundredthsGram.toLong()) <= 50) state = if(persist(false))State.CONFIRMED else State.UNKNOWN
     }
 

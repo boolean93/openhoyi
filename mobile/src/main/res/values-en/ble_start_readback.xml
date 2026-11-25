@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ble_settings_sync_before_start">Reading machine settings. Tap Start again in a moment.</string>
+    <string name="ble_start_conditions_changed">The machine state changed before the shot could start. Check the machine and try again.</string>
+</resources>

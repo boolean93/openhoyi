@@ -80,15 +80,8 @@ internal class SettingsBoilerTargetRow(context: Context, visual: SettingsVisualS
         if (value.text.toString() != rendered) value.text = rendered
         minus.isEnabled = enabled && !needsReadback && target != null && target in boiler.limits && target > boiler.limits.first
         plus.isEnabled = enabled && !needsReadback && target != null && target in boiler.limits && target < boiler.limits.last
-        val label = feedback?.let { resources.getString(when (it) {
-            BoilerTargetSteps.Feedback.QUEUED -> R.string.settings_target_queued
-            BoilerTargetSteps.Feedback.CONFIRMING -> R.string.machine_settings_setting_waiting
-            BoilerTargetSteps.Feedback.FAILED -> R.string.machine_settings_setting_failed
-            BoilerTargetSteps.Feedback.UNKNOWN -> R.string.machine_settings_setting_unknown
-            BoilerTargetSteps.Feedback.UNKNOWN_WITH_UNSENT -> R.string.settings_target_unknown_unsent
-            BoilerTargetSteps.Feedback.FAILED_WITH_UNSENT -> R.string.settings_target_failed_unsent
-            BoilerTargetSteps.Feedback.NOT_SENT -> R.string.settings_target_not_sent
-        }) } ?: if (needsReadback) resources.getString(R.string.settings_target_refresh_needed) else ""
+        val label = SettingsOperationFeedback.target(feedback)?.let(resources::getString)
+            ?: if (needsReadback) resources.getString(R.string.settings_target_refresh_needed) else ""
         if (caption.text.toString() != label) caption.text = label
         caption.visibility = if (label.isEmpty()) View.GONE else View.VISIBLE
         refreshAction.visibility = if (needsReadback && boiler == BoilerTargetSteps.Boiler.BREW) VISIBLE else GONE

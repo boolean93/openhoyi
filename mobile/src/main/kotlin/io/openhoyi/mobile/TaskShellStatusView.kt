@@ -304,11 +304,11 @@ internal class TaskShellStatusView(
             MobileMonotonicClock.elapsedRealtime()) as? IdleTelemetry
         val active = owner?.manualShotActive == true || owner?.shotState in setOf(
             ExtractionState.STARTING, ExtractionState.RUNNING, ExtractionState.STOP_REQUESTED)
-        val settingBusy = owner?.machineSettingStatusState in setOf(SettingsWriteTracker.State.WRITING,
+        val settingBusy = owner?.blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING,
             SettingsWriteTracker.State.WAITING_READBACK, SettingsWriteTracker.State.UNKNOWN)
         val statusId = TaskShellDeviceStatus.coffee(
-            active, owner?.sleepNowState, owner?.machineSettingStatusState,
-            owner?.machineControlSafetyMessage != null ||
+            owner?.manualShotActive == true, owner?.sleepNowState, owner?.machineSettingStatusState,
+            owner?.machineControlAttentionMessage != null ||
                 idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true,
             owner?.running == true,
             snapshot.coffeeState, idle?.sleepStateRaw, snapshot.coffeeFailure,(snapshot.coffee as? IdleTelemetry)?.sleepStateRaw,
@@ -316,7 +316,11 @@ internal class TaskShellStatusView(
             owner?.brewPreparationTargetC?.let {target->owner.currentCorrectedBrewTemperature()?.let {
                 BrewPreparation.isAtTarget(it,target)
             }}==true,
-            alarmBlocked=idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true)
+            alarmBlocked=idle?.let {!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(it.alarmBits)}==true,
+            shot=owner?.shotState ?: ExtractionState.IDLE,
+            shotObservation=owner?.shotStartObservation,
+            requiresStartObservation=owner?.usesAutomaticBoilerSettingsSync==true,
+            legacyFlowObserved=owner?.hasObservedExtractionFlow==true)
         val status = host.getString(statusId)
         val compactStatus=host.getString(SleepPresentation.compactStatus(statusId))
         val coffeeLine = "● $compactStatus"
@@ -347,7 +351,7 @@ internal class TaskShellStatusView(
         sleep.label(sleepAction) // Text alone preserves the full label at the actual 104dp rail width.
         val sleepReason = when {
             asleep -> host.getString(R.string.task_shell_sleep_wake_hint)
-            owner?.machineControlSafetyMessage != null -> owner.machineControlSafetyMessage
+            owner?.machineControlAttentionMessage != null -> owner.machineControlAttentionMessage
             owner != null && owner.brewPreparationState != BrewPreparation.State.IDLE ->
                 host.getString(R.string.task_shell_sleep_preparing_reason)
             else -> null

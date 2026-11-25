@@ -45,6 +45,57 @@ class BeanPreparationTest {
         assertEquals(82_000L, stock.batches().single().balanceMg)
     }
 
+    @Test fun knownUnsentClaimCanBeReassignedWithoutConsumingAnotherDose() {
+        val memory=Memory(); val stock=inventory(); var prep=BeanPreparation(memory)
+        prep.select("dose-1","batch","bean","Coffee",18_000)
+        prep.confirm(stock)
+        prep.claim("rejected")
+        prep.releaseUnsentClaim("different-shot")
+        assertEquals("rejected",prep.current()!!.shotId)
+        memory.fail=true
+        assertThrows(IllegalStateException::class.java) { prep.releaseUnsentClaim("rejected") }
+        assertEquals("rejected",BeanPreparation(memory).current()!!.shotId)
+        memory.fail=false
+        prep.releaseUnsentClaim("rejected")
+        prep=BeanPreparation(memory)
+        assertNull(prep.current()!!.shotId)
+        assertEquals(18_000,prep.verifyConfirmed(stock).amountMg)
+        assertEquals("dose-1",prep.claim("started")!!.eventId)
+        prep.markAssociated("started")
+        prep.releaseUnsentClaim("started")
+        assertEquals("started",prep.current()!!.shotId)
+        assertEquals(82_000,stock.batches().single().balanceMg)
+        assertEquals(1,stock.events().count {it.kind==InventoryEventKind.CONSUME})
+    }
+
+    @Test fun restoringAnUnsentClaimUsesHistoryWithoutAttributingOrConsumingAgain() {
+        val memory = Memory()
+        val stock = inventory()
+        val prep = BeanPreparation(memory)
+        prep.select("dose-1", "batch", "bean", "Coffee", 18_000)
+        prep.confirm(stock)
+        prep.claim("blocked")
+        val journal = BrewJournal(object : BrewJournal.Storage {
+            var text: String? = null
+            override fun read() = text
+            override fun write(value: String) { text = value }
+        })
+        journal.observe(BrewJournal.Observation("blocked", "curve", 100, null, null, "STARTING", null, null))
+        prep.associatePending(journal, stock)
+        assertEquals("blocked", prep.current()!!.shotId)
+        assertFalse(prep.current()!!.associated)
+        assertNull(journal.find("blocked")!!.notes.doseMg)
+        journal.observe(BrewJournal.Observation("blocked", "curve", 100, 110, 10, "NOT_STARTED", null, null))
+        memory.fail = true
+        assertThrows(IllegalStateException::class.java) { prep.associatePending(journal, stock) }
+        memory.fail = false
+        val restored = BeanPreparation(memory)
+        restored.associatePending(journal, stock)
+        assertNull(restored.current()!!.shotId)
+        assertNull(journal.find("blocked")!!.notes.doseMg)
+        assertEquals(82_000L, stock.batches().single().balanceMg)
+    }
+
     @Test fun selectionAndCancellationDoNotConsumeStock() {
         val memory=Memory(); val stock=inventory(); val prep=BeanPreparation(memory)
         prep.select("dose-1","batch","bean","Coffee",18_000)

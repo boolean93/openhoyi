@@ -53,6 +53,7 @@ class ShotSeries {
     private var elapsedInterrupted = false
     private var elapsedCompleted = false
     private var firstBrewingElapsedMs: Long? = null
+    val hasObservedExtractionFlow: Boolean get() = id != null && firstBrewingElapsedMs != null
     private var lastBrewingElapsedMs: Long? = null
     val observedSampleCoverageMs: Long? get() = sampleCoverage(firstBrewingElapsedMs, lastBrewingElapsedMs)
     private var id: String? = null

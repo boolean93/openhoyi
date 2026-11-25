@@ -29,8 +29,8 @@ class CoffeeInitialAuthenticationRaceTest {
                 CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
             complete()
         }
-        fun settings(hex:String="830113FD5C007D0F350019006E")=session.onNotification(session.generation,
-            KnownGatt.coffeeNotify,hex.chunked(2).map{it.toInt(16).toByte()}.toByteArray())
+        fun settings(hex:String="830113FD5C007D0F350019006E",capturedAt:Long=now)=session.onNotification(session.generation,
+            KnownGatt.coffeeNotify,hex.chunked(2).map{it.toInt(16).toByte()}.toByteArray(),capturedAt)
     }
     @Test fun earlySettingsArePublishedOnceAfterSuccessWithOriginalTimestamp() {
         val f=Fixture();f.begin();f.now=10;f.settings()
@@ -39,6 +39,26 @@ class CoffeeInitialAuthenticationRaceTest {
         f.now=11;f.complete()
         assertEquals(DeviceState.READY,f.session.state);assertEquals(1,f.frames.size)
         assertEquals(10L,f.session.settingsObservedAtMs);assertEquals(10L,f.frames.single().second);assertEquals(1,f.states.count{it==DeviceState.READY})
+    }
+    @Test fun queuedSettingsPreserveReceiveTimeAndCannotPrecedeAuthentication() {
+        val f=Fixture()
+        f.now=100;f.begin()
+        f.now=130;f.settings(capturedAt=99)
+        f.complete()
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        assertTrue(f.frames.isEmpty())
+        f.settings(capturedAt=105)
+        assertEquals(DeviceState.READY,f.session.state)
+        assertEquals(105L,f.frames.single().second)
+        assertEquals(105L,f.session.settingsObservedAtMs)
+    }
+    @Test fun olderQueuedSettingsCannotReplaceMoreRecentBufferedSettings() {
+        val f=Fixture()
+        f.now=100;f.begin()
+        f.now=150;f.settings(capturedAt=130)
+        f.settings(capturedAt=110)
+        f.complete()
+        assertEquals(130L,f.frames.single().second)
     }
     @Test fun settingsBeforeActualDispatchAreIgnored() {
         val f=Fixture();f.observer={if(it==DeviceState.INITIALIZING)f.settings()};f.begin();f.complete()

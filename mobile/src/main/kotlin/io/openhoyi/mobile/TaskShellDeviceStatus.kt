@@ -3,6 +3,8 @@ package io.openhoyi.mobile
 import io.openhoyi.session.CoffeeSessionFailure
 import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.DeviceState
+import io.openhoyi.session.ExtractionState
+import io.openhoyi.session.ShotStartObservation
 import io.openhoyi.session.SettingsWriteTracker
 import io.openhoyi.session.SleepNowTracker
 
@@ -11,23 +13,34 @@ internal object TaskShellDeviceStatus {
     fun coffee(active: Boolean, sleep: SleepNowTracker.State?, setting: SettingsWriteTracker.State?,
         unavailable: Boolean, running: Boolean, connection: DeviceState, sleepRaw: Int?,
         failure: CoffeeSessionFailure? = null,lastSleepRaw:Int?=sleepRaw,
-        preparation:BrewPreparation.State=BrewPreparation.State.IDLE,preparationAtTarget:Boolean=false,alarmBlocked:Boolean=false): Int = when {
-        !running -> R.string.device_state_disconnected
-        connection != DeviceState.READY -> DeviceStatusText.coffeeResource(connection, failure)
-        alarmBlocked -> R.string.task_shell_machine_unavailable
-        active -> R.string.task_shell_machine_extraction
-        sleep in setOf(SleepNowTracker.State.UNKNOWN,SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ->
-            SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)
-        setting == SettingsWriteTracker.State.UNKNOWN -> R.string.task_shell_machine_unknown
-        setting == SettingsWriteTracker.State.WRITING || setting == SettingsWriteTracker.State.WAITING_READBACK ->
-            R.string.task_shell_machine_setting
-        sleep == SleepNowTracker.State.CONFIRMED && sleepRaw==null && lastSleepRaw==1 -> R.string.sleep_status_last_confirmed
-        unavailable || PreheatStatusPresentation.abnormal(preparation) -> R.string.task_shell_machine_unavailable
-        sleepRaw!=1 && preparation in setOf(BrewPreparation.State.WRITING,BrewPreparation.State.WAITING_TEMP) ->
-            R.string.auto_preheat_heating
-        sleepRaw!=1 && preparation==BrewPreparation.State.READY -> if(preparationAtTarget)
-            R.string.task_shell_machine_preheat_ready else R.string.home_boiler_preheat_occupied
-        else -> SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)
+        preparation:BrewPreparation.State=BrewPreparation.State.IDLE,preparationAtTarget:Boolean=false,alarmBlocked:Boolean=false,
+        shot:ExtractionState=ExtractionState.IDLE,shotObservation:ShotStartObservation?=null,
+        requiresStartObservation:Boolean=false,legacyFlowObserved:Boolean=false): Int {
+        val shotStatus = when (ExtractionStartObservationPresentation.displayState(
+            shot, shotObservation, requiresStartObservation, legacyFlowObserved)) {
+            ExtractionState.STARTING -> R.string.extraction_state_starting
+            ExtractionState.RUNNING -> R.string.task_shell_machine_extraction
+            ExtractionState.STOP_REQUESTED -> R.string.extraction_state_stopping
+            ExtractionState.OUTCOME_UNKNOWN -> R.string.extraction_state_unknown
+            else -> null
+        }
+        return when {
+            !running -> R.string.device_state_disconnected
+            connection != DeviceState.READY -> DeviceStatusText.coffeeResource(connection, failure)
+            alarmBlocked -> R.string.task_shell_machine_unavailable
+            active -> R.string.task_shell_machine_extraction
+            shotStatus != null -> shotStatus
+            sleep in setOf(SleepNowTracker.State.UNKNOWN,SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ->
+                SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)
+            setting == SettingsWriteTracker.State.UNKNOWN -> R.string.task_shell_machine_unknown
+            sleep == SleepNowTracker.State.CONFIRMED && sleepRaw==null && lastSleepRaw==1 -> R.string.sleep_status_last_confirmed
+            unavailable || PreheatStatusPresentation.abnormal(preparation) -> R.string.task_shell_machine_unavailable
+            sleepRaw!=1 && preparation in setOf(BrewPreparation.State.WRITING,BrewPreparation.State.WAITING_TEMP) ->
+                R.string.auto_preheat_heating
+            sleepRaw!=1 && preparation==BrewPreparation.State.READY -> if(preparationAtTarget)
+                R.string.task_shell_machine_preheat_ready else R.string.home_boiler_preheat_occupied
+            else -> SleepPresentation.status(sleep,sleepRaw,lastSleepRaw)
+        }
     }
 
     fun connecting(state: DeviceState): Boolean = state in setOf(DeviceState.CONNECTING,

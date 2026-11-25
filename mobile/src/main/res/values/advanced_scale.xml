@@ -14,8 +14,8 @@
     <string name="scale_tare_requested">已接受去皮请求，尚未确认归零</string>
     <string name="scale_tare_unsupported">当前电子秤不支持去皮</string>
     <string name="scale_tare_idle">去皮：尚未请求</string>
-    <string name="scale_tare_waiting">去皮：等待归零回报</string>
-    <string name="scale_tare_confirmed">去皮：已观察到归零</string>
+    <string name="scale_tare_waiting">正在去皮</string>
+    <string name="scale_tare_confirmed">已归零</string>
     <string name="scale_tare_failed">去皮失败</string>
     <string name="scale_tare_unknown">归零未确认</string>
     <string name="scale_active_guard">萃取进行中或结果未确认，不能去皮、换秤或取作粉量</string>

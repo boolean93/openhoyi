@@ -58,6 +58,20 @@ class CupResetTracker {
         return resolve()
     }
 
+    /** Resolve both currently valid native counts atomically, never mixing a stale cached half. */
+    fun observePair(settingsSerial:Long,settingsCount:Int,idleSerial:Long,idleCount:Int):Boolean {
+        if (state !in setOf(State.WAITING_ZERO,State.UNKNOWN) ||
+            settingsSerial<afterSettings || idleSerial<afterIdle ||
+            settingsSerial==afterSettings && freshSettingsCount==null ||
+            idleSerial==afterIdle && freshIdleCount==null ||
+            settingsSerial==afterSettings && idleSerial==afterIdle) return false
+        afterSettings=settingsSerial
+        afterIdle=idleSerial
+        freshSettingsCount=settingsCount
+        freshIdleCount=idleCount
+        return resolve()
+    }
+
     private fun resolve(): Boolean {
         val settings = freshSettingsCount ?: return false
         val idle = freshIdleCount ?: return false
@@ -80,6 +94,16 @@ class CupResetTracker {
         if (token != serial || state != State.WAITING_ZERO) return false
         markAfter(maxOf(afterSettings, settingsSerial), maxOf(afterIdle, idleSerial))
         state = State.UNKNOWN
+        return true
+    }
+
+    fun unknownAcknowledgementToken():Long? = serial.takeIf { state==State.UNKNOWN }
+    fun acknowledgeUnknown(token:Long):Boolean {
+        if (serial!=token || state!=State.UNKNOWN) return false
+        ++serial
+        expectedCount=null
+        markAfter(0,0)
+        state=State.IDLE
         return true
     }
 

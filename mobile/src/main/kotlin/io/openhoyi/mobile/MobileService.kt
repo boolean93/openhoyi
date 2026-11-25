@@ -42,9 +42,19 @@ import io.openhoyi.session.CoffeeFirmware
 import io.openhoyi.session.CustomCurveFirmwarePolicy
 import io.openhoyi.session.CoffeeSessionFailure
 import io.openhoyi.session.CoffeeAuthentication
+import io.openhoyi.session.CoffeeReadbackEvidence
+import io.openhoyi.session.CoffeeReadbackSource
+import io.openhoyi.session.PassiveCoffeeReadback
+import io.openhoyi.protocol.ExtractionTelemetry
+import io.openhoyi.session.SettingsReadbackPolicy
+import io.openhoyi.session.SplitMachineWriteJournal
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
+import io.openhoyi.session.ShotStartObservation
+import io.openhoyi.session.GattOperation
+import io.openhoyi.session.KnownGatt
+import io.openhoyi.session.CharacteristicInfo
 import io.openhoyi.session.OperationResult
 import io.openhoyi.session.TelemetryFreshness
 import io.openhoyi.session.SettingsFreshness
@@ -87,7 +97,8 @@ data class MobileSnapshot(
 }
 
 /** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
-class MobileService : Service() {
+class MobileService private constructor(detachedCore:Boolean) : Service() {
+    constructor() : this(false)
     // Resource reads follow the process language authority without restarting this service or BLE.
     override fun getResources(): android.content.res.Resources =
         (application as? MobileApplication)?.resources ?: super.getResources()
@@ -101,6 +112,18 @@ class MobileService : Service() {
     inner class LocalBinder : Binder() { val service: MobileService get() = this@MobileService }
     private val binder = LocalBinder()
     private lateinit var logs: TraceStore
+    private var fixtureClock:DetachedCoreClock?=null
+    private var fixtureLeverRecipes:MachineLeverRecipeStore?=null
+    private var fixtureCurveLibrary:CurveLibrary?=null
+    private var fixtureCurveId:String?=null
+    private var fixtureShotEffects:DetachedShotEffects?=null
+    private fun controlledCurveLibrary():CurveLibrary =
+        fixtureCurveLibrary ?: (application as MobileApplication).curves
+    private fun elapsedNow()=fixtureClock?.now ?: MobileMonotonicClock.elapsedRealtime()
+    private fun scheduleDelay(delay:Long,action:()->Unit) {
+        val fixture=fixtureClock
+        if(fixture!=null) fixture.schedule(delay,action) else handler.postDelayed(action,delay)
+    }
     private var history: ShotHistory? = null
     private val series = ShotSeries()
     private var dispatchingCurveId: String? = null
@@ -114,7 +137,8 @@ class MobileService : Service() {
     private var passiveHistoryId: String? = null
     /** A started passive observation only owns history/series/navigation after it is committed. */
     private var passiveCommitted = false
-    private val manualPresentation get() = (application as MobileApplication).manualShotPresentation
+    private var fixtureManualPresentation:ManualShotPresentationGate?=null
+    private val manualPresentation get() = fixtureManualPresentation ?: (application as MobileApplication).manualShotPresentation
     private var recentReadyCoffeeAddress: String? = null
     private var initialKnownCoffeeChecked=false
     private var passiveMayClearRecovery = false
@@ -128,30 +152,87 @@ class MobileService : Service() {
     /** Warning shown before this round armed, restored only when the uncommitted round is dropped. */
     private var passiveSafetyBeforeArm: Int? = null
     private data class AppRecoveryOwner(val hub:NativeDeviceHub,val address:String,val shot:ShotRecoveryState.Ownership,
-        val machine:MachineWriteRecoveryState.Ownership?)
+        val machine:MachineWriteRecoveryState.Ownership?,val coffeeGeneration:Long)
     private var appRecoveryOwner:AppRecoveryOwner?=null
     val manualShotActive: Boolean get() = passiveShot.active
     /** Display-only projection for the task shell; gates remain with the connection owners. */
     val automaticScaleWaiting: Boolean get() = hub?.automaticScaleWaiting == true
     private val shotRecovery by lazy { ShotRecoveryState(RecoveryPreferenceStorage.shot(this)) }
     private val restartShotWarning: String get() = getString(R.string.machine_recovery_shot_restart)
-    private val machineWriteRecovery by lazy { MachineWriteRecoveryState(RecoveryPreferenceStorage.machine(this)) }
-    private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
-        machineWriteRecovery.kind, brewPreparation.state)
+    private var machineOperations:CanonicalMachineOperationBroker?=null
+    private val machineWriterFence=MachineServiceWriterFence()
+    private val machineWriteRecovery by lazy {
+        MachineWriteRecoveryState(machineOperations?.legacyStorage ?: RecoveryPreferenceStorage.machine(this))
+    }
+    private fun holdsMachineWriter():Boolean =
+        !opaqueV2RecoveryFence &&
+            (if(BuildConfig.BLE_V2_DELIVERY || fixtureClock!=null) machineOperations?.legacyMayDispatch==true else true)
+    private var splitAdmissionEnabled=BuildConfig.BLE_V2_SPLIT_ADMISSION
+    private class SplitPending(val send:CanonicalMachineOperationBroker.Send,
+        val binding:CanonicalMachineOperationBroker.Binding,val trackerToken:Long) {
+        var passiveCut:PassiveCoffeeReadback?=null
+        var settingCut:CoffeeReadbackEvidence.Setting?=null
+        var unknownAfter:Long?=null
+    }
+    private var splitWeek:SplitPending?=null
+    private var splitBoiler:SplitPending?=null
+    private var restoredSplitAfter:Long?=null
+    private var unclassifiedSplitMarkerAtStartup=false
+    private fun markSplitUnknown(item:SplitPending) {
+        if(machineOperations?.markUnknown(item.send)==true && item.unknownAfter==null)
+            item.unknownAfter=elapsedNow()
+    }
+    private fun splitBinding():CanonicalMachineOperationBroker.Binding? {
+        val current=hub ?: return null
+        return current.coffeeReadbackCursor?.source?.let { CanonicalMachineOperationBroker.Binding(current,it) }
+    }
+    private val opaqueV2RecoveryFence:Boolean get()=splitAdmissionEnabled && machineOperations?.splitOwned!=true &&
+        (unclassifiedSplitMarkerAtStartup || machineWriteRecovery.kind==MachineWriteRecoveryState.Kind.UNKNOWN)
+    private val machineWriteSafetyResource: Int? get() =
+        if(machineOperations?.splitStorageFailed==true) R.string.service_v2_split_storage_failed
+        else if(machineOperations?.restoredAndResolved==true) R.string.service_v2_split_restart_required
+        else if(machineOperations?.splitRecoveryBlocked==true || opaqueV2RecoveryFence) R.string.service_v2_split_recovery_blocked
+        else if(machineOperations?.splitOwned==true) R.string.service_v2_split_pending
+        else MachineRecoveryText.resource(machineWriteRecovery.kind,brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
+    private val machineAttentionResource: Int? get() = SafetyNotificationPresentation.machineAttention(
+        machineWriteSafetyResource, ongoingMachineWrite,
+        restoredSplitAfter != null || splitWeek?.unknownAfter != null || splitBoiler?.unknownAfter != null)
+    internal val machineAttentionMessage: String? get() = machineAttentionResource?.let { getString(it) }
+    private val shotRecoveryAttentionResource: Int? get() {
+        val appOwner = appRecoveryOwner?.takeIf {
+            hub === it.hub && it.hub.coffeeGeneration == it.coffeeGeneration &&
+                it.hub.coffeeAddress?.equals(it.address, ignoreCase = true) == true
+        }?.shot
+        return ShotSafetyAlert.recoveryResource(shotRecovery, shotState, snapshot.coffeeState,
+            appOwner, passiveRecoveryOwner, newManualRecord = manualShotActive && passiveArmedRecovery)
+    }
+    internal val machineControlAttentionMessage: String? get() =
+        SafetyNotificationPresentation.leverAttention(leverStore, leverInFlight)?.let { getString(it) }
+            ?: shotRecoveryAttentionResource?.let { getString(it) } ?: machineAttentionMessage
+    private val ongoingMachineWrite: Boolean get() = when (machineWriteRecovery.kind) {
+        MachineWriteRecoveryState.Kind.SETTING -> ongoingSettingsWrite
+        MachineWriteRecoveryState.Kind.CUP_RESET -> cupResetBusy && machineWriteRecovery.owns(cupRecoveryOwner)
+        MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> scheduleBusy && machineWriteRecovery.owns(scheduleRecoveryOwner)
+        MachineWriteRecoveryState.Kind.SLEEP_NOW -> MachineRecoveryActivity.isBusy(sleepNow.state) &&
+            machineWriteRecovery.owns(sleepRecoveryOwner)
+        else -> false
+    }
     /** Display-only update gate. The service remains the sole machine-control authority. */
     internal val updateInterruptionBlocked: Boolean get() = releaseUpdateInterruptionBlocked(
         shotState, manualShotActive, scalePreflight, brewPreparation.active, tareState,
         shotRecovery.pending, machineWriteRecovery.pending, blockingSettingWriteState,
         cupResetBusy, scheduleBusy, sleepNow.state, leverInFlight != null, leverStore.blocked) ||
+        machineOperations?.splitOwned == true ||
         (hub == null && io.openhoyi.bluetooth.SharedPreferenceTareStorage(this).read())
     val machineControlSafetyMessage: String? get() = leverWriteBlock ?: MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
     val shotRecoveryClearBlock: String? get() = shotRecoveryClearResource?.let { getString(it) }
     private val shotRecoveryClearResource: Int? get() = shotRecoveryClearGate.resource(shotRecovery,
         hub?.coffeeAddress, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-        MobileMonotonicClock.elapsedRealtime(), shotState, manualShotActive)
+        elapsedNow(), shotState, manualShotActive)
     val machineWriteAcknowledgementAvailable: Boolean get() {
+        if(machineOperations?.splitOwned==true || opaqueV2RecoveryFence)return false
         val kind = machineWriteRecovery.kind
         val brewWait = kind == MachineWriteRecoveryState.Kind.BREW_WAIT
         val pendingShot = brewWait && shotRecovery.pending
@@ -166,6 +247,61 @@ class MobileService : Service() {
     private var recoveryAfterSecondSleepSerial = 0L
     private var recoveryAfterSleepSerial = 0L
     private var settingRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
+    private var v2SettingEvidence = BuildConfig.BLE_V2_DELIVERY
+    private var ordinarySettingEvidence: CoffeeReadbackEvidence.Setting? = null
+    private var ordinarySettingRequestedSource: CoffeeReadbackSource? = null
+    private var temperatureSettingEvidence: CoffeeReadbackEvidence.Setting? = null
+    // 0x14 carries two fields. Keep its cut even when a different, explicitly requested
+    // temperature write replaces the general UI observer.
+    private data class StandbyCompanionAnchor(
+        val intent: MachineSettingChange,
+        val source: CoffeeReadbackSource?,
+        val receipt: CoffeeReadbackEvidence.Setting?,
+    )
+    private var standbyCompanionAnchor: StandbyCompanionAnchor? = null
+
+    private fun observedSetting(intent:MachineSettingChange?,cut:CoffeeReadbackEvidence.Setting?,
+        frame:Settings):CoffeeReadbackEvidence.Setting.Observation? {
+        val native=hub?.latestOrdinaryCoffeeSettings ?: return null
+        return cut?.evaluate(intent,frame,native,native.cursor,elapsedNow())
+    }
+    private fun acceptsSettingEvidence(intent:MachineSettingChange?,cut:CoffeeReadbackEvidence.Setting?,
+        frame:Settings):Boolean = !v2SettingEvidence || observedSetting(intent,cut,frame)!=null
+
+    private fun observeOrdinarySettings(frame:Settings):Boolean {
+        val current=hub
+        val intent=settingsWrite.change
+        val ownsRecord=machineWriteRecovery.owns(settingRecoveryOwner) &&
+            current?.coffeeAddress?.equals(machineWriteRecovery.address,ignoreCase=true)==true
+        val intendedBoiler=SettingsReadbackPolicy.isBoiler(intent)
+        fun publish(feedback:OrdinaryWriteReadback.Event) {
+            when(feedback) {
+                OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_setting_confirmed),
+                    "settings.confirmed", display = !v2SettingEvidence || !intendedBoiler)
+                OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
+                OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
+            }
+        }
+        val clear={ machineWriteRecovery.clear(settingRecoveryOwner) }
+        if (!v2SettingEvidence) return OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,
+            settingsSampleSerial,frame,clear,ownsRecord && current?.boilerReconciliationReady==true,::publish)
+        if (!ownsRecord || current==null) return false
+
+        val fallback=boilerFallback
+        if (intendedBoiler && fallback!=null && fallback.used && current===fallback.hub &&
+            current.coffeeGeneration==fallback.generation+1 &&
+            current.coffeeAddress?.equals(fallback.address,ignoreCase=true)==true &&
+            machineWriteRecovery.owns(fallback.owner) && boilerRecoveryProductSafe() &&
+            current.qualifiesBoilerReboundSettings(ordinarySettingRequestedSource,intent,frame)) {
+            return OrdinaryWriteReadback.reboundBoiler(settingsWrite,machineWriteRecovery,fallback.token,intent,
+                settingsSampleSerial,clear,::publish)
+        }
+        val result=observedSetting(intent,ordinarySettingEvidence,frame) ?: return false
+        val syncedBoiler=intendedBoiler && current.qualifiesBoilerSyncedSettings(intent,frame)
+        if(intendedBoiler && result==CoffeeReadbackEvidence.Setting.Observation.DIFFERENT && !syncedBoiler) return false
+        return OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,settingsSampleSerial,
+            frame,clear,syncedBoiler,::publish)
+    }
     private var cupRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
     private var scheduleRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
     private var sleepRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
@@ -173,21 +309,89 @@ class MobileService : Service() {
     private val temperatureWrite by lazy { io.openhoyi.session.BackgroundTemperatureWrite(
         RecoveryPreferenceStorage.machine(this, backgroundTemperature=true)) }
     private var lastSettingWasTemperature = false
+    private val ongoingSettingsWrite: Boolean get() =
+        MachineRecoveryActivity.isBusy(settingsWrite.state) &&
+            (splitBoiler != null || machineWriteRecovery.owns(settingRecoveryOwner))
     /** Machine-level interlocks do not inherit a background temperature readback wait. */
     val machineSettingStatusState: SettingsWriteTracker.State get() =
         TemperatureWritePresentation.machineStatus(settingsWrite.state,temperatureWrite.state)
     val blockingSettingWriteState: SettingsWriteTracker.State get() =
         TemperatureWritePresentation.controlState(settingsWrite.state,temperatureWrite.state)
+    private enum class PassiveKind { CUPS, WEEKLY, SLEEP, PREHEAT }
+    private class PassiveRequest(
+        val hub:NativeDeviceHub,
+        val source:CoffeeReadbackSource?,
+        val owner:MachineWriteRecoveryState.Ownership,
+        val token:Long,
+    ) {
+        var cut:PassiveCoffeeReadback?=null
+        var machineWaiting=false
+        var resultAtMs:Long?=null
+    }
+    private val passiveRequests=mutableMapOf<PassiveKind,PassiveRequest>()
+    private fun registerPassive(kind:PassiveKind,current:NativeDeviceHub,
+        owner:MachineWriteRecoveryState.Ownership,token:Long):PassiveRequest? =
+        if (v2SettingEvidence) PassiveRequest(current,current.coffeeReadbackCursor?.source,owner,token)
+            .also { passiveRequests[kind]=it } else null
+
+    private fun completePassive(kind:PassiveKind,request:PassiveRequest?,result:OperationResult) {
+        if(request==null || passiveRequests[kind] !== request || hub!==request.hub ||
+            !machineWriteRecovery.owns(request.owner)) return
+        val settledAt=elapsedNow()
+        request.resultAtMs=settledAt
+        if (result is OperationResult.Success)
+            request.cut=PassiveCoffeeReadback.after(request.source,request.hub.coffeeReadbackCursor,settledAt)
+    }
+    private fun expirePassive(kind:PassiveKind,request:PassiveRequest?) {
+        if(request?.cut==null || livePassive(kind)!==request) return
+        val now=elapsedNow()
+        request.resultAtMs=now
+        request.cut=PassiveCoffeeReadback.after(request.source,request.hub.coffeeReadbackCursor,now)
+    }
+    private fun livePassive(kind:PassiveKind):PassiveRequest? = passiveRequests[kind]?.takeIf {
+        hub===it.hub && machineWriteRecovery.owns(it.owner) && it.hub.coffeeReadbackCursor?.source === it.source
+    }
+
+    private fun manualPassiveOwner(kind:PassiveKind,current:NativeDeviceHub?,
+        vararg captures:Long?):MachineWriteRecoveryState.Ownership? {
+        val source=current?.coffeeReadbackCursor?.source ?: return null
+        if (captures.any { it==null }) return null
+        val request=passiveRequests[kind]
+        if (request!=null) {
+            if (!machineWriteRecovery.owns(request.owner)) return null
+            if (request.source === source) {
+                val after=request.resultAtMs ?: return null
+                if (captures.any { requireNotNull(it)<=after }) return null
+            }
+            return request.owner
+        }
+        // Lost process-local owner after restart. The caller still requires a freshly
+        // authenticated machine, coherent native snapshots and exact persisted identity.
+        return machineWriteRecovery.captureOwnership()
+    }
+
     private val cupReset = CupResetTracker()
     val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
         CupResetTracker.State.CONFIRMED else cupReset.state
     private val cupResetBusy: Boolean get() = MachineRecoveryActivity.isBusy(cupReset.state)
     private var cupSettingsSerial = 0L
     private var cupIdleSerial = 0L
-    private fun observeCupCount(settingsFrame: Boolean, count: Int) {
-        val sample = if (settingsFrame) CupResetReadback.Sample.Settings(++cupSettingsSerial,count)
-            else CupResetReadback.Sample.Idle(++cupIdleSerial,count)
-        val feedback = CupResetReadback.observe(cupReset,machineWriteRecovery,sample) { machineWriteRecovery.clear(cupRecoveryOwner) }
+    private fun observeCupCount(frame:HoyiMessage) {
+        val settingsFrame=frame is Settings
+        val sample=if (frame is Settings) CupResetReadback.Sample.Settings(++cupSettingsSerial,frame.cupCount)
+            else CupResetReadback.Sample.Idle(++cupIdleSerial,(frame as IdleTelemetry).cupCount)
+        fun settle(value:CupResetReadback.Sample)=
+            CupResetReadback.observe(cupReset,machineWriteRecovery,value) { machineWriteRecovery.clear(cupRecoveryOwner) }
+        val feedback = if (!v2SettingEvidence) settle(sample) else {
+            val pending=livePassive(PassiveKind.CUPS) ?: return
+            val settings=pending.hub.latestOrdinaryCoffeeSettings ?: return
+            val idle=pending.hub.latestNativeIdle ?: return
+            if ((if(settingsFrame) settings.value else idle.value) !== frame ||
+                pending.cut?.cupPair(settings,idle,elapsedNow())!=true) return
+            CupResetReadback.observePair(cupReset,machineWriteRecovery,
+                CupResetReadback.Sample.Settings(cupSettingsSerial,settings.value.cupCount),
+                CupResetReadback.Sample.Idle(cupIdleSerial,idle.value.cupCount)) { machineWriteRecovery.clear(cupRecoveryOwner) }
+        }
         refreshSafetyNotification()
         feedback.forEach { when(it) {
             CupResetReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_cups_confirmed), "cups.confirmed")
@@ -205,13 +409,15 @@ class MobileService : Service() {
     private var idleSampleSerial = 0L
     private var recoveryAfterBrewWaitIdleSerial = 0L
     private var brewWaitShotStarted = false
+    internal val preheatMachineWaitingObserved: Boolean get() =
+        livePassive(PassiveKind.PREHEAT)?.let { it.token==brewPreparation.requestId && it.machineWaiting }==true
     val brewPreparationState: BrewPreparation.State get() = brewPreparation.state
     val brewPreparationProfileId: String? get() = brewPreparation.profileId
     val brewPreparationTargetC: Int? get() = brewPreparation.targetC
     val brewWaitCancelBlock: String? get() = brewWaitCancelBlockMessage?.render { id, args -> getString(id, *args) }
     private val brewWaitCancelBlockMessage: ResourceMessage? get() = if (mock != null) null else
         brewWaitCancelGate.blockMessage(snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-            MobileMonotonicClock.elapsedRealtime(), shotState, shotRecovery.pending)
+            elapsedNow(), shotState, shotRecovery.pending)
     private var sleepSampleSerial = 0L
     private val sleepNowUnresolved: Boolean get() = sleepNow.state == SleepNowTracker.State.UNKNOWN
     private val sleepNowUnresolvedMessage: String get() = getString(R.string.machine_recovery_sleep_unresolved)
@@ -269,6 +475,7 @@ class MobileService : Service() {
         preparingNextShot = brewPreparation.active, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown,
     )
     val chartTraceIdentity: String? get() = series.traceIdentity
+    internal val hasObservedExtractionFlow: Boolean get() = series.hasObservedExtractionFlow
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
 
@@ -290,10 +497,10 @@ class MobileService : Service() {
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private val preheatTimeoutScheduler:(Long,()->Unit)->Unit={ delay,action->
-        handler.postDelayed({ action() },delay)
+        scheduleDelay(delay,action)
     }
     private val writeWatchdog = MachineWriteWatchdog(
-        { delay, callback -> handler.postDelayed({ callback() }, delay) },
+        ::scheduleDelay,
         { MachineWriteWatchdog.Serials(settingsSampleSerial, cupSettingsSerial, cupIdleSerial,
             firstSleepSerial, secondSleepSerial, sleepSampleSerial) })
     private val writeDisconnection = MachineWriteDisconnection(settingsWrite,cupReset,scheduleWrite,sleepNow,brewPreparation)
@@ -303,10 +510,10 @@ class MobileService : Service() {
         CoffeeCredentialRetryGate(store = SharedPreferencesCoffeeFailureStore(this))
     }
     private var pendingCoffeeCredential: PendingCoffeeCredential? = null
-    private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime { getString(it) } else null
+    private val mock = if (BuildConfig.MOCK_MODE && !detachedCore) MockDeviceRuntime { getString(it) } else null
     private val mockExtractionScenario = MockExtractionScenario(BuildConfig.MOCK_MODE,
         { Looper.myLooper() === Looper.getMainLooper() }, MobileMonotonicClock::ownsMockClock,
-        { hub == null }, MobileMonotonicClock::elapsedRealtime, ::onCoffeeFrame,
+        { hub == null }, ::elapsedNow, ::onCoffeeFrame,
         { onDeviceState(DeviceRole.COFFEE, it) })
     private var mockExtractionOwner: Any? = null
     internal fun installMockExtractionScenario(owner: Any) {
@@ -336,7 +543,7 @@ class MobileService : Service() {
     internal fun tickMockExtraction(owner: Any) = mockExtractionScenario.tick(owner)
     private val mockScaleVisualInput = MockScaleVisualInput(BuildConfig.MOCK_MODE,
         { Looper.myLooper() === Looper.getMainLooper() }, MobileMonotonicClock::ownsMockClock,
-        { hub == null }, MobileMonotonicClock::elapsedRealtime,
+        { hub == null }, ::elapsedNow,
         { onDeviceState(DeviceRole.BOOKOO, it) }, ::onScaleObservation,
         { scaleTrend.clear(); beanDoseCapture.reset() })
     private fun requireScaleVisualAccess(owner: Any) {
@@ -369,7 +576,7 @@ class MobileService : Service() {
                 scaleCapabilities = input.observation?.capabilities)
         }
     }
-    private fun refreshMock(runtime: MockDeviceRuntime, now: Long = MobileMonotonicClock.elapsedRealtime()) {
+    private fun refreshMock(runtime: MockDeviceRuntime, now: Long = elapsedNow()) {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,
             scanning = previous.scanning, nearbyScanPhase = previous.nearbyScanPhase,
@@ -394,7 +601,7 @@ class MobileService : Service() {
                 handler.postDelayed(this, 250)
                 return
             }
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             refreshMock(runtime, now)
             (snapshot.coffee as? IdleTelemetry)?.let { idle ->
                 val currentSettings = snapshot.settings
@@ -425,7 +632,7 @@ class MobileService : Service() {
         hub?.scanner?.cancel(io.openhoyi.bluetooth.ScanCoordinator.Owner.MANUAL)
         snapshot=snapshot.copy(scanning=false)
     }
-    private fun automaticAllowed(role:DeviceRole):Boolean = io.openhoyi.session.AutomaticConnectionGate.allows(
+    private fun automaticAllowed(role:DeviceRole):Boolean = !BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && holdsMachineWriter() && io.openhoyi.session.AutomaticConnectionGate.allows(
         role,autoConnect.enabled(role),autoConnect.paused(role),appVisibility.visible,
         selectingDevice || snapshot.scanning,manualShotActive,shotState,shotRecovery.pending,
         machineWriteRecovery.kind!=null,cupResetBusy || scheduleBusy || brewPreparation.active)
@@ -468,6 +675,7 @@ class MobileService : Service() {
                 snapshot.scaleState in setOf(DeviceState.DISCONNECTED, DeviceState.FAILED)) shutdown()
         }
     }
+    private var lastHistoryState = ExtractionState.IDLE
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
     private val shortcutConfiguration = ShortcutContentRevision<List<Any?>>(
@@ -484,13 +692,13 @@ class MobileService : Service() {
         snapshot.settings?.let { CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch) }
         else hub?.coffeeFirmware
     val machineSettingsFresh: Boolean get() = !staleSettingsRefreshBusy && snapshot.settings != null &&
-        SettingsFreshness.isFresh(snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime())
+        SettingsFreshness.isFresh(snapshot.settingsAt, elapsedNow())
     val machineBrewSettingsAvailable: Boolean get() = BrewSettingsEvidence.isAvailable(
         snapshot.coffeeState == DeviceState.READY, snapshot.settings != null,
-        snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime())
+        snapshot.settingsAt, elapsedNow())
     val sleepScheduleFresh: Boolean get() = SleepScheduleFreshness.isFresh(
         snapshot.sleepFirst, snapshot.sleepFirstAt, snapshot.sleepSecond, snapshot.sleepSecondAt,
-        MobileMonotonicClock.elapsedRealtime())
+        elapsedNow())
     val shotState: ExtractionState get() = if (mockExtractionOwner != null) mockExtractionScenario.state
         else mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
     var activeShotTargetHundredthsGram: Int? = null; private set
@@ -522,17 +730,34 @@ class MobileService : Service() {
             observeTare()
             refreshStaleMachineSettings()
             val current = shotState
-            if (current != lastShotState) {
-                val previous = lastShotState
-                lastShotState = current
-                val now = MobileMonotonicClock.elapsedRealtime()
-                val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, now)
-                if (current == ExtractionState.OUTCOME_UNKNOWN) series.interruptElapsed()
+            val historyState = if (v2SettingEvidence && mock == null)
+                ExtractionStartObservationPresentation.displayState(current, shotStartObservation,
+                    requiresStartObservation = true, legacyFlowObserved = false)
+            else current
+            if (current == ExtractionState.OUTCOME_UNKNOWN && current != lastShotState) series.interruptElapsed()
+            if (historyState != lastHistoryState) {
+                lastHistoryState = historyState
+                val weight = ScaleBusinessReading.terminalWeight(snapshot.scaleObservation, snapshot.scaleState, elapsedNow())
                 val timing = if (current == ExtractionState.OUTCOME_UNKNOWN ||
                     current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE)
                     currentTimingEvidence() else null
-                runCatching { history?.transition(current, stopReason, weight, timing = timing) }
+                runCatching { history?.transition(historyState, stopReason, weight, timing = timing) }
                     .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
+                val label = if (current == ExtractionState.RUNNING || current == ExtractionState.STARTING)
+                    ExtractionStartObservationPresentation.label(shotStartObservation) else null
+                val stateLabel = ExtractionStartObservationPresentation.stateLabel(historyState)
+                val message = if (v2SettingEvidence && !BuildConfig.BLE_SAME_ID_QA) ResourceMessage(
+                    when (label) {
+                        R.string.extraction_start_sent_waiting -> R.string.extraction_start_sent_guidance
+                        R.string.extraction_start_not_confirmed -> R.string.extraction_start_not_confirmed
+                        else -> stateLabel
+                    })
+                else ResourceMessage(R.string.service_event_shot_state, ResourceMessage(label ?: stateLabel))
+                event(message, "shot.state")
+            }
+            if (current != lastShotState) {
+                val previous = lastShotState
+                lastShotState = current
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
                     val originalOwner=appRecoveryOwner
@@ -555,8 +780,7 @@ class MobileService : Service() {
                     saveSeriesCheckpoint(force = true)
                     finishBrewFeedback(false)
                 }
-                if (!appVisibility.visible && !ShotGate.active(current) && !manualShotActive) hub?.background()
-                event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
+                if (fixtureShotEffects==null && !appVisibility.visible && !ShotGate.active(current) && !manualShotActive) hub?.background()
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
                     event(ResourceMessage(if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
@@ -566,7 +790,7 @@ class MobileService : Service() {
                     event(ResourceMessage(R.string.service_event_conditions_changed), "shot.conditions_changed")
                 refreshSafetyNotification()
             }
-            handler.postDelayed(this, 100)
+            if(fixtureShotEffects==null)handler.postDelayed(this, 100)
         }
     }
 
@@ -600,22 +824,24 @@ class MobileService : Service() {
     }
     private fun onScaleObservation(observation: ScaleObservation) {
         if (BuildConfig.MOCK_MODE && mockScaleVisualInput.isInstalled) mockScaleVisualObservationSerial++
-        scaleTrend.observe(observation, snapshot.scaleState, MobileMonotonicClock.elapsedRealtime())
+        scaleTrend.observe(observation, snapshot.scaleState, elapsedNow())
         snapshot = snapshot.copy(scaleObservation = observation, scaleCapabilities = observation.capabilities)
         // Consume every notification, not just the last frame at the UI refresh.
-        beanDoseCaptureAt(MobileMonotonicClock.elapsedRealtime())
+        beanDoseCaptureAt(elapsedNow())
     }
-    fun requestCoffeeRecoverySoon(){if(appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
+    fun requestCoffeeRecoverySoon(){if(!BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && appVisibility.visible)hub?.requestCoffeeRecoverySoon()}
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
         if (role == DeviceRole.COFFEE && state != DeviceState.READY) settleLeverWriteUnknown()
 
         if(state==DeviceState.READY)selectingDevice=false
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
-            scaleTrend.observe(null, state, MobileMonotonicClock.elapsedRealtime())
+            scaleTrend.observe(null, state, elapsedNow())
         }
         snapshot = if (role == DeviceRole.COFFEE) {
             if (state != DeviceState.READY) {
+                splitWeek?.let(::markSplitUnknown)
+                splitBoiler?.let(::markSplitUnknown)
                 finishBrewFeedback(false)
                 saveSeriesCheckpoint(force = true)
                 writeDisconnection.apply(MachineWriteDisconnection.Samples(settingsSampleSerial,
@@ -691,27 +917,25 @@ class MobileService : Service() {
         if (role == DeviceRole.COFFEE) refreshSafetyNotification()
     }
 
-    private fun onCoffeeFrame(frame: HoyiMessage) {
+    private fun onCoffeeFrame(frame: HoyiMessage) = onCoffeeFrame(frame, elapsedNow())
+
+    private fun onCoffeeFrame(frame: HoyiMessage, receivedAtMs: Long) {
         if (frame is io.openhoyi.protocol.ExtractionTelemetry && (frame.valveOpen || frame.brewWait))
             interruptUpdateInstallation()
         snapshot = when (frame) {
             is Settings -> {
-                observeCupCount(true, frame.cupCount)
-                temperatureWrite.observe(hub?.coffeeAddress,settingsSampleSerial+1,frame)?.let { result ->
-                    if(result == SettingsWriteTracker.State.CONFIRMED)
-                        event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.temperature_observed")
-                    else if(result == SettingsWriteTracker.State.RECONCILED)
-                        event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.temperature_different")
-                }
-                if (OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,++settingsSampleSerial,frame,{ machineWriteRecovery.clear(settingRecoveryOwner) },
-                    machineWriteRecovery.owns(settingRecoveryOwner) && hub?.boilerReconciliationReady==true &&
-                        hub?.coffeeAddress?.equals(machineWriteRecovery.address,ignoreCase=true)==true) { feedback ->
-                    when(feedback) {
-                        OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
-                        OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
-                        OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
+                observeCupCount(frame)
+                if (acceptsSettingEvidence(temperatureWrite.change,temperatureSettingEvidence,frame)) {
+                    temperatureWrite.observe(hub?.coffeeAddress,settingsSampleSerial+1,frame)?.let { result ->
+                        if(result == SettingsWriteTracker.State.CONFIRMED)
+                            event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.temperature_observed",
+                                display = !v2SettingEvidence)
+                        else if(result == SettingsWriteTracker.State.RECONCILED)
+                            event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.temperature_different")
                     }
-                }) refreshSafetyNotification()
+                }
+                settingsSampleSerial++
+                if(observeOrdinarySettings(frame) || observeSplitBoiler(frame)) refreshSafetyNotification()
                 if(!lastSettingWasTemperature && settingsWrite.state in setOf(SettingsWriteTracker.State.CONFIRMED,SettingsWriteTracker.State.RECONCILED) &&
                     !machineWriteRecovery.pending) {
                     boilerFallback=null
@@ -719,18 +943,25 @@ class MobileService : Service() {
                 }
                 // Authentication may adopt an earlier received frame after GATT completion.
                 // Preserve its receipt time; an absent native observation is not fresh evidence.
-                snapshot.copy(settings = frame, settingsAt = if(mock!=null) MobileMonotonicClock.elapsedRealtime()
+                snapshot.copy(settings = frame, settingsAt = if(mock!=null) elapsedNow()
                     else hub?.coffeeSettingsObservedAtMs)
             }
             is SleepPart -> {
                 if (frame.firstDaySundayIndex == 0) {
                     firstSleepSerial++
-                    snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = MobileMonotonicClock.elapsedRealtime(), sleepSecondAt = null)
+                    snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = receivedAtMs, sleepSecondAt = null)
                 } else {
                     secondSleepSerial++
-                    snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = MobileMonotonicClock.elapsedRealtime())
+                    snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = receivedAtMs)
                 }
-                if (OrdinaryWriteReadback.schedule(scheduleWrite,machineWriteRecovery,sleepScheduleFresh,
+                val qualifies=if (!v2SettingEvidence) true else livePassive(PassiveKind.WEEKLY)?.let { request ->
+                    val first=request.hub.latestNativeWeeklyFirst
+                    val second=request.hub.latestNativeWeeklySecond
+                    first?.value === snapshot.sleepFirst && second?.value === frame &&
+                        request.cut?.weeklyPair(first,second,elapsedNow()) != null
+                }==true
+                if (observeSplitWeek(frame)) refreshSafetyNotification()
+                if (qualifies && OrdinaryWriteReadback.schedule(scheduleWrite,machineWriteRecovery,sleepScheduleFresh,
                         firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond,{ machineWriteRecovery.clear(scheduleRecoveryOwner) }) { feedback ->
                     when(feedback) {
                         OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
@@ -741,8 +972,12 @@ class MobileService : Service() {
                 snapshot
             }
             is IdleTelemetry -> {
-                observeCupCount(false, frame.cupCount)
-                if (OrdinaryWriteReadback.sleep(sleepNow,machineWriteRecovery,++sleepSampleSerial,frame.sleepStateRaw,{ machineWriteRecovery.clear(sleepRecoveryOwner) }) { feedback ->
+                observeCupCount(frame)
+                sleepSampleSerial++
+                val now=elapsedNow()
+                val sleepEvidence=livePassive(PassiveKind.SLEEP)?.let { it.cut?.idle(it.hub.latestNativeIdle,frame,now) }==true
+                if ((!v2SettingEvidence || sleepEvidence) &&
+                    OrdinaryWriteReadback.sleep(sleepNow,machineWriteRecovery,sleepSampleSerial,frame.sleepStateRaw,{ machineWriteRecovery.clear(sleepRecoveryOwner) }) { feedback ->
                     when(feedback) {
                         OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_sleep_confirmed), "sleep.confirmed")
                         OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_sleep_reconciled), "sleep.reconciled")
@@ -750,19 +985,36 @@ class MobileService : Service() {
                     }
                 }) refreshSafetyNotification()
                 val currentSettings = snapshot.settings
-                if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
+                val prep=livePassive(PassiveKind.PREHEAT)
+                val calibration=prep?.hub?.preheatSettingsBaseline
+                val preheatEvidence=frame.sleepStateRaw==0 && io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(frame.alarmBits) &&
+                    calibration!=null && calibration.value === currentSettings &&
+                    BrewSettingsEvidence.isAvailable(true,true,calibration.capturedAtMs,now) &&
+                    prep?.let { it.token==brewPreparation.requestId && it.cut?.idle(it.hub.latestNativeIdle,frame,now)==true }==true
+                if (currentSettings!=null) idleSampleSerial++
+                if (currentSettings != null && (!v2SettingEvidence || preheatEvidence) && brewPreparation.observe(idleSampleSerial,
                         BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
                             currentSettings.brewCompensationTenthsC)))
                     event(ResourceMessage(R.string.service_event_preheat_ready), "brew_wait.ready")
-                val observedAt = MobileMonotonicClock.elapsedRealtime()
-                snapshot.copy(coffee = frame, coffeeAt = observedAt,
-                    alarmBits = frame.alarmBits, alarmAt = observedAt)
+                snapshot.copy(coffee = frame, coffeeAt = receivedAtMs,
+                    alarmBits = frame.alarmBits, alarmAt = receivedAtMs)
             }
-            is io.openhoyi.protocol.ExtractionTelemetry ->
-                snapshot.copy(coffee = frame, coffeeAt = MobileMonotonicClock.elapsedRealtime())
+            is ExtractionTelemetry -> {
+                val now=elapsedNow()
+                val prep=livePassive(PassiveKind.PREHEAT)
+                if (prep!=null && prep.token==brewPreparation.requestId && !prep.machineWaiting &&
+                    brewPreparation.state==BrewPreparation.State.WAITING_TEMP &&
+                    prep.cut?.machineWaiting(prep.hub.latestNativeExtraction,frame,now)==true) {
+                    prep.machineWaiting=true
+                    val message = if(BuildConfig.BLE_SAME_ID_QA) R.string.service_event_preheat_machine_waiting
+                        else R.string.service_preheat_observed_waiting_temperature
+                    event(ResourceMessage(message), "brew_wait.machine_waiting")
+                }
+                snapshot.copy(coffee = frame, coffeeAt = receivedAtMs)
+            }
             else -> snapshot
         }
-        val observedAt = snapshot.coffeeAt ?: MobileMonotonicClock.elapsedRealtime()
+        val observedAt = snapshot.coffeeAt ?: elapsedNow()
         observeExtractionScaleEndpoint(frame, observedAt)
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
@@ -836,7 +1088,7 @@ class MobileService : Service() {
                         }
                         passiveHistoryId = null
                         finishSeries(true, passiveConfirmed = true)
-                        if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
+                        if(fixtureShotEffects==null && !appVisibility.visible && !ShotGate.active(shotState))hub?.background()
                         event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
                     } else {
                         discardPassiveSeries(requireDeviceMatch = true, observedEnd = true)
@@ -903,8 +1155,23 @@ class MobileService : Service() {
         passiveSafetyBeforeArm = null
     }
 
+    private fun initializePinnedMachineOperations() {
+        // Pin before the first lazy marker read or any eager app observer can grant control.
+        val pin=runCatching { RecoveryPreferenceStorage.pinMachine(this) }
+            .getOrElse { RecoveryPreferenceStorage.PinnedMachine(null,null) }
+        machineOperations=CanonicalMachineOperationBroker(pin,machineWriterFence,::splitBinding).also { broker ->
+            if(splitAdmissionEnabled) {
+                if(broker.restoreSplit())restoredSplitAfter=elapsedNow()
+                else unclassifiedSplitMarkerAtStartup=!broker.legacyShapeTrusted()
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.BLE_V2_DELIVERY && mock==null) {
+            initializePinnedMachineOperations()
+        }
         val app = application as MobileApplication
         app.releaseUpdates.serviceCreated(this)
         app.curveDeletionGuards[ownerId] = { id ->
@@ -923,6 +1190,15 @@ class MobileService : Service() {
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && (intent==null || intent.action in setOf(AUTO_SCALE,AUTO_KNOWN_DEVICES))) {
+            if(!running)stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        if (BuildConfig.BLE_V2_DELIVERY && (machineOperations?.canStartHub!=true || machineOperations?.restoredAndResolved==true)) {
+            event(ResourceMessage(R.string.service_unavailable), "service.machine_writer_fenced")
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID && !running)stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (running) {
             if (intent?.action !in setOf(AUTO_SCALE,AUTO_KNOWN_DEVICES)) manualDeviceUse()
             refreshAutomaticIntent()
@@ -930,7 +1206,7 @@ class MobileService : Service() {
         }
         if (mock != null) {
             running = true
-            snapshot = mock.sample(MobileMonotonicClock.elapsedRealtime())
+            snapshot = mock.sample(elapsedNow())
             handler.post(mockTick)
             event(ResourceMessage(R.string.service_event_mock_started), "mock.started")
             (application as MobileApplication).serviceAvailability.started(ownerId)
@@ -954,7 +1230,7 @@ class MobileService : Service() {
                         event(ResourceMessage(R.string.scale_memory_failed), "scale.memory_failed")
                 },
                 onState = ::onDeviceState,
-                onCoffee = ::onCoffeeFrame,
+                onCoffeeTimed = ::onCoffeeFrame,
                 onScaleObservation = ::onScaleObservation,
                 diagnostic = { detail ->
                     if(detail.startsWith("coffee.auto_reconnect.trigger=") || detail.startsWith("coffee.auto_reconnect.blocked="))
@@ -990,6 +1266,7 @@ class MobileService : Service() {
                 },
                 rememberedScaleSuppressed=autoConnect.paused(DeviceRole.BOOKOO),
                 automaticAllowed=::automaticAllowed,
+                trackCoffeeDelivery=BuildConfig.BLE_V2_DELIVERY,
             )
             running = true
             event(ResourceMessage(R.string.service_event_started))
@@ -1069,7 +1346,7 @@ class MobileService : Service() {
     /** Explicit recovery after physical lever wake; never sends a wake/start/heating command. */
     val canReconnectAfterSleep: Boolean get() {
         val idle = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
-            MobileMonotonicClock.elapsedRealtime()) as? IdleTelemetry
+            elapsedNow()) as? IdleTelemetry
         return SleepReconnectPolicy.allowed(running, snapshot.coffeeState, sleepNowState,
             idle?.sleepStateRaw, (snapshot.coffee as? IdleTelemetry)?.sleepStateRaw,
             manualShotActive || ShotGate.active(shotState), blockingSettingWriteState,
@@ -1084,7 +1361,8 @@ class MobileService : Service() {
     }
     fun connectRememberedCoffee(address: String): RememberedCoffeeConnection = connectRememberedCoffee(address,automatic=false)
     fun ensureKnownDevices() {
-        if(mock!=null || !running || initialKnownCoffeeChecked)return
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)return
+        if(mock!=null || !running || initialKnownCoffeeChecked || machineOperations?.splitOwned==true || opaqueV2RecoveryFence)return
         initialKnownCoffeeChecked=true
         val prefs=getSharedPreferences("devices",MODE_PRIVATE)
         if(!autoConnect.enabled(DeviceRole.COFFEE)||autoConnect.paused(DeviceRole.COFFEE))return
@@ -1121,6 +1399,31 @@ class MobileService : Service() {
         }
         if (!shotRecovery.matchesDevice(address)) {
             event(ResourceMessage(R.string.service_connection_shot_device_mismatch), "shot.device_mismatch"); return false
+        }
+        if(opaqueV2RecoveryFence) {
+            event(ResourceMessage(R.string.service_v2_split_recovery_blocked),"v2.recovery.opaque_connection_denied")
+            return false
+        }
+        if(machineOperations?.splitOwned==true) {
+            if(automatic || machineOperations?.canObserveOriginal(address)!=true ||
+                brewPreparation.active || !ShotGate.mayReconnectCoffee(shotState) || cupResetBusy || scheduleBusy) {
+                event(ResourceMessage(splitWriteFeedback(R.string.service_v2_split_pending)),"v2.recovery.connection_denied")
+                return false
+            }
+            if(snapshot.coffeeState==DeviceState.READY) {
+                val idle=hub?.latestNativeIdle
+                if(idle==null || idle.value!==snapshot.coffee ||
+                    !TelemetryFreshness.isFresh(idle.capturedAtMs,MobileMonotonicClock.elapsedRealtime()) ||
+                    !io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.value.alarmBits)) {
+                    event(ResourceMessage(R.string.service_v2_split_recovery_wait),"v2.recovery.unsafe_ready_connection")
+                    return false
+                }
+            }
+            // A direct user request to the original device may authenticate/calibrate time.
+            // The typed fence still blocks every ordinary control after READY.
+            if(hub==null)return false
+            manualDeviceUse()
+            return true
         }
         if (!machineWriteRecovery.matchesDevice(address)) {
             event(ResourceMessage(R.string.service_connection_write_device_mismatch), "machine_write.device_mismatch"); return false
@@ -1188,7 +1491,7 @@ class MobileService : Service() {
         if (role == DeviceRole.COFFEE && cupResetBusy) {
             event(ResourceMessage(R.string.service_disconnect_cups_busy)); return
         }
-        if (role == DeviceRole.COFFEE && scheduleBusy) {
+        if (role == DeviceRole.COFFEE && (scheduleBusy || machineOperations?.splitOwned == true)) {
             event(ResourceMessage(R.string.service_disconnect_schedule_busy)); return
         }
         if (role == DeviceRole.COFFEE && brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
@@ -1246,17 +1549,18 @@ class MobileService : Service() {
         return null
     }
     private fun permitsOrdinaryWrite(current:NativeDeviceHub,address:String,token:Long,
-        request:MachineWriteDispatchPermit.Request):Boolean = hub === current && snapshot.coffeeState == DeviceState.READY &&
+        request:MachineWriteDispatchPermit.Request):Boolean = holdsMachineWriter() && hub === current && snapshot.coffeeState == DeviceState.READY &&
         MachineWriteDispatchPermit.allows(token,request,MachineWriteDispatchPermit.Context(machineWriteRecovery,
             address,current.coffeeAddress,manualShotActive,shotRecovery.pending,ShotGate.active(shotState),brewPreparation.active))
 
-    private fun boilerRecoveryProductSafe():Boolean = !manualShotActive && !shotRecovery.pending &&
+    private fun boilerRecoveryProductSafe():Boolean = holdsMachineWriter() && !manualShotActive && !shotRecovery.pending &&
         !io.openhoyi.session.DeviceConnectionGate.unsettled(shotState) && !brewPreparation.active && !cupResetBusy && !scheduleBusy &&
         sleepNow.state !in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP,SleepNowTracker.State.UNKNOWN)
     private fun attemptBoilerFallback() {
+        if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID || v2SettingEvidence)return
         val pending=boilerFallback ?: return
         val current=hub ?: return
-        val now=MobileMonotonicClock.elapsedRealtime()
+        val now=elapsedNow()
         if(pending.used || now<pending.startedAt+3000 || now>=pending.startedAt+6000 ||
             current!==pending.hub || current.coffeeGeneration!=pending.generation ||
             !machineWriteRecovery.owns(pending.owner) || !boilerRecoveryProductSafe() ||
@@ -1285,8 +1589,10 @@ class MobileService : Service() {
         val address = active.coffeeAddress ?: return null
         return Triple(active, address, active.coffeeGeneration)
     }
-    internal val ownsBoilerDisplayWrite: Boolean get() = machineWriteRecovery.owns(settingRecoveryOwner) &&
-        boilerDisplayAddress?.let(machineWriteRecovery::matchesDevice) == true
+    internal val ownsBoilerDisplayWrite: Boolean get() =
+        splitBoiler?.let { splitBinding()?.source === it.binding.source } == true ||
+        (machineWriteRecovery.owns(settingRecoveryOwner) &&
+            boilerDisplayAddress?.let(machineWriteRecovery::matchesDevice) == true)
     val boilerReadbackRecoveryActive:Boolean get()=HomeBoilerSwitchPresentation.localProgress(
         machineWriteRecovery.owns(settingRecoveryOwner),settingsWrite.change,settingsWrite.state,
         boilerReadbackReconnecting,boilerSettingsRecoveryBusy)
@@ -1410,19 +1716,21 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return getString(R.string.service_write_setting_manual_block)
-        machineControlSafetyMessage?.let { return it }
+        val overlap = SettingsReadbackPolicy.isBoiler(change) && allowsSplitBoiler()
+        if(!overlap) machineControlSafetyMessage?.let { return it }
         val current = hub ?: return getString(R.string.service_unavailable)
         if (temperatureWrite.busy) return getString(R.string.service_write_setting_pending)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
         if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
-        if (scheduleBusy) return getString(R.string.service_write_schedule_waiting)
+        if (scheduleBusy && !overlap) return getString(R.string.service_write_schedule_waiting)
+        if(overlap && (leverWriteBlock!=null || shotRecovery.pending)) return getString(R.string.service_v2_split_pending)
         if (ShotGate.active(shotState)) return getString(R.string.service_write_setting_shot_block)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
             return getString(R.string.service_write_sleep_waiting)
         if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
-        val now = MobileMonotonicClock.elapsedRealtime()
+        val now = elapsedNow()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now))
             return getString(R.string.service_write_idle_stale)
@@ -1443,6 +1751,7 @@ class MobileService : Service() {
             temperatureWrite.requiresExplicitRetry))
             return getString(R.string.service_write_setting_already_observed)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_setting_identity_missing)
+        if(overlap)return requestSplitBoiler(current,change)
         if(io.openhoyi.session.SettingsReadbackPolicy.isTemperature(change))
             return changeTemperatureInBackground(current,coffeeAddress,change)
         lastSettingWasTemperature=false
@@ -1454,31 +1763,38 @@ class MobileService : Service() {
         }
         val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
         settingRecoveryOwner=recoveryOwner
+        ordinarySettingEvidence=null
+        ordinarySettingRequestedSource=if(v2SettingEvidence) current.coffeeReadbackCursor?.source else null
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
-        event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.changeMessage(change)), "settings.requested")
-        current.writeSetting(change,{ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Setting(settingsWrite)) }) done@{ result ->
+        val boilerProgressIsLocal = v2SettingEvidence && SettingsReadbackPolicy.isBoiler(change)
+        event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.changeMessage(change)),
+            "settings.requested", display = !boilerProgressIsLocal)
+        current.writeSettingWithEvidence(change,{ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Setting(settingsWrite)) }) done@{ result, evidence ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Setting(settingsWrite, settingsSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            ordinarySettingEvidence=evidence
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
-                    event(ResourceMessage(R.string.service_write_setting_written), "settings.written")
+                    event(ResourceMessage(R.string.service_write_setting_written), "settings.written", display = !boilerProgressIsLocal)
                     writeWatchdog.await(token, MachineWriteWatchdog.Request.Setting(settingsWrite)) { serials ->
                         recoveryAfterSettingsSerial = serials.settings
                         event(ResourceMessage(R.string.service_write_setting_no_readback), "settings.unknown")
+                        refreshSafetyNotification()
                     }
                     if(io.openhoyi.session.SettingsReadbackPolicy.supports(change)) {
                         // First arm WAITING/watchdog, then request bounded fresh 0x83 via authenticated
                         // time sync. Its GATT success is not evidence that the setting was applied.
                         if(io.openhoyi.session.SettingsReadbackPolicy.isBoiler(change)) {
                             val fallback=BoilerFallback(current,token,coffeeAddress,current.coffeeGeneration,recoveryOwner,
-                                MobileMonotonicClock.elapsedRealtime())
+                                elapsedNow())
                             boilerFallback=fallback
-                            handler.postDelayed({if(boilerFallback===fallback)attemptBoilerFallback()},3000)
+                            scheduleDelay(3000) { if(boilerFallback===fallback)attemptBoilerFallback() }
                         }
                         current.refreshBoilerSettings({machineWriteRecovery.owns(recoveryOwner) && boilerRecoveryProductSafe() &&
                             permitsOrdinaryWrite(current,coffeeAddress,token,
-                                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))}) { attempt,refreshResult ->
+                                MachineWriteDispatchPermit.Request.BoilerSettingsRefresh(settingsWrite))},
+                            singleBoiler=v2SettingEvidence) { attempt,refreshResult ->
                             recordBoilerRefresh(false,attempt,refreshResult)
                         }
                     }
@@ -1492,30 +1808,60 @@ class MobileService : Service() {
                 MachineWriteResult.Outcome.UNKNOWN -> {
                     recoveryAfterSettingsSerial = settingsSampleSerial
                     event(ResourceMessage(R.string.service_write_setting_unknown), "settings.unknown")
+                    refreshSafetyNotification()
                 }
                 else -> Unit
             }
         }
         return null
     }
+    private fun hasNewTemperatureCompanion(current:NativeDeviceHub,prior:StandbyCompanionAnchor):Boolean {
+        val observed=snapshot.settings ?: return false
+        if (acceptsSettingEvidence(prior.intent,prior.receipt,observed)) return true
+
+        // A genuinely new authenticated connection may establish its own baseline for a *new*
+        // explicit write. It cannot advance the old operation, even if the value happens to match.
+        val priorSource=prior.source ?: return false
+        val frame=current.latestOrdinaryCoffeeSettings ?: return false
+        return priorSource !== frame.cursor.source && frame.value === observed &&
+            SettingsFreshness.isFresh(frame.receivedAtMs,elapsedNow())
+    }
     private fun changeTemperatureInBackground(current:NativeDeviceHub,address:String,change:MachineSettingChange):String? {
+        fun paired(intent:MachineSettingChange?) = intent is MachineSettingChange.StandbyDelay ||
+            intent is MachineSettingChange.StandbyTemperature
+        val pairedRequest = v2SettingEvidence && paired(change)
+        val priorAnchor = standbyCompanionAnchor
+        if (pairedRequest && priorAnchor!=null && !hasNewTemperatureCompanion(current,priorAnchor))
+            return getString(R.string.service_write_settings_stale)
         if(!temperatureWrite.companionAvailable(change,settingsSampleSerial,address))
             return getString(R.string.service_write_settings_stale)
         val replacingObserver=temperatureWrite.requiresExplicitRetry
         val token=temperatureWrite.begin(change,address,settingsSampleSerial)
             ?: return getString(R.string.service_write_setting_record_failed)
         boilerTargetSteps.invalidateProof()
+        temperatureSettingEvidence=null
+        val pairedAnchor = if (pairedRequest)
+            StandbyCompanionAnchor(change,current.coffeeReadbackCursor?.source,null) else null
+        if (pairedAnchor!=null) standbyCompanionAnchor=pairedAnchor
         lastSettingWasTemperature=true
         if(replacingObserver) logs.record("settings.temperature_observer_replaced",mapOf("ownerId" to ownerId,
             "previousOutcome" to "unconfirmed","automaticReplay" to "false"))
-        event(ResourceMessage(R.string.service_write_setting_queued,settingsPresentation.changeMessage(change)),"settings.requested")
+        event(ResourceMessage(R.string.service_write_setting_queued,settingsPresentation.changeMessage(change)),
+            "settings.requested", display = !v2SettingEvidence)
         fun safe()=hub===current && current.coffeeAddress?.equals(address,ignoreCase=true)==true &&
             snapshot.coffeeState==DeviceState.READY && machineControlSafetyMessage==null && boilerRecoveryProductSafe()
-        current.writeSetting(change,{safe() && temperatureWrite.permitsWrite(token,current.coffeeAddress)}) done@{ result ->
+        current.writeSettingWithEvidence(change,{safe() && temperatureWrite.permitsWrite(token,current.coffeeAddress)}) done@{ result,evidence ->
             if(!temperatureWrite.written(token,result,settingsSampleSerial))return@done
+            temperatureSettingEvidence=evidence
+            if (pairedAnchor!=null && standbyCompanionAnchor === pairedAnchor) {
+                standbyCompanionAnchor=when(result) {
+                    is OperationResult.Failed,is OperationResult.Cancelled -> priorAnchor
+                    else -> pairedAnchor.copy(receipt=evidence)
+                }
+            }
             when(result) {
                 is OperationResult.Success -> {
-                    event(ResourceMessage(R.string.service_write_setting_written),"settings.written")
+                    event(ResourceMessage(R.string.service_write_setting_written),"settings.written", display = !v2SettingEvidence)
                     writeWatchdog.await(token,MachineWriteWatchdog.Request.Setting(temperatureWrite.tracker)) {
                         event(ResourceMessage(R.string.service_write_setting_no_readback),"settings.unknown")
                     }
@@ -1533,12 +1879,73 @@ class MobileService : Service() {
     }
     private val settingsRefreshBudget = SettingsRefreshBudget()
     private var staleSettingsRefreshBusy = false
+    private val automaticSettingsSync=AutomaticSettingsRefresh()
+    private var automaticSettingsSyncResult: AutomaticSettingsSyncNotice? = null
+    internal val machineSettingsSyncStatus: Int? get() {
+        if (staleSettingsRefreshBusy) return R.string.machine_settings_sync_pending
+        val current = hub ?: return null
+        val report = current.latestOrdinaryCoffeeSettings
+        val status = automaticSettingsSyncResult?.status(
+            current.coffeeReadbackCursor?.source, report?.cursor?.source, report?.cursor?.sequence,
+            report?.receivedAtMs, report != null && report.value === snapshot.settings && machineSettingsFresh,
+            elapsedNow())
+        return when (status) {
+            AutomaticSettingsSyncNotice.Status.OBSERVED -> R.string.machine_settings_sync_observed
+            AutomaticSettingsSyncNotice.Status.WAITING_FOR_NEW_REPORT -> R.string.machine_settings_sync_unconfirmed
+            null -> null
+        }
+    }
+    internal val machineSettingsSyncPending get()=staleSettingsRefreshBusy
+    internal val usesAutomaticBoilerSettingsSync get()=v2SettingEvidence
+    private var nextSettingsTapRetryAt=0L
+    internal val canRetryStaleMachineSettings:Boolean get() {
+        val current=hub ?: return false
+        val source=current.coffeeReadbackCursor?.source ?: return false
+        val observed=current.preheatSettingsBaseline?.takeIf {it.cursor.source===source}?.cursor?.sequence ?: return false
+        return v2SettingEvidence && !staleSettingsRefreshBusy && !machineSettingsFresh &&
+            elapsedNow()>=nextSettingsTapRetryAt && settingsRefreshSafe() && current.canRefreshStaleSettings &&
+            automaticSettingsSync.hasSpent(source,current.coffeeGeneration,observed)
+    }
+    internal fun retryStaleMachineSettings():Boolean =
+        if(canRetryStaleMachineSettings)refreshStaleMachineSettings(switchRetry=true) else false
+    internal fun captureBoilerReadbackRetry(recovery:Boolean,brew:Boolean):(() -> Unit)? {
+        if(!v2SettingEvidence)return null
+        val current=hub ?: return null
+        val source=current.coffeeReadbackCursor?.source ?: return null
+        val observationId=current.preheatSettingsBaseline?.takeIf {it.cursor.source===source}?.cursor?.sequence
+        val pending=settingsWrite.change
+        val trackerToken=settingsWrite.boilerRecoveryToken()
+        val splitOwner=splitBoiler
+        if(recovery && !canRefreshUnknownBoilerSettings || !recovery && !canRetryStaleMachineSettings)return null
+        return action@{
+            if(hub!==current || current.coffeeReadbackCursor?.source!==source)return@action
+            if(recovery) {
+                val stillSame=settingsWrite.change==pending && settingsWrite.state==SettingsWriteTracker.State.UNKNOWN &&
+                    settingsWrite.boilerRecoveryToken()==trackerToken && splitBoiler===splitOwner &&
+                    (if(brew) pending is MachineSettingChange.BrewHeating else pending is MachineSettingChange.SteamHeating)
+                if(stillSame)refreshUnknownBoilerSettings()
+            } else if(current.preheatSettingsBaseline?.cursor?.sequence==observationId)retryStaleMachineSettings()
+        }
+    }
+    internal fun freshBoilerInteraction(brew:Boolean):Any? {
+        if(!v2SettingEvidence || !BoilerHeatingAdmission.evaluate(this,now=elapsedNow()).canSubmit)return null
+        val current=hub ?: return null
+        val source=current.coffeeReadbackCursor?.source ?: return null
+        val native=current.preheatSettingsBaseline ?: return null
+        if(native.cursor.source!==source || native.value!==snapshot.settings)return null
+        return Triple(current,source,if(brew)native.value.brewHeating else native.value.steamHeating)
+    }
     private fun settingsRefreshSafe(): Boolean {
+        if(!holdsMachineWriter())return false
         val idle = snapshot.coffee as? IdleTelemetry ?: return false
+        if(v2SettingEvidence) {
+            val native=hub?.latestNativeIdle ?: return false
+            if(native.value!==idle || !TelemetryFreshness.isFresh(native.capturedAtMs,elapsedNow()))return false
+        }
         return SettingsRefreshEligibility.allowed(
-            foreground = running && mock == null && appVisibility.visible,
+            foreground = fixtureClock!=null || (running && mock == null && appVisibility.visible),
             readyIdle = snapshot.coffeeState == DeviceState.READY &&
-                TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()) &&
+                TelemetryFreshness.isFresh(snapshot.coffeeAt, elapsedNow()) &&
                 idle.sleepStateRaw == 0 && io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits),
             controlRecoveryBlocked = MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning) != null,
             leverActive = leverInFlight != null || leverStore.active,
@@ -1548,22 +1955,42 @@ class MobileService : Service() {
                     SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN))
     }
     /** A bounded settings synchronization, not a retry of the user's machine command. */
-    private fun refreshStaleMachineSettings(explicit: Boolean = false) {
-        if (staleSettingsRefreshBusy || machineSettingsFresh || !settingsRefreshSafe()) return
-        val current = hub ?: return
-        val generation = current.coffeeGeneration
-        if (!current.canRefreshStaleSettings) return
-        if (!settingsRefreshBudget.claim(generation, snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime(), explicit)) return
-        staleSettingsRefreshBusy = true
+    private fun refreshStaleMachineSettings(explicit:Boolean=false,switchRetry:Boolean=false):Boolean {
+        val current=hub ?: return false
+        val generation=current.coffeeGeneration
+        val now=elapsedNow()
+        val eligible=!staleSettingsRefreshBusy && !machineSettingsFresh && settingsRefreshSafe() &&
+            current.canRefreshStaleSettings
+        val proactive=v2SettingEvidence
+        val cursorAtStart = if (proactive) current.coffeeReadbackCursor ?: return false else null
+        if(cursorAtStart != null) {
+            val owner=cursorAtStart.source
+            val observation=current.preheatSettingsBaseline?.takeIf {it.cursor.source===owner}?.cursor?.sequence ?: return false
+            if(switchRetry) {
+                if(!eligible || !canRetryStaleMachineSettings)return false
+                nextSettingsTapRetryAt=now+2_000L
+            } else if(!automaticSettingsSync.claim(owner,generation,observation,now,eligible,explicit))return false
+        } else if(!eligible || !settingsRefreshBudget.claim(generation,snapshot.settingsAt,now,explicit))return false
+        if(proactive)automaticSettingsSyncResult=null
+        staleSettingsRefreshBusy=true
         logMachineStateGate("settings.refresh_started")
-        current.refreshStaleSettings({ hub === current && current.coffeeGeneration == generation && settingsRefreshSafe() }) { result ->
-            staleSettingsRefreshBusy = false
-            logs.record("settings.refresh_finished", mapOf("result" to result.javaClass.simpleName,
+        current.refreshStaleSettings({hub===current && current.coffeeGeneration==generation && settingsRefreshSafe()},
+            forceFreshReadback=proactive) {result ->
+            staleSettingsRefreshBusy=false
+            logs.record("settings.refresh_finished",mapOf("result" to result.javaClass.simpleName,
                 "version" to BuildConfig.VERSION_NAME))
+            if (cursorAtStart != null && hub === current && current.coffeeGeneration == generation &&
+                current.coffeeReadbackCursor?.source === cursorAtStart.source) {
+                val finished = elapsedNow()
+                if(result !is OperationResult.Success)nextSettingsTapRetryAt=finished+2_000L
+                automaticSettingsSyncResult = AutomaticSettingsSyncNotice(
+                    cursorAtStart.source, cursorAtStart.sequence, now, finished + 6_000L)
+            }
         }
+        return true
     }
     private fun logMachineStateGate(event: String) {
-        val now = MobileMonotonicClock.elapsedRealtime()
+        val now = elapsedNow()
         val idle = snapshot.coffee as? IdleTelemetry
         logs.record(event, mapOf("version" to BuildConfig.VERSION_NAME,
             "firmware" to coffeeFirmware.toString(), "state" to snapshot.coffeeState.name,
@@ -1574,7 +2001,7 @@ class MobileService : Service() {
 
     // The framework-attached Application owns the journal even when the base context is isolated.
     // Detached upgrade checks have only a base context. Never substitute an empty journal.
-    private val leverStore get() = ((application as? MobileApplication)
+    private val leverStore get() = fixtureLeverRecipes ?: ((application as? MobileApplication)
         ?: (applicationContext as MobileApplication)).leverRecipes
     private var leverInFlight: String? = null
     internal val leverDeviceAddress: String? get() = if (mock != null) "00:00:00:00:00:01" else hub?.coffeeAddress
@@ -1592,6 +2019,7 @@ class MobileService : Service() {
         return blocked
     }
     private fun leverRecipeConditions(): String? {
+        if(!holdsMachineWriter())return getString(R.string.service_unavailable)
         MachineControlGate.block(shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)?.let { return it }
         if (manualShotActive || ShotGate.active(shotState) || brewPreparation.active || cupResetBusy || scheduleBusy ||
             blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
@@ -1601,7 +2029,7 @@ class MobileService : Service() {
         if (mock != null) return null
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
-        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, MobileMonotonicClock.elapsedRealtime()))
+        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, elapsedNow()))
             return getString(R.string.lever_gate_sync)
         if (idle.sleepStateRaw != 0) return getString(R.string.lever_gate_asleep)
         if (!io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)) return getString(R.string.lever_gate_alarm)
@@ -1616,9 +2044,9 @@ class MobileService : Service() {
         leverRecipeWriteBlock()?.let { return it }
         if (!CustomCurveFirmwarePolicy.permitsStoredRecipe(profile.parameters, coffeeFirmware))
             return getString(R.string.lever_firmware_unsupported)
-        val app = application as MobileApplication
+        val library = controlledCurveLibrary()
         if (leverDeviceAddress != expectedAddress || coffeeFirmware.toString() != expectedFirmware ||
-            app.curves.resolve(profile.id, false, 7) != profile || !app.curves.validated(profile))
+            library.resolve(profile.id, false, 7) != profile || !library.validated(profile))
             return getString(R.string.lever_changed)
         val frame = runCatching { io.openhoyi.protocol.StoredLeverRecipeFormat.candidate(profile.parameters).hex() }
             .getOrNull() ?: return getString(R.string.lever_changed)
@@ -1650,7 +2078,7 @@ class MobileService : Service() {
             if (persisted && state == MachineLeverRecipeStore.State.SENT && mock == null && current != null) {
                 // Read fresh mode/settings once. 0x83 is NOT stored-recipe verification.
                 current.refreshStoredRecipeSettings({
-                    hub === current && current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
+                    holdsMachineWriter() && hub === current && current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
                         snapshot.coffeeState == DeviceState.READY && !leverStore.blocked &&
                         !manualShotActive && !ShotGate.active(shotState) && !brewPreparation.active &&
                         !machineWriteRecovery.pending && !cupResetBusy && !scheduleBusy &&
@@ -1668,7 +2096,7 @@ class MobileService : Service() {
             leverInFlight == token && leverStore.pending(token) && hub === current &&
                 current.coffeeGeneration == generation && leverDeviceAddress == expectedAddress &&
                 coffeeFirmware.toString() == expectedFirmware && leverRecipeConditions() == null &&
-                app.curves.resolve(profile.id, false, 7) == profile && app.curves.validated(profile)
+                library.resolve(profile.id, false, 7) == profile && library.validated(profile)
         }, { snapshot = snapshot.copy(settingsAt = null) }, ::complete)
         } catch (_: Exception) { complete(OperationResult.Unknown("recipe submission interrupted")) }
         return null
@@ -1682,9 +2110,11 @@ class MobileService : Service() {
     internal fun acknowledgeLeverRecipeUnknown(): String? {
         if (leverInFlight != null) return getString(R.string.lever_sending)
         val record = leverStore.blockingAttempt ?: return getString(R.string.lever_record_failed)
-        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true) || leverRecipeConditions() != null) {
-            refreshStaleMachineSettings(explicit = true)
+        if (!record.snapshot.address.equals(leverDeviceAddress, ignoreCase = true))
             return getString(R.string.lever_reconnect_original)
+        leverRecipeConditions()?.let { reason ->
+            if (!machineSettingsFresh) refreshStaleMachineSettings(explicit = true)
+            return reason
         }
         if (!leverStore.acknowledge(record.token)) return getString(R.string.lever_record_failed)
         event(ResourceMessage(R.string.lever_result_unknown), "lever_recipe.acknowledged")
@@ -1716,7 +2146,7 @@ class MobileService : Service() {
         if (brewPreparation.active || ShotGate.active(shotState)) return getString(R.string.service_write_preheat_or_shot_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
-        val now = MobileMonotonicClock.elapsedRealtime()
+        val now = elapsedNow()
         if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now) || idle.sleepStateRaw != 0)
             return getString(R.string.service_write_awake_idle_needed)
         val settingsCount = snapshot.settings?.cupCount ?: return getString(R.string.service_write_cups_missing)
@@ -1732,6 +2162,7 @@ class MobileService : Service() {
         }
         val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
         cupRecoveryOwner=recoveryOwner
+        val passiveRequest=registerPassive(PassiveKind.CUPS,current,recoveryOwner,token)
         recoveryAfterSettingsSerial = cupSettingsSerial
         recoveryAfterIdleSerial = cupIdleSerial
         refreshSafetyNotification()
@@ -1739,13 +2170,16 @@ class MobileService : Service() {
         current.resetCupCount(expectedCount,{ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.CupReset(cupReset)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.CupReset(cupReset, cupSettingsSerial, cupIdleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            completePassive(PassiveKind.CUPS,passiveRequest,result)
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_cups_written), "cups.written")
                     writeWatchdog.await(token, MachineWriteWatchdog.Request.CupReset(cupReset)) { serials ->
+                        expirePassive(PassiveKind.CUPS,passiveRequest)
                         recoveryAfterSettingsSerial = serials.cupSettings
                         recoveryAfterIdleSerial = serials.cupIdle
                         event(ResourceMessage(R.string.service_write_cups_no_readback), "cups.unknown")
+                        refreshSafetyNotification()
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
@@ -1758,6 +2192,7 @@ class MobileService : Service() {
                     recoveryAfterSettingsSerial = cupSettingsSerial
                     recoveryAfterIdleSerial = cupIdleSerial
                     event(ResourceMessage(R.string.service_write_cups_unknown), "cups.unknown")
+                    refreshSafetyNotification()
                 }
                 else -> Unit
             }
@@ -1790,7 +2225,7 @@ class MobileService : Service() {
             return getString(R.string.service_write_sleep_waiting)
         if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
-        val now = MobileMonotonicClock.elapsedRealtime()
+        val now = elapsedNow()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now) || idle.sleepStateRaw != 0)
             return getString(R.string.service_write_awake_idle_needed)
@@ -1802,6 +2237,7 @@ class MobileService : Service() {
         if (changedDays == 0) return getString(R.string.service_write_schedule_already_observed)
         if (!SleepScheduleEdit.accepts(expected, target, allDays)) return getString(R.string.service_write_schedule_one_day_only)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_schedule_identity_missing)
+        if(splitAdmissionEnabled)return requestSplitWeek(current,expected,target)
         val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
             coffeeAddress, MachineWriteRegistration.Request.Schedule(scheduleWrite, target, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))) {
             MachineWriteRegistration.Result.Busy -> return getString(R.string.service_write_schedule_pending)
@@ -1810,6 +2246,7 @@ class MobileService : Service() {
         }
         val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
         scheduleRecoveryOwner=recoveryOwner
+        val passiveRequest=registerPassive(PassiveKind.WEEKLY,current,recoveryOwner,token)
         recoveryAfterFirstSleepSerial = firstSleepSerial
         recoveryAfterSecondSleepSerial = secondSleepSerial
         refreshSafetyNotification()
@@ -1817,6 +2254,7 @@ class MobileService : Service() {
         current.writeSleepSchedule(target,expected,{ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Schedule(scheduleWrite)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Schedule(scheduleWrite, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            completePassive(PassiveKind.WEEKLY,passiveRequest,result)
             when (outcome) {
                 MachineWriteResult.Outcome.CONFIRMED -> {
                     if (!machineWriteRecovery.clear(recoveryOwner))
@@ -1827,9 +2265,11 @@ class MobileService : Service() {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_schedule_written), "sleep_schedule.written")
                     writeWatchdog.await(token, MachineWriteWatchdog.Request.Schedule(scheduleWrite)) { serials ->
+                        expirePassive(PassiveKind.WEEKLY,passiveRequest)
                         recoveryAfterFirstSleepSerial = serials.sleepFirst
                         recoveryAfterSecondSleepSerial = serials.sleepSecond
                         event(ResourceMessage(R.string.service_write_schedule_no_readback), "sleep_schedule.unknown")
+                        refreshSafetyNotification()
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
@@ -1842,12 +2282,312 @@ class MobileService : Service() {
                     recoveryAfterFirstSleepSerial = firstSleepSerial
                     recoveryAfterSecondSleepSerial = secondSleepSerial
                     event(ResourceMessage(R.string.service_write_schedule_partial_unknown), "sleep_schedule.unknown")
+                    refreshSafetyNotification()
                 }
                 else -> Unit
             }
         }
         return null
     }
+    /** This exception is intentionally specific to the two physical boiler switches. */
+    internal fun allowsSplitBoiler():Boolean {
+        val binding=splitBinding() ?: return false
+        return splitAdmissionEnabled && splitWriteSafe() && splitBoilerSettingsFresh() && !manualShotActive && leverWriteBlock==null && !shotRecovery.pending &&
+            !ShotGate.active(shotState) && !brewPreparation.active &&
+            scheduleWrite.state==SleepScheduleWriteTracker.State.WAITING_READBACK &&
+            !temperatureWrite.busy && splitBoiler==null &&
+            settingsWrite.state !in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK,
+                SettingsWriteTracker.State.UNKNOWN) && machineOperations?.acceptsBoilerAfterWeek(binding)==true
+    }
+
+    private fun splitBoilerSettingsFresh():Boolean {
+        val native=hub?.latestOrdinaryCoffeeSettings ?: return false
+        return machineSettingsFresh && snapshot.settings === native.value &&
+            SettingsFreshness.isFresh(native.receivedAtMs,elapsedNow())
+    }
+
+    private fun splitWriteSafe():Boolean {
+        val current=hub ?: return false
+        val idle=current.latestNativeIdle ?: return false
+        return snapshot.coffeeState==DeviceState.READY && snapshot.coffee === idle.value &&
+            TelemetryFreshness.isFresh(idle.capturedAtMs,elapsedNow()) &&
+            idle.value.sleepStateRaw==0 && io.openhoyi.session.CoffeeAlarmPolicy.permitsNewControl(idle.value.alarmBits) &&
+            !manualShotActive && !shotRecovery.pending && !ShotGate.active(shotState) && !brewPreparation.active &&
+            !cupResetBusy && !temperatureWrite.busy && !sleepNowUnresolved &&
+            sleepNow.state !in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) &&
+            leverWriteBlock==null
+    }
+
+    private fun requestSplitWeek(current:NativeDeviceHub,expected:WeeklySleepSchedule,target:WeeklySleepSchedule):String? {
+        val broker=machineOperations ?: return getString(R.string.service_unavailable)
+        val binding=splitBinding() ?: return getString(R.string.service_unavailable)
+        // Temperature confirmation has its own journal. Do not overlap another command with
+        // a weekly write admitted while that confirmation is still open.
+        if (!splitWriteSafe() || !broker.openSplit({
+                splitWriteSafe() && !machineWriteRecovery.pending && !scheduleBusy &&
+                    settingRecoveryOwner?.let(machineWriteRecovery::owns)!=true
+            },allowBoilerOverlap=!temperatureWrite.requiresExplicitRetry))
+            return getString(R.string.service_write_schedule_record_failed)
+        val entry=SplitMachineWriteJournal.Entry(SplitMachineWriteJournal.Kind.SCHEDULE,
+            binding.source.address.uppercase(java.util.Locale.ROOT),SplitMachineWriteJournal.Target.Weekly(target.days))
+        val send=broker.reserve(entry,binding)
+        if(send==null) {
+            broker.returnToLegacy()
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_schedule_record_failed))
+        }
+        val token=scheduleWrite.begin(target,firstSleepSerial,secondSleepSerial)
+        if(token==null) {
+            broker.abortUnsent(send,binding,OperationResult.Cancelled("tracker refused before queue"))
+            broker.returnToLegacy()
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_schedule_pending))
+        }
+        val item=SplitPending(send,binding,token)
+        splitWeek=item
+        event(ResourceMessage(R.string.service_write_schedule_queued),"v2.week.queued", display = false)
+        refreshSafetyNotification()
+        current.writeSleepSchedule(target,expected,{
+            splitWeek===item && splitWriteSafe() && broker.mayDispatch(send,binding)
+        }) done@{ result ->
+            if(splitWeek!==item)return@done
+            val outcome=MachineWriteResult.apply(token,result,MachineWriteResult.Request.Schedule(
+                scheduleWrite,firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond))
+            if(outcome==MachineWriteResult.Outcome.WAITING && broker.enteredReadback(send,binding,result)) {
+                item.passiveCut=PassiveCoffeeReadback.after(binding.source,current.coffeeReadbackCursor,elapsedNow())
+                event(ResourceMessage(R.string.service_write_schedule_written),"v2.week.written", display = false)
+                writeWatchdog.await(token,MachineWriteWatchdog.Request.Schedule(scheduleWrite)) {
+                    markSplitUnknown(item)
+                    publishSplitWriteFeedback(R.string.service_write_schedule_no_readback,"v2.week.unknown")
+                    refreshSafetyNotification()
+                }
+            } else if(outcome==MachineWriteResult.Outcome.FAILED && broker.abortUnsent(send,binding,result)) {
+                splitWeek=null;broker.returnToLegacy()
+                publishSplitWriteFeedback(R.string.service_write_schedule_first_not_written,"v2.week.not_sent")
+            } else {
+                markSplitUnknown(item)
+                publishSplitWriteFeedback(R.string.service_write_schedule_partial_unknown,"v2.week.unknown")
+            }
+            refreshSafetyNotification()
+        }
+        return null
+    }
+
+    private fun requestSplitBoiler(current:NativeDeviceHub,intent:MachineSettingChange):String? {
+        val broker=machineOperations ?: return getString(R.string.service_unavailable)
+        val binding=splitBinding() ?: return getString(R.string.service_unavailable)
+        if(!allowsSplitBoiler() || !splitWriteSafe())return getString(R.string.service_v2_split_pending)
+        val target=when(intent) {
+            is MachineSettingChange.BrewHeating -> SplitMachineWriteJournal.Target.Boiler(
+                SplitMachineWriteJournal.Target.BoilerId.BREW,intent.enabled)
+            is MachineSettingChange.SteamHeating -> SplitMachineWriteJournal.Target.Boiler(
+                SplitMachineWriteJournal.Target.BoilerId.STEAM,intent.enabled)
+            else -> return getString(R.string.service_v2_split_pending)
+        }
+        val entry=SplitMachineWriteJournal.Entry(SplitMachineWriteJournal.Kind.BOILER,
+            binding.source.address.uppercase(java.util.Locale.ROOT),target)
+        val send=broker.reserve(entry,binding) ?: run {
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_setting_record_failed))
+        }
+        val token=settingsWrite.begin(intent)
+        if(token==null) {
+            broker.abortUnsent(send,binding,OperationResult.Cancelled("tracker refused before queue"))
+            refreshSafetyNotification()
+            return getString(splitWriteFeedback(R.string.service_write_setting_pending))
+        }
+        val item=SplitPending(send,binding,token)
+        splitBoiler=item
+        lastSettingWasTemperature=false
+        event(ResourceMessage(R.string.service_write_setting_queued,settingsPresentation.changeMessage(intent)),"v2.boiler.queued", display = false)
+        current.writeSettingWithEvidence(intent,{
+            splitBoiler===item && splitWriteSafe() && splitBoilerSettingsFresh() && broker.mayDispatch(send,binding)
+        }) done@{ result,evidence ->
+            if(splitBoiler!==item)return@done
+            val outcome=MachineWriteResult.apply(token,result,MachineWriteResult.Request.Setting(settingsWrite,settingsSampleSerial))
+            if(outcome==MachineWriteResult.Outcome.WAITING && broker.enteredReadback(send,binding,result)) {
+                item.settingCut=evidence
+                event(ResourceMessage(R.string.service_write_setting_written),"v2.boiler.written", display = false)
+                maybeRefreshSplitBoiler()
+                writeWatchdog.await(token,MachineWriteWatchdog.Request.Setting(settingsWrite)) {
+                    markSplitUnknown(item)
+                    publishSplitWriteFeedback(R.string.service_write_setting_no_readback,"v2.boiler.unknown")
+                    refreshSafetyNotification()
+                }
+            } else if(outcome==MachineWriteResult.Outcome.FAILED && broker.abortUnsent(send,binding,result)) {
+                splitBoiler=null;broker.returnToLegacy()
+                publishSplitWriteFeedback(R.string.service_write_setting_not_written,"v2.boiler.not_sent")
+            } else {
+                markSplitUnknown(item)
+                publishSplitWriteFeedback(R.string.service_write_setting_unknown,"v2.boiler.unknown")
+            }
+            refreshSafetyNotification()
+        }
+        return null
+    }
+
+    private fun maybeRefreshSplitBoiler() {
+        val item=splitBoiler ?: return
+        val broker=machineOperations ?: return
+        val current=hub ?: return
+        fun eligible()=splitWeek==null && !scheduleBusy && splitBoiler===item && hub===current &&
+            settingsWrite.state==SettingsWriteTracker.State.WAITING_READBACK &&
+            broker.waitsForObservation(item.send,item.binding) && splitWriteSafe()
+        if(!eligible())return
+        current.refreshBoilerSettings(::eligible,singleBoiler=true) {attempt,result ->
+            recordBoilerRefresh(false,attempt,result)
+        }
+    }
+
+    private fun observeSplitWeek(frame:SleepPart):Boolean {
+        val item=splitWeek ?: return false
+        if(scheduleWrite.state!=SleepScheduleWriteTracker.State.WAITING_READBACK)return false
+        val broker=machineOperations ?: return false
+        val current=hub ?: return false
+        val first=current.latestNativeWeeklyFirst
+        val second=current.latestNativeWeeklySecond
+        if(first?.value!==snapshot.sleepFirst || second?.value!==frame)return false
+        val plan=item.passiveCut?.weeklyPair(first,second,elapsedNow()) ?: return false
+        val target=item.send.entry.target as? SplitMachineWriteJournal.Target.Weekly ?: return false
+        if(plan.days!=target.days || !settleSplitVerified(broker,item))return false
+        scheduleWrite.observe(firstSleepSerial,secondSleepSerial,first?.value,second?.value)
+        splitWeek=null
+        maybeRefreshSplitBoiler()
+        broker.returnToLegacy()
+        publishSplitWriteFeedback(R.string.service_write_schedule_confirmed,"v2.week.confirmed", display = false)
+        return true
+    }
+
+    private fun observeSplitBoiler(frame:Settings):Boolean {
+        val item=splitBoiler ?: return false
+        if(settingsWrite.state!=SettingsWriteTracker.State.WAITING_READBACK)return false
+        val broker=machineOperations ?: return false
+        val change=settingsWrite.change
+        if(observedSetting(change,item.settingCut,frame)!=CoffeeReadbackEvidence.Setting.Observation.MATCH ||
+            !settleSplitVerified(broker,item))return false
+        settingsWrite.observe(settingsSampleSerial,frame)
+        splitBoiler=null
+        broker.returnToLegacy()
+        publishSplitWriteFeedback(R.string.service_event_setting_confirmed,"v2.boiler.confirmed", display = false)
+        return true
+    }
+
+    private fun splitWriteFeedback(resource:Int):Int =
+        if(machineOperations?.splitStorageFailed==true) R.string.service_v2_split_storage_failed else resource
+
+    private fun publishSplitWriteFeedback(resource:Int,kind:String,display:Boolean=true) {
+        val message=splitWriteFeedback(resource)
+        val storageFailed=message!=resource
+        event(ResourceMessage(message),if(storageFailed) "v2.recovery.storage_failed" else kind,
+            display=display || storageFailed)
+    }
+
+    private fun settleSplitVerified(broker:CanonicalMachineOperationBroker,item:SplitPending):Boolean {
+        if(broker.splitStorageFailed)return false
+        if(broker.settleVerified(item.send,item.binding))return true
+        if(broker.splitStorageFailed) {
+            event(ResourceMessage(R.string.service_v2_split_storage_failed),"v2.recovery.storage_failed")
+            refreshSafetyNotification()
+        }
+        return false
+    }
+
+    internal data class SplitObservation(val choice:CanonicalMachineOperationBroker.RecoveryChoice,
+        val observed:SplitMachineWriteJournal.Target,val source:CoffeeReadbackSource)
+
+    internal val splitRecoveryChoices get()=machineOperations?.recoveryChoices().orEmpty()
+
+    internal fun splitRecoveryMessage(choice:CanonicalMachineOperationBroker.RecoveryChoice):Int {
+        if(machineOperations?.splitRecoveryBlocked==true || opaqueV2RecoveryFence)
+            return splitWriteFeedback(R.string.service_v2_split_recovery_blocked)
+        var resource=R.string.service_v2_split_recovery_wait
+        splitObservation(choice) {resource=it}
+        return resource
+    }
+
+    internal fun splitObservation(choice:CanonicalMachineOperationBroker.RecoveryChoice):SplitObservation? =
+        splitObservation(choice) {}
+
+    private fun splitObservation(choice:CanonicalMachineOperationBroker.RecoveryChoice,
+        needsReport:(Int)->Unit):SplitObservation? {
+        if(choice !in splitRecoveryChoices)return null
+        val current=hub ?: return null
+        val binding=splitBinding() ?: return null
+        if(!choice.entry.address.equals(binding.source.address,ignoreCase=true) || manualSafetyResource!=null ||
+            !splitWriteSafe())return null
+        val after=restoredSplitAfter ?: when(choice.entry.kind) {
+            SplitMachineWriteJournal.Kind.SCHEDULE -> splitWeek?.unknownAfter
+            SplitMachineWriteJournal.Kind.BOILER -> splitBoiler?.unknownAfter
+        } ?: return null
+        val now=elapsedNow()
+        val idle=current.latestNativeIdle ?: return null
+        if(idle.cursor.source!==binding.source || idle.capturedAtMs<=after)return null
+        val observed=when(val target=choice.entry.target) {
+            is SplitMachineWriteJournal.Target.Boiler -> {
+                val settings=current.latestOrdinaryCoffeeSettings ?: return null
+                if(settings.cursor.source!==binding.source || settings.value!==snapshot.settings ||
+                    settings.receivedAtMs<=after || !SettingsFreshness.isFresh(settings.receivedAtMs,now))return null
+                val enabled=when(target.boiler) {
+                    SplitMachineWriteJournal.Target.BoilerId.BREW -> MachineSettingChange.BrewHeating(true).matches(settings.value)
+                    SplitMachineWriteJournal.Target.BoilerId.STEAM -> MachineSettingChange.SteamHeating(true).matches(settings.value)
+                }
+                SplitMachineWriteJournal.Target.Boiler(target.boiler,enabled)
+            }
+            is SplitMachineWriteJournal.Target.Weekly -> {
+                val first=current.latestNativeWeeklyFirst?.takeIf {
+                    it.cursor.source===binding.source && it.value===snapshot.sleepFirst &&
+                        it.receivedAtMs>after && SettingsFreshness.isFresh(it.receivedAtMs,now)
+                }
+                if(first==null) {
+                    needsReport(R.string.service_v2_split_week_first_missing)
+                    return null
+                }
+                val second=current.latestNativeWeeklySecond?.takeIf {
+                    it.cursor.source===binding.source && it.value===snapshot.sleepSecond &&
+                        it.receivedAtMs>after && it.cursor.sequence>first.cursor.sequence &&
+                        SleepScheduleFreshness.isFresh(first.value,first.receivedAtMs,it.value,it.receivedAtMs,now)
+                }
+                if(second==null) {
+                    needsReport(R.string.service_v2_split_week_second_missing)
+                    return null
+                }
+                val plan=WeeklySleepSchedule.fromReadback(first.value,second.value) ?: return null
+                SplitMachineWriteJournal.Target.Weekly(plan.days)
+            }
+            null -> return null
+        }
+        return SplitObservation(choice,observed,binding.source)
+    }
+
+    internal fun resolveSplitObservation(observation:SplitObservation):Boolean {
+        val broker=machineOperations ?: return false
+        val binding=splitBinding() ?: return false
+        if(splitObservation(observation.choice)!=observation)return false
+        // Revalidate before accepting. The broker invokes this inline on the same pinned owner.
+        if(!broker.resolveObserved(observation.choice,binding) {
+                splitBinding()?.source===observation.source && snapshot.coffeeState==DeviceState.READY
+            }) {
+            if(broker.splitStorageFailed)refreshSafetyNotification()
+            return false
+        }
+        when(observation.choice.entry.kind) {
+            SplitMachineWriteJournal.Kind.SCHEDULE -> {
+                splitWeek?.let {scheduleWrite.acknowledgeUnknown(it.trackerToken)}
+                splitWeek=null
+            }
+            SplitMachineWriteJournal.Kind.BOILER -> {
+                splitBoiler?.let {settingsWrite.acknowledgeUnknown(it.trackerToken)}
+                splitBoiler=null
+            }
+        }
+        if(!broker.restoredAndResolved)broker.returnToLegacy()
+        refreshSafetyNotification()
+        if(broker.splitStorageFailed)return false
+        event(ResourceMessage(if(broker.restoredAndResolved) R.string.service_v2_split_restart_required
+            else R.string.service_v2_split_reconciled),"v2.recovery.observed_not_command_confirmation")
+        return true
+    }
+
     fun enterSleepNow(): String? {
         interruptUpdateInstallation()
         if (mock != null) {
@@ -1870,7 +2610,7 @@ class MobileService : Service() {
             return getString(R.string.service_write_setting_waiting)
         if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
-        val now = MobileMonotonicClock.elapsedRealtime()
+        val now = elapsedNow()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         val observedAt = snapshot.coffeeAt ?: return getString(R.string.service_write_idle_waiting)
         if (!TelemetryFreshness.isFresh(observedAt, now)) return getString(R.string.service_write_idle_stale)
@@ -1885,18 +2625,22 @@ class MobileService : Service() {
         }
         val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
         sleepRecoveryOwner=recoveryOwner
+        val passiveRequest=registerPassive(PassiveKind.SLEEP,current,recoveryOwner,token)
         recoveryAfterSleepSerial = sleepSampleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_sleep_queued), "sleep.requested")
         current.enterSleep({ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Sleep(sleepNow)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Sleep(sleepNow, sleepSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            completePassive(PassiveKind.SLEEP,passiveRequest,result)
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_sleep_written), "sleep.written")
                     writeWatchdog.await(token, MachineWriteWatchdog.Request.Sleep(sleepNow)) { serials ->
+                        expirePassive(PassiveKind.SLEEP,passiveRequest)
                         recoveryAfterSleepSerial = serials.sleep
                         event(ResourceMessage(R.string.service_write_sleep_no_readback), "sleep.unknown")
+                        refreshSafetyNotification()
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
@@ -1908,6 +2652,7 @@ class MobileService : Service() {
                 MachineWriteResult.Outcome.UNKNOWN -> {
                     recoveryAfterSleepSerial = sleepSampleSerial
                     event(ResourceMessage(R.string.service_write_sleep_unknown), "sleep.unknown")
+                    refreshSafetyNotification()
                 }
                 else -> Unit
             }
@@ -1915,6 +2660,10 @@ class MobileService : Service() {
         return null
     }
     private fun selectedCurve(profileId: String, slot: Int): CurveProfile? {
+        fixtureCurveLibrary?.let {
+            return profileId.takeIf { id -> id == fixtureCurveId && slot == 7 }
+                ?.let { id -> it.resolve(id,false,slot) }
+        }
         val selectedId = if (slot == 7)
             getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         else if (slot in 1..5)
@@ -1928,7 +2677,7 @@ class MobileService : Service() {
     fun currentCorrectedBrewTemperature(): Int? {
         val frame = snapshot.coffee as? IdleTelemetry ?: return null
         val settings = snapshot.settings ?: return null
-        val now = MobileMonotonicClock.elapsedRealtime()
+        val now = elapsedNow()
         if (snapshot.coffeeState != DeviceState.READY || !machineBrewSettingsAvailable ||
             !TelemetryFreshness.isFresh(snapshot.coffeeAt, now)) return null
         return BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
@@ -1936,25 +2685,35 @@ class MobileService : Service() {
     }
     /** One read-only reason for the grey start action in both extraction screens. No writes. */
     private fun customCurveFirmwareBlock(profile: CurveProfile?): String? {
-        val configured = profile?.let { (application as MobileApplication).curves.find(it.id)?.customDocument?.configuration } != null
+        val configured = profile?.let { controlledCurveLibrary().find(it.id)?.customDocument?.configuration } != null
         return if (configured && !CustomCurveFirmwarePolicy.permits(requireNotNull(profile).parameters, coffeeFirmware))
             getString(if (CustomCurveFirmwarePolicy.isPressureFollow(profile.parameters))
                 R.string.follow_firmware_required else R.string.flow_editor_firmware_required) else null
     }
-    fun extractionStartBlock(profile: CurveProfile?, invalidCurve: Boolean = false): String? {
+    fun extractionStartBlock(profile: CurveProfile?, invalidCurve: Boolean = false): String? =
+        extractionStartBlock(profile, invalidCurve, readiness = false)
+
+    internal fun extractionReadinessMessage(profile: CurveProfile?, invalidCurve: Boolean = false): String? =
+        extractionStartBlock(profile, invalidCurve, readiness = true)
+
+    private fun extractionStartBlock(profile: CurveProfile?, invalidCurve: Boolean, readiness: Boolean): String? {
         if (!running) return getString(R.string.service_unavailable)
-        machineControlSafetyMessage?.let { return it }
+        val quietReadback = readiness && v2SettingEvidence && !BuildConfig.BLE_SAME_ID_QA
+        (if(readiness) machineControlAttentionMessage else machineControlSafetyMessage)?.let { return it }
         if (manualShotActive) return getString(R.string.extraction_manual_block)
         if (invalidCurve) return getString(R.string.extraction_invalid_curve_block)
+        if (!quietReadback && hub?.settingsSyncBlocksStart == true) return getString(R.string.ble_settings_sync_before_start)
         customCurveFirmwareBlock(profile)?.let { return it }
         tareStartBlock?.let { return it }
         shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-            snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), shotState,
+            snapshot.scaleState, snapshot.scaleObservation, elapsedNow(), shotState,
             validated = profile?.let((application as MobileApplication).curves::validated) == true)?.let { return it }
-        if (blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+        if ((!quietReadback || !ongoingSettingsWrite) &&
+            blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
                 SettingsWriteTracker.State.UNKNOWN)) return getString(R.string.service_shot_settings_start_block)
-        if (sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP,
-                SleepNowTracker.State.UNKNOWN)) return getString(R.string.service_shot_sleep_start_block)
+        if (sleepNowState == SleepNowTracker.State.UNKNOWN) return getString(R.string.service_shot_sleep_start_block)
+        if (MachineRecoveryActivity.isBusy(sleepNowState))
+            return getString(if(readiness) R.string.sleep_entering else R.string.service_shot_sleep_start_block)
         // Temperature preparation is start-only: callers must still be able to preheat.
         return null
     }
@@ -2013,7 +2772,7 @@ class MobileService : Service() {
     /** One best-effort cancellation on leaving. An abnormal connection never queues recovery work. */
     fun leaveAutoPreheat(): String? {
         val intent = autoPreheatIntent ?: return null
-        val now = MobileMonotonicClock.elapsedRealtime()
+        val now = elapsedNow()
         if (!intent.leave(now)) return null
         if (intent.requestId == null || !brewPreparation.active) return null
         if (intent.requestId != brewPreparation.requestId) {
@@ -2024,7 +2783,7 @@ class MobileService : Service() {
             return null
         }
         fun permit(): Boolean = autoPreheatIntent === intent && intent.permitsCancel(shortcutDeviceIdentity, shortcutConfigurationRevision,
-            MobileMonotonicClock.elapsedRealtime()) && snapshot.coffeeState == DeviceState.READY &&
+            elapsedNow()) && snapshot.coffeeState == DeviceState.READY &&
             !manualShotActive && !ShotGate.active(shotState)
         autoPreheatResource = ResourceMessage(R.string.service_auto_cancel_requested)
         val blocked = if (!permit()) ResourceMessage(R.string.service_auto_cancel_not_sent)
@@ -2058,11 +2817,11 @@ class MobileService : Service() {
             if (brewPreparation.active) return getString(R.string.service_shot_preheat_mock_pending)
             val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
             if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
-            val library = (application as MobileApplication).curves
+            val library = controlledCurveLibrary()
             shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-                snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), shotState,
+                snapshot.scaleState, snapshot.scaleObservation, elapsedNow(), shotState,
                 validated = library.validated(profile))?.let { return it }
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             val result = mock.beginPreheat(profile.temperatureC, now)
             if (result != null) return result
             val token = brewPreparation.begin(profile.id, profile.temperatureC)
@@ -2089,9 +2848,9 @@ class MobileService : Service() {
         if (settings.flags and 0x04 == 0) return getString(R.string.service_shot_preheat_cafe_mode)
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_scale_changed)
-        val library = (application as MobileApplication).curves
+        val library = controlledCurveLibrary()
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-            snapshot.scaleState, snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
+            snapshot.scaleState, snapshot.scaleObservation, elapsedNow(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) return blocked
         requireNotNull(profile)
@@ -2105,20 +2864,24 @@ class MobileService : Service() {
             is MachineWriteRegistration.Result.Registered -> registration.token
         }
         val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
+        val passiveRequest=registerPassive(PassiveKind.PREHEAT,current,recoveryOwner,token)
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         refreshSafetyNotification()
-        event(ResourceMessage(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested")
+        event(ResourceMessage(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested",
+            display = !v2SettingEvidence || BuildConfig.BLE_SAME_ID_QA)
         current.setBrewWait(profile.temperatureC, {
-            (automaticPermit?.invoke() != false) && BrewWriteDispatchPermit.allows(token,brewPreparation,profile.temperatureC,
+            holdsMachineWriter() && (automaticPermit?.invoke() != false) && BrewWriteDispatchPermit.allows(token,brewPreparation,profile.temperatureC,
                 BrewWriteDispatchPermit.Context(machineWriteRecovery,recoveryOwner,coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,manualShotActive,shotRecovery.pending,
                     ShotGate.active(current.extraction.state),selectedCurve(profileId,slot)==profile && library.validated(profile)))
         }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.BrewWait(brewPreparation, idleSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            completePassive(PassiveKind.PREHEAT,passiveRequest,result)
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
-                    event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written")
+                    event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written",
+                        display = !v2SettingEvidence || BuildConfig.BLE_SAME_ID_QA)
                     preheatTimeoutScheduler(BrewPreparationWatchdog.TIMEOUT_MS) timeout@{
                         if (automaticPermit != null) {
                             if (brewPreparation.isActive(token)) {
@@ -2163,7 +2926,7 @@ class MobileService : Service() {
     private fun cancelBrewPreparationMessage(automaticPermit: (() -> Boolean)?): ResourceMessage? {
         if (mock != null) {
             if (!brewPreparation.active) return ResourceMessage(R.string.service_shot_cancel_mock_none)
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             val result = mock.cancelPreheatMessage(now)
             if (result != null) return result
             val token = brewPreparation.beginCancel() ?: return ResourceMessage(R.string.service_shot_cancel_mock_pending)
@@ -2185,6 +2948,7 @@ class MobileService : Service() {
         val coffeeAddress=current.coffeeAddress ?: return ResourceMessage(R.string.service_shot_cancel_original_device)
         val recoveryOwner=machineWriteRecovery.captureOwnership() ?: return ResourceMessage(R.string.service_shot_cancel_none)
         val token = brewPreparation.beginCancel() ?: return ResourceMessage(R.string.service_shot_cancel_pending)
+        val passiveRequest=registerPassive(PassiveKind.PREHEAT,current,recoveryOwner,token)
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         event(ResourceMessage(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
         current.setBrewWait(0, {
@@ -2194,6 +2958,7 @@ class MobileService : Service() {
                     ShotGate.active(current.extraction.state),true)) && brewWaitCancelBlockMessage == null
         }) done@{ result ->
             if (!brewPreparation.cancelled(token, result)) return@done
+            completePassive(PassiveKind.PREHEAT,passiveRequest,result)
             if (automaticPermit != null) autoPreheatResource = ResourceMessage(
                 if (brewPreparation.state == BrewPreparation.State.CANCEL_WRITTEN)
                     R.string.service_shot_cancel_written else R.string.service_shot_cancel_unknown)
@@ -2226,13 +2991,16 @@ class MobileService : Service() {
                                  startPermit: (() -> Boolean)?): String? {
         fun callerPermits() = startPermit == null || runCatching { startPermit() }.getOrDefault(false)
         if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
-        val app = application as MobileApplication
-        val preparation = app.beanPreparationResult.getOrElse { return getString(R.string.dose_start_unavailable) }
+        val app = if(fixtureShotEffects==null) application as MobileApplication else null
+        val preparation = fixtureShotEffects?.beans ?: requireNotNull(app).beanPreparationResult
+            .getOrElse { return getString(R.string.dose_start_unavailable) }
         if (preparation.current()?.let { it.shotId != null && !it.associated } == true)
             return getString(R.string.dose_start_unavailable)
         preparation.current()?.takeIf { it.shotId == null }?.let { dose ->
             if (!dose.confirmed) return getString(R.string.dose_start_unconfirmed)
-            if (runCatching { preparation.verifyConfirmed(app.beanInventoryResult.getOrThrow()) }.isFailure)
+            if (runCatching {
+                    preparation.verifyConfirmed(fixtureShotEffects?.inventory ?: requireNotNull(app).beanInventoryResult.getOrThrow())
+                }.isFailure)
                 return getString(R.string.dose_start_unavailable)
         }
         if (mock != null) {
@@ -2242,13 +3010,13 @@ class MobileService : Service() {
             if (ShotGate.active(shotState)) return getString(R.string.service_shot_mock_running)
             customCurveFirmwareBlock(profile)?.let { return it }
             studioStartBlock(profile)?.let { return it }
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             if (brewPreparation.active) {
                 mock.cancelPreheat(now)
                 brewPreparation.consumed()
             }
             if (!callerPermits()) return getString(R.string.shortcut_start_cancelled)
-            val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
+            val shotId = beginPreparedShot(profile.id, slot, preparation) ?: return getString(R.string.dose_start_unavailable)
             val scenarioOwner = mockExtractionOwner
             if (scenarioOwner == null) mock.start(now, slot)
             else if (!mockExtractionScenario.start(scenarioOwner, profile.parameters,
@@ -2257,14 +3025,15 @@ class MobileService : Service() {
                         customCurveFirmwareBlock(profile) == null &&
                         mockExtractionOwner === scenarioOwner
                 }) {
-                runCatching { history?.transition(ExtractionState.IDLE, null, null) }
-                return getString(R.string.service_shot_session_rejected)
+                rejectPreparedShot(shotId, preparation)
+                return getString(R.string.ble_start_conditions_changed)
             }
+            associateStartedShot()
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
-            series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
+            series.begin(shotId, elapsedNow(), profile.id)
             extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram)
             activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
-                (application as MobileApplication).curves.find(profile.id)?.customDocument)
+                controlledCurveLibrary().find(profile.id)?.customDocument)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
             if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             else event(ResourceMessage(R.string.service_shot_requested, profile.name), "mock.synthetic_shot_requested")
@@ -2287,14 +3056,14 @@ class MobileService : Service() {
             return getString(R.string.service_shot_sleep_start_block)
         if (blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return getString(R.string.service_shot_settings_start_block)
-        val library = (application as MobileApplication).curves
+        val library = controlledCurveLibrary()
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) {
             event(ResourceMessage(R.string.service_shot_scale_connection_changed), "shot.rejected")
             return getString(R.string.service_shot_scale_connection_changed)
         }
         val blocked = shotGate.startBlockMessage(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-            snapshot.scaleObservation, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
+            snapshot.scaleObservation, elapsedNow(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) {
             event(ResourceMessage(R.string.service_shot_start_blocked, blocked), "shot.rejected")
@@ -2303,6 +3072,7 @@ class MobileService : Service() {
         requireNotNull(profile)
         customCurveFirmwareBlock(profile)?.let { return it }
         studioStartBlock(profile)?.let { return it }
+        if (!current.yieldSettingsReadbackForStart()) return getString(R.string.ble_settings_sync_before_start)
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null, timing = currentTimingEvidence()) }
                 .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
@@ -2312,22 +3082,22 @@ class MobileService : Service() {
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
             "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
         val coffeeAddress=current.coffeeAddress ?: return getString(R.string.service_shot_identity_missing)
-        val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
+        val shotId = beginPreparedShot(profile.id, slot, preparation) ?: return getString(R.string.dose_start_unavailable)
         val originalMachineIntent=MachineWriteRecoveryState.Record(machineWriteRecovery.kind,machineWriteRecovery.address)
         if (!shotRecovery.arm(coffeeAddress)) {
-            runCatching { history?.transition(ExtractionState.IDLE, null, null) }
+            rejectPreparedShot(shotId, preparation)
             return getString(R.string.service_shot_record_failed)
         }
         val shotOwner=requireNotNull(shotRecovery.captureOwnership())
         val machineOwner=machineWriteRecovery.captureOwnership()
-        appRecoveryOwner=AppRecoveryOwner(current,coffeeAddress,shotOwner,machineOwner)
+        appRecoveryOwner=AppRecoveryOwner(current,coffeeAddress,shotOwner,machineOwner,current.coffeeGeneration)
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) {
                 val selected=selectedCurve(profileId,slot)
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
                     blockingSettingWriteState in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
                 callerPermits() && shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
-                ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
+                holdsMachineWriter() && ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,
                     selected==profile && library.validated(profile),manualShotActive,busy,
                     shotRecovery.pending,shotRecovery.address,originalMachineIntent,
@@ -2337,18 +3107,20 @@ class MobileService : Service() {
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear(shotOwner)) manualSafetyResource = R.string.machine_recovery_shot_restart
             else appRecoveryOwner=null
-            runCatching { history?.transition(ExtractionState.IDLE, null, null) }
-            event(ResourceMessage(R.string.service_shot_session_rejected), "shot.rejected")
-            return getString(R.string.service_shot_session_rejected)
+            rejectPreparedShot(shotId, preparation)
+            event(ResourceMessage(R.string.ble_start_conditions_changed), "shot.rejected")
+            return getString(R.string.ble_start_conditions_changed)
         }
+        if (current.extraction.state == ExtractionState.STARTING) lastShotState = ExtractionState.STARTING
+        associateStartedShot()
         activeShotTargetHundredthsGram = profile.targetHundredthsGram
         if (brewPreparation.active) brewPreparation.consumed()
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
-        series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
+        series.begin(shotId, elapsedNow(), profile.id)
         extractionScaleReadout.begin(shotId, activeShotTargetHundredthsGram, scaleReadoutOwner(current))
         activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
-            (application as MobileApplication).curves.find(profile.id)?.customDocument)
+            controlledCurveLibrary().find(profile.id)?.customDocument)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
             finishBrewFeedback(false)
@@ -2360,21 +3132,38 @@ class MobileService : Service() {
         return null
     }
     /** Persist shot identity and consumed-dose ownership before any start dispatch. */
-    private fun beginPreparedShot(curveId: String, slot: Int): String? {
-        val app = application as MobileApplication
+    private fun beginPreparedShot(curveId: String, slot: Int, preparation: BeanPreparation): String? {
         val id = runCatching { requireNotNull(history).begin(curveId, slot = slot) }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
             .getOrNull() ?: return null
+        lastHistoryState = ExtractionState.STARTING
         return runCatching {
-            app.beanPreparationResult.getOrThrow().claim(id)
-            // Journal association is recoverable; durable ownership is not optional.
-            app.reconcileJournal()
+            preparation.claim(id)
             id
         }.onFailure {
             runCatching { history?.transition(ExtractionState.IDLE, null, null) }
             event(ResourceMessage(R.string.dose_start_unavailable), "bean.shot_claim_failed")
         }.getOrNull()
     }
+    private fun rejectPreparedShot(shotId: String, preparation: BeanPreparation) {
+        // Persist the definitive outcome so a failed dose release can be recovered on restart.
+        runCatching { history?.transition(ExtractionState.IDLE, null, null) }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
+        runCatching { preparation.releaseUnsentClaim(shotId) }
+            .onFailure { event(ResourceMessage(R.string.dose_start_unavailable), "bean.shot_release_failed") }
+    }
+
+    private fun associateStartedShot() {
+        // The durable claim survives a failed association and remains bound to this shot.
+        runCatching {
+            val fixture=fixtureShotEffects
+            if(fixture!=null) fixture.reconcileBeans()
+            else (application as MobileApplication).reconcileJournal()
+        }.onFailure { event(ResourceMessage(R.string.dose_start_unavailable), "bean.journal_association_pending") }
+    }
+    internal val shotStartObservation get() = hub?.shotStartObservation
+    internal val coffeeDeliveries get() = hub?.coffeeDeliveries.orEmpty()
+
     fun stopShot() {
         interruptUpdateInstallation()
         if (mock != null) {
@@ -2384,7 +3173,7 @@ class MobileService : Service() {
                     mock.stop()
                     // Ordinary Mock has no BLE idle callback. Publish its explicit stopped sample
                     // before watchShot can finalize the readout; synthetic inputs remain notification-only.
-                    refreshMock(mock, MobileMonotonicClock.elapsedRealtime())
+                    refreshMock(mock, elapsedNow())
                 } else mockExtractionScenario.stop(scenarioOwner)
                 if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_stopped), "mock.shot_stopped")
                 else event(ResourceMessage(R.string.service_shot_stop_requested), "mock.synthetic_stop_requested")
@@ -2417,7 +3206,7 @@ class MobileService : Service() {
         val id = feedbackShotId
         feedbackShotId = null
         if (!observedEnd) {
-            (application as MobileApplication).completionShotReview.invalidate()
+            if (fixtureShotEffects == null) (application as? MobileApplication)?.completionShotReview?.invalidate()
             brewFeedbackResult = null
             feedbackDelivery.clear()
         }
@@ -2426,7 +3215,7 @@ class MobileService : Service() {
                 snapshot.alarmBits, if (feedbackAppShot) hub?.extraction?.stopReason else null)
             brewFeedbackResult = runCatching { brewFeedback.finish(id, eligible) }.getOrNull()
             runCatching { feedbackDelivery.publish(brewFeedbackResult,
-                (application as MobileApplication).feedbackPreferences.enabled) }
+                fixtureShotEffects == null && (application as MobileApplication).feedbackPreferences.enabled) }
                 .onFailure { feedbackDelivery.clear() }
         }
     }
@@ -2440,6 +3229,7 @@ class MobileService : Service() {
         finishBrewFeedback(completedCup)
         extractionScaleReadout.finish(observedEnd)
         val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
+        fixtureShotEffects?.let { if(completedCup)it.recordSamples(finished.first,finished.second.size);return }
         val app = application as MobileApplication
         val historyEntries = history?.entries
         val retainedIds = historyEntries?.map(ShotHistory.Entry::id)?.toSet()
@@ -2472,7 +3262,7 @@ class MobileService : Service() {
             val observedId = history?.observeRunning()
             val recipe = activeShotRecipe?.takeIf { it.traceId == observedId }
             val fingerprint = recipe?.draftFingerprint
-            if (recipe != null && fingerprint != null)
+            if (fixtureShotEffects==null && recipe != null && fingerprint != null)
                 (application as MobileApplication).curveUsageResult.getOrThrow()
                     .attachFingerprint(recipe.traceId, fingerprint)
         }
@@ -2484,21 +3274,23 @@ class MobileService : Service() {
         ScaleBusinessReading.recordMachine(series, frame, atMs, snapshot.scaleObservation, snapshot.scaleState, beverage, scaleConnectionEpoch)
         saveSeriesCheckpoint(atMs)
     }
-    private fun saveSeriesCheckpoint(atElapsedMs: Long = MobileMonotonicClock.elapsedRealtime(), force: Boolean = false) {
+    private fun saveSeriesCheckpoint(atElapsedMs: Long = elapsedNow(), force: Boolean = false) {
         series.checkpoint(atElapsedMs, force)?.let { (id, points) ->
-            runCatching { (application as MobileApplication).samples.save(id, points) }
+            runCatching {
+                fixtureShotEffects?.recordSamples(id,points.size) ?: (application as MobileApplication).samples.save(id, points)
+            }
                 .onFailure { event(ResourceMessage(R.string.service_event_sample_save_failed), "shot.samples_error") }
         }
     }
     private fun resolvedMessage(resource: ResourceMessage): SnapshotMessage =
         SnapshotMessage.resource(resource) { id, args -> getString(id, *args) }
-    private fun event(resource: ResourceMessage, kind: String = "mobile.event") =
-        recordMessage(resolvedMessage(resource), kind)
+    private fun event(resource: ResourceMessage, kind: String = "mobile.event", display: Boolean = true) =
+        recordMessage(resolvedMessage(resource), kind, display)
     private fun event(message: String, kind: String = "mobile.event") =
         recordMessage(SnapshotMessage.raw(message), kind)
-    private fun recordMessage(message: SnapshotMessage, kind: String) {
+    private fun recordMessage(message: SnapshotMessage, kind: String, display: Boolean = true) {
         (application as? MobileApplication)?.let { app -> runCatching { app.releaseUpdates.interruptionStateChanged() } }
-        snapshot = snapshot.copy(message = message)
+        if(display)snapshot = snapshot.copy(message = message)
         logs.record(kind, mapOf("message" to message.initialText, "ownerId" to ownerId))
         Log.i(TAG, message.initialText)
     }
@@ -2533,8 +3325,8 @@ class MobileService : Service() {
     private fun updateSafetyNotification(displayOnly: Boolean) {
         if (mock != null) return
         val presentation = SafetyNotificationPresentation.from(
-            ShotSafetyAlert.resource(shotState, snapshot.coffeeState), manualSafetyResource,
-            machineWriteSafetyResource)
+            ShotSafetyAlert.resource(shotState, snapshot.coffeeState), manualSafetyResource ?: shotRecoveryAttentionResource,
+            machineAttentionResource)
         val warning = presentation.warning { id, args -> getString(id, *args) }
         if (!displayOnly && !safetyNotificationDirty && warning == safetyMessage) return
         if (!running) {
@@ -2574,23 +3366,26 @@ class MobileService : Service() {
         }
     }
     fun acknowledgeManualSafety() {
+        if((machineOperations?.splitOwned==true || opaqueV2RecoveryFence) && manualSafetyResource==null) return
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
             if (shotRecovery.pending || ShotGate.active(shotState)) {
                 event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_shot_active), "brew_wait.recovery_shot_active")
                 return
             }
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             val idle = snapshot.coffee as? IdleTelemetry
             val state = brewPreparation.state
+            val native=hub?.latestNativeIdle?.takeIf { it.value === idle && TelemetryFreshness.isFresh(it.capturedAtMs,now) }
+            val owner=if(v2SettingEvidence) manualPassiveOwner(PassiveKind.PREHEAT,hub,native?.capturedAtMs) else null
             val evidence = MachineWriteRecoveryState.BrewWaitEvidence(hub?.coffeeAddress,
-                idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
+                (!v2SettingEvidence || owner!=null) && idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
                 idleSampleSerial, snapshot.coffeeAt, now,
                 MachineRecoveryActivity.isBusy(state))
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.BrewWait(evidence, recoveryAfterBrewWaitIdleSerial),
                 R.string.recovery_event_brew_wait_recovery_waiting,
                 R.string.recovery_event_brew_wait_recovery_clear_failed,
                 R.string.recovery_event_brew_wait_recovery_acknowledged, "brew_wait",
-                onAcknowledged = {
+                expectedOwner=owner,onAcknowledged = {
                     brewPreparation.consumed()
                     autoPreheatResource = null
                     autoPreheatInitialTemperature = null
@@ -2599,56 +3394,112 @@ class MobileService : Service() {
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             val idle = snapshot.coffee as? IdleTelemetry
+            val native=hub?.latestNativeIdle?.takeIf { it.value === idle && TelemetryFreshness.isFresh(it.capturedAtMs,now) }
+            val nativeSettings=hub?.latestOrdinaryCoffeeSettings?.takeIf {
+                it.value === snapshot.settings && SettingsFreshness.isFresh(it.receivedAtMs,now)
+            }
+            val owner=if(v2SettingEvidence) manualPassiveOwner(PassiveKind.CUPS,hub,native?.capturedAtMs,nativeSettings?.receivedAtMs) else null
+            val token=if(v2SettingEvidence) cupReset.unknownAcknowledgementToken() else null
             val evidence = MachineWriteRecoveryState.CupResetEvidence(hub?.coffeeAddress,
-                snapshot.settings?.cupCount, cupSettingsSerial, idle?.cupCount, cupIdleSerial,
+                snapshot.settings?.cupCount?.takeIf { !v2SettingEvidence || owner!=null }, cupSettingsSerial, idle?.cupCount, cupIdleSerial,
                 snapshot.coffeeAt, now, cupResetBusy)
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.CupReset(evidence, recoveryAfterSettingsSerial, recoveryAfterIdleSerial),
                 R.string.recovery_event_cups_recovery_waiting,
                 R.string.recovery_event_cups_recovery_clear_failed,
-                R.string.recovery_event_cups_recovery_acknowledged, "cups")
+                R.string.recovery_event_cups_recovery_acknowledged, "cups",expectedOwner=owner,onAcknowledged={
+                    if(token!=null && cupReset.acknowledgeUnknown(token)) passiveRequests.remove(PassiveKind.CUPS)
+                })
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             val idle = snapshot.coffee as? IdleTelemetry
-            val evidence = MachineWriteRecoveryState.SettingEvidence(hub?.coffeeAddress,
-                snapshot.settings != null, settingsSampleSerial,
-                idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
-                snapshot.coffeeAt, now,
+            val strict = v2SettingEvidence
+            val expectedOwner=if(strict) machineWriteRecovery.captureOwnership() else null
+            val unknownToken=if(strict) settingsWrite.unknownAcknowledgementToken() else null
+            val current=hub
+            val originalSource=ordinarySettingRequestedSource
+            val ownFallback=boilerFallback?.takeIf {
+                strict && current===it.hub && it.owner===settingRecoveryOwner && machineWriteRecovery.owns(it.owner)
+            }
+            val ordinary=if(strict) current?.latestOrdinaryCoffeeSettings else null
+            val reassessed=if (ownFallback?.used==true) current?.preheatSettingsBaseline?.takeIf {
+                current.qualifiesBoilerReboundSettings(originalSource,settingsWrite.change,it.value)
+            } else null
+            val report=ordinary?.value ?: reassessed?.value
+            val source=ordinary?.cursor?.source ?: reassessed?.cursor?.source
+            val captured=ordinary?.receivedAtMs ?: reassessed?.capturedAtMs
+            val settingsPresent = if (!strict) snapshot.settings != null else
+                expectedOwner!=null && (unknownToken==null || machineWriteRecovery.owns(settingRecoveryOwner)) &&
+                    report!=null && report === snapshot.settings && source!=null &&
+                    SettingsFreshness.isFresh(captured,now) &&
+                    (originalSource !== source || acceptsSettingEvidence(settingsWrite.change,ordinarySettingEvidence,report))
+            val nativeIdle=if(strict) current?.latestNativeIdle?.takeIf { it.value === idle } else null
+            val evidence = MachineWriteRecoveryState.SettingEvidence(current?.coffeeAddress,
+                settingsPresent, settingsSampleSerial,
+                (!strict || nativeIdle!=null) &&
+                    idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
+                if(strict) nativeIdle?.capturedAtMs else snapshot.coffeeAt, now,
                 MachineRecoveryActivity.isBusy(settingsWrite.state))
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Setting(evidence, recoveryAfterSettingsSerial),
                 R.string.recovery_event_settings_recovery_waiting,
                 R.string.recovery_event_settings_recovery_clear_failed,
-                R.string.recovery_event_settings_recovery_acknowledged, "settings")
+                R.string.recovery_event_settings_recovery_acknowledged, "settings",
+                expectedOwner=expectedOwner,onAcknowledged={
+                    if (ownFallback!=null && boilerFallback===ownFallback && hub===ownFallback.hub) {
+                        boilerFallback=null
+                        ownFallback.hub.completeBoilerReadbackRecovery()
+                    }
+                    if (unknownToken!=null && settingsWrite.acknowledgeUnknown(unknownToken)) {
+                        settingRecoveryOwner=null
+                        ordinarySettingEvidence=null
+                        ordinarySettingRequestedSource=null
+                    }
+                })
             return
         }
         if (manualSafetyResource == null &&
             machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             val idle = snapshot.coffee as? IdleTelemetry
+            val native=hub?.latestNativeIdle?.takeIf { it.value === idle && TelemetryFreshness.isFresh(it.capturedAtMs,now) }
+            val first=hub?.latestNativeWeeklyFirst?.takeIf { it.value === snapshot.sleepFirst }
+            val second=hub?.latestNativeWeeklySecond?.takeIf { it.value === snapshot.sleepSecond }
+            val coherent=first!=null && second!=null && first.cursor.sequence<second.cursor.sequence &&
+                SleepScheduleFreshness.isFresh(first.value,first.receivedAtMs,second.value,second.receivedAtMs,now)
+            val owner=if(v2SettingEvidence && coherent) manualPassiveOwner(PassiveKind.WEEKLY,hub,
+                native?.capturedAtMs,first?.receivedAtMs,second?.receivedAtMs) else null
+            val token=if(v2SettingEvidence) scheduleWrite.unknownAcknowledgementToken() else null
             val evidence = MachineWriteRecoveryState.ScheduleEvidence(hub?.coffeeAddress,
-                sleepScheduleFresh,
+                sleepScheduleFresh && (!v2SettingEvidence || owner!=null),
                 firstSleepSerial, secondSleepSerial,
                 idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
                 snapshot.coffeeAt, now, scheduleBusy)
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Schedule(evidence, recoveryAfterFirstSleepSerial, recoveryAfterSecondSleepSerial),
                 R.string.recovery_event_sleep_schedule_recovery_waiting,
                 R.string.recovery_event_sleep_schedule_recovery_clear_failed,
-                R.string.recovery_event_sleep_schedule_recovery_acknowledged, "sleep_schedule")
+                R.string.recovery_event_sleep_schedule_recovery_acknowledged, "sleep_schedule",expectedOwner=owner,onAcknowledged={
+                    if(token!=null && scheduleWrite.acknowledgeUnknown(token)) passiveRequests.remove(PassiveKind.WEEKLY)
+                })
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
-            val now = MobileMonotonicClock.elapsedRealtime()
+            val now = elapsedNow()
             val idle = snapshot.coffee as? IdleTelemetry
+            val native=hub?.latestNativeIdle?.takeIf { it.value === idle && TelemetryFreshness.isFresh(it.capturedAtMs,now) }
+            val owner=if(v2SettingEvidence) manualPassiveOwner(PassiveKind.SLEEP,hub,native?.capturedAtMs) else null
+            val token=if(v2SettingEvidence) sleepNow.unknownAcknowledgementToken() else null
             val evidence = MachineWriteRecoveryState.SleepEvidence(hub?.coffeeAddress,
-                idle?.sleepStateRaw, sleepSampleSerial, snapshot.coffeeAt, now,
+                idle?.sleepStateRaw?.takeIf { !v2SettingEvidence || owner!=null }, sleepSampleSerial, snapshot.coffeeAt, now,
                 MachineRecoveryActivity.isBusy(sleepNow.state))
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Sleep(evidence, recoveryAfterSleepSerial),
                 R.string.recovery_event_sleep_recovery_waiting,
                 R.string.recovery_event_sleep_recovery_clear_failed,
-                R.string.recovery_event_sleep_recovery_acknowledged, "sleep")
+                R.string.recovery_event_sleep_recovery_acknowledged, "sleep",expectedOwner=owner,onAcknowledged={
+                    if(token!=null && sleepNow.acknowledgeUnknown(token)) passiveRequests.remove(PassiveKind.SLEEP)
+                })
             return
         }
         if (manualSafetyResource == null) return
@@ -2672,10 +3523,11 @@ class MobileService : Service() {
         failedResource: Int,
         acknowledgedResource: Int,
         eventPrefix: String,
+        expectedOwner:MachineWriteRecoveryState.Ownership?=null,
         onAcknowledged: () -> Unit = {}
     ) {
         val result = MachineWriteAcknowledgement.acknowledge(machineWriteRecovery,
-            snapshot.coffeeState == DeviceState.READY, request)
+            snapshot.coffeeState == DeviceState.READY, request,expectedOwner)
         if (result == MachineWriteAcknowledgement.Result.ACKNOWLEDGED) onAcknowledged()
         val (resource, suffix) = when (result) {
             MachineWriteAcknowledgement.Result.WAITING -> waitingResource to "waiting"
@@ -2687,11 +3539,16 @@ class MobileService : Service() {
     }
     private fun closeDeviceOwner() {
         check(Looper.myLooper() == Looper.getMainLooper()) { "Device owner close must use main looper" }
-        try { hub?.close() }
+        machineWriterFence.beginDrain()
+        var closedSafely=false
+        try { hub?.close();closedSafely=true }
         catch (error: Exception) {
             Log.w(TAG, "device owner close failed: ${error.javaClass.simpleName}; suppressed=${error.suppressed.size}")
         }
-        finally { hub = null; hubForeground = false; scaleTrend.clear() }
+        finally {
+            hub = null; hubForeground = false; scaleTrend.clear()
+            machineWriterFence.finishDrain(closedSafely)
+        }
     }
     fun shutdown() {
         if (mock != null) {
@@ -2713,7 +3570,8 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_cups_shutdown_block), "service.stop_deferred")
             return
         }
-        if (scheduleBusy) {
+        // A failed split store has fenced every pending dispatch. Drain without clearing it.
+        if (scheduleBusy && machineOperations?.splitStorageFailed!=true) {
             event(ResourceMessage(R.string.service_event_schedule_shutdown_block), "service.stop_deferred")
             return
         }
@@ -2726,7 +3584,9 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_shot_recovery_shutdown_block), "service.stop_deferred")
             return
         }
-        if (machineWriteRecovery.pending) {
+        val mayStopWithoutClearing = opaqueV2RecoveryFence || machineOperations?.splitRecoveryBlocked==true ||
+            machineOperations?.restoredAndResolved==true
+        if (!mayStopWithoutClearing && (machineWriteRecovery.pending || machineOperations?.splitOwned == true)) {
             event(ResourceMessage(R.string.service_event_write_shutdown_block), "service.stop_deferred")
             return
         }
@@ -2750,6 +3610,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        machineWriterFence.beginDrain(retire=true)
         handler.removeCallbacks(boilerTargetPump)
         manualPresentation.disconnected(requireIdle = passiveCommitted, points = terminalManualPoints())
         settleLeverWriteUnknown()
@@ -2799,10 +3660,281 @@ class MobileService : Service() {
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
         closeDeviceOwner()
+        // All transport callbacks settle while the old writer remains exclusive. Do not wake
+        // another writer in this process when driver teardown itself was uncertain.
+        machineOperations?.close()
         autoConnect.onChanged=null
         super.onDestroy()
     }
+    /** Narrow detached core only: no extraction/recipe API, no custom Application/Android Service lifecycle. */
+    internal class DetachedCorePort internal constructor(private val service:MobileService,
+        private val hub:NativeDeviceHub,private val clock:DetachedCoreClock,private val driver:DetachedCoreDriver,
+        private val progress:(String)->Unit) {
+        private var active=true
+        private var bootstrapped=false
+        private fun caseStage(label:String){if(bootstrapped)progress(label)}
+        internal fun invalidate(){active=false}
+        private fun valid(){ check(active && Looper.myLooper()===Looper.getMainLooper()) }
+        val calls:List<DetachedCoreDriver.Call> get(){valid();return driver.calls}
+        val generation:Long get(){valid();return hub.coffeeGeneration}
+        val now:Long get(){valid();return clock.now}
+        val settingState:SettingsWriteTracker.State get(){valid();return service.settingWriteState}
+        val scheduleState:SleepScheduleWriteTracker.State get(){valid();return service.scheduleWriteState}
+        val cupState:CupResetTracker.State get(){valid();return service.cupResetState}
+        val sleepState:SleepNowTracker.State get(){valid();return service.sleepNowState}
+        val recoveryKind:MachineWriteRecoveryState.Kind? get(){valid();return service.machineWriteRecoveryKind}
+        val preparationState:BrewPreparation.State get(){valid();return service.brewPreparationState}
+        val leverState:MachineLeverRecipeStore.State? get(){valid()
+            return service.leverStore.attemptFor(hub.coffeeAddress)?.state
+        }
+        fun selectImmutableCurve(predicate:(CurveProfile)->Boolean):CurveProfile {
+            valid()
+            val library=requireNotNull(service.fixtureCurveLibrary)
+            val profile=library.items.asSequence().mapNotNull { library.resolve(it.id,false,7) }
+                .firstOrNull(predicate) ?: error("No matching immutable QA curve")
+            service.fixtureCurveId=profile.id
+            return profile
+        }
+        fun prepare(profile:CurveProfile):String? {valid()
+            return service.prepareBrew(profile.id,profile.scaleMode,7)
+        }
+        fun cancelPreparation():String? {valid();return service.cancelBrewPreparation()}
+        fun sendLever(profile:CurveProfile):String? {valid()
+            return service.sendLeverRecipe(profile,requireNotNull(hub.coffeeAddress),
+                requireNotNull(service.coffeeFirmware).toString()) {}
+        }
+        fun apply(change:MachineSettingChange):String? {valid();caseStage("request-setting");return service.changeMachineSetting(change)}
+        fun resetCups(expected:Int):String? {valid();caseStage("request-cups");return service.resetCupCount(expected)}
+        fun changeSchedule(expected:WeeklySleepSchedule,target:WeeklySleepSchedule):String? {
+            valid();caseStage("request-week");return service.changeSleepSchedule(expected,target)
+        }
+        fun sleep():String? {valid();caseStage("request-sleep");return service.enterSleepNow()}
+        fun recoveryChoices():List<CanonicalMachineOperationBroker.RecoveryChoice>{valid();return service.splitRecoveryChoices}
+        fun recoveryMessage(choice: CanonicalMachineOperationBroker.RecoveryChoice): Int {
+            valid(); return service.splitRecoveryMessage(choice)
+        }
+        fun observation(choice:CanonicalMachineOperationBroker.RecoveryChoice):SplitObservation? {
+            valid();return service.splitObservation(choice)
+        }
+        fun resolve(observed:SplitObservation):Boolean {valid();caseStage("resolve-device-report");return service.resolveSplitObservation(observed)}
+        val splitActive:Boolean get(){valid();return service.machineOperations?.splitOwned==true}
+        fun acknowledge(){valid();service.acknowledgeManualSafety()}
+        fun observe(bytes:ByteArray,capturedAt:Long=clock.now,generation:Long=this.generation) {
+            valid();caseStage("case-observe");require(bytes.size in 1..64 && capturedAt in 0..clock.now)
+            val opcode=bytes[0].toInt() and 255
+            require(opcode in setOf(0x40,0x83) || opcode==0x80 && service.fixtureShotEffects!=null && bytes.size==13)
+            hub.observeDetachedCoffee(generation,KnownGatt.coffeeNotify,bytes,capturedAt)
+            watchShotIfIsolated()
+        }
+        fun complete(call:DetachedCoreDriver.Call=calls.last(),result:OperationResult=OperationResult.Success()) {
+            valid();caseStage("case-transport-complete");require(call in calls);hub.completeDetachedCoffee(call.generation,call.token,result);watchShotIfIsolated()
+        }
+        fun advance(deltaMs:Long) {valid();caseStage("case-advance");clock.advance(deltaMs,hub::tickDetached);watchShotIfIsolated()}
+        private fun watchShotIfIsolated(){if(service.fixtureShotEffects!=null)service.watchShot.run()}
+        val liveFrame:HoyiMessage? get(){valid()
+            val current=service.snapshot
+            return LiveTelemetry.machine(current.coffee,current.coffeeState,current.coffeeAt,clock.now)
+        }
+        fun renderSettingsSync(status:android.widget.TextView) {
+            valid()
+            MachineSettingsSyncView.render(status,service)
+        }
+        fun pollAutomaticStaleSettings() {valid();service.refreshStaleMachineSettings()}
+        val settingsSyncPending:Boolean get(){valid();return service.machineSettingsSyncPending}
+        fun retrySettingsFromSwitch():Boolean {valid();return service.retryStaleMachineSettings()}
+        val canRetrySettingsFromSwitch:Boolean get(){valid();return service.canRetryStaleMachineSettings}
+        val heatingAdmission:BoilerHeatingAdmission get(){valid()
+            return BoilerHeatingAdmission.evaluate(service,service.snapshot,clock.now)
+        }
+        val stopPresentation:StopActionPresentation.State get(){valid()
+            // The fake port is the active execution owner while open; no Android Service start is permitted.
+            return StopActionPresentation.describe(service.shotState,service.snapshot.coffeeState,serviceRunning=true)
+        }
+        val shotState:ExtractionState get(){valid();return service.shotState}
+        val needsControlAttention:Boolean get(){valid();return service.machineControlAttentionMessage!=null}
+        val startEvidence:ShotStartObservation? get(){valid();return service.shotStartObservation}
+        val terminalHistory:ShotHistory.Status? get(){valid();return service.fixtureShotEffects?.history?.entries?.singleOrNull()?.status}
+        val syntheticSamples:Int get(){valid();return requireNotNull(service.fixtureShotEffects).persistedSampleCount}
+        val historyCount:Int get(){valid();return requireNotNull(service.fixtureShotEffects).history.entries.size}
+        val preparedDose:BeanPreparation.Dose? get(){valid();return requireNotNull(service.fixtureShotEffects).beans.current()}
+        val associatedDoseMg:Long? get(){valid()
+            val fixture=requireNotNull(service.fixtureShotEffects)
+            return fixture.history.entries.lastOrNull()?.id?.let { fixture.journal.find(it)?.notes?.doseMg }
+        }
+        val beanBalanceMg:Long get(){valid();return requireNotNull(service.fixtureShotEffects).inventory.batches().single().balanceMg}
+        fun prepareDose() {valid();requireNotNull(service.fixtureShotEffects).prepareDose()}
+        fun start(profile:CurveProfile,startPermit:(()->Boolean)?=null):String? {
+            valid();check(service.fixtureShotEffects!=null)
+            caseStage("request-start")
+            return service.startShot(profile.id,profile.scaleMode,7,startPermit).also {watchShotIfIsolated()}
+        }
+        fun stop(){valid();check(service.fixtureShotEffects!=null);caseStage("request-stop");service.stopShot();watchShotIfIsolated()}
+        fun completeFakeHandshakeTransport() {
+            valid()
+            check(calls.last().operation is GattOperation.Connect)
+            complete()
+            progress("discover")
+            check(calls.last().operation == GattOperation.Discover)
+            complete(result=OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            progress("subscribe")
+            complete()
+            progress("auth-enqueued")
+            val auth=calls.last().operation as? GattOperation.Write ?: error("Expected fake authentication")
+            check(auth.endpoint==KnownGatt.coffeeWrite && auth.bytes.first().toInt() and 255 == 1)
+            complete()
+            progress("auth-completed")
+            check(service.snapshot.coffeeState!=DeviceState.READY)
+        }
+        fun bootstrap() {
+            valid();require(calls.isEmpty())
+            hub.connectCoffee("AA:BB:CC:DD:EE:01",CoffeeAuthentication(LocalDateTime.of(2026,1,1,0,0),"123456"))
+            completeFakeHandshakeTransport()
+            progress("fresh-83")
+            observe(byteArrayOf(0x83.toByte(),1,0x13,0xfd.toByte(),92,0,125,15,53,0,25,0,0x6e))
+            progress("native-idle")
+            observe(byteArrayOf(0x40,0,0x24,0xbf.toByte(),0x2f,0x1c,0x77,0x0b,0,0,0,0,0,0,0,25,3,0x21,0xaf.toByte()))
+            progress("ready-verified")
+            check(service.snapshot.coffeeState==DeviceState.READY && service.snapshot.settings!=null)
+            bootstrapped=true
+            progress("case-body")
+        }
+    }
+
     companion object {
+        internal class DetachedRoot private constructor(internal val path:java.io.File) {
+            internal var ownerClosedSafely:Boolean=true
+            companion object {
+                internal fun create(cache:java.io.File)=DetachedRoot(
+                    java.nio.file.Files.createTempDirectory(cache.toPath(),"openhoyi-v2-qa-").toFile())
+            }
+        }
+        internal fun <T> withDetachedRoot(context:Context,run:(DetachedRoot)->T):T {
+            check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
+                Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
+            val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
+            val root=DetachedRoot.create(app.cacheDir.canonicalFile)
+            return try {run(root)} finally {
+                if(root.ownerClosedSafely)deleteDetachedCoreRoot(root.path)
+            }
+        }
+        internal fun <T> withDetachedCore(context:Context,allowImmutableCurves:Boolean=false,
+            allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,
+            progress:(String)->Unit={},run:(DetachedCorePort)->T):T {
+            openDetachedCore(context,allowImmutableCurves,allowSyntheticShot,ownerRoot,progress).use { scope ->
+                return run(scope.port).also { progress("cleanup") }
+            }
+        }
+        internal class DetachedCoreScope internal constructor(val port:DetachedCorePort,
+            private val retire:()->Unit):AutoCloseable {
+            private var closed=false
+            override fun close() {
+                check(Looper.myLooper()===Looper.getMainLooper())
+                if(!closed){closed=true;retire()}
+            }
+        }
+        internal fun openDetachedCore(context:Context,allowImmutableCurves:Boolean=false,
+            allowSyntheticShot:Boolean=false,ownerRoot:DetachedRoot?=null,
+            progress:(String)->Unit={}):DetachedCoreScope {
+            check(BuildConfig.MOCK_MODE && BuildConfig.BLE_SAME_ID_QA &&
+                Looper.myLooper()===Looper.getMainLooper() && context.packageName=="io.openhoyi.mobile.mock")
+            require(!allowSyntheticShot || allowImmutableCurves)
+            val app=context.applicationContext as? MobileApplication ?: error("Fixture requires ordinary Mock resources")
+            val cache=app.cacheDir.canonicalFile
+            val fixtureRoot=ownerRoot ?: DetachedRoot.create(cache)
+            check(fixtureRoot.ownerClosedSafely)
+            val root=fixtureRoot.path
+            check(root.canonicalFile.parentFile==cache && root.canonicalFile.name==root.name &&
+                root.name.startsWith("openhoyi-v2-qa-") && root.isDirectory)
+            val noBackup=java.io.File(root,"noBackup")
+            check(noBackup.canonicalFile.parentFile==root.canonicalFile)
+            check(noBackup.isDirectory || noBackup.mkdir())
+            fixtureRoot.ownerClosedSafely=false
+            val clock=DetachedCoreClock()
+            var service:MobileService?=null
+            var trace:TraceStore?=null
+            var hub:NativeDeviceHub?=null
+            var port:DetachedCorePort?=null
+            fun retire() {
+                port?.invalidate()
+                service?.machineWriterFence?.beginDrain(retire=true)
+                var safelyClosed=false
+                try {
+                    hub?.close()
+                    safelyClosed=true
+                } finally {
+                    service?.hub=null
+                    service?.machineWriterFence?.finishDrain(safelyClosed)
+                    var leaseReleased=false
+                    try {
+                        service?.machineOperations?.close()
+                        leaseReleased=safelyClosed
+                    } finally {
+                        clock.close()
+                        service?.handler?.removeCallbacksAndMessages(null)
+                        trace?.close()
+                        val settled=trace?.awaitTermination(1,java.util.concurrent.TimeUnit.SECONDS) != false
+                        // No deletion or reuse when a previous owner, pin or trace could still be active.
+                        fixtureRoot.ownerClosedSafely=leaseReleased && settled
+                        check(fixtureRoot.ownerClosedSafely)
+                        if(ownerRoot==null)deleteDetachedCoreRoot(root)
+                    }
+                }
+            }
+            try {
+                val ownerTrace=TraceStore(java.io.File(root,"trace"))
+                trace=ownerTrace
+                val ownerService=MobileService(detachedCore=true).also { service=it }.apply {
+                    attachBaseContext(DetachedCoreContext(app.resources,root))
+                    fixtureClock=clock
+                    fixtureManualPresentation=ManualShotPresentationGate()
+                    fixtureLeverRecipes=MachineLeverRecipeStore(object:MachineLeverRecipeStore.Storage {
+                        private var synthetic:String?=null
+                        override fun read():String?=synthetic
+                        override fun write(value:String):Boolean {
+                            check(allowImmutableCurves)
+                            synthetic=value
+                            return true
+                        }
+                    })
+                    if(allowImmutableCurves) {
+                        val factory=app.assets.open("factory_curves_v3.tsv").use(FactoryCurveCatalog::load)
+                        val proof=app.assets.open("factory_wire_v1.tsv").use { base ->
+                            app.assets.open("factory_slot_wire_v1.tsv").use { slot ->
+                                FactoryWireProof.load(base,factory,slot)
+                            }
+                        }
+                        fixtureCurveLibrary=CurveLibrary(factory,proof)
+                    }
+                    if(allowSyntheticShot) {
+                        val effects=DetachedShotEffects(clock)
+                        fixtureShotEffects=effects
+                        history=effects.history
+                    }
+                    v2SettingEvidence=true
+                    splitAdmissionEnabled=true
+                    initializePinnedMachineOperations()
+                    check(machineOperations?.canStartHub==true)
+                    logs=ownerTrace
+                }
+                val driver=DetachedCoreDriver()
+                val owner=NativeDeviceHub(ownerService.applicationContext,automaticAllowed={false},
+                    onState=ownerService::onDeviceState,onCoffeeTimed=ownerService::onCoffeeFrame,
+                    legacyVerifiedStartFrames=ownerService.fixtureCurveLibrary?.legacyVerifiedStartFrames.orEmpty(),
+                    trackCoffeeDelivery=true,detachedDrivers=detachedDrivers(driver,clock))
+                hub=owner
+                ownerService.hub=owner
+                val bound=DetachedCorePort(ownerService,owner,clock,driver,progress)
+                port=bound
+                return DetachedCoreScope(bound,::retire)
+            } catch(failure:Throwable) {
+                try {retire()} catch(cleanup:Throwable) {
+                    if(failure!==cleanup)failure.addSuppressed(cleanup)
+                }
+                throw failure
+            }
+        }
         const val STOP = "io.openhoyi.mobile.STOP"
         const val AUTO_SCALE = "io.openhoyi.mobile.AUTO_SCALE"
         const val AUTO_KNOWN_DEVICES = "io.openhoyi.mobile.AUTO_KNOWN_DEVICES"
