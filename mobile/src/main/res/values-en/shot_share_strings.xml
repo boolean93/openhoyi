@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="shot_share_sheet_title">Share extraction card</string>
-    <string name="shot_share_failed">Could not prepare the image. Try again.</string>
-    <string name="shot_share_no_target">No app can share this image.</string>
-</resources>

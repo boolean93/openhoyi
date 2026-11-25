@@ -131,8 +131,6 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     private val feedbackDelivery = BrewFeedbackDelivery()
     private var feedbackShotId: String? = null
     private var feedbackAppShot = true
-    internal var brewCompletedShare: BrewCompletedShare? = null
-        private set
     internal var brewFeedbackResult: BrewFeedbackResult? = null
         private set
     private val passiveShot = PassiveShotDetector()
@@ -3210,7 +3208,6 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if (!observedEnd) {
             if (fixtureShotEffects == null) (application as? MobileApplication)?.completionShotReview?.invalidate()
             brewFeedbackResult = null
-            brewCompletedShare = null
             feedbackDelivery.clear()
         }
         if (id != null) {
@@ -3238,14 +3235,6 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val retainedIds = historyEntries?.map(ShotHistory.Entry::id)?.toSet()
         retainedIds?.let(app::updateShotReviewRetention)
         val entry = historyEntries?.firstOrNull { it.id == finished.first }
-        if (completedCup) brewCompletedShare = brewFeedbackResult?.let { feedback ->
-            val name = when {
-                entry?.curveId == "manual" -> getString(R.string.completion_card_manual)
-                else -> activeShotRecipe?.forTrace(finished.first)?.name
-            }
-            val doseMg = entry?.id?.let { id -> app.journalResult.getOrNull()?.find(id)?.notes?.doseMg }
-            BrewCompletedShare.create(getString(R.string.completion_card_title), name, feedback, entry, finished.second, doseMg)
-        }
         if (completedCup && finished.second.isNotEmpty() && entry != null) {
             val eligible = ShotReviewWire.eligible(entry, passiveConfirmed, appElapsedOutcomeWasUnknown)
             val reviewConfig = if (eligible) app.shotReviewConfig() else null

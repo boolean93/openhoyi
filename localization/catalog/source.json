@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "0d4893900b6bc19d26000b9469c2e9f0a6130c9fc35e13a6b19606279db4ec00",
+  "sha256": "9579e28cb1233ef90034b7b6f71a0cb22c6191f338329536ab29f7d88bbadad6",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -960,9 +960,9 @@
     "feedback_preview_description": "仅播放本地声音，不操作咖啡机。",
     "feedback_save_failed": "设置未保存，请重试",
     "feedback_title": "这一杯完成了",
-    "feedback_bravo": "享受这一杯咖啡吧。",
-    "feedback_high_flow": "这杯的流量比较快，试试它的风味吧。",
-    "feedback_low_flow": "这杯的流量比较慢，试试它的风味吧。",
+    "feedback_bravo": "这杯流速适中，享受这一杯咖啡吧。",
+    "feedback_high_flow": "这杯流速偏快，试试它的风味吧。",
+    "feedback_low_flow": "这杯流速偏慢，试试它的风味吧。",
     "feedback_note": "趣味提示，不代表风味评分。",
     "feedback_done": "知道了",
     "language_title": "应用语言",
