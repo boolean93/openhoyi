@@ -171,8 +171,9 @@ private class CompletionReadingsRow(
         val unconstrained = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
         leading.measure(unconstrained, unconstrained)
         trailing.measure(unconstrained, unconstrained)
+        val availableWidth = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
         val fits = MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED ||
-            leading.measuredWidth + trailing.measuredWidth + gap <= MeasureSpec.getSize(widthMeasureSpec)
+            leading.measuredWidth + trailing.measuredWidth + gap <= availableWidth
         orientation = if (fits) HORIZONTAL else VERTICAL
         isBaselineAligned = false
         val readingParams = leading.layoutParams as LayoutParams
@@ -181,6 +182,8 @@ private class CompletionReadingsRow(
         val badgeParams = trailing.layoutParams as LayoutParams
         badgeParams.gravity = if (!fits) Gravity.START else if (alignEnd) Gravity.BOTTOM else Gravity.CENTER_VERTICAL
         badgeParams.marginStart = if (fits) gap else 0
+        // This change happens after the framework's normal margin resolution for this measure pass.
+        badgeParams.resolveLayoutDirection(layoutDirection)
         badgeParams.topMargin = if (fits) 0 else gap / 2
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }

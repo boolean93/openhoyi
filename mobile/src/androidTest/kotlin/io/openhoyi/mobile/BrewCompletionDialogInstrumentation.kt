@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import java.io.File
 
@@ -72,6 +73,13 @@ class BrewCompletionDialogInstrumentation : Instrumentation() {
                 val root = requireNotNull(dialog.window).decorView
                 val weight = root.findViewWithTag<View>("completion-card/weight")
                 val cups = root.findViewWithTag<View>("completion-card/cups")
+                val cupsRow = root.findViewWithTag<LinearLayout>("completion-card/cups-group")
+                val cupsLabel = cupsRow.getChildAt(0)
+                if (cupsRow.orientation == LinearLayout.HORIZONTAL) {
+                    val gap = if (cupsRow.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+                        cupsLabel.left - cups.right else cups.left - cupsLabel.right
+                    check(gap >= 8 * owner.resources.displayMetrics.density) { "Cup count touches its label" }
+                }
                 val rect = Rect()
                 val minimumTarget = 48 * owner.resources.displayMetrics.density
                 check(listOf(review, close).all { it.width >= minimumTarget && it.height >= minimumTarget })
