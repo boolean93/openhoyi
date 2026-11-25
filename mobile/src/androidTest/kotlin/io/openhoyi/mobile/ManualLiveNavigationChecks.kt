@@ -4,9 +4,7 @@ import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Intent
 import android.os.Bundle
-import android.os.ParcelFileDescriptor
 import android.os.SystemClock
-import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
@@ -358,44 +356,26 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                     it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW } == true &&
                     page.feedbackUi.isShowing
             }
-            val expectedPace = main.getString(R.string.completion_flow_pace_slow)
+            val expectedPace = main.getString(R.string.feedback_low_flow)
+            val expectedNote = main.getString(R.string.feedback_note)
             check(waitForActiveWindow { window ->
                 val matches = window.findAccessibilityNodeInfosByText(expectedPace)
-                try { matches.any { it.text?.toString() == expectedPace && it.isVisibleToUser } }
-                finally { matches.forEach { it.recycle() } }
-            }) { "Qualified manual cup did not show its actual slow-flow label" }
-
-            val share = main.getString(R.string.completion_card_share)
-            check(waitForActiveWindow { window ->
-                val matches = window.findAccessibilityNodeInfosByText(share)
                 try {
-                    matches.any { it.contentDescription?.toString() == share && it.isVisibleToUser &&
+                    matches.any { it.isVisibleToUser && it.text?.toString() == "$expectedPace\n\n$expectedNote" }
+                } finally { matches.forEach { it.recycle() } }
+            }) { "Qualified manual cup did not show the original slow-flow feedback" }
+
+            val close = main.getString(R.string.feedback_done)
+            check(waitForActiveWindow { window ->
+                val matches = window.findAccessibilityNodeInfosByText(close)
+                try {
+                    matches.any { it.text?.toString() == close && it.isVisibleToUser &&
                         it.isEnabled && it.isClickable && it.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
                 } finally { matches.forEach { it.recycle() } }
-            }) { "Real completion dialog Share could not be clicked" }
-            val systemChooser = setOf("android", "com.android.intentresolver", "com.google.android.intentresolver")
-            check(waitForActiveWindow { it.packageName?.toString() in systemChooser }) {
-                "Real completion dialog did not open the system chooser"
-            }
-            // Back from the system window without sending the PNG to any app.
-            ParcelFileDescriptor.AutoCloseInputStream(
-                test.uiAutomation.executeShellCommand("input keyevent KEYCODE_BACK")
-            ).use { it.readBytes() }
-            check(waitForActiveWindow { it.packageName?.toString() == main.packageName })
-            var restored = false
-            await("system Back returns to the same Extraction page") {
-                restored = page.feedbackUi.isShowing
-                main.supportFragmentManager.primaryNavigationFragment === page &&
-                    page.lifecycle.currentState == Lifecycle.State.RESUMED &&
-                    (restored || main.hasWindowFocus())
-            }
-            test.sendStatus(0, Bundle().apply { putString("manualCompletionChooser",
-                "SYSTEM_BACK_SAME_EXTRACTION resultStillShowing=$restored externalSend=false") })
-            if (restored) {
-                test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-                await("Back closes the result without leaving the same Extraction page") {
-                    !page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page
-                }
+            }) { "Real completion dialog Close could not be clicked" }
+            await("Close dismisses the result without leaving the same Extraction page") {
+                !page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page &&
+                    page.lifecycle.currentState == Lifecycle.State.RESUMED
             }
         } finally {
             test.runOnMainSync { check(feedback.setEnabled(previous)) }
