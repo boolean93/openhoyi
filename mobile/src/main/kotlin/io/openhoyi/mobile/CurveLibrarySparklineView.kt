@@ -8,7 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
 
-/** Shared-scale targets, with separate bars in the library and an outline in compact previews. */
+/** Shared-scale targets, with adjoining bars in the library and an outline in compact previews. */
 internal class CurveLibrarySparklineView(
     context: Context,
     private val style: TaskProductVisualStyle,
@@ -51,25 +51,34 @@ internal class CurveLibrarySparklineView(
             return bottom - (bottom - top) * stage.target / 10f / limit
         }
         if (stageBars) {
-            val halfGap = minOf(dp(2f), step / 4f)
-            stages.forEachIndexed { index, stage ->
-                val slotLeft = left + step * index
+            fun stageTop(stage: CurveStageParameters.Stage): Float {
                 val minimumHeight = dp(if (stage.target == 0) 1f else 2f)
-                val barTop = y(stage).coerceAtMost(bottom - minimumHeight).coerceAtLeast(top)
-                val barLeft = slotLeft + halfGap
-                val barRight = slotLeft + step - halfGap
+                return y(stage).coerceAtMost(bottom - minimumHeight).coerceAtLeast(top)
+            }
+
+            // Shrink the visible bar width independently of the spacing removed between stages.
+            val barWidth = .8f * (step - minOf(dp(4f), step / 2f))
+            val groupLeft = (left + right - barWidth * stages.size) / 2f
+            paint.style = Paint.Style.FILL
+            stages.forEachIndexed { index, stage ->
+                val barLeft = groupLeft + barWidth * index
+                val barRight = groupLeft + barWidth * (index + 1)
+                val barTop = stageTop(stage)
                 val ink = color(stage)
-                paint.style = Paint.Style.FILL
                 paint.color = ColorUtils.setAlphaComponent(ink, 60)
                 canvas.drawRect(barLeft, barTop, barRight, bottom, paint)
 
-                // Keep the outline inside the target height and leave short stages a visible center.
-                val stroke = minOf(dp(1f), (bottom - barTop) / 4f, (barRight - barLeft) / 4f)
-                val inset = stroke / 2f
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = stroke
+                val stroke = minOf(dp(1f), (bottom - barTop) / 4f, barWidth / 4f)
                 paint.color = ink
-                canvas.drawRect(barLeft + inset, barTop + inset, barRight - inset, bottom - inset, paint)
+                canvas.drawRect(barLeft, barTop, barRight, barTop + stroke, paint)
+                canvas.drawRect(barLeft, bottom - stroke, barRight, bottom, paint)
+                // The taller bar owns the shared edge. On a tie the bar on the right draws it.
+                if (index == 0 || barTop <= stageTop(stages[index - 1])) {
+                    canvas.drawRect(barLeft, barTop, barLeft + stroke, bottom, paint)
+                }
+                if (index == stages.lastIndex || barTop < stageTop(stages[index + 1])) {
+                    canvas.drawRect(barRight - stroke, barTop, barRight, bottom, paint)
+                }
             }
             return
         }

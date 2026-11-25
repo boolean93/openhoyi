@@ -138,6 +138,20 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         await("Curve list has a mixed-mode preview") {
                             nodes(curves).filterIsInstance<CurveLibrarySparklineView>().any { it.isShown && it.preview.hasFlow }
                         }
+                        if (background == solid && !dark) main {
+                            val stage = CurveStageParameters.Stage(60, CurveStageParameters.Unit.PRESSURE_BAR)
+                            val bars = CurveLibrarySparklineView(host, TaskProductVisualStyle(host), stageBars = true)
+                            bars.preview = CurveStageParameters.Preview(listOf(stage, stage))
+                            bars.layout(0, 0, 192, 80)
+                            val bitmap = Bitmap.createBitmap(192, 80, Bitmap.Config.ARGB_8888)
+                            try {
+                                bars.draw(Canvas(bitmap))
+                                val seam = (90..102).map { x -> Color.alpha(bitmap.getPixel(x, 56)) }
+                                check(seam.all { it >= 55 } && seam.count { it > 120 } in 1..3) {
+                                    "Equal-height neighbors should share a single 1dp outline: $seam"
+                                }
+                            } finally { bitmap.recycle() }
+                        }
                         if (background == solid) main {
                             val list = nodes(curves).filterIsInstance<ListView>().first { it.isShown }
                             val index = (0 until list.childCount).first { row ->
