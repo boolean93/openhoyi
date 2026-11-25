@@ -14,6 +14,7 @@ import android.graphics.Paint
 import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
@@ -261,6 +262,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 host.hasWindowFocus() && document.background === originalBackground &&
                     owner.current.config.choice == AppBackground.Solid && !file.exists()
             }
+            main {
+                val tile = appearancePhotoTile(document)
+                check(!tile.isSelected && tile.compoundDrawablesRelative[1] == null)
+                check(tile.text == host.getString(R.string.background_choose_photo))
+            }
             checkNotNull(context.contentResolver.openInputStream(sample)).use { check(it.read() >= 0) }
             checkSolidHomeRestored(host, home)
             main {
@@ -277,6 +283,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             verifyMistHome(host, "light")
         } finally { main { editor?.takeUnless { it.isDestroyed }?.finish(); host.finish() } }
     }
+
+    private fun appearancePhotoTile(document: View): Button =
+        document.findViewWithTag<ViewGroup>("settings/appearance/background-presets").getChildAt(3) as Button
 
     private fun verifyDarkFlow(sample: Uri) {
         main { app.appearancePreferences.selectDark(true) }
@@ -350,6 +359,13 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val style = TaskProductVisualStyle(host)
         val settings = go(TaskDestination.SETTINGS) as SettingsDocumentLayout
         val scroll = settings.scroll
+        main { settings.navigate("appearance") }
+        await("imported photo option shows the selected, decoded thumbnail in $mode appearance") {
+            val tile = appearancePhotoTile(settings)
+            val thumbnail = (tile.compoundDrawablesRelative[1] as? LayerDrawable)?.getDrawable(0) as? PageBackdrop
+            tile.isShown && tile.isSelected && tile.text == host.getString(R.string.background_photo) &&
+                thumbnail?.snapshot?.image?.let { it === owner.current.image } == true
+        }
         main { settings.navigate("machine") }
         await("Machine category is displayed") {
             settings.findViewWithTag<View>("settings/heading/machine").getGlobalVisibleRect(Rect())

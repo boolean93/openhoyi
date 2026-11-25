@@ -20,7 +20,11 @@ import android.widget.TextView
 import kotlin.math.roundToInt
 
 /** Renders a page or app navigation surface; system bars remain independent. */
-internal class PageBackdrop(private val base: Int, private val dark: Boolean) : Drawable() {
+internal class PageBackdrop(
+    private val base: Int,
+    private val dark: Boolean,
+    private val applyPhotoMask: Boolean = true,
+) : Drawable() {
     var snapshot = BackgroundSnapshot(AppBackgroundConfig())
         set(value) { field = value; invalidateSelf() }
     var protectedAreas: List<Rect>? = null
@@ -44,6 +48,7 @@ internal class PageBackdrop(private val base: Int, private val dark: Boolean) : 
         val choice = snapshot.config.choice
         paint.alpha = (snapshot.config.strength * 255f / 100f).roundToInt()
         if (choice is AppBackground.Photo && !bounds.isEmpty) {
+            if (!applyPhotoMask) paint.alpha = 255
             snapshot.image?.let { image ->
                 val destination = photoBounds?.invoke()?.takeUnless { it.isEmpty } ?: bounds
                 val scale = maxOf(destination.width().toFloat() / image.width, destination.height().toFloat() / image.height)

@@ -11,6 +11,7 @@ import android.net.Uri
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.Point
 import android.os.Build
@@ -869,7 +870,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("canStart",scope.curves.canStart(item)).put("copyable",copyable!=null)
             .put("slotEligible",item.factoryCurve!=null && scope.curves.canStart(item))
     }
-    /** Draw the real 96×40 list view and verify each physical unit has painted pixels in its own stage slot. */
+    /** Draw the real list thumbnail and verify the adjoining stage bars. */
     private fun librarySparklineEvidence(activity: Activity, preview: CurveStageParameters.Preview): JSONArray {
         val sparkline=nodes(root(activity)).filterIsInstance<CurveLibrarySparklineView>()
             .firstOrNull { it.preview==preview && it.isShown } ?: return JSONArray()
@@ -879,27 +880,69 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             sparkline.draw(android.graphics.Canvas(bitmap))
             val style=TaskProductVisualStyle(activity)
             val result=JSONArray()
+            if(!preview.renderable) {
+                for(x in 0 until bitmap.width) for(y in 0 until bitmap.height)
+                    check(bitmap.getPixel(x,y)==Color.TRANSPARENT) {
+                        "Unknown target painted a physical stage bar" }
+                return result
+            }
+            val density=sparkline.resources.displayMetrics.density
+            val plotLeft=sparkline.paddingLeft+3f*density
+            val plotRight=bitmap.width-sparkline.paddingRight-3f*density
+            val top=sparkline.paddingTop+4f*density
+            val bottom=bitmap.height-sparkline.paddingBottom-4f*density
+            val slotWidth=(plotRight-plotLeft)/preview.stages.size
+            val step=.8f*(slotWidth-minOf(4f*density, slotWidth/2f))
+            val left=(plotLeft+plotRight-step*preview.stages.size)/2f
+            val baseline=kotlin.math.ceil(bottom).toInt()-1
+            val painted=(0 until bitmap.width).filter { Color.alpha(bitmap.getPixel(it,baseline))>0 }
+            check(painted.isNotEmpty() && kotlin.math.abs(painted.first()-left)<=1f &&
+                kotlin.math.abs(painted.size-step*preview.stages.size)<=2f) {
+                "Library stage bars should be narrow, centered and contiguous" }
             preview.stages.forEachIndexed { index, stage ->
                 val expected=when(stage.unit) {
                     CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
-                    CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.accent
+                    CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.flowMetric
                     CurveStageParameters.Unit.RAW_UNKNOWN -> return@forEachIndexed
                 }
-                val left=sparkline.width*index/preview.stages.size
-                val right=sparkline.width*(index+1)/preview.stages.size
+                val center=(left+(index+.5f)*step).toInt()
+                val limit=if(stage.unit==CurveStageParameters.Unit.PRESSURE_BAR) sparkline.scale.pressureMaxBar
+                    else sparkline.scale.flowMaxMlPerSecond
+                val minimum=if(stage.target==0) density else 2f*density
+                val targetHeight=((bottom-top)*stage.target/10f/limit).coerceIn(minimum,bottom-top)
+                val centerPixels=(0 until bitmap.height).count {
+                    Color.alpha(bitmap.getPixel(center,it))>0
+                }
+                check(kotlin.math.abs(centerPixels-targetHeight)<=2f) {
+                    "Library bar height for stage ${index+1} does not match the shared axis" }
+                if(targetHeight>=4f*density && step>=12f*density) {
+                    val middle=(bottom-targetHeight/2f).toInt()
+                    val fill = bitmap.getPixel(center, middle)
+                    val alpha = Color.alpha(fill)
+                    check(alpha in 55..65) {
+                        "Library stage ${index+1} needs a translucent center" }
+                    val edgeAlpha = (0 until bitmap.height).maxOf { Color.alpha(bitmap.getPixel(center,it)) }
+                    check(edgeAlpha > alpha) { "Library stage ${index+1} has no distinct outline" }
+                    // A translucent bitmap stores premultiplied channels, so allow rounding on readback.
+                    check(kotlin.math.abs(Color.red(fill) - Color.red(expected)) <= 3 &&
+                        kotlin.math.abs(Color.green(fill) - Color.green(expected)) <= 3 &&
+                        kotlin.math.abs(Color.blue(fill) - Color.blue(expected)) <= 3) {
+                        "Library stage ${index+1} fill does not match its unit" }
+                }
+                if(index>0) {
+                    val previousCenter = (left + (index - .5f) * step).toInt()
+                    check((previousCenter..center).all { Color.alpha(bitmap.getPixel(it,baseline)) > 0 }) {
+                        "Gap before library stage ${index+1}" }
+                }
+                val slotLeft=(left+index*step).toInt()
+                val slotRight=(left+(index+1)*step).toInt()
                 var pixels=0
-                for(x in left until right) for(y in 0 until sparkline.height)
-                    if(bitmap.getPixel(x,y)==expected) pixels++
-                check(pixels>0) { "Library sparkline did not paint stage ${index+1} in its true unit" }
+                for(x in slotLeft until slotRight) for(y in 0 until sparkline.height)
+                    if(Color.alpha(bitmap.getPixel(x,y))>0) pixels++
+                check(pixels>0) { "Library stage ${index+1} is empty" }
                 result.put(JSONObject().put("operation","stageTarget")
                     .put("unit",if(stage.unit==CurveStageParameters.Unit.PRESSURE_BAR) "bar" else "mL/s")
                     .put("targetTenths",stage.target).put("pixelCount",pixels))
-            }
-            if(!preview.renderable) {
-                check(result.length()==0)
-                for(x in 0 until bitmap.width) for(y in 0 until bitmap.height)
-                    check(bitmap.getPixel(x,y)==android.graphics.Color.TRANSPARENT) {
-                        "Unknown raw target painted a physical sparkline" }
             }
             return result
         } finally { bitmap.recycle() }

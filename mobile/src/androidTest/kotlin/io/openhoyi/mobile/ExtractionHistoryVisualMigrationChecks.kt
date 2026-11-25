@@ -1431,6 +1431,19 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         main { val actual=list(activity); check(actual.performItemClick(actual.getChildAt(index-actual.firstVisiblePosition),index,actual.adapter.getItemId(index))) }
         if(requireNonemptySamples) chartReady(activity)
     }
+    private fun assertInitialHistoryPreview(activity: Activity, journalSource: Boolean) {
+        await("fresh two-pane history previews the current source's newest row") {
+            val list = list(activity)
+            val first = list.getItemAtPosition(0) as? ShotHistory.Entry
+            val selection = (field(activity, "selectedIds") as Map<*, *>)[journalSource]
+            val collection = field(activity, "collection") as TaskCollectionLayout
+            val detail = field(activity, "detailContent") as View
+            first != null && list.firstVisiblePosition == 0 && list.getChildAt(0)?.isActivated == true &&
+                selection == first.id && detail.tag == "history-selection-${first.id}" &&
+                collection.browserBody.isShown && collection.detailBody.isShown && !collection.detailRequested
+        }
+    }
+
     private data class Anchor(val position: Int,val top: Int,val id: String)
     private fun anchor(activity: Activity): Anchor {
         val actual=list(activity); return Anchor(actual.firstVisiblePosition,actual.getChildAt(0).top,
@@ -1442,6 +1455,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             if(journalSource) {
                 main { check(action(activity,R.string.journal_tab).performClick()) }
                 await("journal actual list populated") { field(activity,"showJournal")==true && list(activity).count==40 }
+                assertInitialHistoryPreview(activity, journalSource = true)
             }
             main { val view=list(activity); check(view.canScrollVertically(1)); view.setSelectionFromTop(12,-HoyiUi.dp(activity,8)) }
             await("nonzero actual continuous list viewport") { list(activity).firstVisiblePosition>0 && list(activity).childCount>0 && !list(activity).isLayoutRequested }
@@ -3189,7 +3203,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             File(directory,"fixture.json").writeText(active.fixture.toString(2))
             val activity=when(page) {
                 "extraction"->start(ExtractionActivity::class.java)
-                "history"->start(HistoryActivity::class.java).also { selectHistory(it,active.firstId) }
+                "history"->start(HistoryActivity::class.java).also {
+                    assertInitialHistoryPreview(it, journalSource = false)
+                    selectHistory(it,active.firstId)
+                }
                 "history-detail"->start(HistoryDetailActivity::class.java) { it.putExtra("shotId",active.firstId) }
                 else->start(BrewComparisonActivity::class.java) { it.putExtra(BrewComparisonActivity.FIRST_SHOT_ID,active.firstId).putExtra(BrewComparisonActivity.SECOND_SHOT_ID,active.secondId) }
             }
