@@ -870,7 +870,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("canStart",scope.curves.canStart(item)).put("copyable",copyable!=null)
             .put("slotEligible",item.factoryCurve!=null && scope.curves.canStart(item))
     }
-    /** Draw the real list thumbnail and verify the separated stage bars. */
+    /** Draw the real list thumbnail and verify the adjoining stage bars. */
     private fun librarySparklineEvidence(activity: Activity, preview: CurveStageParameters.Preview): JSONArray {
         val sparkline=nodes(root(activity)).filterIsInstance<CurveLibrarySparklineView>()
             .firstOrNull { it.preview==preview && it.isShown } ?: return JSONArray()
@@ -887,11 +887,18 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 return result
             }
             val density=sparkline.resources.displayMetrics.density
-            val left=sparkline.paddingLeft+3f*density
-            val right=bitmap.width-sparkline.paddingRight-3f*density
+            val plotLeft=sparkline.paddingLeft+3f*density
+            val plotRight=bitmap.width-sparkline.paddingRight-3f*density
             val top=sparkline.paddingTop+4f*density
             val bottom=bitmap.height-sparkline.paddingBottom-4f*density
-            val step=(right-left)/preview.stages.size
+            val slotWidth=(plotRight-plotLeft)/preview.stages.size
+            val step=.8f*(slotWidth-minOf(4f*density, slotWidth/2f))
+            val left=(plotLeft+plotRight-step*preview.stages.size)/2f
+            val baseline=kotlin.math.ceil(bottom).toInt()-1
+            val painted=(0 until bitmap.width).filter { Color.alpha(bitmap.getPixel(it,baseline))>0 }
+            check(painted.isNotEmpty() && kotlin.math.abs(painted.first()-left)<=1f &&
+                kotlin.math.abs(painted.size-step*preview.stages.size)<=2f) {
+                "Library stage bars should be narrow, centered and contiguous" }
             preview.stages.forEachIndexed { index, stage ->
                 val expected=when(stage.unit) {
                     CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
@@ -923,9 +930,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         "Library stage ${index+1} fill does not match its unit" }
                 }
                 if(index>0) {
-                    val separator=(left+index*step).toInt()
-                    check((0 until bitmap.height).all { bitmap.getPixel(separator,it)==Color.TRANSPARENT }) {
-                        "Library stage bars touched at stage ${index+1}" }
+                    val previousCenter = (left + (index - .5f) * step).toInt()
+                    check((previousCenter..center).all { Color.alpha(bitmap.getPixel(it,baseline)) > 0 }) {
+                        "Gap before library stage ${index+1}" }
                 }
                 val slotLeft=(left+index*step).toInt()
                 val slotRight=(left+(index+1)*step).toInt()
