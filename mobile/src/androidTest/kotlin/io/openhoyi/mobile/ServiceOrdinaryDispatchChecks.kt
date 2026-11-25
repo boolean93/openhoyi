@@ -63,7 +63,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
             MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE to "V2_WEEKLY_PARTIAL",
             MachineWriteRecoveryState.Kind.SLEEP_NOW to "V2_SLEEP_IDLE",
             MachineWriteRecoveryState.Kind.BREW_WAIT to "V2_PREHEAT",
-        ) else if(v2Boiler) listOf("V2_BOILER_BREW","V2_BOILER_REBIND","V2_BOILER_REBIND_MANUAL").map {
+        ) else if(v2Boiler) listOf("V2_BOILER_BREW","V2_BOILER_SYNC","V2_BOILER_TIMEOUT").map {
             MachineWriteRecoveryState.Kind.SETTING to it
         } else if(ownership) kinds.flatMap { kind->listOf("OWNER_QUEUED","OWNER_FAILED","OWNER_READBACK").map { kind to it } } else kinds.flatMap { kind->(listOf("ALLOW")+blocks).map { kind to it } } +
             blocks.map { MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE to "SECOND_$it" }
@@ -179,11 +179,8 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                         field(session, "activeAddress").set(session, address)
                         val stamp = SystemClock.elapsedRealtime()
                         var now = stamp
-                        // V2 notifications carry elapsedRealtime timestamps even between injected events.
-                        // ACKs use that same time base, including any explicit advance for scheduled work.
-                        field(session, "clock").set(session, {
-                            if (v2Native) maxOf(now, SystemClock.elapsedRealtime()) else now
-                        })
+                        // V2 uses AndroidDevice's elapsedRealtime clock for both notifications and callbacks.
+                        if (!v2Native) field(session, "clock").set(session, { now })
                         val scheduled = mutableListOf<Pair<Long, () -> Unit>>()
                         val serialNames = listOf("settingsSampleSerial", "cupSettingsSerial", "cupIdleSerial",
                             "firstSleepSerial", "secondSleepSerial", "sleepSampleSerial")
@@ -250,10 +247,8 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                         }.toByte()
                                 }
                             fun ingest(hex:String,capturedHint:Long?=null) {
-                                // Advance the detached queue's clock, not the Android app's wall clock.
-                                now=SystemClock.elapsedRealtime()
                                 session.onNotification(session.generation,KnownGatt.coffeeNotify,
-                                    syntheticNotification(hex),capturedHint ?: now)
+                                    syntheticNotification(hex),capturedHint ?: SystemClock.elapsedRealtime())
                             }
                             fun writeCount() = calls.count { it.third is GattOperation.Write }
                             // Same monotonic clock as the ACK cut; no wall clock or future samples.
@@ -305,7 +300,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                 // Legitimate P1 echo does not disturb the real P2 safety check.
                                 freshTick();ingest(p1.replace("FE","7E"))
                                 // P2 due time and V2 evidence use the same elapsedRealtime domain.
-                                SystemClock.sleep(505);now=SystemClock.elapsedRealtime();session.tick()
+                                SystemClock.sleep(500);session.tick()
                                 check(state()=="WRITING" && writeCount()==2)
                                 check(instance.changeMachineSetting(brew)!=null)
                                 complete(calls.last())
@@ -342,7 +337,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                     freshTick();ingest(idleHex)
                                     check(instance.changeSleepSchedule(before,after)==null && writeCount()==priorWrites+1)
                                     complete(calls.last())
-                                    SystemClock.sleep(505);now=SystemClock.elapsedRealtime();session.tick()
+                                    SystemClock.sleep(500);session.tick()
                                     check(writeCount()==priorWrites+2)
                                     complete(calls.last())
                                     check(state()=="WAITING_READBACK" && !instance.allowsSplitBoiler())
@@ -376,62 +371,35 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                     freshTick();ingest(owns)
                                     check(state()=="CONFIRMED" && !recovery(instance).pending && writeCount()==1)
                                 } else {
-                                    val base=now
-                                    fun simulated(hex:String,at:Long) {
-                                        now=at
-                                        session.onNotification(session.generation,KnownGatt.coffeeNotify,
-                                            syntheticNotification(hex),at)
+                                    val syncTime = java.time.LocalDateTime.of(2026,11,22,0,0)
+                                    field(session,"wallClock").set(session, { syncTime })
+                                    val generation = session.generation
+                                    SystemClock.sleep(350)
+                                    ingest(idleHex)
+                                    session.tick()
+                                    val sync = calls.last().third as GattOperation.Write
+                                    check(writeCount()==2 && sync.endpoint==KnownGatt.coffeeWrite &&
+                                        sync.bytes.contentEquals(CoffeeCommands.authenticate(syncTime,"123456").frame.toByteArray()))
+                                    complete(calls.last())
+                                    check(state()=="WAITING_READBACK" && recovery(instance).pending)
+
+                                    if (mode=="V2_BOILER_SYNC") {
+                                        freshTick();ingest(owns)
+                                        check(state()=="CONFIRMED" && !recovery(instance).pending)
+                                    } else {
+                                        // At the former automatic reconnect deadline, a missing report
+                                        // must leave the single sync and original boiler write as the only calls.
+                                        SystemClock.sleep(3000)
+                                        ingest(idleHex)
+                                        session.tick()
+                                        MobileService::class.java.getDeclaredMethod("attemptBoilerFallback").apply {
+                                            isAccessible=true
+                                        }.invoke(instance)
+                                        check(state()=="WAITING_READBACK" && recovery(instance).pending)
+                                        scheduled.single { it.first==6000L }.second.invoke()
+                                        check(state()=="UNKNOWN" && recovery(instance).pending)
                                     }
-                                    simulated(idleHex,base+250);session.tick();complete(calls.last())
-                                    simulated(idleHex,base+1250);session.tick();complete(calls.last())
-                                    check(writeCount()==3 && state()=="WAITING_READBACK")
-                                    simulated(idleHex,base+3000)
-                                    val fallback=field(instance,"boilerFallback").get(instance)!!
-                                    field(fallback,"startedAt").setLong(fallback,SystemClock.elapsedRealtime()-3005)
-                                    val attempt=MobileService::class.java.getDeclaredMethod("attemptBoilerFallback").apply { isAccessible=true }
-                                    val before=calls.size
-                                    field(owner.extraction,"state").set(owner.extraction,ExtractionState.STARTING)
-                                    attempt.invoke(instance);check(calls.size==before)
-                                    field(owner.extraction,"state").set(owner.extraction,ExtractionState.IDLE)
-                                    val scheduleTracker=field(instance,"scheduleWrite").get(instance)!!
-                                    field(scheduleTracker,"state").set(scheduleTracker,SleepScheduleWriteTracker.State.WAITING_READBACK)
-                                    attempt.invoke(instance);check(calls.size==before)
-                                    field(scheduleTracker,"state").set(scheduleTracker,SleepScheduleWriteTracker.State.IDLE)
-                                    val generation=session.generation
-                                    attempt.invoke(instance)
-                                    check(calls.size==before+1 && calls.last().third==GattOperation.Connect(address))
-                                    check(session.generation==generation+1 && state()=="UNKNOWN" && recovery(instance).pending)
-                                    attempt.invoke(instance);check(calls.size==before+1)
-                                    complete(calls.last()) // Connect
-                                    val discovery=calls.last()
-                                    session.onComplete(discovery.first,discovery.second,OperationResult.Success(listOf(
-                                        CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
-                                        CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
-                                    complete(calls.last()) // Subscribe
-                                    complete(calls.last()) // Reconnect authentication/time sync
-                                    if (mode=="V2_BOILER_REBIND_MANUAL") {
-                                        val activeLease=field(owner,"boilerReadbackReconnectLease").get(owner) as BoilerReconnectLease
-                                        val marker=File(context.noBackupFilesDir,"pending_machine_write.json")
-                                        requireNotNull(MachineRecoveryMarkerLease.tryAcquire(marker)).use {
-                                            simulated(owns,base+3100)
-                                            check(state()=="RECONCILED" && recovery(instance).pending && activeLease.held)
-                                            SystemClock.sleep((base+3101-SystemClock.elapsedRealtime()).coerceIn(0L,3101L))
-                                            freshTick();ingest(idleHex)
-                                            instance.acknowledgeManualSafety() // Private storage is still leased.
-                                            check(recovery(instance).pending && activeLease.held)
-                                        }
-                                        val priorSafe=SystemClock.elapsedRealtime()
-                                        freshTick();ingest("80080800000000052421322003")
-                                        freshTick();ingest(idleHex,capturedHint=priorSafe)
-                                        instance.acknowledgeManualSafety()
-                                        check(recovery(instance).pending && activeLease.held)
-                                        freshTick();ingest(idleHex)
-                                        instance.acknowledgeManualSafety()
-                                        check(!recovery(instance).pending && !activeLease.held)
-                                    } else simulated(owns,base+3100)
-                                    check(state()=="RECONCILED" && !recovery(instance).pending)
-                                    check(calls.count { (it.third as? GattOperation.Write)?.bytes?.contentEquals(command)==true }==1)
-                                    check(instance.snapshot.settings?.let(intent::matches)==true && writeCount()==4)
+                                    check(session.generation==generation && calls.size==2 && writeCount()==2)
                                 }
                             } else if (v2Passive) {
                                 val firstBase="8340FE0A00071E0A00071E0A00071E0A00071E3D"
@@ -463,8 +431,8 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                     }
                                     "V2_WEEKLY_PAIR","V2_WEEKLY_PARTIAL" -> {
                                         check(state()=="WRITING" && recovery(instance).pending)
-                                        // Fake queue clock advances to the real second-packet appointment.
-                                        now+=500;session.tick()
+                                        // The second packet is due 500 ms after the first packet's callback.
+                                        SystemClock.sleep(500);session.tick()
                                         check(writeCount()==2 && state()=="WRITING")
                                         check((calls.last().third as GattOperation.Write).bytes.contentEquals(CoffeeCommands.sleepSchedule(target)[1].frame.toByteArray()))
                                         ingest(firstTarget)
@@ -508,11 +476,11 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                                         check(state()=="WAITING_TEMP" && recovery(instance).pending)
                                         val near=idleWith(temp=selected.temperatureC*100)
                                         freshTick();ingest(near,capturedHint=beforeResult)
-                                        check(state()=="WAITING_TEMP")
+                                        check(state()=="WAITING_TEMP" && !instance.preheatMachineWaitingObserved)
                                         freshTick();ingest("80080800000000052421322003")
-                                        check(state()=="WAITING_TEMP")
+                                        check(state()=="WAITING_TEMP" && instance.preheatMachineWaitingObserved)
                                         check(instance.snapshot.messageForDisplay { id,args->instance.getString(id,*args) }==
-                                            instance.getString(R.string.service_event_preheat_machine_waiting))
+                                            instance.getString(R.string.service_preheat_observed_waiting_temperature))
                                         val olderCalibration=SystemClock.elapsedRealtime()
                                         freshTick();ingest(normal.replace("5C00","5C14"))
                                         freshTick();ingest(normal,capturedHint=olderCalibration)
@@ -839,7 +807,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
         }
         if(v2SplitRecovery)check(checkedFixtures==1 && fakeWrites==0 && fakeBarriers==0)
         else if(v2Split)check(checkedFixtures==1 && fakeWrites==8 && fakeBarriers==0)
-        else if(v2Boiler)check(checkedFixtures==3 && fakeWrites==9 && fakeBarriers==0)
+        else if(v2Boiler)check(checkedFixtures==3 && fakeWrites==5 && fakeBarriers==0)
         else if(v2Passive)check(checkedFixtures==5 && fakeWrites==8 && fakeBarriers==0)
         else if(v2Settings)check(checkedFixtures==5 && fakeWrites==10 && fakeBarriers==3)
         else if(ownership)check(checkedFixtures==12 && fakeWrites==9 && fakeBarriers==12 && clearedReloads==0 && retainedReloads==12)

@@ -12,14 +12,21 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.SystemClock
+import java.io.File
+import java.util.UUID
 
 /** Tests original Service methods on a detached object, never the live BLE/Mock owner. */
 internal class LanguageServiceNotificationChecks(private val test: Instrumentation, private val home: MainActivity) {
     private class DisplayContext(base: Context, private val app: MobileApplication) : ContextWrapper(base) {
+        private val fixtureId = "notification_refresh_" + UUID.randomUUID()
+        val recoveryDir = File(base.cacheDir, fixtureId)
+        val recoveryPreferences = listOf("machine_write_safety", "shot_safety")
+            .associateWith { "${fixtureId}_$it" }
         var lookups = 0
         var failLookup = false
         override fun getApplicationContext(): Context = this
         override fun getResources(): Resources = app.resources
+        override fun getNoBackupFilesDir(): File = recoveryDir
         override fun getSystemService(name: String): Any? {
             check(name != BLUETOOTH_SERVICE) { "Detached notification test must never access Bluetooth" }
             if (name == NOTIFICATION_SERVICE) {
@@ -29,8 +36,7 @@ internal class LanguageServiceNotificationChecks(private val test: Instrumentati
             return super.getSystemService(name)
         }
         override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
-            check(name == "machine_write_safety") { "Unexpected detached Service preference: $name" }
-            return super.getSharedPreferences("notification_refresh_fixture", mode)
+            return super.getSharedPreferences(recoveryPreferences.getValue(name), mode)
         }
         override fun startService(service: Intent): ComponentName? = error("No component dispatch in notification test")
         override fun startForegroundService(service: Intent): ComponentName? = error("No component dispatch in notification test")
@@ -63,8 +69,6 @@ internal class LanguageServiceNotificationChecks(private val test: Instrumentati
         check(manager.areNotificationsEnabled())
         fun notes() = manager.activeNotifications.filter { it.tag == null && it.id in listOf(1, 2) }
         check(notes().isEmpty()) { "Must not overwrite preexisting Mock Service notifications" }
-        val fixturePrefs = context.getSharedPreferences("notification_refresh_fixture", Context.MODE_PRIVATE)
-        check(fixturePrefs.all.isEmpty()) { "Preexisting detached fixture preferences" }
         val originalChannels = manager.notificationChannels.associateBy { it.id }
         val oldLanguage = app.languagePreferences.current
         val languagePrefs = context.getSharedPreferences("app_language", Context.MODE_PRIVATE)
@@ -72,6 +76,10 @@ internal class LanguageServiceNotificationChecks(private val test: Instrumentati
         val preserved = listOf("devices", "curves", "presets", "shot_safety", "machine_write_safety", "shot_history")
             .associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         val displayContext = DisplayContext(context, app)
+        check(displayContext.recoveryDir.mkdir())
+        val fixturePrefs = displayContext.recoveryPreferences.values.map {
+            context.getSharedPreferences(it, Context.MODE_PRIVATE)
+        }
         lateinit var subject: MobileService
         lateinit var owner: MobileService
         var subjectCreated = false
@@ -212,7 +220,9 @@ internal class LanguageServiceNotificationChecks(private val test: Instrumentati
                 subject.refreshNotificationDisplay()
             }
             awaitState { notes().map { it.id } == listOf(1) }
-            check(fixturePrefs.all.isEmpty()) { "Display refresh mutated detached recovery preferences" }
+            check(fixturePrefs.all { it.all.isEmpty() } && displayContext.recoveryDir.list()?.isEmpty() == true) {
+                "Display refresh mutated detached recovery state"
+            }
         } catch (error: Throwable) {
             failure = error
             throw error
@@ -231,7 +241,10 @@ internal class LanguageServiceNotificationChecks(private val test: Instrumentati
                 }
                 if (ownerAvailable) attempt { check(field("mock").get(owner) === liveMock && owner.running) }
             }
-            attempt { check(context.deleteSharedPreferences("notification_refresh_fixture")) }
+            displayContext.recoveryPreferences.values.forEach { name ->
+                attempt { check(context.deleteSharedPreferences(name)) }
+            }
+            attempt { check(displayContext.recoveryDir.deleteRecursively()) }
             attempt { manager.notificationChannels.filter { it.id !in originalChannels }.forEach { channel -> attempt { manager.deleteNotificationChannel(channel.id) } } }
             originalChannels.values.forEach { channel -> attempt { manager.createNotificationChannel(channel) } }
             if (cleanupErrors.isNotEmpty()) {
