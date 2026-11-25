@@ -44,8 +44,7 @@ def main():
     names = tuple(f'{mode}-{background}-{page}.png'
                   for mode in ('dark', 'light')
                   for background in ('photo', 'solid')
-                  for page in (('device', 'machine', 'appearance') if background == 'photo' else ('device',))
-                  + ('curves', 'history', 'beans'))
+                  for page in ('appearance', 'curves', 'history'))
     try:
         adb('shell', 'wm', 'size', '2560x1600')
         adb('shell', 'wm', 'density', '360')
@@ -55,7 +54,7 @@ def main():
             require(apks[name]['sha256'] == digest(path), 'APK changed before install')
             require(adb('install', path, timeout=120).splitlines()[-1] == 'Success', 'Install failed')
         run_fixture(adb, out, receipt['screenshots'], 'widePhotoReview', 'page-background-evidence',
-                    'WIDE_PHOTO_REVIEW_CAPTURED screenshots=20 mockOnly=true', names,
+                    'WIDE_PHOTO_REVIEW_CAPTURED screenshots=12 mockOnly=true', names,
                     'wide-photo-instrumentation.txt', retain_partial=True)
         for name in names:
             data = (out / name).read_bytes()
@@ -64,7 +63,7 @@ def main():
         receipt['passed'] = True
     finally:
         (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
-    print('WIDE_PHOTO_REVIEW_CAPTURED screenshots=20 mockOnly=true')
+    print('WIDE_PHOTO_REVIEW_CAPTURED screenshots=12 mockOnly=true')
 
 
 if __name__ == '__main__':

@@ -96,6 +96,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 check(app.history.entries.single().status == ShotHistory.Status.ENDED)
             }
         }
+        app.samples.save(shotId, (0..28).map { second ->
+            ShotPoint(second * 1000L, if (second < 4) second * 20 else 90 - (second - 4),
+                30, second * 30, 9300, second * 128, 128, true)
+        })
         val resolver = context.contentResolver
         val sample = checkNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "photo-surface-review.jpg")
@@ -146,19 +150,17 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                             return main { controller.active(tag).requireView() }
                         }
                         val settings = page(TaskDestination.SETTINGS) as SettingsDocumentLayout
-                        capture("device", settings, "settings/heading/devices")
-                        if (background == photo) {
-                            main { settings.navigate("machine") }
-                            capture("machine", settings, "settings/heading/machine")
-                            main { settings.navigate("appearance") }
-                            capture("appearance", settings, "settings/heading/appearance")
-                        }
+                        main { settings.navigate("appearance") }
+                        capture("appearance", settings, "settings/heading/appearance")
                         main { host.select(TaskDestination.CURVES) }
                         capture("curves", page(TaskDestination.CURVES), "product/curve-library/browser")
                         main { host.select(TaskDestination.HISTORY) }
-                        capture("history", page(TaskDestination.HISTORY), "product/history/list/$shotId/name")
-                        main { host.select(TaskDestination.BEANS) }
-                        capture("beans", page(TaskDestination.BEANS), "product/inventory/list/photo-review-batch/name")
+                        val history = page(TaskDestination.HISTORY)
+                        await("Automatic preview has loaded the fixture samples") {
+                            history.findViewWithTag<View>("history-selection-$shotId")?.isShown == true &&
+                                history.findViewWithTag<ShotChartView>("product/history/chart")?.points?.size == 29
+                        }
+                        capture("history", history, "product/history/chart")
                     } finally {
                         main { host.finish() }
                         await("Review host destroyed") { host.isDestroyed }
