@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -353,17 +354,26 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             val (feedbackId, _) = manualCup(18)
             await("qualified manual cup opens the real completion dialog") {
                 service.brewFeedbackResult?.let { it.shotId == feedbackId &&
-                    it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW } == true &&
+                    it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW &&
+                    it.outputHundredthsGram == null && it.endCupCount == 25 } == true &&
                     page.feedbackUi.isShowing
             }
-            val expectedPace = main.getString(R.string.feedback_low_flow)
+            val expectedPace = main.getString(R.string.completion_card_flow_slow)
             val expectedNote = main.getString(R.string.feedback_note)
             check(waitForActiveWindow { window ->
-                val matches = window.findAccessibilityNodeInfosByText(expectedPace)
-                try {
-                    matches.any { it.isVisibleToUser && it.text?.toString() == "$expectedPace\n\n$expectedNote" }
-                } finally { matches.forEach { it.recycle() } }
-            }) { "Qualified manual cup did not show the original slow-flow feedback" }
+                listOf(expectedPace, expectedNote).all { expected ->
+                    val matches = window.findAccessibilityNodeInfosByText(expected)
+                    try { matches.any { it.isVisibleToUser && it.text?.toString() == expected } }
+                    finally { matches.forEach { it.recycle() } }
+                }
+            }) { "Qualified manual cup did not show the slow-flow badge and feedback note" }
+
+            val screenshot = requireNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(app.filesDir, "porcelain-manual-result.png").outputStream().use {
+                    check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { screenshot.recycle() }
 
             val close = main.getString(R.string.feedback_done)
             check(waitForActiveWindow { window ->

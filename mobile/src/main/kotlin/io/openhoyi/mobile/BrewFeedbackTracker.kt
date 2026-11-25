@@ -1,8 +1,9 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.protocol.ExtractionTelemetry
+import io.openhoyi.session.TelemetryFreshness
 
-/** Local display heuristic, never a measurement of cup mass or a device control decision. */
+/** Local display result. The heuristic is not a measurement of cup mass or a device control decision. */
 internal data class BrewFeedbackResult(
     val shotId: String,
     val machineSeconds: Int,
@@ -11,6 +12,8 @@ internal data class BrewFeedbackResult(
     val finalWaterTenthsMl: Int,
     val flowHeuristic: Double,
     val level: BrewFeedbackClips.Level,
+    val outputHundredthsGram: Int? = null,
+    val endCupCount: Int? = null,
 )
 
 /** Owned by the same thread as the shot observations. Has no timer, BLE or Android dependency.
@@ -23,6 +26,7 @@ internal class BrewFeedbackTracker {
         var lastWater = 0
         var maxActiveSeconds = 0
         var earlyWater: Int? = null
+        var endCupCount: Int? = null
     }
     private var cup: Cup? = null
 
@@ -61,7 +65,14 @@ internal class BrewFeedbackTracker {
         current.lastSeconds = frame.elapsedSeconds
         current.lastWater = frame.totalWaterTenthsMl
     }
-    fun finish(shotId: String, observedEnd: Boolean): BrewFeedbackResult? {
+    /** The caller supplies the machine count only at an independently observed end. */
+    fun observeEndCupCount(shotId: String, cupCount: Int, at: Long, now: Long) {
+        val current = cup?.takeIf { it.id == shotId } ?: return
+        if (current.endCupCount == null && cupCount in 0..65535 && TelemetryFreshness.isFresh(at, now))
+            current.endCupCount = cupCount
+    }
+
+    fun finish(shotId: String, observedEnd: Boolean, outputHundredthsGram: Int? = null): BrewFeedbackResult? {
         val current = cup?.takeIf { it.id == shotId } ?: return null
         cup = null
         val early = current.earlyWater ?: return null
@@ -77,6 +88,8 @@ internal class BrewFeedbackTracker {
             else -> BrewFeedbackClips.Level.BRAVO
         }
         return BrewFeedbackResult(current.id, current.maxActiveSeconds, current.preinfusionSeconds,
-            early, current.lastWater, rate, level)
+            early, current.lastWater, rate, level,
+            outputHundredthsGram = outputHundredthsGram,
+            endCupCount = current.endCupCount)
     }
 }
