@@ -41,8 +41,8 @@ internal class CurveLibrarySparklineView(
         if (left >= right || top >= bottom) return
         val step = (right - left) / stages.size
         fun color(stage: CurveStageParameters.Stage) = when (stage.unit) {
-            CurveStageParameters.Unit.PRESSURE_BAR -> if (stageBars) style.libraryPressureBar else style.pressure
-            CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> if (stageBars) style.libraryFlowBar else style.flowMetric
+            CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
+            CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.flowMetric
             CurveStageParameters.Unit.RAW_UNKNOWN -> style.muted
         }
         fun y(stage: CurveStageParameters.Stage): Float {
@@ -52,13 +52,24 @@ internal class CurveLibrarySparklineView(
         }
         if (stageBars) {
             val halfGap = minOf(dp(2f), step / 4f)
-            paint.style = Paint.Style.FILL
             stages.forEachIndexed { index, stage ->
                 val slotLeft = left + step * index
                 val minimumHeight = dp(if (stage.target == 0) 1f else 2f)
                 val barTop = y(stage).coerceAtMost(bottom - minimumHeight).coerceAtLeast(top)
-                paint.color = color(stage)
-                canvas.drawRect(slotLeft + halfGap, barTop, slotLeft + step - halfGap, bottom, paint)
+                val barLeft = slotLeft + halfGap
+                val barRight = slotLeft + step - halfGap
+                val ink = color(stage)
+                paint.style = Paint.Style.FILL
+                paint.color = ColorUtils.setAlphaComponent(ink, 60)
+                canvas.drawRect(barLeft, barTop, barRight, bottom, paint)
+
+                // Keep the outline inside the target height and leave short stages a visible center.
+                val stroke = minOf(dp(1f), (bottom - barTop) / 4f, (barRight - barLeft) / 4f)
+                val inset = stroke / 2f
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = stroke
+                paint.color = ink
+                canvas.drawRect(barLeft + inset, barTop + inset, barRight - inset, bottom - inset, paint)
             }
             return
         }
