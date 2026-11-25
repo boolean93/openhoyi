@@ -588,7 +588,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             snapshot.scaleObservation?.let(::onScaleObservation)
                 ?: scaleTrend.observe(null, snapshot.scaleState, now)
         }
-        snapshot.coffee?.let { observeExtractionScaleEndpoint(it, now) }
+        snapshot.coffee?.let {
+            observeExtractionScaleEndpoint(it, now)
+            if (mockExtractionOwner == null) observeAppFeedbackEndCupCount(it, now, now)
+        }
     }
     private val mockTick = object : Runnable {
         override fun run() {
@@ -1016,6 +1019,12 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         }
         val observedAt = snapshot.coffeeAt ?: elapsedNow()
         observeExtractionScaleEndpoint(frame, observedAt)
+        val now = elapsedNow()
+        val currentAppFrame = hub?.extraction?.acceptsDisplayFrameTime(receivedAtMs) == true &&
+            snapshot.coffeeState == DeviceState.READY
+        extractionScaleReadout.observeCompletionEndpoint(frame, receivedAtMs, now, currentAppFrame,
+            snapshot.scaleObservation, snapshot.scaleState)
+        if (frame is IdleTelemetry) observeAppFeedbackEndCupCount(frame, receivedAtMs, now)
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
         val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
@@ -1087,6 +1096,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                                 .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                         }
                         passiveHistoryId = null
+                        observeFeedbackEndCupCount(frame, receivedAtMs, elapsedNow())
                         finishSeries(true, passiveConfirmed = true)
                         if(fixtureShotEffects==null && !appVisibility.visible && !ShotGate.active(shotState))hub?.background()
                         event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
@@ -3202,6 +3212,20 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         val id = feedbackShotId ?: return
         if (runCatching { brewFeedback.observe(id, frame, atMs) }.isFailure) finishBrewFeedback(false)
     }
+    private fun observeAppFeedbackEndCupCount(frame: HoyiMessage, receivedAtMs: Long, now: Long) {
+        // The controller handles the idle telemetry before this callback; capture it before
+        // the watcher publishes feedback, not from a later idle/settings snapshot.
+        if (feedbackAppShot && shotState == ExtractionState.ENDED_OBSERVED &&
+            snapshot.coffeeState == DeviceState.READY) {
+            observeFeedbackEndCupCount(frame, receivedAtMs, now)
+        }
+    }
+
+    private fun observeFeedbackEndCupCount(frame: HoyiMessage, receivedAtMs: Long, now: Long) {
+        if (frame is IdleTelemetry)
+            feedbackShotId?.let { brewFeedback.observeEndCupCount(it, frame.cupCount, receivedAtMs, now) }
+    }
+
     private fun finishBrewFeedback(observedEnd: Boolean) {
         val id = feedbackShotId
         feedbackShotId = null
@@ -3213,7 +3237,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if (id != null) {
             val eligible = BrewFeedbackCompletion.allowed(observedEnd, snapshot.coffeeState,
                 snapshot.alarmBits, if (feedbackAppShot) hub?.extraction?.stopReason else null)
-            brewFeedbackResult = runCatching { brewFeedback.finish(id, eligible) }.getOrNull()
+            brewFeedbackResult = runCatching {
+                brewFeedback.finish(id, eligible, extractionScaleReadout.confirmedTerminalBeverage(id))
+            }.getOrNull()
             runCatching { feedbackDelivery.publish(brewFeedbackResult,
                 fixtureShotEffects == null && (application as MobileApplication).feedbackPreferences.enabled) }
                 .onFailure { feedbackDelivery.clear() }
@@ -3226,8 +3252,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
 
     private fun finishSeries(observedEnd: Boolean, countsAsCup: Boolean = true, passiveConfirmed: Boolean = false) {
         val completedCup = observedEnd && countsAsCup
-        finishBrewFeedback(completedCup)
+        if (completedCup) observeScaleReadoutProof()
         extractionScaleReadout.finish(observedEnd)
+        finishBrewFeedback(completedCup)
         val finished = series.finish(observedEnd, appOutcomeWasUnknown = appElapsedOutcomeWasUnknown) ?: return
         fixtureShotEffects?.let { if(completedCup)it.recordSamples(finished.first,finished.second.size);return }
         val app = application as MobileApplication

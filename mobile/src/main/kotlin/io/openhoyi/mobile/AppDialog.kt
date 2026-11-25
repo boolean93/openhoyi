@@ -94,16 +94,20 @@ internal object AppDialog {
     }
 
     /** Style an existing Builder result while preserving its original callbacks and choice semantics. */
-    fun show(dialog: AlertDialog): AlertDialog {
+    fun show(dialog: AlertDialog): AlertDialog = show(dialog, styleCustomBody = true, maxWidthDp = 560)
+
+    fun show(dialog: AlertDialog, styleCustomBody: Boolean, maxWidthDp: Int): AlertDialog {
         dialog.show()
-        return styleShown(dialog)
+        return styleShown(dialog, styleCustomBody, maxWidthDp)
     }
 
     /** Apply the shared shell after a caller's existing onShow and evidence hooks have run. */
-    fun styleShown(dialog: AlertDialog): AlertDialog {
+    fun styleShown(dialog: AlertDialog): AlertDialog = styleShown(dialog, styleCustomBody = true, maxWidthDp = 560)
+
+    private fun styleShown(dialog: AlertDialog, styleCustomBody: Boolean, maxWidthDp: Int): AlertDialog {
         val context = dialog.context
         val style = TaskProductVisualStyle(context)
-        size(dialog, context, style)
+        size(dialog, context, style, maxWidthDp)
         val titleId = context.resources.getIdentifier("alertTitle", "id", "android")
         if (titleId != 0) dialog.findViewById<TextView>(titleId)?.let {
             style.apply(it, TaskProductVisualStyle.section)
@@ -124,7 +128,7 @@ internal object AppDialog {
                     addView(body, ViewGroup.LayoutParams(-1, -2))
                 }, ViewGroup.LayoutParams(-1, -2))
             }
-            styleBody(custom, style)
+            if (styleCustomBody) styleBody(custom, style)
         }
         listOf(AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL, AlertDialog.BUTTON_POSITIVE).forEach { which ->
             dialog.getButton(which)?.let { button ->
@@ -168,9 +172,9 @@ internal object AppDialog {
         choices.viewTreeObserver.addOnGlobalLayoutListener { visibleRows() }
     }
 
-    private fun size(dialog: AlertDialog, context: Context, style: TaskProductVisualStyle) {
+    private fun size(dialog: AlertDialog, context: Context, style: TaskProductVisualStyle, maxWidthDp: Int = 560) {
         val metrics = context.resources.displayMetrics
-        val width = minOf(style.dp(560), metrics.widthPixels - style.dp(32)).coerceAtLeast(1)
+        val width = minOf(style.dp(maxWidthDp), metrics.widthPixels - style.dp(32)).coerceAtLeast(1)
         dialog.window?.apply {
             setBackgroundDrawable(style.shape(style.surface, radius = 16))
             decorView.clipToOutline = true

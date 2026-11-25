@@ -66,6 +66,7 @@ if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGAT
         or 'INSTRUMENTATION_CODE: -1' not in lines):
     raise SystemExit('Manual live navigation failed; evidence retained')
 PY
+  adb exec-out run-as "$app" cat files/porcelain-manual-result.png > "$results/porcelain-manual-result.png"
 fi
 
 # Check flow feedback, conditional AI review and dismissal in the native dialog.
@@ -84,3 +85,5 @@ if (result.returncode or 'BREW_COMPLETION_DIALOG_CHECKS_PASSED' not in text
         or 'INSTRUMENTATION_CODE: -1' not in text.splitlines()):
     raise SystemExit('Completion Dialog failed; evidence retained')
 PY
+
+adb exec-out run-as "$app" cat files/porcelain-result-card.png > "$results/porcelain-result-card.png"

@@ -32,6 +32,27 @@ class BrewFeedbackTrackerTest {
         assertEquals(BrewFeedbackClips.Level.BRAVO, result.level)
         assertNull(tracker.finish("cup", true))
     }
+    @Test fun terminalCardFreezesFirstMachineCountAndPreservesKnownZero() {
+        val tracker = BrewFeedbackTracker()
+        start(tracker)
+        observe(tracker, 5, 50, 1000)
+        observe(tracker, 30, 400, 2000)
+        tracker.observeEndCupCount("other", 128, 2000, 2000)
+        tracker.observeEndCupCount("cup", 128, 2000, 3501)
+        tracker.observeEndCupCount("cup", 0, 2000, 3500)
+        tracker.observeEndCupCount("cup", 129, 3500, 3500)
+        val result = tracker.finish("cup", true, outputHundredthsGram = 0)!!
+        assertEquals(0, result.outputHundredthsGram)
+        assertEquals(0, result.endCupCount)
+        assertEquals(400, result.finalWaterTenthsMl)
+
+        start(tracker, id = "next")
+        observe(tracker, 5, 50, 3000, id = "next")
+        observe(tracker, 30, 400, 4000, id = "next")
+        val next = tracker.finish("next", true)!!
+        assertNull(next.outputHundredthsGram)
+        assertNull(next.endCupCount)
+    }
     @Test fun unknownFinishAndNewCupCannotReusePreviousEarlySnapshot() {
         val tracker = BrewFeedbackTracker(); start(tracker)
         observe(tracker, 5, 0, 1000); observe(tracker, 30, 400, 2000)

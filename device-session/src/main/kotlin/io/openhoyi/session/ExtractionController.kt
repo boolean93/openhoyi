@@ -274,10 +274,15 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         lastStopIdleAt=receivedAtMs
         return receivedAtMs-(stopIdleSince ?: receivedAtMs)>2800
     }
+    /** Timestamp qualification shared with display evidence; this cannot authorize control. */
+    fun acceptsDisplayFrameTime(receivedAtMs: Long): Boolean {
+        val now = clock()
+        return receivedAtMs >= started && receivedAtMs <= now && now - receivedAtMs <= 1500
+    }
+
     fun machineFrame(frame:HoyiMessage,receivedAtMs:Long) {
         if(!coffee.ready){clearStopIdleEvidence();return}
-        val now=clock()
-        if(receivedAtMs<started||receivedAtMs>now||now-receivedAtMs>1500)return
+        if(!acceptsDisplayFrameTime(receivedAtMs))return
         if(frame is ExtractionTelemetry){
             clearStopIdleEvidence()
             policy.observeMachineElapsed(serial,frame.elapsedSeconds,receivedAtMs)

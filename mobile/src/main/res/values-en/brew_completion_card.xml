@@ -7,4 +7,14 @@
     <string name="completion_card_request">Review the extraction curve for the shot I just finished and suggest the single most useful adjustment for the next shot.</string>
     <string name="completion_card_saving">Saving samples…</string>
     <string name="completion_card_no_samples">Samples unavailable</string>
+    <string name="completion_card_weight">Liquid weight</string>
+    <string name="completion_card_flow_balanced">Flow · Balanced</string>
+    <string name="completion_card_flow_fast">Flow · Fast</string>
+    <string name="completion_card_flow_slow">Flow · Slow</string>
+    <string name="completion_card_total_cups">Machine total cups</string>
+    <string name="completion_card_gram_unit">g</string>
+    <string name="completion_card_cup_unit">cups</string>
+    <string name="completion_card_one_cup_unit">cup</string>
+    <string name="completion_card_measurement">%1$s, %2$s %3$s</string>
+    <string name="completion_card_measurement_unavailable">%1$s, unavailable</string>
 </resources>
