@@ -84,22 +84,6 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock" &&
             Build.HARDWARE in setOf("ranchu", "goldfish"))
         check(output.mkdir() && realPrefs.all.isEmpty())
-        val shotId = main {
-            val inventory = app.beanInventoryResult.getOrThrow()
-            check(inventory.batches().isEmpty() && app.history.entries.isEmpty())
-            inventory.addBatch("photo-review-add", io.openhoyi.bean.BeanBatch(
-                "photo-review-batch", io.openhoyi.bean.Bean("photo-review-bean", "Mock Photo Review Beans"), 250000L))
-            val started = System.currentTimeMillis() - 28000L
-            app.history.begin("factory-v3-001", started, slot = 7).also {
-                app.history.transition(io.openhoyi.session.ExtractionState.RUNNING, null, null, started + 500)
-                app.history.transition(io.openhoyi.session.ExtractionState.ENDED_OBSERVED, null, 3600, started + 28000)
-                check(app.history.entries.single().status == ShotHistory.Status.ENDED)
-            }
-        }
-        app.samples.save(shotId, (0..28).map { second ->
-            ShotPoint(second * 1000L, if (second < 4) second * 20 else 90 - (second - 4),
-                30, second * 30, 9300, second * 128, 128, true)
-        })
         val resolver = context.contentResolver
         val sample = checkNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "photo-surface-review.jpg")
@@ -115,11 +99,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             check(solid.choice == AppBackground.Solid)
             val draft = runBlocking { owner.import(sample, UUID.randomUUID().toString()) }
             val photo = AppBackgroundConfig(draft.choice)
-            for ((backgroundName, background) in listOf("photo" to photo)) {
+            for ((backgroundName, background) in listOf("solid" to solid, "photo" to photo)) {
                 if (background == photo) {
                     check(runBlocking { owner.apply(solid, photo, draft) } == AppBackgroundStore.Result.APPLIED)
                 }
-                for (dark in listOf(false)) {
+                for (dark in listOf(true, false)) {
                     main {
                         check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
                     }
@@ -127,7 +111,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     val controller = MainPageTestHost.launch(test, TaskDestination.SETTINGS, timeoutMs = 10000)
                     val host = controller.activity
                     try {
-                        check(main { host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT &&
+                        check(main { host.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
                             host.resources.configuration.densityDpi == 360 })
                         fun capture(name: String, root: View, requiredTag: String) {
                             await("Visible seat for $prefix-$name ($requiredTag)") {
@@ -136,8 +120,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                             }
                             val window = captureCommittedFrame(root)
                             try {
-                                check(window.width == 900 && window.height == 1600) {
-                                    "Expected 900x1600; got ${window.width}x${window.height}"
+                                check(window.width == 2560 && window.height == 1600) {
+                                    "Expected 2560x1600; got ${window.width}x${window.height}"
                                 }
                                 writeScreenshot("$prefix-$name.png", window)
                             } finally { window.recycle() }
@@ -149,67 +133,20 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                             }
                             return main { controller.active(tag).requireView() }
                         }
-                        val settings = page(TaskDestination.SETTINGS) as SettingsDocumentLayout
-                        main { settings.navigate("appearance") }
-                        await("Appearance heading positioned") { settings.isAtSectionLanding("appearance") }
-                        main {
-                            val options = checkNotNull(settings.findViewWithTag<ViewGroup>("settings/appearance/background-presets"))
-                            val tile = checkNotNull(options.findViewWithTag<Button>("settings/appearance/background/photo")) {
-                                "Missing narrow tile. Options=" + (0 until options.childCount).map { options.getChildAt(it).tag }
-                            }
-                            check(tile.isSelected && tile.isShown && tile.width > 0 && tile.height > 0) {
-                                "Imported tile not ready: selected=" + tile.isSelected + ", visibility=" + tile.visibility +
-                                    ", size=" + tile.width + "x" + tile.height
-                            }
-                            tile.isFocusableInTouchMode = true
-                            check(tile.requestFocus())
-                            tile.requestRectangleOnScreen(Rect(0, 0, tile.width, tile.height), true)
-                        }
-                        val tile = main { settings.findViewWithTag<Button>("settings/appearance/background/photo") }
-                        await("Full photo swatch visible in the scroll viewport") {
-                            val rect = Rect()
-                            val shown = tile.getGlobalVisibleRect(rect)
-                            if (!shown || rect.height() < tile.height || rect.width() < tile.width) {
-                                tile.requestRectangleOnScreen(Rect(0, 0, tile.width, tile.height), true)
-                                false
-                            } else true
-                        }
-                        test.waitForIdleSync()
-                        // Screenshot is served by the compositor; match the saturated colors of the imported fixture.
-                        val deadline = SystemClock.elapsedRealtime() + 8_000
-                        var verified = false
-                        do {
-                            val xy = main { IntArray(2).also { tile.getLocationOnScreen(it) } }
-                            val frame = captureCommittedFrame(settings)
-                            try {
-                                val src = checkNotNull(owner.current.image)
-                                val ref = src.getPixel(src.width / 2, src.height / 2)
-                                val topImage = main { tile.compoundDrawablesRelative[1].bounds }
-                                val cx = xy[0] + tile.width / 2
-                                for (y in (xy[1] + 4).coerceAtLeast(0) until (xy[1] + topImage.height() + tile.paddingTop).coerceAtMost(frame.height)) {
-                                    val pixel = frame.getPixel(cx, y)
-                                    if (kotlin.math.abs(Color.red(pixel) - Color.red(ref)) < 12 &&
-                                        kotlin.math.abs(Color.green(pixel) - Color.green(ref)) < 12 &&
-                                        kotlin.math.abs(Color.blue(pixel) - Color.blue(ref)) < 12) {
-                                        verified = true
-                                        break
-                                    }
-                                }
-                                if (verified) writeScreenshot("$prefix-appearance.png", frame)
-                            } finally { frame.recycle() }
-                            if (!verified) SystemClock.sleep(60)
-                        } while (!verified && SystemClock.elapsedRealtime() < deadline)
-                        check(verified) { "The composed screen does not yet contain the full thumbnail" }
-
                         main { host.select(TaskDestination.CURVES) }
-                        capture("curves", page(TaskDestination.CURVES), "product/curve-library/browser")
-                        main { host.select(TaskDestination.HISTORY) }
-                        val history = page(TaskDestination.HISTORY)
-                        await("Narrow history opens the list") {
-                            val collection = history.findViewWithTag<TaskCollectionLayout>("task-collection")
-                            collection != null && collection.browserBody.isShown && !collection.detailBody.isShown
+                        val curves = page(TaskDestination.CURVES)
+                        await("Curve list has a mixed-mode preview") {
+                            nodes(curves).filterIsInstance<CurveLibrarySparklineView>().any { it.isShown && it.preview.hasFlow }
                         }
-                        capture("history", history, "product/history/list/$shotId/name")
+                        if (background == solid) main {
+                            val list = nodes(curves).filterIsInstance<ListView>().first { it.isShown }
+                            val index = (0 until list.childCount).first { row ->
+                                nodes(list.getChildAt(row)).filterIsInstance<CurveLibrarySparklineView>().any { it.preview.hasFlow }
+                            }
+                            val position = list.firstVisiblePosition + index
+                            list.performItemClick(list.getChildAt(index), position, list.getItemIdAtPosition(position))
+                        }
+                        capture("curves", curves, "product/curve-library/browser")
                     } finally {
                         main { host.finish() }
                         await("Review host destroyed") { host.isDestroyed }

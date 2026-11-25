@@ -68,6 +68,8 @@ internal class TaskProductVisualStyle(val context: Context) {
     val pressure = pick("#176BD1", "#8CB8FF")
     // Data inks retain their original reading across brand palettes.
     val flowMetric = pick("#087A78", "#83D6D0")
+    val libraryPressureBar = pick("#6689AE", "#ADC6E0")
+    val libraryFlowBar = pick("#5B8C85", "#A4D5CF")
     val scaleMetric = pick("#087A78", "#83D6D0")
     val stageColors = listOf(flowMetric, pressure, pick("#A46500", "#F2C16D"), pick("#7941A5", "#C7A3EB"))
     fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()

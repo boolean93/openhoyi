@@ -224,7 +224,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (widePhotoReview) {
                 check(disposableCiEmulator)
                 PageBackgroundRuntimeChecks(this).runWidePhotoReview()
-                report.putString("stream", "WIDE_PHOTO_REVIEW_CAPTURED screenshots=3 mockOnly=true\n")
+                report.putString("stream", "WIDE_PHOTO_REVIEW_CAPTURED screenshots=4 mockOnly=true\n")
                 finish(Activity.RESULT_OK, report); return
             }
             if (pageBackgroundChecks) {
