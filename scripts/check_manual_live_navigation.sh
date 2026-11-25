@@ -4,6 +4,8 @@ set -Eeuo pipefail
 [[ "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" == 1 ]] || {
   echo 'Disposable emulator required' >&2; exit 1;
 }
+mode="${1:-}"
+[[ "$mode" == "" || "$mode" == "--completion-only" ]] || exit 2
 app=io.openhoyi.mobile.mock
 test_app="$app.test"
 installed="$(adb shell pm list packages -u | tr -d '\r')"
@@ -33,14 +35,20 @@ mkdir -p "$results"
   sha256sum "$app_apk" "$test_apk"
 } | tee "$results/apk-identity.txt"
 trap 'adb logcat -d -s AndroidRuntime:E > "$results/logcat.txt" || true' EXIT
-adb shell wm size 2560x1600
-adb shell wm density 360
+if [[ "$mode" == "--completion-only" ]]; then
+  adb shell wm size 1080x1920
+  adb shell wm density 480
+else
+  adb shell wm size 2560x1600
+  adb shell wm density 360
+fi
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
 adb install "$app_apk"
 adb install "$test_apk"
+if [[ "$mode" != "--completion-only" ]]; then
 python3 - "$results/result.txt" <<'PY'
 from pathlib import Path
 import subprocess, sys
@@ -58,6 +66,7 @@ if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGAT
         or 'INSTRUMENTATION_CODE: -1' not in lines):
     raise SystemExit('Manual live navigation failed; evidence retained')
 PY
+fi
 
 # Check the app-owned Share action through the system chooser without choosing a destination.
 python3 - "$results/completion-share.txt" <<'PY'

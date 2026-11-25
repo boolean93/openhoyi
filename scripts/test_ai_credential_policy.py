@@ -55,13 +55,11 @@ class AiCredentialPolicyTest(unittest.TestCase):
         self.assertIn("isLongClickable = false", key)
         self.assertIn("setTextIsSelectable(false)", key)
 
-    def test_file_providers_are_private_and_share_only_verified_updates_or_shot_images(self):
+    def test_file_providers_are_private_and_share_only_verified_updates(self):
         providers = self.application().findall("provider")
         contracts = {
             "${applicationId}.updates": ("androidx.core.content.FileProvider", "update_paths",
                 "files-path", {"name": "verified_updates", "path": "updates/verified/"}),
-            "${applicationId}.shot-share": (".ShotShareCardFileProvider", "shot_share_paths",
-                "cache-path", {"name": "shot-images", "path": "shot-share/"}),
         }
         self.assertEqual(len(contracts), len(providers))
         self.assertEqual(set(contracts), {provider.get(ANDROID + "authorities") for provider in providers})

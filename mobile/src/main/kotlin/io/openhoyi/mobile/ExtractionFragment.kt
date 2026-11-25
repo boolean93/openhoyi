@@ -124,10 +124,14 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private val refresh = object : Runnable {
         override fun run() { render(); if (visible) handler.postDelayed(this, 250) }
     }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        feedbackUi = BrewFeedbackDialog(host, this, savedInstanceState)
+    }
+
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
         setPresetSlot(savedInstanceState?.getInt(PresetSlots.EXTRA_SLOT) ?: arguments?.getInt(PresetSlots.EXTRA_SLOT) ?: 7)
         referenceId = savedInstanceState?.getString("referenceShotId")
-        feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(style.page)

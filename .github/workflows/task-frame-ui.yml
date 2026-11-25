@@ -7,8 +7,8 @@ on:
         description: Capture only representative Home windows and app font sizes
         type: boolean
         default: false
-      completion_card_only:
-        description: Capture only the offline Mock completion-card fixtures
+      completion_dialog_only:
+        description: Verify only the native completion dialog and text share on a compact Mock phone
         type: boolean
         default: false
       manual_live_only:
@@ -45,14 +45,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Build isolated Mock
-        env:
-          COMPLETION_CARD_ONLY: ${{ inputs.completion_card_only }}
-        run: |
-          if [ "$COMPLETION_CARD_ONLY" = "true" ]; then
-            ./gradlew :mobile:assembleMock --no-daemon --console=plain
-          else
-            ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
-          fi
+        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -63,7 +56,7 @@ jobs:
           PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           HOME_VIEWPORT_ONLY: ${{ inputs.home_only }}
           MANUAL_LIVE_ONLY: ${{ inputs.manual_live_only }}
-          COMPLETION_CARD_ONLY: ${{ inputs.completion_card_only }}
+          COMPLETION_DIALOG_ONLY: ${{ inputs.completion_dialog_only }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -73,7 +66,7 @@ jobs:
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: >-
-            if [ "$COMPLETION_CARD_ONLY" = "true" ]; then bash scripts/check_brew_completion_preview.sh;
+            if [ "$COMPLETION_DIALOG_ONLY" = "true" ]; then bash scripts/check_manual_live_navigation.sh --completion-only;
             elif [ "$MANUAL_LIVE_ONLY" = "true" ]; then bash scripts/check_manual_live_navigation.sh;
             elif [ "$HOME_VIEWPORT_ONLY" = "true" ]; then python3 scripts/capture_home_viewports_ci.py;
             else bash scripts/check_task_frame_ui.sh ${{ matrix.profile }} &&

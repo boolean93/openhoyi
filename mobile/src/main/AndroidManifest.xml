@@ -49,10 +49,6 @@
             android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
         </provider>
-        <provider android:name=".ShotShareCardFileProvider" android:authorities="${applicationId}.shot-share"
-            android:exported="false" android:grantUriPermissions="true">
-            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/shot_share_paths" />
-        </provider>
         <service android:name=".MobileService" android:exported="false" android:foregroundServiceType="connectedDevice" android:stopWithTask="false" />
     </application>
 </manifest>

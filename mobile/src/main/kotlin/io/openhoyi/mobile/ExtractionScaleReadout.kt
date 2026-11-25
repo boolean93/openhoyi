@@ -79,6 +79,10 @@ internal class ExtractionScaleReadout {
             else Value(endCandidate?.hundredthsGram,
                 if (endCandidate?.hundredthsGram == null) Reason.END_UNAVAILABLE else null, target, true, endCandidate?.source ?: Source.RAW_SCALE)
     }
+    fun confirmedTerminalBeverage(shotId: String): Int? = terminal
+        ?.takeIf { trace == shotId && it.ended && it.reason == null && it.source == Source.BEVERAGE }
+        ?.hundredthsGram
+
     fun value(sample: ScaleObservation?, state: DeviceState, now: Long,
         unknown: Boolean = false): Value {
         terminal?.let { return it }

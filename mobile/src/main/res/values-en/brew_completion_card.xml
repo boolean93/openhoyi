@@ -3,18 +3,17 @@
     <string name="completion_card_close">Close</string>
     <string name="completion_card_share">Share</string>
     <string name="completion_card_review">AI review</string>
-    <string name="completion_card_title">This extraction</string>
-    <string name="completion_card_manual">Manual extraction</string>
     <string name="completion_card_waiting">Reviewing this extraction…</string>
     <string name="completion_card_unavailable">Review unavailable</string>
     <string name="completion_card_unknown">Review outcome not confirmed</string>
     <string name="completion_card_request">Review the extraction curve for the shot I just finished and suggest the single most useful adjustment for the next shot.</string>
     <string name="completion_card_saving">Saving samples…</string>
     <string name="completion_card_no_samples">Samples unavailable</string>
-    <string name="completion_card_spoken_seconds">Time %1$s seconds</string>
-    <string name="completion_card_spoken_yield">Yield %1$s grams</string>
-    <string name="completion_card_spoken_ratio">Brew ratio 1 to %1$s</string>
-    <string name="completion_flow_pace_slow">Flow · Slow</string>
-    <string name="completion_flow_pace_balanced">Flow · Balanced</string>
-    <string name="completion_flow_pace_fast">Flow · Fast</string>
+    <string name="completion_share_no_target">No app can share text.</string>
+    <string name="completion_average_flow">Average flow (scale estimate): %1$s</string>
+    <string name="completion_yield">Shot yield: %1$s</string>
+    <string name="completion_average_pressure">Average pressure: %1$s</string>
+    <string name="completion_cup_count">Total cups: %1$s</string>
+    <string name="completion_cup_number">Cup %1$s</string>
+    <string name="completion_cup_number_zero">0</string>
 </resources>

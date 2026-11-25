@@ -47,25 +47,25 @@ class CompletionShotReviewTest {
         assertNull(route.consume("ticket", 2, true))
     }
 
-    @Test fun shareUsesRecordedDoseAndConfirmedTerminalWeightOnly() {
-        val cup = feedback("preview-id")
-        val entry = ShotHistory.Entry("durable-id", "curve-id", 0, 22_000, 22_000,
-            ShotHistory.Status.ENDED, null, 9_999, observedMachineElapsedSeconds = 22)
+    @Test fun completionSummaryUsesBrewingPressureAndScaleFlowAndFrozenEndpoint() {
+        val cup = feedback("live-id")
         val points = listOf(
-            ShotPoint(100, 10, 5, 3, 9100, 7711, brewing = true,
-                beverageHundredthsGram = 10, beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0),
-            ShotPoint(21_000, 90, 20, 600, 9200, 9999, brewing = true,
-                beverageHundredthsGram = 3620, beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0),
+            ShotPoint(100, 40, 100, 3, 9100, 7711, scaleFlowHundredths = 100, brewing = true),
+            ShotPoint(1000, 80, 200, 600, 9200, 9999, scaleFlowHundredths = 200, brewing = true,
+                beverageHundredthsGram = 3500, beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0),
+            ShotPoint(21_000, 150, 300, 600, 9200, 9999, scaleFlowHundredths = 900, brewing = false),
         )
-        val model = BrewCompletedShare.create("complete", "stored curve", cup, entry, points, 18_100L).model
-        assertEquals(18.1, model.doseGrams!!, 0.0)
-        assertEquals(36.2, model.outputGrams!!, 0.0)
-        assertEquals(9.0, model.samples.last().value, 0.0)
-        val crossedReset = listOf(points.first(), points.last().copy(beverageSegmentId = 1))
-        assertNull(BrewCompletedShare.create("complete", null, cup, entry, crossedReset).model.outputGrams)
-        assertNull(BrewCompletedShare.create("complete", null, cup, entry, points).model.doseGrams)
-        assertNull(BrewCompletedShare.create("complete", null, cup, entry,
-            points.dropLast(1) + points.last().copy(beverageSource = BeverageWeightSource.ESTIMATED)).model.outputGrams)
+        val summary = BrewCompletionSummary.create(cup, points, terminalBeverageHundredthsGram = 3620, endCupCount = 128)
+        assertEquals(6.0, summary.averagePressureBar!!, 0.0)
+        assertEquals(1.5, summary.averageScaleFlowGramsPerSecond!!, 0.0)
+        assertEquals(36.2, summary.outputGrams!!, 0.0)
+        assertEquals(128, summary.endCupCount)
+
+        val noScaleFlow = BrewCompletionSummary.create(cup, points.map { it.copy(scaleFlowHundredths = null) })
+        assertNull(noScaleFlow.averageScaleFlowGramsPerSecond)
+        assertNull(noScaleFlow.outputGrams) // Do not substitute the last plotted net sample.
+        assertNull(noScaleFlow.endCupCount)
+        assertNull(BrewCompletionSummary.create(cup, emptyList()).averagePressureBar)
     }
 
     @Test fun fakeProviderReceivesOnlyExplicitEvidenceOnce() = runBlocking {

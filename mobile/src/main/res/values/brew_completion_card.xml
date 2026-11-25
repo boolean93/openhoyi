@@ -3,18 +3,17 @@
     <string name="completion_card_close">关闭</string>
     <string name="completion_card_share">分享</string>
     <string name="completion_card_review">AI 评价</string>
-    <string name="completion_card_title">本次萃取</string>
-    <string name="completion_card_manual">手动萃取</string>
     <string name="completion_card_waiting">正在评价本杯…</string>
     <string name="completion_card_unavailable">评价暂不可用</string>
     <string name="completion_card_unknown">评价结果未确认</string>
     <string name="completion_card_request">请根据刚结束这一杯的萃取曲线评价一下，给出下一杯最值得调整的一点。</string>
     <string name="completion_card_saving">保存采样中…</string>
     <string name="completion_card_no_samples">采样不可用</string>
-    <string name="completion_card_spoken_seconds">用时 %1$s 秒</string>
-    <string name="completion_card_spoken_yield">出液 %1$s 克</string>
-    <string name="completion_card_spoken_ratio">粉液比 1 比 %1$s</string>
-    <string name="completion_flow_pace_slow">流速 · 偏慢</string>
-    <string name="completion_flow_pace_balanced">流速 · 适中</string>
-    <string name="completion_flow_pace_fast">流速 · 偏快</string>
+    <string name="completion_share_no_target">没有可分享文字的应用。</string>
+    <string name="completion_average_flow">平均出液流速（秤估算）：%1$s</string>
+    <string name="completion_yield">本杯出液重：%1$s</string>
+    <string name="completion_average_pressure">平均压力：%1$s</string>
+    <string name="completion_cup_count">累计萃取：%1$s</string>
+    <string name="completion_cup_number">第 %1$s 杯</string>
+    <string name="completion_cup_number_zero">0 杯</string>
 </resources>
