@@ -534,7 +534,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
     }
 
     private fun shortCollectionGap(root: View, listTag: String, sampleGap: (Rect) -> Point): List<Point> {
-        val list = root.findViewWithTag<View>(listTag) ?: return emptyList()
+        val list = root.findViewWithTag<View>(listTag)?.takeIf { it.isShown } ?: return emptyList()
         val viewport = localRect(root, list) ?: return emptyList()
         if (list is ListView && list.lastVisiblePosition != list.count - 1) return emptyList()
         val last = collectionRows(list).lastOrNull()?.let { localRect(root, it) } ?: return emptyList()
@@ -553,9 +553,9 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         host: MainActivity, root: View, listTag: String, emptyTag: String,
     ): List<SolidSurface> {
         val list = root.findViewWithTag<View>(listTag)
-        val listRect = list?.let { localRect(root, it) }
+        val listRect = list?.takeIf { it.isShown }?.let { localRect(root, it) }
         val empty = root.findViewWithTag<View>(emptyTag)
-        val emptyRect = empty?.let { localRect(root, it) }
+        val emptyRect = empty?.takeIf { it.isShown }?.let { localRect(root, it) }
         check((listRect != null) xor (emptyRect != null)) {
             "Expected the real visible list or empty card, not both (list=$listTag empty=$emptyTag)"
         }
@@ -933,7 +933,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                               val wallpaperGaps: List<Pixel>, val inventoryInk: ForegroundInk?)
         val failureName = name.removeSuffix(".png") + ".failed.png"
         val (exposed, protection, wallpaperGaps, inventoryInk) = try {
-            main {
+            BoundedInstrumentationMain.run("$name pixel evidence", timeoutMs = 10_000) {
                 val paper = root.background as PageBackdrop
                 val style = TaskProductVisualStyle(page)
                 val solidColors = setOf(base, backing, style.surface, style.selected)
@@ -1121,20 +1121,36 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         distance: (Int, Int) -> Int,
     ): Point {
         val radius = 3
-        val candidates = mutableListOf<Point>()
-        for (y in band.top + radius until band.bottom - radius) {
-            for (x in band.left + radius until band.right - radius) {
-                val color = bareWallpaper.getPixel(x, y)
-                if (fills.any { distance(color, it) < minimumContrast }) continue
-                val flat = (y - radius..y + radius).all { dy ->
-                    (x - radius..x + radius).all { dx -> distance(color, bareWallpaper.getPixel(dx, dy)) <= 1 }
+        val width = band.width()
+        val height = band.height()
+        if (width > radius * 2 && height > radius * 2) {
+            val pixels = IntArray(width * height)
+            bareWallpaper.getPixels(pixels, 0, width, band.left, band.top, width, height)
+            val centerX = width / 2
+            val centerY = height / 2
+            fun eligible(x: Int, y: Int): Boolean {
+                val color = pixels[y * width + x]
+                if (fills.any { distance(color, it) < minimumContrast }) return false
+                return (y - radius..y + radius).all { dy ->
+                    (x - radius..x + radius).all { dx -> distance(color, pixels[dy * width + dx]) <= 1 }
                 }
-                if (flat) candidates += Point(x, y)
+            }
+            // Search outward from the center, retaining row-major order among equal distances.
+            for (offset in 0..(centerX + centerY)) {
+                val firstY = maxOf(radius, centerY - offset)
+                val lastY = minOf(height - radius - 1, centerY + offset)
+                for (y in firstY..lastY) {
+                    val dx = offset - abs(y - centerY)
+                    val left = centerX - dx
+                    val right = centerX + dx
+                    if (left >= radius && left < width - radius && eligible(left, y))
+                        return Point(band.left + left, band.top + y)
+                    if (right != left && right >= radius && right < width - radius && eligible(right, y))
+                        return Point(band.left + right, band.top + y)
+                }
             }
         }
-        return candidates.minByOrNull { point ->
-            abs(point.x - band.centerX()) + abs(point.y - band.centerY())
-        } ?: throw PixelEvidenceFailure("No flat, contrast-sensitive bare wallpaper sample inside requested gap $band")
+        throw PixelEvidenceFailure("No flat, contrast-sensitive bare wallpaper sample inside requested gap $band")
     }
 
     private fun captureCommittedFrame(root: View): Bitmap {
