@@ -53,7 +53,6 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
     private var restoreDetail = false
     private var compact = true
     private var renderedPreview: HistoryPreview? = null
-    private var renderedWithTimingRecovery = false
     private var backCallback: android.window.OnBackInvokedCallback? = null
     private val journalActions = mutableListOf<Button>()
 
@@ -295,7 +294,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             rememberList()
             selectedIds[showJournal] = rows[position].id
             collection.detailRequested = true
-            renderSelection()
+            renderSelection(refresh = true)
             adapter.notifyDataSetChanged()
         }
     }
@@ -365,7 +364,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) }
         renderSelection()
     }
-    private fun renderSelection() {
+    private fun renderSelection(refresh: Boolean = false) {
         val previousId = selectedIds[showJournal]
         val previousSelection = rows.firstOrNull { it.id == previousId }
         if (previousSelection == null) collection.detailRequested = false
@@ -374,20 +373,21 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         if (selected?.id != previousId) adapter.notifyDataSetChanged()
 
         val preview = selected?.let { host.historyPreview(it) }
-        val recoverTiming = collection.detailRequested
-        if (renderedPreview == preview && detailContent.childCount > 0 &&
-            (!recoverTiming || renderedWithTimingRecovery)) return
+        val selectionTag = selected?.let { "history-selection-${it.id}" }
+        if (!refresh && renderedPreview == preview && detailContent.tag == selectionTag &&
+            detailContent.childCount > 0) return
         renderedPreview = preview
-        renderedWithTimingRecovery = recoverTiming
         detailContent.removeAllViews()
-        detailContent.tag = selected?.let { "history-selection-${it.id}" }
+        detailContent.tag = selectionTag
         if (preview == null) {
             HoyiUi.label(host, detailContent, getString(R.string.history_select_record), 18)
             return
         }
-        host.renderHistoryPreview(detailContent, preview, recoverTiming = recoverTiming, openFullPage = {
+        host.renderHistoryPreview(detailContent, preview, recoverTiming = collection.detailRequested, openFullPage = {
             startActivity(Intent(host, HistoryDetailActivity::class.java).putExtra("shotId", preview.entry.id))
-        }, visual = visual)
+        }, visual = visual, onReadFailure = {
+            if (renderedPreview === preview) renderedPreview = null
+        })
         if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
             val title = detailContent.findViewWithTag<LinearLayout>("product/history/title-row")
             val back = portraitDetailBack

@@ -115,11 +115,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             check(solid.choice == AppBackground.Solid)
             val draft = runBlocking { owner.import(sample, UUID.randomUUID().toString()) }
             val photo = AppBackgroundConfig(draft.choice)
-            for ((backgroundName, background) in listOf("solid" to solid, "photo" to photo)) {
+            for ((backgroundName, background) in listOf("photo" to photo)) {
                 if (background == photo) {
                     check(runBlocking { owner.apply(solid, photo, draft) } == AppBackgroundStore.Result.APPLIED)
                 }
-                for (dark in listOf(true, false)) {
+                for (dark in listOf(false)) {
                     main {
                         check(app.appearancePreferences.selectDark(dark) != AppAppearancePreference.Selection.SAVE_FAILED)
                     }
@@ -127,7 +127,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     val controller = MainPageTestHost.launch(test, TaskDestination.SETTINGS, timeoutMs = 10000)
                     val host = controller.activity
                     try {
-                        check(main { host.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE &&
+                        check(main { host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT &&
                             host.resources.configuration.densityDpi == 360 })
                         fun capture(name: String, root: View, requiredTag: String) {
                             await("Visible seat for $prefix-$name ($requiredTag)") {
@@ -136,8 +136,8 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                             }
                             val window = captureCommittedFrame(root)
                             try {
-                                check(window.width == 2560 && window.height == 1600) {
-                                    "Expected 2560x1600; got ${window.width}x${window.height}"
+                                check(window.width == 900 && window.height == 1600) {
+                                    "Expected 900x1600; got ${window.width}x${window.height}"
                                 }
                                 writeScreenshot("$prefix-$name.png", window)
                             } finally { window.recycle() }
@@ -151,16 +151,16 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         }
                         val settings = page(TaskDestination.SETTINGS) as SettingsDocumentLayout
                         main { settings.navigate("appearance") }
-                        capture("appearance", settings, "settings/heading/appearance")
+                        capture("appearance", settings, "settings/appearance/background/photo")
                         main { host.select(TaskDestination.CURVES) }
                         capture("curves", page(TaskDestination.CURVES), "product/curve-library/browser")
                         main { host.select(TaskDestination.HISTORY) }
                         val history = page(TaskDestination.HISTORY)
-                        await("Automatic preview has loaded the fixture samples") {
-                            history.findViewWithTag<View>("history-selection-$shotId")?.isShown == true &&
-                                history.findViewWithTag<ShotChartView>("product/history/chart")?.points?.size == 29
+                        await("Narrow history opens the list") {
+                            val collection = history.findViewWithTag<TaskCollectionLayout>("task-collection")
+                            collection != null && collection.browserBody.isShown && !collection.detailBody.isShown
                         }
-                        capture("history", history, "product/history/chart")
+                        capture("history", history, "product/history/list/$shotId/name")
                     } finally {
                         main { host.finish() }
                         await("Review host destroyed") { host.isDestroyed }

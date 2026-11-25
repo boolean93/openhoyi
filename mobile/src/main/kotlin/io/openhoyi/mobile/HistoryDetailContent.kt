@@ -339,20 +339,21 @@ internal fun ThemedActivity.historyPreview(entry: ShotHistory.Entry): HistoryPre
 
 internal fun ThemedActivity.renderHistoryPreview(
     body: LinearLayout, preview: HistoryPreview, recoverTiming: Boolean,
-    openFullPage: () -> Unit, visual: ExtractionHistoryVisualStyle,
+    openFullPage: () -> Unit, visual: ExtractionHistoryVisualStyle, onReadFailure: () -> Unit,
 ) {
     val entry = preview.entry
     val app = application as MobileApplication
     val curve = if (entry.curveId == "manual") getString(R.string.extraction_manual_label) else
         runCatching { app.historicalCurveName(entry.curveId) }.getOrNull()
             ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
-    renderEmbeddedHistoryPreview(body, entry, curve, preview.permanent, preview.journalFailed, openFullPage, visual, recoverTiming)
+    renderEmbeddedHistoryPreview(body, entry, curve, preview.permanent, preview.journalFailed,
+        openFullPage, visual, recoverTiming, onReadFailure)
 }
 
 /** Embedded collection preview: one permanent chart/notes viewport and fixed actions only. */
 private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entry: ShotHistory.Entry, curve: String,
     permanent: BrewJournal.Entry?, journalFailed: Boolean, openFullPage: (() -> Unit)?, visual: ExtractionHistoryVisualStyle,
-    recoverTiming: Boolean = true) {
+    recoverTiming: Boolean = true, onReadFailure: () -> Unit = {}) {
     val style = visual.palette
     val app = application as MobileApplication
     val chart = ShotChartView(this, visual, embeddedHistory = true).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
@@ -458,7 +459,10 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
                 sampledWater.contentDescription = getString(R.string.m5_last_sample_water) + ": " + sampledWater.contentDescription
                 chartStatus.text = if (it.isEmpty()) getString(R.string.history_no_samples) else
                     getString(if (entry.status == ShotHistory.Status.ENDED) R.string.history_samples_complete else R.string.history_samples_partial, it.size.toString())
-            }.onFailure { chartStatus.text = getString(R.string.history_samples_failed) }
+            }.onFailure {
+                chartStatus.text = getString(R.string.history_samples_failed)
+                onReadFailure()
+            }
         }
     }, "history-detail-reader").start()
 }

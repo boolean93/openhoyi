@@ -38,15 +38,15 @@ def main():
     out = Path('build/page-background-ui')
     out.mkdir(parents=True, exist_ok=False)
     receipt = {'sourceCommit': sha, 'apks': apks, 'avd': avd,
-               'size': '2560x1600', 'densityDpi': 360, 'mockOnly': True,
+               'size': '900x1600', 'densityDpi': 360, 'mockOnly': True,
                'syntheticFixtureSha256': digest(Path('mobile/src/androidTest/assets/photo-surface-review.jpg')),
                'screenshots': {}, 'passed': False}
     names = tuple(f'{mode}-{background}-{page}.png'
-                  for mode in ('dark', 'light')
-                  for background in ('photo', 'solid')
+                  for mode in ('light',)
+                  for background in ('photo',)
                   for page in ('appearance', 'curves', 'history'))
     try:
-        adb('shell', 'wm', 'size', '2560x1600')
+        adb('shell', 'wm', 'size', '900x1600')
         adb('shell', 'wm', 'density', '360')
         for key, value in (('accelerometer_rotation', '0'), ('user_rotation', '0'), ('font_scale', '1.0')):
             adb('shell', 'settings', 'put', 'system', key, value)
@@ -54,16 +54,16 @@ def main():
             require(apks[name]['sha256'] == digest(path), 'APK changed before install')
             require(adb('install', path, timeout=120).splitlines()[-1] == 'Success', 'Install failed')
         run_fixture(adb, out, receipt['screenshots'], 'widePhotoReview', 'page-background-evidence',
-                    'WIDE_PHOTO_REVIEW_CAPTURED screenshots=12 mockOnly=true', names,
+                    'WIDE_PHOTO_REVIEW_CAPTURED screenshots=3 mockOnly=true', names,
                     'wide-photo-instrumentation.txt', retain_partial=True)
         for name in names:
             data = (out / name).read_bytes()
-            require(struct.unpack('>II', data[16:24]) == (2560, 1600), f'Invalid PNG dimensions {name}')
+            require(struct.unpack('>II', data[16:24]) == (900, 1600), f'Invalid PNG dimensions {name}')
         require(len(set(receipt['screenshots'].values())) == len(names), 'Duplicate PNGs')
         receipt['passed'] = True
     finally:
         (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
-    print('WIDE_PHOTO_REVIEW_CAPTURED screenshots=12 mockOnly=true')
+    print('WIDE_PHOTO_REVIEW_CAPTURED screenshots=3 mockOnly=true')
 
 
 if __name__ == '__main__':

@@ -30,8 +30,6 @@ class HistoryActivity : ThemedActivity() {
     private val selectedIds = mutableMapOf<Boolean, String>()
     private var restoreDetail = false
     private var compact = true
-    private var renderedPreview: HistoryPreview? = null
-    private var renderedWithTimingRecovery = false
     private var backCallback: android.window.OnBackInvokedCallback? = null
     private val journalActions = mutableListOf<Button>()
 
@@ -59,9 +57,6 @@ class HistoryActivity : ThemedActivity() {
         outState.putBoolean("detailRequested", collection.detailRequested)
     }
     private fun buildScreen() {
-        compact = true
-        rows = emptyList()
-        renderedPreview = null
         updateBack(false)
         journalActions.clear()
         val body = style.page(this, getString(R.string.home_history), navigation = HistoryActivity::class.java)
@@ -70,13 +65,7 @@ class HistoryActivity : ThemedActivity() {
         val sourcesIndex = body.childCount
         HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
             if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
-            else if (showJournal != (it == 1)) {
-                rememberList()
-                showJournal = it == 1
-                restoreDetail = false
-                buildScreen()
-                render()
-            }
+            else { rememberList(); showJournal = it == 1; restoreDetail = false; buildScreen(); render() }
         }
         val sources = body.getChildAt(sourcesIndex)
         fun styleSources(view: View) {
@@ -176,8 +165,7 @@ class HistoryActivity : ThemedActivity() {
                     tag = RowViews(day, title, state, meta, chunks, taste)
                 }
                 val entry = requireNotNull(getItem(position))
-                card.isActivated = selectedIds[showJournal] == entry.id
-                card.setBackgroundColor(if (card.isActivated) style.selected else android.graphics.Color.TRANSPARENT)
+                card.setBackgroundColor(if (selectedIds[showJournal] == entry.id) style.selected else android.graphics.Color.TRANSPARENT)
                 val views = card.tag as RowViews
                 style.apply(views.day, TaskProductVisualStyle.auxiliary, true)
                 style.apply(views.title, TaskProductVisualStyle.action)
@@ -224,15 +212,10 @@ class HistoryActivity : ThemedActivity() {
         }
         style.addHistoryComparisonEntry(this, collection.browserBody)
         val back = style.button(HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() })
-        val screen = collection
-        screen.onPresentationChanged = { split, visible ->
-            val enteringSplit = compact && split
+        collection.onPresentationChanged = { split, visible ->
             compact = !split
             back.visibility = if (compact) View.VISIBLE else View.GONE
             updateBack(compact && visible)
-            if (enteringSplit) screen.post {
-                if (collection === screen && screen.isAttachedToWindow && !compact) renderSelection()
-            }
         }
         collection.detailRequested = restoreDetail
         detailContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -257,6 +240,7 @@ class HistoryActivity : ThemedActivity() {
             if (showJournal) migrateRecent() else startActivity(Intent(this, CurveActivity::class.java))
         }
         list.emptyView = emptyHolder
+        listStates[showJournal]?.let { list.onRestoreInstanceState(it) }
         list.setOnItemClickListener { _, _, position, _ ->
             rememberList()
             selectedIds[showJournal] = rows[position].id
@@ -298,7 +282,7 @@ class HistoryActivity : ThemedActivity() {
     }
     private fun render() {
         // Adapter refreshes must not send a returning reader back to the first record.
-        rememberList()
+        val position = if (historyList.isShown && historyList.childCount > 0) historyList.onSaveInstanceState() else null
         if (showJournal) {
             val journal = (application as MobileApplication).journalResult.getOrNull()
             rows = journal?.entries()?.map { it.observation.historySummary() }.orEmpty()
@@ -309,7 +293,7 @@ class HistoryActivity : ThemedActivity() {
             emptyAction.text = getString(R.string.journal_migrate)
             emptyAction.visibility = if (journal == null) View.GONE else View.VISIBLE
             adapter.clear(); adapter.addAll(rows)
-            listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) }
+            (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
             renderSelection()
             return
         }
@@ -328,31 +312,22 @@ class HistoryActivity : ThemedActivity() {
         }
         adapter.clear()
         adapter.addAll(rows)
-        listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) }
+        (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
         renderSelection()
     }
     private fun renderSelection() {
-        val previousId = selectedIds[showJournal]
-        val previousSelection = rows.firstOrNull { it.id == previousId }
-        if (previousSelection == null) collection.detailRequested = false
-        val selected = previousSelection ?: if (compact) null else rows.firstOrNull()
-        if (selected == null) selectedIds.remove(showJournal) else selectedIds[showJournal] = selected.id
-        if (selected?.id != previousId) adapter.notifyDataSetChanged()
-
-        val preview = selected?.let { this.historyPreview(it) }
-        val recoverTiming = collection.detailRequested
-        if (renderedPreview == preview && detailContent.childCount > 0 &&
-            (!recoverTiming || renderedWithTimingRecovery)) return
-        renderedPreview = preview
-        renderedWithTimingRecovery = recoverTiming
         detailContent.removeAllViews()
-        detailContent.tag = selected?.let { "history-selection-${it.id}" }
-        if (preview == null) {
+        detailContent.tag = null
+        val selected = rows.firstOrNull { it.id == selectedIds[showJournal] }
+        if (selected == null) {
+            selectedIds.remove(showJournal)
+            collection.detailRequested = false
             HoyiUi.label(this, detailContent, getString(R.string.history_select_record), 18)
             return
         }
-        renderHistoryPreview(detailContent, preview, recoverTiming = recoverTiming, openFullPage = {
-            startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", preview.entry.id))
+        detailContent.tag = "history-selection-${selected.id}"
+        renderHistoryDetail(detailContent, selected.id, openFullPage = {
+            startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", selected.id))
         }, visual = visual)
     }
     private fun rememberList() {
