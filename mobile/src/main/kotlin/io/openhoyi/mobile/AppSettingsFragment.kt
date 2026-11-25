@@ -139,7 +139,7 @@ class AppSettingsFragment : Fragment() {
         val style = visual.palette
         val root = SettingsDocumentLayout(activity, state ?: documentState).also { document=it }
         val ai = root.section("ai", getString(R.string.ai_title))
-        style.add(ai, AiSettingsCard.create(activity, style))
+        style.add(ai, AiSettingsCard.create(activity, style).also { it.markSettingsGroupMaterial(style, raiseOnWide = false) })
         val sections = linkedMapOf(
             "devices" to root.section("devices", getString(R.string.home_device_connection)),
             "machine" to root.section("machine", getString(R.string.settings_section_machine)),
@@ -199,6 +199,7 @@ class AppSettingsFragment : Fragment() {
         style.add(scaleDetails, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         val scaleTool = HoyiUi.button(activity, scale, getString(R.string.settings_category_scale_tool)) { activity.openScaleFromSettings() }
         val scaleGuide = scale.findViewWithTag<android.widget.Button>("settings/details/scale/action")
+        root.presentDeviceMaterial = connectionControls::presentCardMaterial
         root.presentDeviceWidth = { wide, heading ->
             connectionControls.presentTablet(wide, heading, scalePrecision, scaleGuide, scaleTool)
         }

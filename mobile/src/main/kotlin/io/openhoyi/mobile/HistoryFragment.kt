@@ -145,7 +145,9 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         header.addView(ioMenu, LinearLayout.LayoutParams(dp(48), dp(48)))
         val list = ListView(host).apply {
             tag = "product/history/list"
-            protectRoundedBackdropContent(style.surface, dp(12), clipContent = true)
+            protectRoundedBackdropContent(style.surface, dp(12), clipContent = true, photoContentEnd = {
+                if (lastVisiblePosition == count - 1 && childCount > 0) getChildAt(childCount - 1) else null
+            })
             divider = android.graphics.drawable.ColorDrawable(style.border)
             dividerHeight = dp(1)
         }

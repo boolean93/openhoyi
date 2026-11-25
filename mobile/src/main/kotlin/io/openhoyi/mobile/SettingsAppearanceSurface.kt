@@ -11,6 +11,18 @@ internal class SettingsAppearanceSurface(context: Context, private val style: Ta
     title: CharSequence, private val content: View, private val minWideDp: Int = 620,
     private val narrowLabel: Boolean = true, private val maxContentDp: Int? = null, private val onWidthMode: (Boolean) -> Unit = {}) : LinearLayout(context) {
     private var roomy: Boolean? = null
+    private var parentPhotoSurface = false
+
+    fun showParentPhotoSurface(photo: Boolean) {
+        if (photo == parentPhotoSurface) return
+        parentPhotoSurface = photo
+        updateMaterial()
+    }
+
+    private fun updateMaterial() {
+        background = if (roomy == true && !parentPhotoSurface) settingsRaisedGroup(context, style) else null
+    }
+
     private val label: TextView = style.text(title, TaskProductVisualStyle.action)
     init {
         addView(label)
@@ -24,7 +36,7 @@ internal class SettingsAppearanceSurface(context: Context, private val style: Ta
             gravity = if (wide) Gravity.CENTER_VERTICAL else Gravity.TOP
             val pad = style.dp(if (wide) 14 else 0)
             setPadding(pad, pad, pad, pad)
-            background = if (wide) settingsRaisedGroup(context, style) else null
+            updateMaterial()
             label.visibility = if (wide || narrowLabel) View.VISIBLE else View.GONE
             label.layoutParams = if (wide) LayoutParams(style.dp(110), -2) else LayoutParams(-1, -2)
             label.setPaddingRelative(0, 0, if (wide) style.dp(8) else 0, if (wide) 0 else style.dp(6))
