@@ -151,6 +151,21 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                         }
                         val settings = page(TaskDestination.SETTINGS) as SettingsDocumentLayout
                         main { settings.navigate("appearance") }
+                        await("Appearance heading positioned") { settings.isAtSectionLanding("appearance") }
+                        main {
+                            val options = checkNotNull(settings.findViewWithTag<ViewGroup>("settings/appearance/background-presets"))
+                            val tile = checkNotNull(options.findViewWithTag<Button>("settings/appearance/background/photo")) {
+                                "Missing narrow tile. Options=" + (0 until options.childCount).map { options.getChildAt(it).tag }
+                            }
+                            check(tile.isSelected && tile.isShown && tile.width > 0 && tile.height > 0) {
+                                "Imported tile not ready: selected=" + tile.isSelected + ", visibility=" + tile.visibility +
+                                    ", size=" + tile.width + "x" + tile.height
+                            }
+                            val scroll = generateSequence(tile.parent) { it.parent }.filterIsInstance<ScrollView>().first()
+                            val rect = Rect(0, 0, options.width, options.height)
+                            scroll.offsetDescendantRectToMyCoords(options, rect)
+                            scroll.scrollTo(0, rect.top - HoyiUi.dp(host, 24))
+                        }
                         capture("appearance", settings, "settings/appearance/background/photo")
                         main { host.select(TaskDestination.CURVES) }
                         capture("curves", page(TaskDestination.CURVES), "product/curve-library/browser")
