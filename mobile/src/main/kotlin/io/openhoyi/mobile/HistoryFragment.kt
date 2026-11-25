@@ -52,6 +52,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
     private var portraitDetailBack: Button? = null
     private var restoreDetail = false
     private var compact = true
+    private var renderedPreview: HistoryPreview? = null
     private var backCallback: android.window.OnBackInvokedCallback? = null
     private val journalActions = mutableListOf<Button>()
 
@@ -63,7 +64,9 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         savedInstanceState?.getParcelable<android.os.Parcelable>("journalList")?.let { listStates[true] = it }
         savedInstanceState?.getString("localSelection")?.let { selectedIds[false] = it }
         savedInstanceState?.getString("journalSelection")?.let { selectedIds[true] = it }
-        restoreDetail = savedInstanceState?.getBoolean("detailRequested") ?: false
+        restoreDetail = savedInstanceState?.let {
+            it.getBoolean("showJournal") == showJournal && it.getBoolean("detailRequested")
+        } ?: false
         buildScreen()
         return pageHost
     }
@@ -78,6 +81,9 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         outState.putBoolean("detailRequested", collection.detailRequested)
     }
     private fun buildScreen() {
+        compact = true
+        rows = emptyList()
+        renderedPreview = null
         updateBack(false)
         journalActions.clear()
         val (root,body) = style.fragmentPage(host, getString(R.string.home_history))
@@ -94,7 +100,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         val sourcesIndex = body.childCount
         HoyiUi.tabs(host, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
             if (it == 2) startActivity(Intent(host, LegacyHistoryActivity::class.java))
-            else { rememberList(); showJournal = it == 1; restoreDetail = false; buildScreen(); render() }
+            else showSource(it == 1)
         }
         val sources = body.getChildAt(sourcesIndex)
         fun styleSources(view: View) {
@@ -199,7 +205,8 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
                     tag = RowViews(day, title, state, meta, chunks, taste)
                 }
                 val entry = requireNotNull(getItem(position))
-                card.setBackgroundColor(if (selectedIds[showJournal] == entry.id) style.selected else android.graphics.Color.TRANSPARENT)
+                card.isActivated = selectedIds[showJournal] == entry.id
+                card.setBackgroundColor(if (card.isActivated) style.selected else android.graphics.Color.TRANSPARENT)
                 val views = card.tag as RowViews
                 style.apply(views.day, TaskProductVisualStyle.auxiliary, true)
                 style.apply(views.title, TaskProductVisualStyle.action)
@@ -246,11 +253,16 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         collection.browserBody.findViewWithTag<View>("product/history/compare-entry")
             ?.protectRoundedBackdropContent(style.surface, dp(12))
         val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }).also { portraitDetailBack = it }
-        collection.onPresentationChanged = { split, visible ->
+        val screen = collection
+        screen.onPresentationChanged = { split, visible ->
+            val enteringSplit = compact && split
             compact = !split
             back.visibility = if (compact) View.VISIBLE else View.GONE
             header.visibility = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT && compact && visible) View.GONE else View.VISIBLE
             updateBack(compact && visible)
+            if (enteringSplit) screen.post {
+                if (collection === screen && screen.isAttachedToWindow && !compact) renderSelection()
+            }
         }
         collection.detailRequested = restoreDetail
         detailContent = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
@@ -278,12 +290,11 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             if (showJournal) migrateRecent() else host.select(TaskDestination.CURVES)
         }
         list.emptyView = emptyHolder
-        listStates[showJournal]?.let { list.onRestoreInstanceState(it) }
         list.setOnItemClickListener { _, _, position, _ ->
             rememberList()
             selectedIds[showJournal] = rows[position].id
             collection.detailRequested = true
-            renderSelection()
+            renderSelection(refresh = true)
             adapter.notifyDataSetChanged()
         }
     }
@@ -320,7 +331,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
     }
     private fun render() {
         // Adapter refreshes must not send a returning reader back to the first record.
-        val position = if (historyList.isShown && historyList.childCount > 0) historyList.onSaveInstanceState() else null
+        rememberList()
         if (showJournal) {
             val journal = (application as MobileApplication).journalResult.getOrNull()
             rows = journal?.entries()?.map { it.observation.historySummary() }.orEmpty()
@@ -331,7 +342,7 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             emptyAction.text = getString(R.string.journal_migrate)
             emptyAction.visibility = if (journal == null) View.GONE else View.VISIBLE
             adapter.clear(); adapter.addAll(rows)
-            (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
+            listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) }
             renderSelection()
             return
         }
@@ -350,23 +361,33 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         }
         adapter.clear()
         adapter.addAll(rows)
-        (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
+        listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) }
         renderSelection()
     }
-    private fun renderSelection() {
+    private fun renderSelection(refresh: Boolean = false) {
+        val previousId = selectedIds[showJournal]
+        val previousSelection = rows.firstOrNull { it.id == previousId }
+        if (previousSelection == null) collection.detailRequested = false
+        val selected = previousSelection ?: if (compact) null else rows.firstOrNull()
+        if (selected == null) selectedIds.remove(showJournal) else selectedIds[showJournal] = selected.id
+        if (selected?.id != previousId) adapter.notifyDataSetChanged()
+
+        val preview = selected?.let { host.historyPreview(it) }
+        val selectionTag = selected?.let { "history-selection-${it.id}" }
+        if (!refresh && renderedPreview == preview && detailContent.tag == selectionTag &&
+            detailContent.childCount > 0) return
+        renderedPreview = preview
         detailContent.removeAllViews()
-        detailContent.tag = null
-        val selected = rows.firstOrNull { it.id == selectedIds[showJournal] }
-        if (selected == null) {
-            selectedIds.remove(showJournal)
-            collection.detailRequested = false
+        detailContent.tag = selectionTag
+        if (preview == null) {
             HoyiUi.label(host, detailContent, getString(R.string.history_select_record), 18)
             return
         }
-        detailContent.tag = "history-selection-${selected.id}"
-        host.renderHistoryDetail(detailContent, selected.id, openFullPage = {
-            startActivity(Intent(host, HistoryDetailActivity::class.java).putExtra("shotId", selected.id))
-        }, visual = visual)
+        host.renderHistoryPreview(detailContent, preview, recoverTiming = collection.detailRequested, openFullPage = {
+            startActivity(Intent(host, HistoryDetailActivity::class.java).putExtra("shotId", preview.entry.id))
+        }, visual = visual, onReadFailure = {
+            if (renderedPreview === preview) renderedPreview = null
+        })
         if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
             val title = detailContent.findViewWithTag<LinearLayout>("product/history/title-row")
             val back = portraitDetailBack

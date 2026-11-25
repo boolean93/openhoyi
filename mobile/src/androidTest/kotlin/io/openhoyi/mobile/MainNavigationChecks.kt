@@ -579,6 +579,27 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         }
     }
 
+    private fun checkHistoryLanding(host: MainPageTestHost, history: HistoryFragment, previousId: String? = null): String? {
+        var selectedId: String? = null
+        test.runOnMainSync {
+            val page = requireNotNull(history.view)
+            val collection = requireNotNull(page.findViewWithTag<TaskCollectionLayout>("task-collection"))
+            val list = requireNotNull(page.findViewWithTag<ListView>("product/history/list"))
+            val detail = host.viewField<View>(history, "detailContent")
+            check(collection.browserBody.isShown && !collection.detailRequested)
+            val entries = (0 until list.count).map { list.getItemAtPosition(it) as ShotHistory.Entry }
+            val restored = entries.firstOrNull { it.id == previousId }
+            val expected = restored ?: if (collection.detailBody.isShown) entries.firstOrNull() else null
+            selectedId = expected?.id
+            check(detail.tag == expected?.let { "history-selection-${it.id}" })
+            for (index in 0 until list.childCount) {
+                val entry = entries[list.firstVisiblePosition + index]
+                check(list.getChildAt(index).isActivated == (entry.id == selectedId))
+            }
+        }
+        return selectedId
+    }
+
     private fun checkHistoryComparisonEntry(host: MainPageTestHost, history: HistoryFragment) {
         val page = requireNotNull(history.view)
         val activity = host.activity
@@ -717,6 +738,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             }
             val history = host.select(TaskDestination.HISTORY) as HistoryFragment
             checkHistoryComparisonEntry(host, history)
+            val initialHistorySelection = checkHistoryLanding(host, history)
             var historyList: ListView? = null
             var historyPosition = 0
             test.runOnMainSync {
@@ -771,6 +793,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             host.select(TaskDestination.CURVES)
             check(search?.text?.toString() == "navigation-state") { "Curve filter state was lost" }
             host.select(TaskDestination.HISTORY)
+            checkHistoryLanding(host, history, initialHistorySelection)
             if (historyPosition > 0) check(historyList?.firstVisiblePosition == historyPosition) {
                 "Nonzero History list position was lost"
             }

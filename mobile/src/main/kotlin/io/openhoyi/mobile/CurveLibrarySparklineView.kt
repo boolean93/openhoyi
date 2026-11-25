@@ -8,11 +8,12 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
 
-/** Shared-scale target outline: equal stage widths, with a gap at each unit change. */
+/** Shared-scale targets, with separate bars in the library and an outline in compact previews. */
 internal class CurveLibrarySparklineView(
     context: Context,
     private val style: TaskProductVisualStyle,
     private val compact: Boolean = false,
+    private val stageBars: Boolean = false,
 ) : View(context) {
     var preview = CurveStageParameters.Preview(emptyList())
         set(value) { field = value; invalidate() }
@@ -48,6 +49,18 @@ internal class CurveLibrarySparklineView(
             val limit = if (stage.unit == CurveStageParameters.Unit.PRESSURE_BAR) scale.pressureMaxBar
                 else scale.flowMaxMlPerSecond
             return bottom - (bottom - top) * stage.target / 10f / limit
+        }
+        if (stageBars) {
+            val halfGap = minOf(dp(2f), step / 4f)
+            paint.style = Paint.Style.FILL
+            stages.forEachIndexed { index, stage ->
+                val slotLeft = left + step * index
+                val minimumHeight = dp(if (stage.target == 0) 1f else 2f)
+                val barTop = y(stage).coerceAtMost(bottom - minimumHeight).coerceAtLeast(top)
+                paint.color = color(stage)
+                canvas.drawRect(slotLeft + halfGap, barTop, slotLeft + step - halfGap, bottom, paint)
+            }
+            return
         }
         paint.style = Paint.Style.STROKE; paint.strokeWidth = dp(if (compact) 1.35f else 2f); paint.strokeCap = Paint.Cap.ROUND
         stages.forEachIndexed { index, stage ->

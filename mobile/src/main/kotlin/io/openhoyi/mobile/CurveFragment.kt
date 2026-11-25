@@ -325,7 +325,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                     gravity = android.view.Gravity.CENTER_VERTICAL
                     minimumHeight = dp(64)
                     setPadding(dp(16), dp(6), dp(16), dp(6))
-                    val thumbnail = CurveLibrarySparklineView(host, productStyle).apply {
+                    val thumbnail = CurveLibrarySparklineView(host, productStyle, stageBars = true).apply {
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     }
                     addView(thumbnail, LinearLayout.LayoutParams(dp(96), dp(40)).apply { marginEnd = dp(8) })
