@@ -20,35 +20,26 @@ internal fun settingsRaisedGroup(context: Context, style: TaskProductVisualStyle
     topInsetDp: Int = 2): Drawable =
     SettingsRaisedGroup(context, style.surface, horizontalInsetDp, topInsetDp)
 
-internal fun View.markSettingsGroupMaterial(style: TaskProductVisualStyle, raiseOnWide: Boolean = true) {
-    val outline = style.shape(Color.TRANSPARENT, outline = true, radius = 14)
-    val original = background
-    setTag(R.id.settings_group_material, GroupMaterial(original, outline) {
-        if (raiseOnWide) settingsRaisedGroup(context, style) else original
-    })
+internal fun View.markSettingsGroupMaterial(style: TaskProductVisualStyle) {
+    setTag(R.id.settings_group_material, WideMaterial(background) { settingsRaisedGroup(context, style) })
 }
 
-internal fun View.applySettingsGroupMaterials(wide: Boolean, photo: Boolean) {
-    (getTag(R.id.settings_group_material) as? GroupMaterial)?.let { binding ->
-        if (binding.wide != wide || binding.photo != photo) {
+internal fun View.markSettingsWideMaterial(factory: () -> Drawable) {
+    setTag(R.id.settings_group_material, WideMaterial(background, factory))
+}
+
+internal fun View.applySettingsWideMaterial(wide: Boolean) {
+    (getTag(R.id.settings_group_material) as? WideMaterial)?.let { binding ->
+        if (binding.wide != wide) {
             binding.wide = wide
-            binding.photo = photo
-            background = when {
-                photo -> binding.outline
-                wide -> binding.raised()
-                else -> binding.narrow
-            }
+            background = if (wide) binding.factory() else binding.narrow
         }
     }
-    if (this is SettingsAppearanceSurface) showParentPhotoSurface(photo)
-    if (this is ViewGroup) {
-        for (index in 0 until childCount) getChildAt(index).applySettingsGroupMaterials(wide, photo)
-    }
+    if (this is ViewGroup) for (index in 0 until childCount) getChildAt(index).applySettingsWideMaterial(wide)
 }
 
-private class GroupMaterial(val narrow: Drawable?, val outline: Drawable, val raised: () -> Drawable?) {
+private class WideMaterial(val narrow: Drawable?, val factory: () -> Drawable) {
     var wide = false
-    var photo = false
 }
 
 /** Stretch the middle of a small software-rasterized alpha mask, leaving blurred corners intact. */

@@ -104,7 +104,6 @@ private data class RoundedBackdropMark(
     val fill: Int, val radius: Float, val group: Any?, val horizontalOutset: Int,
     val horizontalBounds: View?, val leaveBottomPaddingVisible: Boolean, val clipContent: Boolean,
     val photoFill: Int?, val photoOnly: Boolean, val omitForPhoto: Boolean,
-    val photoContentEnd: (() -> View?)?,
 )
 
 private data class BackdropProtection(
@@ -127,12 +126,10 @@ internal fun View.protectRoundedBackdropContent(
     fill: Int, radius: Int, group: Any? = null, horizontalOutset: Int = 0,
     horizontalBounds: View? = null, leaveBottomPaddingVisible: Boolean = false, clipContent: Boolean = false,
     photoFill: Int? = null, photoOnly: Boolean = false, omitForPhoto: Boolean = false,
-    photoContentEnd: (() -> View?)? = null,
 ) {
     require(!clipContent || group == null && horizontalBounds == null && horizontalOutset == 0 && !leaveBottomPaddingVisible)
     setTag(R.id.page_backdrop_content, RoundedBackdropMark(fill, radius.toFloat(), group, horizontalOutset,
-        horizontalBounds, leaveBottomPaddingVisible, clipContent, photoFill, photoOnly, omitForPhoto,
-        photoContentEnd))
+        horizontalBounds, leaveBottomPaddingVisible, clipContent, photoFill, photoOnly, omitForPhoto))
 }
 
 /** A native surface or translucent overlay supplies its own contrast treatment, including its labels. */
@@ -261,7 +258,6 @@ internal class PageBackdropBinding(
         val roundedGroups = linkedMapOf<Any, RoundedBackdropArea>()
         val rows = mutableListOf<Rect>()
         val gap = (4 * root.resources.displayMetrics.density).roundToInt()
-        val showingPhoto = paper.snapshot.config.choice is AppBackground.Photo
         fun relative(view: View) = Rect().takeIf { view.getGlobalVisibleRect(it) }
             ?.apply { offset(-position.x, -position.y) }
         fun protect(view: View, mark: BackdropProtection) {
@@ -313,13 +309,7 @@ internal class PageBackdropBinding(
                 }
                 view.clipToOutline = true
             }
-            if (showingPhoto) {
-                mark.photoContentEnd?.invoke()?.let(::relative)?.let { last ->
-                    // Reveal the empty viewport without moving its rounded corners into a row.
-                    clip.bottom = minOf(clip.bottom, last.bottom)
-                }
-            }
-            val area = RoundedBackdropArea(bounds, clip, mark.radius, if (showingPhoto) mark.photoFill ?: mark.fill else mark.fill)
+            val area = RoundedBackdropArea(bounds, clip, mark.radius, if (paper.snapshot.config.choice is AppBackground.Photo) mark.photoFill ?: mark.fill else mark.fill)
             val group = mark.group
             if (group == null) rounded += area else roundedGroups[group]?.let {
                 it.bounds.union(bounds)
@@ -336,6 +326,7 @@ internal class PageBackdropBinding(
                     OwnBackdropTreatment -> return
                     is BackdropProtection -> { protect(view, mark); return }
                     is RoundedBackdropMark -> {
+                        val showingPhoto = paper.snapshot.config.choice is AppBackground.Photo
                         // The whole group handles contrast itself; don't fall through to
                         // automatic full-width backing behind its individual labels.
                         if (showingPhoto && mark.omitForPhoto) return

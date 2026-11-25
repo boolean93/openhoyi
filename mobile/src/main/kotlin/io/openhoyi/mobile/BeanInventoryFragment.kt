@@ -150,9 +150,7 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         listScroll = list.parent as ScrollView
         listScroll?.apply {
             tag = "product/inventory/list-scroll"
-            protectRoundedBackdropContent(productStyle.surface, radius, clipContent = true, photoContentEnd = {
-                list.getChildAt(list.childCount - 1)
-            })
+            protectRoundedBackdropContent(productStyle.surface, radius, clipContent = true)
         }
         (listScroll!!.layoutParams as LinearLayout.LayoutParams).topMargin = productStyle.dp(14)
         pendingListRestore = true
