@@ -10,7 +10,10 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
+import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.PathInterpolator
 import android.widget.Switch
 
@@ -23,10 +26,131 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     private var motion: ValueAnimator? = null
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val capsule = RectF()
+    /** Touch and keyboard keep their hit target. Accessibility readback uses a separate view. */
+    var readbackRetry: (() -> Unit)?=null
+        set(value) {
+            val accessibilityModeChanged = (field == null) != (value == null)
+            if(value!=null) {
+                if(touching)nativeGestureInvalid=true
+                queuedNativeClick?.invalid=true
+                keyboardPress?.toggle?.invalid = true
+            }
+            field=value
+            if (accessibilityModeChanged) {
+                importantForAccessibility = if (value == null) IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                    else IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+        }
+    var authoritativeToggleIdentity:(() -> Any?)?=null
+    var drawnToggleIdentity:Any?=null
+        set(value) {
+            if(field!=value) {
+                if(touching)nativeGestureInvalid=true
+                queuedNativeClick?.invalid=true
+                keyboardPress?.toggle?.invalid = true
+            }
+            field=value
+        }
+    private var nativeGestureInvalid=false
+    private class NativeClick(val down:Any?,var invalid:Boolean=false)
+    private var queuedNativeClick:NativeClick?=null
+    private var nativeTouchIdentity:Any?=null
+    private var readbackGesture=false
+    private var readbackTap:(()->Unit)?=null
+    private class KeyboardPress(
+        val keyCode: Int,
+        val retry: (() -> Unit)?,
+        val toggle: NativeClick,
+        var cancelled: Boolean = false,
+    )
+    private var keyboardPress: KeyboardPress? = null
+
+    // KeyEvent.isConfirmKey is hidden. Match the platform View confirmation keys.
+    private fun isConfirmKey(keyCode: Int) = when (keyCode) {
+        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+        KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_NUMPAD_ENTER -> true
+        else -> false
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (!isConfirmKey(keyCode) || !event.hasNoModifiers() ||
+            authoritativeToggleIdentity == null && readbackRetry == null) {
+            return super.onKeyDown(keyCode, event)
+        }
+        if (event.repeatCount == 0) {
+            val identity = drawnToggleIdentity
+            keyboardPress = KeyboardPress(keyCode, readbackRetry, NativeClick(identity,
+                !BoilerSwitchGestureGate.allows(identity, authoritativeToggleIdentity?.invoke(), identity, touching = true)))
+        }
+        if (keyboardPress?.retry == null) super.onKeyDown(keyCode, event)
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (!isConfirmKey(keyCode)) return super.onKeyUp(keyCode, event)
+        val press = keyboardPress ?: return if (authoritativeToggleIdentity == null && readbackRetry == null) {
+            super.onKeyUp(keyCode, event)
+        } else true
+        if (press.keyCode != keyCode) return true
+        keyboardPress = null
+        if (press.cancelled || event.isCanceled || !event.hasNoModifiers() || !isEnabled) {
+            isPressed = false
+            return true
+        }
+        press.retry?.let { retry ->
+            retry()
+            return true
+        }
+        val toggling = press.toggle
+        if (toggling.invalid || readbackRetry != null ||
+            !BoilerSwitchGestureGate.allows(drawnToggleIdentity, authoritativeToggleIdentity?.invoke(),
+                toggling.down, touching = true)) {
+            isPressed = false
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
+    override fun onFocusChanged(focused: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
+        if (!focused) keyboardPress?.cancelled = true
+        super.onFocusChanged(focused, direction, previouslyFocusedRect)
+    }
+
+    override fun performClick():Boolean {
+        // Android View may post its click after touch-up and after a new BLE report has rendered.
+        val queued=queuedNativeClick
+        if(queued!=null) {
+            queuedNativeClick=null
+            val current=authoritativeToggleIdentity
+            if(queued.invalid || readbackRetry!=null || current==null ||
+                !BoilerSwitchGestureGate.allows(drawnToggleIdentity,current(),queued.down,touching=true))return false
+            return super.performClick()
+        }
+        val retry=readbackRetry
+        if(retry!=null && isEnabled) {
+            retry()
+            return true
+        }
+        authoritativeToggleIdentity?.let { current ->
+            val rendered=drawnToggleIdentity
+            if(nativeGestureInvalid && touching || !BoilerSwitchGestureGate.allows(rendered,current(),nativeTouchIdentity,touching))return false
+        }
+        return super.performClick()
+    }
+    override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
+        super.onInitializeAccessibilityNodeInfo(info)
+        if (readbackRetry != null) {
+            info.isClickable = false
+            info.removeAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
+        }
+    }
+
+    override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
+        if (readbackRetry != null && action == AccessibilityNodeInfo.ACTION_CLICK) return false
+        return super.performAccessibilityAction(action, arguments)
+    }
+
     private var touching = false
-    // Opt-in paint only; Android retains the real disabled touch and accessibility state.
-    var keepPendingAppearance = false
-        set(value) { if (field != value) { field = value; invalidate() } }
     // Scoped to the two reference-built Settings panels; the native drag geometry is unchanged.
     fun useSettingsPanelInk() { settingsPanelInk = true; invalidate() }
     private var settingsPanelInk = false
@@ -90,12 +214,47 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
         if (ready) { motion?.cancel(); position = if (isChecked) 1f else 0f; invalidate() }
     }
     override fun onDetachedFromWindow() {
+        readbackGesture=false;readbackTap=null;nativeTouchIdentity=null;queuedNativeClick=null
+        keyboardPress?.cancelled = true
         touching = false
         motion?.cancel(); position = if (isChecked) 1f else 0f
         super.onDetachedFromWindow()
     }
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!interactive) return false
+        if(event.actionMasked==MotionEvent.ACTION_DOWN) {
+            readbackTap=readbackRetry
+            nativeTouchIdentity=drawnToggleIdentity
+            nativeGestureInvalid=false
+            val current=authoritativeToggleIdentity
+            readbackGesture=readbackTap!=null || current!=null &&
+                (nativeTouchIdentity==null || current()!=nativeTouchIdentity)
+        }
+        if(!readbackGesture && event.actionMasked!=MotionEvent.ACTION_DOWN && touching &&
+            (nativeGestureInvalid || readbackRetry!=null || authoritativeToggleIdentity?.let { current ->
+                !BoilerSwitchGestureGate.allows(drawnToggleIdentity,current(),nativeTouchIdentity,touching=true)
+            }==true)) {
+            // Freshness can change while a native drag is in progress. Cancel rather than
+            // treating the same touch-up as either a toggle or a new read-only retry.
+            val cancelled=MotionEvent.obtain(event)
+            try {cancelled.action=MotionEvent.ACTION_CANCEL;super.onTouchEvent(cancelled)}
+            finally {cancelled.recycle()}
+            touching=false
+            readbackGesture=true
+        }
+        if(readbackGesture) {
+            when(event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> if(event.x<0 || event.x>=width || event.y<0 || event.y>=height)readbackTap=null
+                MotionEvent.ACTION_POINTER_DOWN -> readbackTap=null
+                MotionEvent.ACTION_UP -> {
+                    val tap=readbackTap
+                    readbackGesture=false;readbackTap=null
+                    if(event.x>=0 && event.x<width && event.y>=0 && event.y<height)tap?.invoke()
+                }
+                MotionEvent.ACTION_CANCEL -> {readbackGesture=false;readbackTap=null}
+            }
+            return true
+        }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             // Finish an interrupted transition before native hit-testing so invisible and
             // visible thumb positions agree when a second gesture starts.
@@ -103,7 +262,13 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
             touching = isEnabled
         }
         // Switch alone owns slop, thumb hit-testing, clamping, fling and cancellation.
+        val click=if(event.actionMasked==MotionEvent.ACTION_UP && touching && authoritativeToggleIdentity!=null)
+            NativeClick(nativeTouchIdentity,nativeGestureInvalid).also {queuedNativeClick=it} else null
         val handled = super.onTouchEvent(event)
+        if(click!=null && queuedNativeClick===click) {
+            // Clear after View's performClick post. Drag commits have no posted click.
+            if(!post {if(queuedNativeClick===click)queuedNativeClick=null})queuedNativeClick=null
+        }
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             touching = false
             settle()
@@ -112,7 +277,7 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val fullInk = isEnabled || keepPendingAppearance
+        val fullInk = isEnabled && readbackRetry == null
         val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
         // Native layout owns gravity, padding, RTL and integer density rounding too.
         capsule.set(trackDrawable.bounds)

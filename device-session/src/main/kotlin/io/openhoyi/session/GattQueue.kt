@@ -6,7 +6,13 @@ class TransportCloseUncertainException(cause: Exception?) :
 /** Thread-confined queue; elapsed time must come from a monotonic clock. Never retries writes. */
 class GattQueue(private val driver: GattDriver, private val clock: () -> Long, private val invalidated: (String) -> Unit = {}) {
     private data class Pending(val token:Long,val generation:Long,val operation:GattOperation,val timeout:Long,
-        val beforeDispatch:()->Boolean,val callback:(OperationResult)->Unit)
+        val beforeDispatch:()->Boolean,val callback:(OperationResult)->Unit,val coffeeKind:CoffeeDeliveryKind?,val onHandoff:(()->Unit)?,var handedOff:Boolean=false)
+    private var coffeeDelivery: CoffeeDeliveryProjection? = null
+    internal fun enableCoffeeDelivery() { assertThread(); coffeeDelivery = CoffeeDeliveryProjection() }
+    internal fun coffeeDeliveries(): List<CoffeeDelivery> { assertThread(); return coffeeDelivery?.read(generation).orEmpty() }
+    private fun record(p:Pending, phase:CoffeeDeliveryPhase) {
+        p.coffeeKind?.let { coffeeDelivery?.record(CoffeeDelivery(p.generation,p.token,it,phase)) }
+    }
     private val owner=Thread.currentThread()
     private val pending=ArrayDeque<Pending>()
     private var current:Pending?=null
@@ -17,6 +23,7 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     var active=false; private set
     var transportCloseFailure: Exception? = null; private set
     val inFlight:Boolean get()=current!=null
+    internal val settingsRefreshInFlight: Boolean get() = current?.coffeeKind == CoffeeDeliveryKind.SETTINGS_REFRESH
     private fun assertThread()=check(Thread.currentThread()===owner){"GattQueue accessed outside owner thread"}
     fun open():Long {
         assertThread();check(!opening){"reentrant queue open"}
@@ -30,12 +37,17 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     }
     fun enqueue(operation:GattOperation, timeoutMs:Long, urgent:Boolean=false,
                 beforeDispatch:()->Boolean={true}, callback:(OperationResult)->Unit) {
+        enqueueTagged(operation,timeoutMs,urgent,beforeDispatch,null,callback=callback)
+    }
+    internal fun enqueueTagged(operation:GattOperation, timeoutMs:Long, urgent:Boolean,
+                beforeDispatch:()->Boolean, kind:CoffeeDeliveryKind?, onHandoff:(()->Unit)?=null, callback:(OperationResult)->Unit) {
         assertThread(); require(timeoutMs in 1..120_000)
         if(!active){callback(OperationResult.Cancelled("not connected"));return}
         if(pending.size>=64 && !urgent){callback(OperationResult.Failed("queue full"));return}
-        val p=Pending(++serial,generation,operation,timeoutMs,beforeDispatch,callback)
+        val p=Pending(++serial,generation,operation,timeoutMs,beforeDispatch,callback,kind,onHandoff)
         val displaced=if(pending.size>=64)pending.removeLast() else null
         if(urgent)pending.addFirst(p) else pending.addLast(p)
+        record(p,CoffeeDeliveryPhase.QUEUED)
         displaced?.let{deliver(it,OperationResult.Cancelled("displaced by urgent stop"))}
         pump()
     }
@@ -57,6 +69,11 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
             pump();return
         }
         val executionGeneration=generation
+        // Internal observation only. Never let its exception or an owner change cause a write.
+        p.onHandoff?.let { runCatching(it) }
+        if(current!==p||generation!=executionGeneration||!active)return
+        p.handedOff=true
+        record(p,CoffeeDeliveryPhase.DRIVER_HANDOFF)
         val accepted=try{driver.execute(executionGeneration,p.token,p.operation)}catch(_:Exception){
             // A synchronous completion callback may already have replaced this owner.
             if(generation!=executionGeneration || !active)return
@@ -75,9 +92,18 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     fun complete(generation:Long, token:Long, result:OperationResult) {
         assertThread();val p=current?:return
         if(!active||this.generation!=generation||p.token!=token)return
-        current=null;deliver(p,result);pump()
+        current=null
+        record(p,when(result) {
+            is OperationResult.Success -> CoffeeDeliveryPhase.TRANSPORT_CALLBACK_OK
+            else -> CoffeeDeliveryPhase.OUTCOME_UNKNOWN
+        })
+        tryDeliver(p,result);pump()
     }
     private fun deliver(p:Pending,result:OperationResult) {
+        record(p,if(p.handedOff && result is OperationResult.Unknown) CoffeeDeliveryPhase.OUTCOME_UNKNOWN else CoffeeDeliveryPhase.NOT_SENT)
+        tryDeliver(p,result)
+    }
+    private fun tryDeliver(p:Pending,result:OperationResult) {
         try {p.callback(result)} catch(_:Exception) {
             invalidateOwner("operation callback failure",p.generation)
         }

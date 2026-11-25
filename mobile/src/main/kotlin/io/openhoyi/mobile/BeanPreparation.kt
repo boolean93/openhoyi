@@ -69,6 +69,11 @@ internal class BeanPreparation(private val storage: Storage) {
         commit(state.copy(dose=assigned))
         return assigned
     }
+    /** The start owner must have definitive proof that this shot did not dispatch. */
+    @Synchronized fun releaseUnsentClaim(shotId:String) {
+        val dose=state.dose?.takeIf {it.shotId==shotId && !it.associated} ?: return
+        commit(state.copy(dose=dose.copy(shotId=null)))
+    }
     @Synchronized fun markAssociated(shotId:String) {
         val dose=requireNotNull(state.dose)
         require(dose.shotId==shotId && dose.confirmed)
@@ -80,6 +85,13 @@ internal class BeanPreparation(private val storage: Storage) {
         val shotId=requireNotNull(dose.shotId)
         synchronized(journal) {
             val entry=requireNotNull(journal.find(shotId)) { "Cannot invent a shot through preparation" }
+            // Reserve the dose through scale preflight. A later cancellation may prove no START was sent.
+            if (entry.observation.status == "STARTING") return
+            // A failed local release can be retried from the durable, definitive history outcome.
+            if (entry.observation.status == "NOT_STARTED") {
+                releaseUnsentClaim(shotId)
+                return
+            }
             val notes=entry.notes
             journal.edit(shotId,notes.copy(beanId=notes.beanId ?: dose.beanId,
                 beanName=notes.beanName ?: dose.beanName,doseMg=notes.doseMg ?: dose.amountMg))

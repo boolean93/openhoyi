@@ -41,8 +41,20 @@ class LegacyScaleSessionTest {
             for(command in adapter.initializationCommands) {now=start+command.delayMs;session.tick();complete()}
             assertEquals(DeviceState.SYNCHRONIZING,session.state)
         }
-        fun notify(bytes:ByteArray) {session.onNotification(session.generation,requireNotNull(adapter.notifyEndpoint),bytes)}
+        fun notify(bytes:ByteArray, capturedAt:Long=now) {session.onNotification(session.generation,requireNotNull(adapter.notifyEndpoint),bytes,capturedAt)}
         fun writes()=driver.operations.mapNotNull {it.third as? GattOperation.Write}
+    }
+    @Test fun queuedWeightRetainsOriginalTimestampAndExpiredWeightCannotBecomeReady() {
+        val f=Fixture(FelicitaScaleProtocolAdapter);f.boot()
+        val captured=f.now
+        f.now+=2_900
+        f.notify(felicita(),captured)
+        assertTrue(f.seen.isEmpty())
+        assertEquals(DeviceState.SYNCHRONIZING,f.session.state)
+        f.notify(felicita(),f.now-100)
+        assertEquals(1800,f.seen.single().hundredthsGram)
+        assertEquals(f.now-100,f.seen.single().receivedAtMs)
+        assertEquals(DeviceState.READY,f.session.state)
     }
     private fun eventRecords(vararg records: ByteArray): ByteArray {
         val chain=records.fold(byteArrayOf()) { a,b->a+b }

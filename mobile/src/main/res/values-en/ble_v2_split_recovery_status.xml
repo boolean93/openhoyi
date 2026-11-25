@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="service_v2_split_week_first_missing">The first part of the weekly schedule has not arrived on this connection. Keep the original machine awake and idle, then check again after it reports the full schedule.</string>
+    <string name="service_v2_split_week_second_missing">The first part of the weekly schedule arrived. Keep the original machine awake and idle until the matching second part arrives, then check again.</string>
+    <string name="service_v2_split_storage_failed">The device service could not update its local recovery record. Choose Stop device service, reopen it, and check again.</string>
+</resources>

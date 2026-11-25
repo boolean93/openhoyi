@@ -6,8 +6,8 @@ import org.junit.Test
 
 class SleepRecoveryPresentationTest {
     @Test fun requestStateWinsOverOldAwakeTelemetry(){
-        assertEquals(R.string.sleep_status_writing,SleepPresentation.status(State.WRITING,0))
-        assertEquals(R.string.sleep_status_waiting,SleepPresentation.status(State.WAITING_ASLEEP,0))
+        assertEquals(R.string.sleep_entering,SleepPresentation.status(State.WRITING,0))
+        assertEquals(R.string.sleep_entering,SleepPresentation.status(State.WAITING_ASLEEP,0))
         for(raw in listOf(0,1,null))assertEquals(R.string.sleep_status_unknown,SleepPresentation.status(State.UNKNOWN,raw))
     }
     @Test fun sleepNeedsFreshEvidenceOrExplicitlyQualifiedSameSessionHistory(){
@@ -21,7 +21,7 @@ class SleepRecoveryPresentationTest {
     }
     @Test fun compactSleepLabelsAndEverySleepActionStayWithinFourChineseCharacters(){
         val catalog=org.json.JSONObject(java.io.File("../localization/catalog/source.json").readText()).getJSONObject("strings")
-        val states=listOf(R.string.sleep_status_writing,R.string.sleep_status_waiting,R.string.sleep_status_unknown,
+        val states=listOf(R.string.sleep_entering,R.string.sleep_status_unknown,
             R.string.sleep_status_last_confirmed,R.string.sleep_status_failed,R.string.task_shell_machine_unconfirmed,
             R.string.task_shell_machine_awake,R.string.task_shell_machine_asleep)
         for(resource in states){

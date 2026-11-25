@@ -193,6 +193,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
         acknowledgeManual = button(content, getString(R.string.home_recovery_button)) {
+            val active=service
+            if(active!=null && active.manualSafetyMessage==null && active.splitRecoveryChoices.isNotEmpty()) {
+                showSplitRecovery(active)
+                return@button
+            }
             val recoveryKind = if (service?.manualSafetyMessage == null)
                 service?.machineWriteRecoveryKind else null
             val title = when (recoveryKind) {
@@ -326,7 +331,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
             }
-            boilerExceptions[toggle] = button(card, "") { changeBoilerSetting(change(toggle.isChecked)) }.apply {
+            boilerExceptions[toggle] = button(card, "") {
+                val retry = toggle.readbackRetry
+                if (retry != null) retry() else refreshBoilerSettings()
+            }.apply {
                 tag = "product/home/$tagName/exception"
                 visibility = View.GONE
                 layoutParams = LinearLayout.LayoutParams(-1, -2)
@@ -664,13 +672,19 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSIONS) {
-            if (missingBle().isEmpty()) enableAndScan() else toast(getString(R.string.home_permission_required))
+            if (missingBle().isEmpty()) {
+                if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)toast(getString(R.string.manual_real_ble_scan_again))
+                else enableAndScan()
+            } else toast(getString(R.string.home_permission_required))
         }
     }
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == ENABLE && resultCode == RESULT_OK) enableAndScan()
+        if (requestCode == ENABLE && resultCode == RESULT_OK) {
+            if(BuildConfig.MANUAL_REAL_BLE_EXISTING_ID)toast(getString(R.string.manual_real_ble_scan_again))
+            else enableAndScan()
+        }
         if (requestCode == EXPORT && resultCode == RESULT_OK) data?.data?.let { (application as MobileApplication).export(it) }
     }
     private fun choose(device: DiscoveredDevice) {
@@ -701,6 +715,58 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         AppDialog.show(dialog)
         transientDialogs += dialog
     }
+    private fun showSplitRecovery(owner:MobileService) {
+        val choices=owner.splitRecoveryChoices
+        if(choices.isEmpty())return
+        fun title(choice:CanonicalMachineOperationBroker.RecoveryChoice):String =
+            when(val target=choice.entry.target) {
+                is io.openhoyi.session.SplitMachineWriteJournal.Target.Weekly -> getString(R.string.home_recovery_schedule_title)
+                is io.openhoyi.session.SplitMachineWriteJournal.Target.Boiler ->
+                    getString(if(target.boiler==io.openhoyi.session.SplitMachineWriteJournal.Target.BoilerId.BREW)
+                        R.string.home_brew_boiler else R.string.home_steam_boiler)
+                null -> getString(R.string.home_recovery_button)
+            }
+        AlertDialog.Builder(host).setTitle(R.string.home_recovery_button)
+            .setItems(choices.map(::title).toTypedArray()) { _,index ->
+                val choice=choices[index]
+                fun unavailable() {
+                    val message = owner.takeIf { service === it }?.splitRecoveryMessage(choice)
+                        ?: R.string.service_v2_split_recovery_wait
+                    toast(getString(message))
+                }
+                val observed=owner.takeIf {service===it}?.splitObservation(choice)
+                if(observed==null) {
+                    unavailable()
+                } else {
+                    val evidence=if(choice.entry.target==observed.observed) R.string.service_v2_split_observed_match
+                        else R.string.service_v2_split_observed_different
+                    AlertDialog.Builder(host).setTitle(title(choice)).setMessage(
+                        splitObservationText(observed.observed) + "\n\n" + getString(evidence))
+                        .setPositiveButton(R.string.home_recovery_clear) { _,_ ->
+                            if(service!==owner || !owner.resolveSplitObservation(observed))
+                                unavailable()
+                            render()
+                        }.setNegativeButton(R.string.machine_settings_cancel,null).let(::showTransient)
+                }
+            }.setNegativeButton(R.string.machine_settings_cancel,null).let(::showTransient)
+    }
+
+    private fun splitObservationText(observed:io.openhoyi.session.SplitMachineWriteJournal.Target):String =
+        when(observed) {
+            is io.openhoyi.session.SplitMachineWriteJournal.Target.Boiler ->
+                getString(if(observed.enabled) R.string.setting_on else R.string.setting_off)
+            is io.openhoyi.session.SplitMachineWriteJournal.Target.Weekly -> {
+                val names=listOf(R.string.machine_settings_sunday,R.string.machine_settings_monday,
+                    R.string.machine_settings_tuesday,R.string.machine_settings_wednesday,R.string.machine_settings_thursday,
+                    R.string.machine_settings_friday,R.string.machine_settings_saturday)
+                observed.days.mapIndexed { index,day ->
+                    val at=day.time
+                    "${getString(names[index])} · ${getString(if(day.enabled) R.string.setting_on else R.string.setting_off)} · " +
+                        "%02d:%02d–%02d:%02d".format(at.sleepHour,at.sleepMinute,at.wakeHour,at.wakeMinute)
+                }.joinToString("\n")
+            }
+        }
+
     private fun changeMachineMode(change: MachineSettingChange.LeverMode) {
         if (!MachineSettingsEditGate.allowed(service)) { render(); return }
         service?.changeMachineSetting(change)?.let(::toast)
@@ -723,19 +789,21 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         try {
             if (BuildConfig.MOCK_MODE) return
             val owner = service ?: return
-            val recovery = owner.settingWriteState == SettingsWriteTracker.State.UNKNOWN &&
-                (change is MachineSettingChange.BrewHeating && owner.pendingSetting is MachineSettingChange.BrewHeating ||
-                    change is MachineSettingChange.SteamHeating && owner.pendingSetting is MachineSettingChange.SteamHeating)
-            if (recovery) {
-                owner.refreshUnknownBoilerSettings()?.let(::toast)
-            } else {
-                if (!MachineSettingsEditGate.allowed(owner)) return
-                owner.changeMachineSetting(change)?.let(::toast)
+            val admission = BoilerHeatingAdmission.evaluate(owner)
+            if (!admission.canSubmit) {
+                admission.reason?.let { toast(getString(it)) }
+                return
             }
+            owner.changeMachineSetting(change)?.let(::toast)
         } finally {
             render()
         }
     }
+    private fun refreshBoilerSettings() {
+        if (!BuildConfig.MOCK_MODE) service?.refreshUnknownBoilerSettings()?.let(::toast)
+        render()
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         feedbackUi.save(outState)
         super.onSaveInstanceState(outState)
@@ -750,13 +818,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val boilerRecoveryActive=owner?.boilerReadbackRecoveryActive==true
         val localWriteProgress=boilerRecoveryActive || owner?.machineModeWritePending==true
         val warning = ShotSafetyAlert.resource(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)?.let { getString(it) }
-            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage.takeUnless {localWriteProgress}
+            ?: owner?.manualSafetyMessage ?: owner?.machineAttentionMessage
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
-        acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
+        val splitRecovery=owner?.splitRecoveryChoices?.isNotEmpty()==true
+        acknowledgeManual.visibility = if (!splitRecovery && owner?.manualSafetyMessage == null &&
             (owner?.machineWriteAcknowledgementAvailable != true || localWriteProgress)) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
-            owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
+            owner.shotRecoveryClearBlock == null else splitRecovery || owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)
         prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
         prominentAlarm.show(alarmBanner?.message.orEmpty())
@@ -789,32 +858,22 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             s.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshAwakeIdle
         machineModes.render(owner)
         dialogMachineModes?.render(owner)
+        val leverFeedback = owner?.takeIf { it.pendingSetting is MachineSettingChange.LeverMode }
+            ?.let { SettingsOperationFeedback.lever(it.settingWriteState) }
         leverStatus.show(settingsPresentation.leverMode(s.settings) +
-            when (owner?.pendingSetting) {
-                is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {
-                    SettingsWriteTracker.State.WRITING -> getString(R.string.home_setting_writing)
-                    SettingsWriteTracker.State.WAITING_READBACK -> getString(R.string.home_setting_waiting)
-                    SettingsWriteTracker.State.CONFIRMED -> getString(R.string.home_setting_confirmed)
-                    SettingsWriteTracker.State.FAILED -> getString(R.string.home_setting_failed)
-                    SettingsWriteTracker.State.UNKNOWN -> getString(R.string.home_setting_unknown)
-                    SettingsWriteTracker.State.RECONCILED -> getString(R.string.home_setting_reconciled)
-                    SettingsWriteTracker.State.IDLE, null -> ""
-                }
-                else -> ""
-            })
+            leverFeedback?.let { " · " + getString(it) }.orEmpty())
         firmwareStatus.show(firmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE,s.coffeeFailure))
         coffeeDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&
             owner?.tareState !in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO)
-        tareStatus.show(getString(R.string.home_tare_prefix) + when (owner?.tareState ?: StandaloneTare.State.IDLE) {
-            StandaloneTare.State.IDLE -> getString(R.string.home_tare_idle)
-            StandaloneTare.State.WRITING -> getString(R.string.home_tare_writing)
-            StandaloneTare.State.WAITING_ZERO -> getString(R.string.home_tare_waiting)
-            StandaloneTare.State.CONFIRMED -> getString(R.string.home_tare_confirmed)
-            StandaloneTare.State.FAILED -> getString(R.string.home_setting_failed)
-            StandaloneTare.State.UNKNOWN -> getString(R.string.home_tare_unknown)
-        })
+        tareStatus.show(getString(when (owner?.tareState ?: StandaloneTare.State.IDLE) {
+            StandaloneTare.State.IDLE -> R.string.scale_tare_idle
+            StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO -> R.string.scale_tare_waiting
+            StandaloneTare.State.CONFIRMED -> R.string.scale_tare_confirmed
+            StandaloneTare.State.FAILED -> R.string.scale_tare_failed
+            StandaloneTare.State.UNKNOWN -> R.string.scale_tare_unknown
+        }))
         val liveMachine = LiveTelemetry.machine(s.coffee, s.coffeeState, s.coffeeAt, now)
         val coffeeFresh = liveMachine != null
         val idle = liveMachine as? IdleTelemetry
@@ -872,11 +931,24 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         steamBoilerPressure.showBoilerPressure(readings.steamPressure)
         brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.brewTarget?.let { "${it} °C" } ?: "—"))
         steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.steamTarget?.let { "${it} °C" } ?: "—"))
-        val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
+        val heatingAdmission = BoilerHeatingAdmission.evaluate(owner, s, now)
+        val boilerEditable = heatingAdmission.canSubmit && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
         val steamRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.SteamHeating
-        brewBoilerToggle.isEnabled = boilerEditable && !brewRecovery
-        steamBoilerToggle.isEnabled = boilerEditable && !steamRecovery
+        fun allowSwitchOrObservation(toggle:HoyiSwitch,recovery:Boolean,brew:Boolean) {
+            val admit=boilerEditable && !recovery
+            val observation=if(!admit && !BuildConfig.MOCK_MODE)owner?.captureBoilerReadbackRetry(recovery,brew) else null
+            toggle.readbackRetry=observation?.let { retry ->
+                {if(service===owner) {retry();render()}}
+            }
+            if(owner?.usesAutomaticBoilerSettingsSync==true) {
+                toggle.authoritativeToggleIdentity={service?.takeIf {it===owner}?.freshBoilerInteraction(brew)}
+                toggle.drawnToggleIdentity=if(admit)owner.freshBoilerInteraction(brew) else null
+            } else {toggle.authoritativeToggleIdentity=null;toggle.drawnToggleIdentity=null}
+            toggle.isEnabled=admit || observation!=null
+        }
+        allowSwitchOrObservation(brewBoilerToggle,brewRecovery,true)
+        allowSwitchOrObservation(steamBoilerToggle,steamRecovery,false)
 
         val preheatOccupied=PreheatStatusPresentation.boilerOccupied(
             owner?.brewPreparationState ?: BrewPreparation.State.IDLE,s.coffeeState==DeviceState.READY,
@@ -892,29 +964,31 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             fun project(toggle: HoyiSwitch, brew: Boolean, checked: Boolean?) {
                 val label = HomeBoilerSwitchPresentation.label(brew, checked,
                     owner?.pendingSetting, owner?.settingWriteState, owner?.boilerSettingsRecoveryBusy==true,
-                    owner?.boilerReadbackReconnecting==true, preheatOccupied)
+                    owner?.boilerReadbackReconnecting==true, preheatOccupied,
+                    heatingAdmission.reason.takeUnless { BuildConfig.MOCK_MODE })
                 val state = getString(label)
+                val heading = getString(if (brew) R.string.home_brew_boiler else R.string.home_steam_boiler)
                 boilerExceptions[toggle]?.let { status ->
-                    val exceptional = HomeBoilerSwitchPresentation.showInline(label)
+                    val switchOffersRetry = toggle.readbackRetry != null
                     val refresh = label == R.string.home_boiler_refresh
-                    val actionable = refresh && owner?.canRefreshUnknownBoilerSettings == true
-                    val visible = if (exceptional) View.VISIBLE else View.GONE
+                    val actionable = switchOffersRetry || refresh && owner?.canRefreshUnknownBoilerSettings == true
+                    val visible = if (actionable || HomeBoilerSwitchPresentation.showInline(label)) View.VISIBLE else View.GONE
                     if (status.visibility != visible) status.visibility = visible
                     status.isEnabled = actionable
                     status.isClickable = actionable
-                    status.show(state)
+                    status.show(if (actionable) getString(R.string.home_boiler_refresh) else state)
+                    status.contentDescription = if (actionable)
+                        "$heading · ${getString(R.string.home_boiler_refresh)} · ${getString(R.string.machine_settings_sync_retry_state)}"
+                        else null
                 }
-                val heading = getString(if (brew) R.string.home_brew_boiler else R.string.home_steam_boiler)
                 if (android.os.Build.VERSION.SDK_INT >= 30) {
                     if (toggle.stateDescription != state) toggle.stateDescription = state
                 } else {
                     val description = "$heading, $state"
                     if (toggle.contentDescription != description) toggle.contentDescription = description
                 }
-                toggle.keepPendingAppearance = inFlight(brew)
-                val displayed = HomeBoilerSwitchPresentation.checked(
-                    brew, checked, pending, writeState, ownsPending, recoveryRunning = boilerRecoveryActive)
-                if (toggle.isChecked != displayed) toggle.isChecked = displayed
+                val reported = checked == true
+                if (toggle.isChecked != reported) toggle.isChecked = reported
             }
             project(brewBoilerToggle, true, s.settings?.brewHeating)
             project(steamBoilerToggle, false, s.settings?.steamHeating)

@@ -1,0 +1,494 @@
+package io.openhoyi.mobile
+
+import android.content.Context
+import io.openhoyi.protocol.*
+import io.openhoyi.session.*
+import io.openhoyi.session.SettingsWriteTracker.State.CONFIRMED
+import io.openhoyi.session.SettingsWriteTracker.State.WAITING_READBACK
+
+/** Scripted evidence traverses the detached real service, codec, hub and guarded fake driver. */
+internal object MockBleSameIdFixture {
+    data class Outcome(val row: String, val passed: Boolean, val fakeWrites: Int, val diagnostic: String? = null)
+    class Result(private val outcomes: List<Outcome>, private val edges: List<Outcome>) {
+        fun render(zh: Boolean): String {
+            val intents = outcomes.filterNot { it.row.startsWith("detached-") || it.row.endsWith("/active-sync") || it.row.contains("/rebind-") || it.row.startsWith("canonical/") }
+            val header = if (zh) "命令行为用例（部分阶段）：${intents.count { it.passed }}/${intents.size}，拒绝用例：${edges.count { it.passed }}/${edges.size}\n非实机测试"
+                else "Intent cases (partial stages): ${intents.count { it.passed }}/${intents.size}; deny cases: ${edges.count { it.passed }}/${edges.size}\nNot a hardware test"
+            return (listOf(header) + outcomes.map {
+                "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})${it.diagnostic?.let { d -> " · $d" }.orEmpty()}"
+            } + edges.map { "${it.row}: ${if (it.passed) "PASS" else "FAIL"} (fake writes=${it.fakeWrites})${it.diagnostic?.let { d -> " · $d" }.orEmpty()}" } +
+                if (zh) "未测：真实进程恢复和版本回退。"
+                else "NOT RUN: process restore and app downgrade.")
+                .joinToString("\n")
+        }
+    }
+    private data class Setting(val row: String, val change: MachineSettingChange, val observed: ByteArray)
+
+    fun cases(context: Context): List<() -> Outcome> {
+        val tests = mutableListOf<() -> Outcome>()
+        fun case(row: String, curves: Boolean = false, shot: Boolean = false, run: MobileService.DetachedCorePort.() -> Unit) {
+            tests += {
+                var writes = 0
+                var stage = "setup"
+                var diagnostic: String? = null
+                val passed = try {
+                    MobileService.withDetachedCore(context, allowImmutableCurves = curves, allowSyntheticShot = shot,
+                        progress = { stage = it }) { port ->
+                        try { port.run() } finally {
+                            writes = port.calls.count { it.operation is GattOperation.Write }
+                        }
+                    }
+                    true
+                } catch (failure: Exception) {
+                    diagnostic = diagnostic(stage, failure)
+                    false
+                } catch (failure: AssertionError) {
+                    diagnostic = diagnostic(stage, failure)
+                    false
+                }
+                Outcome(row, passed, writes, diagnostic)
+            }
+        }
+        case("01") {
+            bootstrap()
+            check(calls.count { it.operation is GattOperation.Write } == 1)
+            check(settingState.name == "IDLE")
+        }
+        val settings = listOf(
+            Setting("03", MachineSettingChange.LeverMode(false, true), settings(flags = 0x7d)),
+            Setting("04", MachineSettingChange.BrewTemperature(94), settings(brew = 94)),
+            Setting("05", MachineSettingChange.BrewCompensation(2), settings(compensation = 20)),
+            Setting("06", MachineSettingChange.SteamTemperature(130), settings(steam = 130)),
+            Setting("0C", MachineSettingChange.BrewHeating(false), settings(flags = 0xdd)),
+            Setting("0D", MachineSettingChange.SteamHeating(false), settings(flags = 0xed)),
+            Setting("0E", MachineSettingChange.Light(false), settings(flags = 0xf5)),
+            Setting("0F", MachineSettingChange.RunMode(false), settings(flags = 0xf9)),
+            Setting("10", MachineSettingChange.WaterSupply(true), settings(flags = 0xff)),
+            Setting("14-delay", MachineSettingChange.StandbyDelay(30, 53), settings(delay = 30)),
+            Setting("14-temp", MachineSettingChange.StandbyTemperature(56, 15), settings(standby = 56)),
+            Setting("15", MachineSettingChange.SleepScheduleEnabled(true), settings()),
+        )
+        for ((row, change, target) in settings) case("$row/passive") {
+            bootstrap()
+            val baseline = if (row == "15") settings(flags = 0xfc) else settings()
+            advance(1); observe(baseline)
+            if (row == "15") {
+                advance(1); observe(weeklyFirst())
+                check(apply(change) != null)
+                advance(1); observe(weeklySecond())
+            }
+            val requested = CoffeeCommands.setting(change).frame.toByteArray()
+            check(apply(change) == null)
+            expectLastWrite(requested)
+            complete()
+            check(settingState == WAITING_READBACK)
+            advance(1); observe(baseline)
+            check(settingState == WAITING_READBACK)
+            val wrong = when (row) {
+                "03" -> settings(flags = 0x3d)
+                "14-delay" -> settings(delay = 30, standby = 54)
+                "14-temp" -> settings(delay = 30, standby = 56)
+                else -> null
+            }
+            if (wrong != null) {
+                advance(1); observe(wrong)
+                check(settingState == WAITING_READBACK)
+            }
+            advance(1); observe(target, generation = generation + 1)
+            check(settingState == WAITING_READBACK)
+            advance(1); observe(target)
+            check(settingState == CONFIRMED)
+            check(writeCount() == 2)
+            check(calls.count { (it.operation as? GattOperation.Write)?.bytes?.contentEquals(requested) == true } == 1)
+        }
+        val refreshable = settings.filter { SettingsReadbackPolicy.supports(it.change) }
+        for ((row, change, target) in refreshable) case("$row/active-sync") {
+            bootstrap()
+            // Auth baseline is calibration only. In particular 0x14 needs ordinary companion evidence.
+            advance(1); observe(settings())
+            val command = CoffeeCommands.setting(change).frame.toByteArray()
+            check(apply(change) == null)
+            expectLastWrite(command)
+            complete()
+            val boiler=SettingsReadbackPolicy.isBoiler(change)
+            val due=if(boiler)350L else 250L
+            advance(due-1)
+            check(writeCount() == 2)
+            advance(1)
+            check(lastWriteOpcode() == 1 && writeCount() == 3)
+            complete()
+            check(settingState == WAITING_READBACK)
+            advance(1000)
+            if(!boiler) {
+                check(lastWriteOpcode() == 1 && writeCount() == 4)
+                complete()
+            }
+            check(settingState == WAITING_READBACK)
+            advance(1); observe(target)
+            check(settingState == CONFIRMED && writeCount() == if(boiler)3 else 4)
+            check(calls.count { it.operation is GattOperation.Connect } == 1)
+        }
+        for ((row, change, target) in refreshable.filter { SettingsReadbackPolicy.isBoiler(it.change) })
+            for (fresh in listOf(false,true)) case("$row/rebind-"+if(fresh) "natural-proof" else "not-automatic") {
+                bootstrap()
+                advance(1); observe(settings())
+                val owner=generation
+                check(apply(change)==null)
+                complete()
+                if(fresh) {
+                    advance(100);observe(target)
+                    check(settingState==CONFIRMED)
+                    repeat(6){advance(1000);observe(idle())}
+                    check(writeCount()==2)
+                } else {
+                    advance(350);check(lastWriteOpcode()==1);complete()
+                    repeat(6){advance(1000);observe(idle())}
+                    check(settingState==SettingsWriteTracker.State.UNKNOWN &&
+                        recoveryKind==MachineWriteRecoveryState.Kind.SETTING && writeCount()==3)
+                }
+                check(generation==owner && calls.count {it.operation is GattOperation.Connect}==1)
+            }
+        case("09") {
+            bootstrap()
+            val first = weeklyFirst(); val second = weeklySecond()
+            advance(1); observe(first)
+            advance(1); observe(second)
+            val expected = week(first, second)
+            val target = WeeklySleepSchedule(expected.days.mapIndexed { i, day ->
+                if (i == 0) day.copy(enabled = !day.enabled) else day
+            })
+            val frames = CoffeeCommands.sleepSchedule(target)
+            check(changeSchedule(expected, target) == null && splitActive)
+            expectLastWrite(frames[0].frame.toByteArray())
+            complete()
+            advance(500)
+            expectLastWrite(frames[1].frame.toByteArray())
+            complete()
+            advance(1); observe(second)
+            check(scheduleState.name == "WAITING_READBACK")
+            advance(1); observe(weeklyFirst(enabled = 0x7e))
+            check(scheduleState.name == "WAITING_READBACK")
+            advance(1); observe(second)
+            check(scheduleState.name == "CONFIRMED" && writeCount() == 3)
+        }
+        case("0A") {
+            bootstrap()
+            check(resetCups(24) != null)
+            check(resetCups(25) == null)
+            expectLastWrite(CoffeeCommands.resetCupCount().frame.toByteArray())
+            complete()
+            advance(1); observe(settings(cups = 0))
+            check(cupState.name == "WAITING_ZERO")
+            advance(1); observe(idle(cups = 0))
+            check(cupState.name == "CONFIRMED" && writeCount() == 2)
+        }
+        case("20") {
+            bootstrap()
+            check(sleep() == null)
+            expectLastWrite(CoffeeCommands.sleepNow().frame.toByteArray())
+            complete()
+            advance(1); observe(idle())
+            check(sleepState.name == "WAITING_ASLEEP")
+            advance(1); observe(idle(asleep = 1))
+            check(sleepState.name == "CONFIRMED" && writeCount() == 2)
+        }
+        case("08/sent-unverified", curves = true) {
+            bootstrap()
+            val profile = selectImmutableCurve { CustomCurveFirmwarePolicy.permitsStoredRecipe(
+                it.parameters, CoffeeFirmware(1, 1, 3)) }
+            check(sendLever(profile) == null)
+            expectLastWrite(CoffeeCommands.storedLeverRecipe(profile.parameters).frame.toByteArray())
+            check(leverState == MachineLeverRecipeStore.State.PENDING)
+            complete()
+            check(leverState == MachineLeverRecipeStore.State.SENT)
+            advance(1); observe(settings())
+            check(leverState == MachineLeverRecipeStore.State.SENT)
+            val opcodes = calls.mapNotNull { call ->
+                (call.operation as? GattOperation.Write)?.bytes?.firstOrNull()?.toInt()?.and(255)
+            }
+            check(opcodes == listOf(1, 8) || opcodes == listOf(1, 8, 1))
+        }
+        for (cancel in listOf(false, true)) case(if (cancel) "11/cancel-written" else "11/temperature", curves = true) {
+            bootstrap()
+            val profile = selectImmutableCurve { it.temperatureC in 75..105 && it.temperatureC !in 93..95 }
+            check(prepare(profile) == null)
+            expectLastWrite(CoffeeCommands.brewWait(profile.temperatureC).frame.toByteArray())
+            complete()
+            check(preparationState == BrewPreparation.State.WAITING_TEMP)
+            advance(1); observe(idle())
+            check(preparationState == BrewPreparation.State.WAITING_TEMP)
+            if (cancel) {
+                check(cancelPreparation() == null)
+                expectLastWrite(CoffeeCommands.brewWait(0).frame.toByteArray())
+                complete()
+                advance(1); observe(idle())
+                check(preparationState == BrewPreparation.State.CANCEL_WRITTEN && writeCount() == 3)
+            } else {
+                advance(1); observe(idle(brewHundredths = profile.temperatureC * 100))
+                check(preparationState == BrewPreparation.State.READY && writeCount() == 2)
+            }
+        }
+        case("02/start-unsent-dose", curves = true, shot = true) {
+            bootstrap()
+            advance(1); observe(settings(flags = 0xf9))
+            val profile = selectImmutableCurve { it.targetHundredthsGram <= 0 }
+            prepareDose()
+            val dose = checkNotNull(preparedDose)
+            var permits = 0
+            check(start(profile) { ++permits == 1 } != null)
+            check(writeCount() == 1 && terminalHistory == ShotHistory.Status.NOT_STARTED)
+            check(preparedDose == dose && associatedDoseMg == null && beanBalanceMg == 82_000L)
+        }
+        for (stop in listOf(false, true)) case(if (stop) "02/stop-evidence" else "02/start-evidence", curves = true, shot = true) {
+            bootstrap()
+            advance(1); observe(settings(flags = 0xf9)) // Synthetic café mode, no configure/heater write.
+            val profile = selectImmutableCurve { it.targetHundredthsGram <= 0 }
+            val dose = if (stop) null else {
+                prepareDose()
+                val prepared = checkNotNull(preparedDose)
+                repeat(3) { advance(60_000) }
+                advance(1)
+                observe(idle())
+                advance(350)
+                check(settingsSyncPending && lastWriteOpcode() == 1 && writeCount() == 2)
+                check(start(profile) != null && writeCount() == 2)
+                check(historyCount == 0 && preparedDose == prepared && beanBalanceMg == 82_000L)
+                complete()
+                check(settingsSyncPending)
+                prepared
+            }
+            check(start(profile) == null)
+            if (dose != null) {
+                check(preparedDose?.eventId == dose.eventId && preparedDose?.shotId != null)
+                check(associatedDoseMg == null && beanBalanceMg == 82_000L)
+            }
+            expectLastWrite(CoffeeCommands.start(profile.parameters).frame.toByteArray())
+            complete()
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE && terminalHistory == ShotHistory.Status.STARTING)
+            advance(10); observe(extraction(0), generation = generation + 1)
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE && terminalHistory == ShotHistory.Status.STARTING)
+            advance(10); observe(extraction(0))
+            check(startEvidence == ShotStartObservation.WAITING_FOR_MACHINE && terminalHistory == ShotHistory.Status.STARTING)
+            advance(1000); observe(extraction(1))
+            check(startEvidence == ShotStartObservation.MACHINE_EXTRACTION_OBSERVED && terminalHistory == ShotHistory.Status.RUNNING)
+            if (dose != null) check(preparedDose?.associated == true && associatedDoseMg == 18_000L)
+            if (stop) {
+                stop()
+                expectLastWrite(CoffeeCommands.stop(7).frame.toByteArray())
+                stop()
+                check(writeCount() == 3)
+                complete()
+                advance(10); observe(idle())
+                check(shotState != ExtractionState.ENDED_OBSERVED)
+                advance(2800); observe(idle())
+                check(shotState == ExtractionState.ENDED_OBSERVED && terminalHistory == ShotHistory.Status.ENDED)
+                check(syntheticSamples > 0 && writeCount() == 3)
+            } else {
+                check(writeCount() == 3)
+            }
+        }
+        for (unknown in listOf(false, true)) case("canonical/temperature-${if (unknown) "unknown" else "waiting"}-week") {
+            bootstrap()
+            val (base, target) = openWeek()
+            val temp = MachineSettingChange.BrewTemperature(93)
+            check(apply(temp) == null)
+            check(changeSchedule(base, target) != null)
+            complete(result = if (unknown) OperationResult.Unknown("no transport result") else OperationResult.Success())
+            advance(1); observe(idle())
+            check(changeSchedule(base, target) == null)
+            complete()
+            advance(500)
+            expectLastWrite(CoffeeCommands.sleepSchedule(target)[1].frame.toByteArray())
+            complete()
+            check(scheduleState.name == "WAITING_READBACK")
+            check(apply(MachineSettingChange.BrewHeating(false)) != null)
+            advance(1); observe(weeklyFirst(enabled = 0x7e))
+            advance(1); observe(weeklySecond())
+            check(scheduleState.name == "CONFIRMED" && writeCount() == 4)
+        }
+        case("canonical/weekly+boiler") {
+            bootstrap()
+            val (base,target) = openWeek()
+            val frames=CoffeeCommands.sleepSchedule(target)
+            val brew=MachineSettingChange.BrewHeating(false)
+            check(changeSchedule(base,target)==null && splitActive)
+            expectLastWrite(frames[0].frame.toByteArray())
+            check(apply(brew)!=null) // Cannot overlap a write in flight.
+            complete()
+            advance(500); expectLastWrite(frames[1].frame.toByteArray())
+            check(apply(brew)!=null) // P2 not completed: no overlap yet.
+            complete()
+            check(scheduleState.name=="WAITING_READBACK")
+            check(apply(MachineSettingChange.Light(false))!=null)
+            check(apply(brew)==null)
+            expectLastWrite(CoffeeCommands.setting(brew).frame.toByteArray())
+            complete()
+            advance(1); observe(settings(flags=0xdd))
+            check(settingState==CONFIRMED && scheduleState.name=="WAITING_READBACK" && splitActive)
+            advance(1); observe(weeklyFirst(enabled=0x7e))
+            advance(1); observe(weeklySecond())
+            check(scheduleState.name=="CONFIRMED" && !splitActive && writeCount()==4)
+        }
+        return tests + listOf({ detachedLifecycle(context) }, { persistedTwoOwnerRecovery(context) })
+    }
+
+    /** Throwable messages can include paths or values; only fixed stage and code locations are allowed. */
+    private fun diagnostic(stage: String, failure: Throwable): String {
+        val stages = setOf("setup", "discover", "subscribe", "auth-enqueued", "auth-completed",
+            "fresh-83", "native-idle", "ready-verified", "case-body", "cleanup", "request-setting",
+            "request-cups", "request-week", "request-sleep", "resolve-device-report",
+            "case-observe", "case-transport-complete", "case-advance", "request-start", "request-stop")
+        fun kind(error: Throwable) = when (error) {
+            is NullPointerException -> "NullPointer"
+            is SecurityException -> "Security"
+            is java.io.IOException -> "IO"
+            is IllegalArgumentException -> "Argument"
+            is IllegalStateException -> "State"
+            is AssertionError -> "Assertion"
+            else -> "Other"
+        }
+        val first = (sequenceOf(failure) + listOfNotNull(failure.cause).asSequence() + failure.suppressed.asSequence())
+            .take(2).map { error ->
+                val location = error.stackTrace.firstOrNull { it.className.startsWith("io.openhoyi.") }
+                val code = location?.let { "${it.className.substringAfterLast('.').substringBefore('$')}:${it.lineNumber}" }
+                kind(error) + (code?.let { "@$it" }.orEmpty())
+            }.joinToString("/")
+        return "${stage.takeIf(stages::contains) ?: "other"}/$first"
+    }
+
+    /** Never builds legacy payloads or supplies these to a DeviceSession/real transport. */
+    fun boundaryChecks(): List<Outcome> {
+        val forbidden = listOf(
+            Triple("07", 0x07, 5), Triple("08-short", 0x08, 5), Triple("09-single", 0x09, 7),
+            Triple("0B", 0x0b, 9), Triple("12", 0x12, 5), Triple("13", 0x13, 5),
+            Triple("16", 0x16, 5), Triple("17-reset", 0x17, 5), Triple("17-alarm", 0x17, 6),
+            Triple("18", 0x18, 5), Triple("21", 0x21, 5), Triple("40-outbound", 0x40, 5),
+            Triple("OTA-boundary", 0xa0, 5),
+        )
+        return forbidden.mapIndexed { index, (row, opcode, size) ->
+            val sink = DetachedCoreDriver()
+            val guard = GuardedGattDriver(DeviceRole.COFFEE, sink)
+            val marker = ByteArray(size).apply { this[0] = opcode.toByte() }
+            val denied = !guard.execute(1, index + 1L, GattOperation.Write(KnownGatt.coffeeWrite, marker, true))
+            Outcome("deny/$row", denied && sink.calls.isEmpty(), sink.calls.size)
+        }
+    }
+
+    /** Detached host disposal only. Never presents this as Android process death/upgrade. */
+    private fun detachedLifecycle(context: Context): Outcome {
+        var writes = 0
+        val passed = try {
+            val old = MobileService.withDetachedCore(context) { port ->
+                port.bootstrap()
+                check(port.apply(MachineSettingChange.Light(false)) == null)
+                check(port.calls.count { it.operation is GattOperation.Write } == 2)
+                port
+            }
+            check(runCatching { old.complete() }.isFailure)
+            MobileService.withDetachedCore(context) { fresh ->
+                fresh.bootstrap()
+                fresh.advance(100)
+                fresh.observe(settings(flags = 0xf5))
+                writes = fresh.calls.count { it.operation is GattOperation.Write }
+                check(writes == 1 && fresh.settingState.name == "IDLE" && fresh.recoveryKind == null)
+            }
+            true
+        } catch (_: Exception) { false } catch (_: AssertionError) { false }
+        return Outcome("detached-owner-dispose/no-replay", passed, writes)
+    }
+
+    private fun persistedTwoOwnerRecovery(context: Context): Outcome {
+        var writes=0
+        val passed=try {
+            MobileService.withDetachedRoot(context) { root ->
+                MobileService.withDetachedCore(context,ownerRoot=root) { service ->
+                    with(service) {
+                        bootstrap()
+                        val (base,target)=openWeek()
+                        check(changeSchedule(base,target)==null && splitActive)
+                        complete()
+                        advance(500);complete()
+                        check(apply(MachineSettingChange.BrewHeating(false))==null)
+                        complete()
+                        check(writeCount()==4)
+                        advance(8001)
+                        check(scheduleState.name=="UNKNOWN" && settingState.name=="UNKNOWN")
+                        check(recoveryChoices().size==2)
+                        writes+=writeCount()
+                    }
+                }
+                MobileService.withDetachedCore(context,ownerRoot=root) { service ->
+                    with(service) {
+                        val previous=recoveryChoices()
+                        check(previous.size==2 && splitActive && calls.isEmpty())
+                        bootstrap()
+                        check(writeCount()==1 && recoveryChoices().size==2)
+                        check(apply(MachineSettingChange.Light(false))!=null)
+                        val week=previous.single { it.entry.kind==SplitMachineWriteJournal.Kind.SCHEDULE }
+                        val boiler=previous.single { it.entry.kind==SplitMachineWriteJournal.Kind.BOILER }
+                        check(observation(week)==null && observation(boiler)==null)
+                        advance(1);observe(idle())
+                        check(recoveryMessage(week) == R.string.service_v2_split_week_first_missing)
+                        advance(1);observe(settings(flags=0xdd),generation=generation+1)
+                        check(observation(boiler)==null)
+                        advance(1);observe(weeklyFirst(enabled=0x7e))
+                        check(observation(week)==null && recoveryMessage(week) == R.string.service_v2_split_week_second_missing)
+                        advance(1);observe(settings(flags=0xdd))
+                        val proof=requireNotNull(observation(boiler))
+                        check(resolve(proof) && recoveryChoices().size==1 && observation(week)==null)
+                        check(!resolve(proof))
+                        check(apply(MachineSettingChange.Light(false))!=null)
+                        advance(1);observe(weeklySecond())
+                        check(resolve(requireNotNull(observation(week))) && recoveryChoices().isEmpty())
+                        check(apply(MachineSettingChange.Light(false))!=null) // Retired restored owner still fenced.
+                        check(writeCount()==1)
+                        writes+=writeCount()
+                    }
+                }
+            }
+            true
+        } catch (_: Exception) {false} catch (_: AssertionError) {false}
+        return Outcome("canonical/persisted-recreate-two-read-only",passed,writes)
+    }
+
+    private fun MobileService.DetachedCorePort.openWeek(): Pair<WeeklySleepSchedule, WeeklySleepSchedule> {
+        // C2 overlap admits a boiler only after ordinary 0x83, not the authenticated boot frame.
+        advance(1);observe(settings())
+        val first=weeklyFirst()
+        val second=weeklySecond()
+        advance(1);observe(first)
+        advance(1);observe(second)
+        val base=week(first,second)
+        val target=WeeklySleepSchedule(base.days.mapIndexed { index, day ->
+            if(index==0)day.copy(enabled=!day.enabled) else day
+        })
+        return base to target
+    }
+
+    private fun MobileService.DetachedCorePort.lastWriteOpcode() =
+        (calls.last().operation as GattOperation.Write).bytes.first().toInt() and 255
+
+    private fun MobileService.DetachedCorePort.writeCount() = calls.count { it.operation is GattOperation.Write }
+
+    private fun MobileService.DetachedCorePort.expectLastWrite(bytes: ByteArray) {
+        val last = calls.last().operation as? GattOperation.Write ?: error("No fake write")
+        check(last.endpoint == KnownGatt.coffeeWrite && last.bytes.contentEquals(bytes))
+    }
+    private fun settings(flags: Int = 0xfd, brew: Int = 92, compensation: Int = 0, steam: Int = 125,
+        delay: Int = 15, standby: Int = 53, cups: Int = 25) =
+        checked(0x83, 1, 0x13, flags, brew, compensation, steam, delay, standby, 0, cups, 0)
+    private fun extraction(elapsed: Int) =
+        bytes(0x80, 0, 8, 0, elapsed, 40, 0, 15, 0x24, 0xbf, 10, 0x40, 0xff)
+    private fun idle(cups: Int = 25, asleep: Int = 0, brewHundredths: Int = 0x24bf) =
+        checked(0x40, 0, brewHundredths shr 8, brewHundredths and 255, 0x2f, 0x1c, 0x77, 0x0b, asleep, 0, 0, 0, 0, 0, 0, cups, 3, 0x21)
+    private fun weeklyFirst(enabled: Int = 0xfe) =
+        checked(0x83, 0x40, enabled, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30)
+    private fun weeklySecond() =
+        checked(0x83, 0x80, 10, 0, 7, 30, 10, 0, 7, 30, 10, 0, 7, 30)
+    private fun checked(vararg data: Int) = bytes(*data, data.fold(0) { acc, value -> acc xor value })
+    private fun bytes(vararg data: Int) = data.map { it.toByte() }.toByteArray()
+    private fun week(a: ByteArray, b: ByteArray) = requireNotNull(WeeklySleepSchedule.fromReadback(
+        (HoyiCodec.decode(a) as DecodeResult.Valid).value as SleepPart,
+        (HoyiCodec.decode(b) as DecodeResult.Valid).value as SleepPart
+    ))
+}

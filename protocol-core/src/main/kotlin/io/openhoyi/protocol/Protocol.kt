@@ -73,9 +73,16 @@ class WeeklySleepSchedule(days: List<WeeklySleepDay>) {
     }
 }
 object HoyiCodec {
-    fun decode(bytes: ByteArray): DecodeResult<HoyiMessage> {
+    fun decode(bytes: ByteArray): DecodeResult<HoyiMessage> = decode(bytes, verifyChecksum = false)
+
+    /** The checksum applies to Settings, both weekly parts, and Idle, but not Extraction. */
+    fun decodeLive(bytes: ByteArray): DecodeResult<HoyiMessage> = decode(bytes, verifyChecksum = true)
+
+    private fun decode(bytes: ByteArray, verifyChecksum: Boolean): DecodeResult<HoyiMessage> {
         val raw=ByteFrame(bytes); val b=raw.toByteArray()
         fun invalid()=DecodeResult.Invalid("Unexpected HOYI notification length",raw)
+        fun invalidChecksum()=DecodeResult.Invalid("HOYI notification XOR mismatch",raw)
+        fun checksumMatches()=!verifyChecksum || b.fold(0){acc,value -> acc xor (value.toInt() and 255)}==0
         if (b.isEmpty()) return invalid()
         fun u(i:Int)=b[i].toInt() and 255
         fun word(i:Int)=(u(i) shl 8) or u(i+1)
@@ -85,11 +92,13 @@ object HoyiCodec {
                 when {
                     u(1)<0x40 -> {
                         if(b.size!=13) return invalid()
+                        if(!checksumMatches())return invalidChecksum()
                         DecodeResult.Valid(Settings(u(1),u(2) shr 4,u(2) and 15,u(3),u(4),u(5),u(6),u(7),u(8),word(9),u(11),raw))
                     }
                     u(1)==0x40 || u(1)==0x80 -> {
                         val first=u(1)==0x40
                         if(b.size != if(first) 20 else 15) return invalid()
+                        if(!checksumMatches())return invalidChecksum()
                         val offset=if(first)3 else 2
                         val days=(0 until if(first)4 else 3).map { val i=offset+it*4; SleepDay(u(i),u(i+1),u(i+2),u(i+3)) }
                         DecodeResult.Valid(SleepPart(if(first)0 else 4,if(first)u(2) else null,days,raw))
@@ -99,6 +108,7 @@ object HoyiCodec {
             }
             0x40 -> {
                 if(b.size!=19) return invalid()
+                if(!checksumMatches())return invalidChecksum()
                 DecodeResult.Valid(IdleTelemetry(word(2),word(4),u(6),u(7),u(8),word(12),word(14),word(16),raw))
             }
             0x80 -> {

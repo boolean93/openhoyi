@@ -16,7 +16,7 @@ import io.openhoyi.session.DeviceRole
 data class DiscoveredDevice(val address:String,val advertisedName:String,val rssi:Int,val candidateRole:DeviceRole,
     val scaleProtocolId:String?=null)
 /** A single application/service-owned coordinator scans both device roles. Names are candidates, never protocol proof. */
-class ScanCoordinator(context:Context):AutoCloseable {
+class ScanCoordinator(context:Context,private val disabled:Boolean=false):AutoCloseable {
     private val context=context.applicationContext
     private val handler=Handler(Looper.getMainLooper())
     private var generation=0L
@@ -30,12 +30,14 @@ class ScanCoordinator(context:Context):AutoCloseable {
     fun cancel(owner:Owner){if(scanOwner==owner){val done=completed;close();done?.invoke("scan cancelled")}}
     private fun owner()=check(Looper.myLooper()==Looper.getMainLooper())
     fun missingPermissions():List<String> {
+        if(disabled)return emptyList()
         val needed=if(Build.VERSION.SDK_INT>=31)listOf(Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT)else listOf(Manifest.permission.ACCESS_FINE_LOCATION)
         return needed.filter{context.checkSelfPermission(it)!=PackageManager.PERMISSION_GRANTED}
     }
     fun start(durationMs:Long=5000, requestedOwner:Owner=Owner.MANUAL, remembered:io.openhoyi.session.ScaleSelection?=null,
         onDevice:(DiscoveredDevice)->Unit,onFinished:(String?)->Unit) {
         owner();require(durationMs in 1000..30_000)
+        if(disabled){onFinished("scan unavailable in detached fixture");return}
         if(running!=null && requestedOwner==Owner.MANUAL && scanOwner==Owner.AUTOMATIC)cancel(Owner.AUTOMATIC)
         if(running!=null){onFinished("scan already running");return}
         if(missingPermissions().isNotEmpty()){onFinished("scan permissions required");return}
@@ -72,7 +74,7 @@ class ScanCoordinator(context:Context):AutoCloseable {
         catch(_:SecurityException){finish("scan permission revoked")}
         catch(_:IllegalStateException){finish("Bluetooth became unavailable")}
     }
-    fun environmentReady():Boolean=runCatching {
+    fun environmentReady():Boolean=!disabled && runCatching {
         missingPermissions().isEmpty() &&
             (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter?.isEnabled==true &&
             (Build.VERSION.SDK_INT>=31 || (context.getSystemService(Context.LOCATION_SERVICE) as LocationManager).let { location ->

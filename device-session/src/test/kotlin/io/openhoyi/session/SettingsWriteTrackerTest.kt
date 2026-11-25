@@ -140,4 +140,22 @@ class SettingsWriteTrackerTest {
         assertTrue(tracker.observe(42, initial.copy(flags = initial.flags and 0x04.inv())))
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
+
+    @Test fun manualUnknownAcknowledgementReleasesOnlyThatTokenWithoutConfirmingOrReplaying() {
+        val tracker=SettingsWriteTracker()
+        val first=requireNotNull(tracker.begin(MachineSettingChange.Light(false)))
+        assertNull(tracker.unknownAcknowledgementToken())
+        assertTrue(tracker.written(first,OperationResult.Unknown("no proof"),1))
+        assertEquals(first,tracker.unknownAcknowledgementToken())
+        assertFalse(tracker.acknowledgeUnknown(first-1))
+        assertTrue(tracker.acknowledgeUnknown(first))
+        assertEquals(SettingsWriteTracker.State.IDLE,tracker.state)
+        assertNull(tracker.change)
+        assertFalse(tracker.written(first,OperationResult.Success(),2))
+        assertFalse(tracker.observe(3,initial.copy(flags=initial.flags and 0x08.inv())))
+        val next=requireNotNull(tracker.begin(MachineSettingChange.Light(true)))
+        assertTrue(next>first)
+        assertFalse(tracker.acknowledgeUnknown(first))
+        assertTrue(tracker.permitsWrite(next))
+    }
 }

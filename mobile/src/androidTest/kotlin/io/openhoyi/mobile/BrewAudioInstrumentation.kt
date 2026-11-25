@@ -85,7 +85,10 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var pageProfile: String? = null
     private var languageChecks = false
     private var upgradeChecks: String? = null
+    private var splitMachineWriteFileChecks = false
+    private var bleV2DetachedBootstrap = false
     override fun onCreate(arguments: Bundle?) {
+        splitMachineWriteFileChecks = arguments?.getString("splitMachineWriteFileChecks") == "true"
         aiSafetyArguments = arguments?.takeIf { it.getString("aiSafetyChecks") == "true" }?.let(::Bundle)
         aiPreviewArguments = arguments?.takeIf { it.getString("aiPreviewOnly") == "true" }?.let(::Bundle)
         downloadRoutingChecks = arguments?.getString("downloadRoutingChecks") == "true"
@@ -132,6 +135,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         editorBArguments = arguments?.takeIf { it.getString("editorBChecks") == "true" }?.let(::Bundle)
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
+        bleV2DetachedBootstrap = arguments?.getString("bleV2DetachedBootstrap") == "true"
         quickCurveVisualTheme = arguments?.getString("quickCurveVisualTheme")
         quickCurveVisualBackground = arguments?.getString("quickCurveVisualBackground") ?: "wallpaper"
         quickCurveShortPortrait = arguments?.getString("quickCurveShortPortrait") == "true"
@@ -165,6 +169,24 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (bleV2DetachedBootstrap) {
+                check(disposableCiEmulator && BuildConfig.BLE_SAME_ID_QA &&
+                    android.os.Build.HARDWARE in setOf("ranchu", "goldfish"))
+                var outcome: Result<Unit>? = null
+                runOnMainSync {
+                    outcome = runCatching {
+                        val stages = mutableListOf<String>()
+                        MobileService.withDetachedCore(targetContext, progress = { stages.add(it) }) { port ->
+                            port.bootstrap() // Includes application-free native idle projection.
+                            check(port.calls.count { it.operation is io.openhoyi.session.GattOperation.Write } == 1)
+                        }
+                        check(stages.takeLast(4) == listOf("native-idle", "ready-verified", "case-body", "cleanup"))
+                    }
+                }
+                requireNotNull(outcome).getOrThrow()
+                report.putString("stream", "BLE_V2_DETACHED_BOOTSTRAP_PASSED fakeAuth=1 freshSettings=true idle=true noBle=true\n")
+                finish(Activity.RESULT_OK, report); return
+            }
             aiPreviewArguments?.let { args ->
                 AiChatPreviewChecks(this).run(args)
                 report.putString("stream", "AI_CHAT_PREVIEW_BASIC_CHECK_PASSED mockOnly=true noChatRequest=true\n")
@@ -502,6 +524,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report)
                 return
             }
+            if (splitMachineWriteFileChecks) {
+                SplitMachineWriteFileChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "SPLIT_MACHINE_WRITE_FILE_CHECKS_PASSED androidAtomic=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (languageChecks) {
                 NotificationFailureChecks(this).run()
                 HubCleanupChecks(this).run()
@@ -517,6 +545,11 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceWriteWatchdogChecks(this).run()
                 ServiceOrdinaryDispatchChecks(this).run()
                 ServiceOrdinaryDispatchChecks(this).runOwnership()
+                ServiceOrdinaryDispatchChecks(this).runV2Settings()
+                ServiceOrdinaryDispatchChecks(this).runV2Passive()
+                ServiceOrdinaryDispatchChecks(this).runV2Boiler()
+                ServiceOrdinaryDispatchChecks(this).runV2Split()
+                ServiceOrdinaryDispatchChecks(this).runV2SplitRecovery()
                 ServiceStandaloneTareDispatchChecks(this).run()
                 ServiceStandaloneTareDispatchChecks(this).runPersistence()
                 ServiceShotDispatchChecks(this).run()
