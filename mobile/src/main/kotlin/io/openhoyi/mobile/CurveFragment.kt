@@ -123,7 +123,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         browserPane.tag = "product/curve-library/browser"; detailPanel.tag = "product/curve-library/detail"
         val browserTools = Any()
         val shieldRadius = dp(12)
-        fun View.protectBrowserTools() = protectRoundedBackdropContent(productStyle.surface, shieldRadius, group = browserTools)
+        fun View.protectBrowserTools() = protectRoundedBackdropContent(productStyle.surface, shieldRadius,
+            group = browserTools, photoFill = wallpaperTint(productStyle.surface))
         collection.foreground = object : android.graphics.drawable.Drawable() {
             private val paint = android.graphics.Paint().apply { color = productStyle.border; strokeWidth = resources.displayMetrics.density }
             override fun draw(canvas: android.graphics.Canvas) {

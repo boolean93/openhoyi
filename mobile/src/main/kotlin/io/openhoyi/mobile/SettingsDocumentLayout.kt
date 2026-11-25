@@ -25,6 +25,8 @@ import androidx.core.view.ViewCompat
 /** Fixed category index above/beside one continuous Settings document. */
 internal class SettingsDocumentLayout(private val host: MainActivity, state: Bundle?) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
+    private val photoSurface = wallpaperTint(style.surface)
+    private var photo = false
     private data class Section(val key: String, val heading: View, val block: LinearLayout)
     private data class Position(val anchor: String, val offset: Int = 0, val end: Boolean = false)
     private val sections = linkedMapOf<String, Section>()
@@ -39,6 +41,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
     private val brewingRows = mutableMapOf<String, View>()
     private var pairedDevices: SettingsColumns? = null
     var presentDeviceWidth: (Boolean, View) -> Unit = { _, _ -> }
+    var presentDeviceMaterial: (Boolean, Boolean, Boolean) -> Unit = { _, _, _ -> }
     private var compactDevices = false
     private var deviceRowDivider: View? = null
     private var scanning: View? = null
@@ -93,13 +96,13 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         setPadding(style.dp(16), style.dp(8), style.dp(16), 0)
         addView(style.text(host.getString(R.string.app_settings_title), TaskProductVisualStyle.section).apply {
             tag = "settings/document/title"
-            protectRoundedBackdropContent(style.surface, style.dp(12), group = headerBackdrop)
+            protectRoundedBackdropContent(style.surface, style.dp(12), group = headerBackdrop, photoFill = photoSurface)
             setPadding(style.dp(8), style.dp(8), 0, style.dp(14))
             ViewCompat.setAccessibilityHeading(this, true)
         }, LayoutParams(-1, -2))
-        compact.protectRoundedBackdropContent(style.surface, style.dp(12), group = headerBackdrop)
+        compact.protectRoundedBackdropContent(style.surface, style.dp(12), group = headerBackdrop, photoFill = photoSurface)
         addView(compact, LayoutParams(-1, -2).apply { bottomMargin = style.dp(12) })
-        indexBody.protectRoundedBackdropContent(style.surface, style.dp(12))
+        indexBody.protectRoundedBackdropContent(style.surface, style.dp(12), photoFill = photoSurface)
         panel.addView(ScrollView(host).apply {
             tag = "settings/document/category-sidebar"
             isVerticalScrollBarEnabled = false
@@ -140,7 +143,21 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                 rememberPosition(updateHighlight = false)
             }
         }
+        observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { showing ->
+            if (photo == showing) return@observeActiveWallpaper
+            photo = showing
+            wide?.let(::renderGroupMaterials)
+        }
         updateButtons()
+    }
+
+    private fun renderGroupMaterials(rail: Boolean) {
+        compact.background = if (rail) null else style.shape(
+            if (photo) Color.TRANSPARENT else style.surface, outline = true, radius = 12)
+        body.applySettingsGroupMaterials(rail, photo)
+        pairedDevices?.background = if (compactDevices && !photo) settingsRaisedGroup(host, style) else null
+        presentDeviceMaterial(rail, compactDevices, photo)
+        updateBrewingMaterial(rail)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -168,7 +185,6 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                         LayoutParams(-1, style.dp(1)).apply { topMargin = style.dp(3); bottomMargin = style.dp(3) })
                 }
             } else {
-                compact.background = style.shape(style.surface, true, 12)
                 buttons.values.chunked(3).forEachIndexed { i, cells ->
                     if (i > 0) compact.addView(hairline(), LayoutParams(-1, style.dp(1)))
                     val row = CompactCategoryRow(host, style.dp(1), style.dp(30), style.dp(48))
@@ -182,7 +198,6 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                     }
                 }
             }
-            body.applySettingsWideMaterial(rail)
             val compactDevice = rail && resources.configuration.smallestScreenWidthDp >= 600
             sections["maintenance"]?.block?.findViewWithTag<View>("settings/maintenance/diagnostics-card")?.apply {
                 setPadding(paddingLeft, paddingTop, paddingRight, style.dp(if (compactDevice) 14 else 10))
@@ -191,7 +206,11 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             deviceRowDivider?.visibility = if (compactDevice) VISIBLE else GONE
             pairedDevices?.apply {
                 compactDeviceStack = compactDevice
-                background = if (compactDevice) settingsRaisedGroup(host, style) else null
+                if (compactDevice) {
+                    protectRoundedBackdropContent(style.surface, style.dp(16), photoFill = photoSurface, photoOnly = true)
+                } else {
+                    setTag(R.id.page_backdrop_content, null)
+                }
             }
             sections.getValue("devices").block.apply {
                 val inset = style.dp(if (compactDevice) 0 else 10)
@@ -208,6 +227,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             scale.block.setPadding(deviceInset, 0, deviceInset, style.dp(if (compactDevice) 0 else 14))
             scanning?.setPadding(deviceInset, 0, deviceInset, style.dp(12))
             presentDeviceWidth(compactDevice, scale.heading)
+            renderGroupMaterials(rail)
             disclosureRenders["scale"]?.invoke()
             updateButtons()
         }
@@ -251,7 +271,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         check(key !in sections)
         val block = style.column("settings/section/$key").apply {
             setPadding(style.dp(10), 0, style.dp(10), style.dp(14))
-            protectRoundedBackdropContent(style.surface, style.dp(12), leaveBottomPaddingVisible = true)
+            protectRoundedBackdropContent(style.surface, style.dp(12), leaveBottomPaddingVisible = true, photoFill = photoSurface)
         }
         val heading = style.text(title, TaskProductVisualStyle.settingsChapter, "settings/heading/$key").apply {
             ViewCompat.setAccessibilityHeading(this, true)
@@ -284,6 +304,8 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
             body.addView(this, at, LayoutParams(-1, -2))
         }
         return style.column("settings/devices/scan-section").apply {
+            protectRoundedBackdropContent(style.surface, style.dp(12), leaveBottomPaddingVisible = true,
+                photoFill = photoSurface, photoOnly = true)
             setPadding(style.dp(10), 0, style.dp(10), style.dp(12))
             body.addView(this, at + 1, LayoutParams(-1, -2))
             scanning = this
@@ -333,10 +355,13 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         section.block.setPadding(style.dp(12), 0, style.dp(12), 0)
     }
 
+    private fun updateBrewingMaterial(rail: Boolean) {
+        brewingCard?.background = if (photo) null else settingsRaisedGroup(host, style,
+            horizontalInsetDp = if (rail) 4 else 0, topInsetDp = if (rail) 2 else 0)
+    }
+
     private fun styleBrewingLanding(rail: Boolean) {
         brewingCard?.apply {
-            background = settingsRaisedGroup(host, style, horizontalInsetDp = if (rail) 4 else 0,
-                topInsetDp = if (rail) 2 else 0)
             val tablet = rail && resources.configuration.smallestScreenWidthDp >= 600
             setPadding(0, style.dp(if (rail) 4 else 2), 0, style.dp(if (tablet) 8 else if (rail) 4 else 6))
         }
@@ -360,7 +385,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
         body.removeAllViews()
         val brew = style.column("settings/brewing/group").apply {
             brewingCard = this
-
+            protectRoundedBackdropContent(style.surface, style.dp(16), photoFill = photoSurface, photoOnly = true)
         }
         ordered.forEach { child ->
             val section = sections.values.firstOrNull { it.block === child }
@@ -370,6 +395,7 @@ internal class SettingsDocumentLayout(private val host: MainActivity, state: Bun
                     brewingChapter = style.text(host.getString(R.string.settings_category_brewing),
                         TaskProductVisualStyle.Type(22, 700, 32), "settings/brewing/title").apply {
                         visibility = if (wide == true) VISIBLE else GONE
+                        protectRoundedBackdropContent(style.surface, style.dp(12), photoFill = photoSurface, photoOnly = true)
                         setPadding(style.dp(10), style.dp(8), style.dp(10), style.dp(8))
                         ViewCompat.setAccessibilityHeading(this, true)
                         body.addView(this, LayoutParams(-1, -2))

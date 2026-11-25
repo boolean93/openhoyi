@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.text.SpannableString
 import android.text.Spanned
@@ -71,6 +72,23 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     private var phoneToolIcons: Array<android.graphics.drawable.Drawable?>? = null
     private var phoneToolIconGap = 0
 
+    fun presentCardMaterial(rail: Boolean, combined: Boolean, photo: Boolean) {
+        cards.values.forEach { card ->
+            // The tablet overview owns one shared surface for both devices.
+            card.background = when {
+                combined -> null
+                photo -> style.shape(Color.TRANSPARENT, outline = true, radius = 16)
+                rail -> settingsRaisedGroup(host, style)
+                else -> style.shape(style.surface, outline = true, radius = 16)
+            }
+        }
+        states.values.forEach { label ->
+            label.background = if (photo) style.shape(style.surface, radius = 6) else null
+            label.setPaddingRelative(style.dp(if (photo) 6 else 0), 0, style.dp(if (photo) 6 else 0), 0)
+            label.layoutParams = label.layoutParams.apply { width = if (photo) -2 else -1 }
+        }
+    }
+
     private fun returnToPhone(view: View) {
         val original = placements[view] ?: return
         (view.parent as? android.view.ViewGroup)?.removeView(view)
@@ -135,8 +153,6 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         }
         scaleCard.findViewWithTag<View>("settings/devices/scale-separator")?.visibility = if (wide) View.GONE else View.VISIBLE
         cards.values.forEach { card ->
-            // The containing group owns the single shared surface on tablet.
-            card.background = if (wide) null else style.shape(style.surface, true, 16)
             val inset = style.dp(if (wide) 4 else 16)
             // The last row owns the shared card's bottom breathing room; keep the
             // divider and the earlier row's density unchanged.
@@ -175,9 +191,8 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
     fun create(body:LinearLayout, scanBody:LinearLayout = body, scaleBody:LinearLayout = body): LinearLayout {
         val card=visual.card(body,host.getString(R.string.home_device_connection),0)
         card.removeViewAt(0)
-        card.markSettingsGroupMaterial(style)
         val scaleCard = if (scaleBody === body) card else
-            visual.card(scaleBody, host.getString(R.string.scale_title), 0).also { it.removeViewAt(0); it.markSettingsGroupMaterial(style) }
+            visual.card(scaleBody, host.getString(R.string.scale_title), 0).also { it.removeViewAt(0) }
         listOf(DeviceRole.COFFEE to R.string.home_coffee_disconnect,DeviceRole.BOOKOO to R.string.home_scale_disconnect).forEachIndexed { index,(role,label) ->
             val ownerCard = if (role == DeviceRole.COFFEE) card else scaleCard
             cards[role] = ownerCard
