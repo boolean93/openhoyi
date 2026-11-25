@@ -161,12 +161,46 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                                 "Imported tile not ready: selected=" + tile.isSelected + ", visibility=" + tile.visibility +
                                     ", size=" + tile.width + "x" + tile.height
                             }
-                            val scroll = generateSequence(tile.parent) { it.parent }.filterIsInstance<ScrollView>().first()
-                            val rect = Rect(0, 0, options.width, options.height)
-                            scroll.offsetDescendantRectToMyCoords(options, rect)
-                            scroll.scrollTo(0, rect.top - HoyiUi.dp(host, 24))
+                            tile.isFocusableInTouchMode = true
+                            check(tile.requestFocus())
+                            tile.requestRectangleOnScreen(Rect(0, 0, tile.width, tile.height), true)
                         }
-                        capture("appearance", settings, "settings/appearance/background/photo")
+                        val tile = main { settings.findViewWithTag<Button>("settings/appearance/background/photo") }
+                        await("Full photo swatch visible in the scroll viewport") {
+                            val rect = Rect()
+                            val shown = tile.getGlobalVisibleRect(rect)
+                            if (!shown || rect.height() < tile.height || rect.width() < tile.width) {
+                                tile.requestRectangleOnScreen(Rect(0, 0, tile.width, tile.height), true)
+                                false
+                            } else true
+                        }
+                        test.waitForIdleSync()
+                        // Screenshot is served by the compositor; match the saturated colors of the imported fixture.
+                        val deadline = SystemClock.elapsedRealtime() + 8_000
+                        var verified = false
+                        do {
+                            val xy = main { IntArray(2).also { tile.getLocationOnScreen(it) } }
+                            val frame = captureCommittedFrame(settings)
+                            try {
+                                val src = checkNotNull(owner.current.image)
+                                val ref = src.getPixel(src.width / 2, src.height / 2)
+                                val topImage = main { tile.compoundDrawablesRelative[1].bounds }
+                                val cx = xy[0] + tile.width / 2
+                                for (y in (xy[1] + 4).coerceAtLeast(0) until (xy[1] + topImage.height() + tile.paddingTop).coerceAtMost(frame.height)) {
+                                    val pixel = frame.getPixel(cx, y)
+                                    if (kotlin.math.abs(Color.red(pixel) - Color.red(ref)) < 12 &&
+                                        kotlin.math.abs(Color.green(pixel) - Color.green(ref)) < 12 &&
+                                        kotlin.math.abs(Color.blue(pixel) - Color.blue(ref)) < 12) {
+                                        verified = true
+                                        break
+                                    }
+                                }
+                                if (verified) writeScreenshot("$prefix-appearance.png", frame)
+                            } finally { frame.recycle() }
+                            if (!verified) SystemClock.sleep(60)
+                        } while (!verified && SystemClock.elapsedRealtime() < deadline)
+                        check(verified) { "The composed screen does not yet contain the full thumbnail" }
+
                         main { host.select(TaskDestination.CURVES) }
                         capture("curves", page(TaskDestination.CURVES), "product/curve-library/browser")
                         main { host.select(TaskDestination.HISTORY) }
