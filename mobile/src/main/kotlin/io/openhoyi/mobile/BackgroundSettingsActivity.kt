@@ -36,12 +36,11 @@ internal fun addBackgroundSettingsRow(activity: ThemedActivity, parent: LinearLa
     if (!inlinePresets) return
 
     val store = (activity.application as MobileApplication).pageBackgrounds
-    val applied = store.current.config
     val options = SettingsPreviewOptions(activity, 3, style).apply { tag = "settings/appearance/background-presets" }
     val tiles = linkedMapOf<AppBackground, SettingsBackgroundPreviewButton>()
     for ((label, preset) in listOf(R.string.background_solid to AppBackground.Solid,
         R.string.background_mist to AppBackground.Mist, R.string.background_slate to AppBackground.Slate)) {
-        val selected = applied.choice == preset
+        val selected = store.current.config.choice == preset
         val realPreset = PageBackdrop(style.page, HoyiUi.dark(activity)).apply {
             snapshot = BackgroundSnapshot(AppBackgroundConfig(preset, AppBackgroundConfig.MAX_STRENGTH))
             protectedAreas = emptyList()
@@ -60,44 +59,60 @@ internal fun addBackgroundSettingsRow(activity: ThemedActivity, parent: LinearLa
         }
         options.addView(tile)
     }
-    val photo = settingsPreviewButton(activity, style, activity.getString(R.string.background_choose_photo),
-        applied.choice is AppBackground.Photo).apply {
+    val photoBackdrop = PageBackdrop(style.page, HoyiUi.dark(activity), applyPhotoMask = false).apply {
+        protectedAreas = emptyList()
+    }
+    val photoPreview = LayerDrawable(arrayOf(photoBackdrop,
+        style.shape(Color.TRANSPARENT, outline = true, radius = 0)))
+    val photo = SettingsBackgroundPreviewButton(activity, style, photoPreview)
+    settingsPreviewButton(activity, style, activity.getString(R.string.background_choose_photo), false, photo).apply {
+        compoundDrawablePadding = style.dp(5)
         setOnClickListener {
-            // Re-open the current photo editor to keep mask/apply/cancel easy to reach.
-            val hasPhoto = store.current.config.choice is AppBackground.Photo
+            // A current photo opens its editor; a missing photo can be replaced immediately.
+            val current = store.current
+            val choosePhoto = current.config.choice !is AppBackground.Photo || current.unavailable
             activity.startActivity(Intent(activity, BackgroundSettingsActivity::class.java)
-                .putExtra(BACKGROUND_CHOOSE_PHOTO, !hasPhoto))
+                .putExtra(BACKGROUND_CHOOSE_PHOTO, choosePhoto))
         }
     }
     options.addView(photo)
-    fun updateSelection(choice: AppBackground) {
+    val solidPreview = BackgroundSnapshot(AppBackgroundConfig())
+    var wide = false
+    fun updateSelection(snapshot: BackgroundSnapshot) {
+        val choice = if (snapshot.unavailable) AppBackground.Solid else snapshot.config.choice
         tiles.forEach { (preset, tile) ->
             val selected = choice == preset
             if (tile.isSelected != selected) tile.settingsPreviewSelection(style, selected)
         }
-        val selected = choice is AppBackground.Photo
-        if (photo.isSelected != selected) photo.settingsPreviewSelection(style, selected)
-        val label = activity.getString(if (selected) R.string.background_photo else R.string.background_choose_photo)
+        val hasPhoto = choice is AppBackground.Photo && snapshot.image != null
+        photoBackdrop.snapshot = if (hasPhoto) snapshot else solidPreview
+        photo.showPreview = hasPhoto
+        photo.visibility = if (wide || hasPhoto) View.VISIBLE else View.GONE
+        if (photo.isSelected != hasPhoto) photo.settingsPreviewSelection(style, hasPhoto)
+        val label = activity.getString(if (hasPhoto) R.string.background_photo else R.string.background_choose_photo)
         if (photo.text.toString() != label) photo.text = label
     }
-    updateSelection(applied.choice)
+    updateSelection(store.current)
     val panel = SettingsAppearanceSurface(activity, style, activity.getString(R.string.background_title),
-        options, narrowLabel = false) { wide ->
+        options, narrowLabel = false) { roomy ->
+        wide = roomy
         compactRow.visibility = if (wide) View.GONE else View.VISIBLE
-        photo.visibility = if (wide) View.VISIBLE else View.GONE
         button.tag = if (wide) null else "product/settings/background/open"
-        photo.tag = if (wide) "product/settings/background/open" else null
+        photo.tag = if (wide) "product/settings/background/open" else "settings/appearance/background/photo"
         tiles.values.forEach { it.large = wide }
+        photo.large = wide
+        updateSelection(store.current)
     }
     var releaseObservation: (() -> Unit)? = null
     panel.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
         override fun onViewAttachedToWindow(v: View) {
             releaseObservation?.invoke()
-            releaseObservation = store.observe { updateSelection(it.config.choice) }
+            releaseObservation = store.observe(::updateSelection)
         }
         override fun onViewDetachedFromWindow(v: View) {
             releaseObservation?.invoke()
             releaseObservation = null
+            photoBackdrop.snapshot = solidPreview
         }
     })
     style.add(parent, panel, 8)
@@ -106,7 +121,23 @@ internal fun addBackgroundSettingsRow(activity: ThemedActivity, parent: LinearLa
 private class SettingsBackgroundPreviewButton(context: android.content.Context,
     private val style: TaskProductVisualStyle, private val preview: LayerDrawable) : Button(context) {
     var large = false
+    var showPreview = true
+        set(value) {
+            if (field == value) return
+            field = value
+            if (value) {
+                requestLayout()
+            } else {
+                setCompoundDrawablesRelative(null, null, null, null)
+                preview.setBounds(0, 0, 0, 0)
+            }
+        }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (!showPreview) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            return
+        }
         val available = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(1)
         val w = minOf(available, style.dp(if (large) 180 else 64))
         val h = if (large) (w * .55f).toInt().coerceIn(1, style.dp(96)) else style.dp(32)

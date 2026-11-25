@@ -325,9 +325,34 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         }
     }, "history-detail-reader").start()
 }
+/** Rendering inputs for a collection preview, refreshed when its source data or notes change. */
+internal data class HistoryPreview(
+    val entry: ShotHistory.Entry,
+    val permanent: BrewJournal.Entry?,
+    val journalFailed: Boolean,
+)
+
+internal fun ThemedActivity.historyPreview(entry: ShotHistory.Entry): HistoryPreview {
+    val journal = (application as MobileApplication).journalResult
+    return HistoryPreview(entry, journal.getOrNull()?.find(entry.id), journal.isFailure)
+}
+
+internal fun ThemedActivity.renderHistoryPreview(
+    body: LinearLayout, preview: HistoryPreview, recoverTiming: Boolean,
+    openFullPage: () -> Unit, visual: ExtractionHistoryVisualStyle,
+) {
+    val entry = preview.entry
+    val app = application as MobileApplication
+    val curve = if (entry.curveId == "manual") getString(R.string.extraction_manual_label) else
+        runCatching { app.historicalCurveName(entry.curveId) }.getOrNull()
+            ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
+    renderEmbeddedHistoryPreview(body, entry, curve, preview.permanent, preview.journalFailed, openFullPage, visual, recoverTiming)
+}
+
 /** Embedded collection preview: one permanent chart/notes viewport and fixed actions only. */
 private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entry: ShotHistory.Entry, curve: String,
-    permanent: BrewJournal.Entry?, journalFailed: Boolean, openFullPage: (() -> Unit)?, visual: ExtractionHistoryVisualStyle) {
+    permanent: BrewJournal.Entry?, journalFailed: Boolean, openFullPage: (() -> Unit)?, visual: ExtractionHistoryVisualStyle,
+    recoverTiming: Boolean = true) {
     val style = visual.palette
     val app = application as MobileApplication
     val chart = ShotChartView(this, visual, embeddedHistory = true).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
@@ -420,7 +445,11 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         chart.post {
             if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@post
             points.onSuccess {
-                val recovered = app.recoverViewedSampleCoverage(entry, it)
+                // An automatic preview can display sample coverage without persisting repairs.
+                val recovered = if (recoverTiming) app.recoverViewedSampleCoverage(entry, it)
+                else if (entry.observedMachineElapsedSeconds == null && entry.observedSampleCoverageMs == null)
+                    entry.copy(observedSampleCoverageMs = observedSampleCoverage(it))
+                else entry
                 chart.points = it
                 preview.formatPortraitLegend()
                 timingQuantity.present(recovered.timingValue ?: "—", if (recovered.timingValue != null) "s" else null)
