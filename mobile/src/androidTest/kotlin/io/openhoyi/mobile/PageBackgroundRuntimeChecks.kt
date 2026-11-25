@@ -713,7 +713,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 return visiblePage(host, "root:${page.name}")
             }
             val home = go(TaskDestination.BREW)
-            await("short landscape home shows both native boiler switches above targets") {
+            await("short landscape home keeps boiler power and temperature actions distinct") {
                 listOf("brew", "steam").all { boiler ->
                     val key = "product/home/$boiler-boiler"
                     val power = home.findViewWithTag<HoyiSwitch>("$key/toggle") ?: return@all false
@@ -721,7 +721,10 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                     val touch = HoyiUi.dp(host, 48)
                     val hit = localRect(home, power) ?: return@all false
                     val goal = localRect(home, target) ?: return@all false
-                    hit.width() >= touch && hit.height() >= touch && hit.bottom <= goal.top
+                    val down = localRect(home, home.findViewWithTag<View>("$key/target-decrease")) ?: return@all false
+                    val up = localRect(home, home.findViewWithTag<View>("$key/target-increase")) ?: return@all false
+                    listOf(hit, down, up).all { it.width() >= touch && it.height() >= touch && !Rect.intersects(it, goal) } &&
+                        !Rect.intersects(down, up) && !Rect.intersects(hit, down) && !Rect.intersects(hit, up)
                 }
             }
             main { verifyShellBackdrop(host, photo = true) }

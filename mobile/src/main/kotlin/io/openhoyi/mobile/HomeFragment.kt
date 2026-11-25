@@ -59,6 +59,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
     private val boilerExceptions = mutableMapOf<HoyiSwitch, Button>()
+    private data class BoilerTargetControls(val decrease: HomeBoilerTargetButton, val increase: HomeBoilerTargetButton, val status: Button)
+    private val boilerTargetControls = mutableMapOf<BoilerTargetSteps.Boiler, BoilerTargetControls>()
     private var renderingBoilerSwitch = false
     private val boilerDisplay = HomeBoilerDialHold()
     private val boilerDials = mutableListOf<BoilerTemperatureDial>()
@@ -139,6 +141,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
         boilerDials.clear()
         boilerExceptions.clear()
+        boilerTargetControls.clear()
         feedbackUi = BrewFeedbackDialog(host, savedInstanceState)
         val root = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
@@ -278,7 +281,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             startActivity(Intent(host, AiChatActivity::class.java))
         }).apply { tag = "product/home/boilers" }
         content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { if(spaciousHome) topMargin=dp(8) })
-        fun boiler(label: Int, tagName: String, change: (Boolean) -> MachineSettingChange): List<View> {
+        fun boiler(boiler: BoilerTargetSteps.Boiler, tagName: String, change: (Boolean) -> MachineSettingChange): List<View> {
+            val steam = boiler == BoilerTargetSteps.Boiler.STEAM
             val card = productStyle.column("product/home/$tagName").apply {
                 setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4),
                     dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 0 else if (shortHome) 0 else 4))
@@ -290,8 +294,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 }
             }
             boilerRow.addBoiler(card)
-            val heading = productStyle.text(getString(label), TaskProductVisualStyle.Type(14, 500, 20))
-            heading.text = getString(if (tagName == "brew-boiler") R.string.home_brew_boiler else R.string.home_steam_boiler)
+            val heading = productStyle.text(getString(if (steam) R.string.home_steam_boiler else R.string.home_brew_boiler),
+                TaskProductVisualStyle.Type(14, 500, 20))
             val value = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 48 else if (phoneHome) 36 else 19, 700,
                 if (spaciousHome) 58 else if (phoneHome) 44 else 25), "product/home/$tagName/temperature")
             value.setSingleLine(true)
@@ -308,6 +312,23 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     if (!renderingBoilerSwitch) changeBoilerSetting(change(checked))
                 }
             }
+            fun stepButton(delta: Int, symbol: String, description: Int, name: String) =
+                HomeBoilerTargetButton(host) { service?.homeBoilerTargetInteraction(boiler, delta) }.apply {
+                    productStyle.button(this)
+                    text = symbol
+                    contentDescription = getString(description, heading.text)
+                    tag = "product/home/$tagName/target-$name"
+                    minimumWidth = dp(48)
+                    minimumHeight = dp(48)
+                    setPadding(0, 0, 0, 0)
+                    isEnabled = false
+                    setOnClickListener {
+                        service?.stepHomeBoilerTarget(boiler, delta)
+                        render()
+                    }
+                }
+            val decrease = stepButton(-1, "−", R.string.home_boiler_target_decrease, "decrease")
+            val increase = stepButton(1, "+", R.string.home_boiler_target_increase, "increase")
             if (shortHome) {
                 // Readings and controls run side-by-side so the new 48dp switch
                 // does not consume a full extra row in short landscape windows.
@@ -318,15 +339,28 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 productStyle.add(readings, value)
                 productStyle.add(readings, pressure)
                 compact.addView(readings, LinearLayout.LayoutParams(0, -2, 1f))
-                val controls = productStyle.column().apply { gravity = android.view.Gravity.CENTER_HORIZONTAL }
-                controls.addView(toggle, LinearLayout.LayoutParams(dp(48), dp(48)))
+                val targetControls = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+                targetControls.addView(decrease, LinearLayout.LayoutParams(dp(48), dp(48)))
                 target.gravity = android.view.Gravity.CENTER
-                productStyle.add(controls, target)
-                compact.addView(controls, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6) })
+                if (shortWideHome) {
+                    val controls = productStyle.column()
+                    productStyle.add(controls, target)
+                    productStyle.add(controls, targetControls)
+                    compact.addView(toggle, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+                        marginStart = dp(6)
+                        gravity = android.view.Gravity.BOTTOM
+                    })
+                    compact.addView(controls, LinearLayout.LayoutParams(dp(96), -2).apply { marginStart = dp(6) })
+                } else {
+                    compact.addView(toggle, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(6) })
+                    targetControls.addView(target, LinearLayout.LayoutParams(0, -2, 1f))
+                }
+                targetControls.addView(increase, LinearLayout.LayoutParams(dp(48), dp(48)))
                 productStyle.add(card, compact)
+                if (!shortWideHome) productStyle.add(card, targetControls)
             } else {
                 val dial = BoilerTemperatureDial(host, heading, value, target, pressure, toggle,
-                    steam = tagName == "steam-boiler").apply { keepOwnBackdropTreatment() }
+                    steam = steam, decrease = decrease, increase = increase).apply { keepOwnBackdropTreatment() }
                 boilerDials += dial
                 card.background = null
                 card.addView(dial, LinearLayout.LayoutParams(dp(if (spaciousHome) 200 else 176), dp(if (spaciousHome) 200 else 176)).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
@@ -339,13 +373,23 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 visibility = View.GONE
                 layoutParams = LinearLayout.LayoutParams(-1, -2)
             }
+            val targetStatus = button(card, "") {
+                service?.refreshBoilerTargetBaseline()
+                render()
+            }.apply {
+                tag = "product/home/$tagName/target-status"
+                visibility = View.GONE
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+                layoutParams = LinearLayout.LayoutParams(-1, -2)
+            }
+            boilerTargetControls[boiler] = BoilerTargetControls(decrease, increase, targetStatus)
             return listOf(value, pressure, target, toggle)
         }
-        boiler(R.string.home_brew_temperature, "brew-boiler") {
+        boiler(BoilerTargetSteps.Boiler.BREW, "brew-boiler") {
             MachineSettingChange.BrewHeating(it)
         }.let { (value, pressure, target, toggle) -> brewBoilerTemperature=value as TextView; brewBoilerPressure=pressure as TextView;
             brewBoilerTarget=target as TextView; brewBoilerToggle=toggle as HoyiSwitch }
-        boiler(R.string.home_steam_temperature, "steam-boiler") {
+        boiler(BoilerTargetSteps.Boiler.STEAM, "steam-boiler") {
             MachineSettingChange.SteamHeating(it)
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as HoyiSwitch }
@@ -929,8 +973,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         if (boilerDials.isEmpty()) steamBoilerTemperature.showMetric(readings.steamTemperature.compactTemperature())
         steamPressure.show(liveReadings.steamPressure)
         steamBoilerPressure.showBoilerPressure(readings.steamPressure)
-        brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.brewTarget?.let { "${it} °C" } ?: "—"))
-        steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (dial.steamTarget?.let { "${it} °C" } ?: "—"))
+        brewBoilerTarget.showTarget(dial.brewTarget)
+        steamBoilerTarget.showTarget(dial.steamTarget)
+        renderBoilerTargetControls(owner)
         val heatingAdmission = BoilerHeatingAdmission.evaluate(owner, s, now)
         val boilerEditable = heatingAdmission.canSubmit && !BuildConfig.MOCK_MODE
         val brewRecovery=owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN && owner.pendingSetting is MachineSettingChange.BrewHeating
@@ -1204,6 +1249,45 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         host.openLastCurve(ready, reference)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+
+    private fun TextView.showTarget(confirmed: Int?) {
+        val label = getString(R.string.home_target_label) + " "
+        val number = confirmed?.toString() ?: "—"
+        val value = label + number + if (confirmed == null) "" else " °C"
+        if (text.toString() == value) return
+        text = SpannableString(value).apply {
+            val numberEnd = label.length + number.length
+            setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), label.length, numberEnd,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (this@showTarget.parent is BoilerTemperatureDial) setSpan(android.text.style.RelativeSizeSpan(1.20f),
+                label.length, numberEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun renderBoilerTargetControls(owner: MobileService?) {
+        val steam = BoilerTargetSteps.Boiler.STEAM
+        val readbackBoiler = if (owner?.boilerTargetFeedback(steam) in setOf(
+                BoilerTargetSteps.Feedback.UNKNOWN, BoilerTargetSteps.Feedback.UNKNOWN_WITH_UNSENT))
+            steam else BoilerTargetSteps.Boiler.BREW
+        boilerTargetControls.forEach { (boiler, controls) ->
+            controls.decrease.renderedIdentity = owner?.homeBoilerTargetInteraction(boiler, -1)
+            controls.increase.renderedIdentity = owner?.homeBoilerTargetInteraction(boiler, 1)
+            val feedback = owner?.boilerTargetFeedback(boiler)
+            val needsReadback = boiler == readbackBoiler && owner?.boilerTargetNeedsReadback() == true
+            val refresh = needsReadback && owner?.canRefreshBoilerTarget() == true
+            val message = when {
+                refresh -> R.string.settings_target_refresh
+                needsReadback -> R.string.settings_target_refresh_needed
+                feedback == BoilerTargetSteps.Feedback.CONFIRMING || feedback == BoilerTargetSteps.Feedback.QUEUED ->
+                    R.string.home_boiler_target_confirming
+                else -> SettingsOperationFeedback.target(feedback)
+            }
+            if (message != null) controls.status.show(getString(message))
+            controls.status.isEnabled = refresh
+            controls.status.isClickable = refresh
+            controls.status.visibility = if (message == null) View.GONE else View.VISIBLE
+        }
+    }
     private fun TextView.showBoilerPressure(reading: String) {
         val label = getString(R.string.task_chart_pressure)
         val rendered = "$label $reading"

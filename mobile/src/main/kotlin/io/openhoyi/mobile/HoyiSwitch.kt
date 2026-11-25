@@ -65,15 +65,8 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     )
     private var keyboardPress: KeyboardPress? = null
 
-    // KeyEvent.isConfirmKey is hidden. Match the platform View confirmation keys.
-    private fun isConfirmKey(keyCode: Int) = when (keyCode) {
-        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
-        KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_NUMPAD_ENTER -> true
-        else -> false
-    }
-
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (!isConfirmKey(keyCode) || !event.hasNoModifiers() ||
+        if (!BoilerSwitchGestureGate.isConfirmKey(keyCode) || !event.hasNoModifiers() ||
             authoritativeToggleIdentity == null && readbackRetry == null) {
             return super.onKeyDown(keyCode, event)
         }
@@ -87,7 +80,7 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        if (!isConfirmKey(keyCode)) return super.onKeyUp(keyCode, event)
+        if (!BoilerSwitchGestureGate.isConfirmKey(keyCode)) return super.onKeyUp(keyCode, event)
         val press = keyboardPress ?: return if (authoritativeToggleIdentity == null && readbackRetry == null) {
             super.onKeyUp(keyCode, event)
         } else true
@@ -173,14 +166,14 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
     private var dialTrackWidth = 0
     private var dialTrackHeight = 0
     fun setDialDiameter(diameter: Int) {
-        val w = (diameter * .216f).toInt().coerceAtMost(dp(46f).toInt()).coerceAtLeast(3)
-        val h = (diameter * .100f).toInt().coerceAtLeast(2)
+        val w = (diameter * .128f).toInt().coerceAtMost(dp(46f).toInt()).coerceAtLeast(3)
+        val h = (diameter * .070f).toInt().coerceAtLeast(2)
         if (w == dialTrackWidth && h == dialTrackHeight) return
         dialTrackWidth = w; dialTrackHeight = h
         fun transparent(width: Int) = GradientDrawable().apply {
             setColor(Color.TRANSPARENT); setSize(width, h)
         }
-        thumbDrawable = transparent(h.coerceAtMost(w / 2))
+        thumbDrawable = transparent((h * .89f).toInt().coerceIn(1, w / 2))
         trackDrawable = transparent(w)
         switchMinWidth = w
     }
@@ -293,9 +286,9 @@ internal class HoyiSwitch(context: Context, private val interactive: Boolean = t
         }
         val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         if (dialTrackHeight > 0) {
-            val classicDay = !dark && palette.choice == AppThemePalette.CLASSIC
-            val fill = if (classicDay) blend(0xffcaceca.toInt(), 0xff00b35d.toInt(), position)
-                else blend(palette.switchOff, palette.switchOn, position)
+            val fill = if (!dark && palette.choice == AppThemePalette.CLASSIC)
+                blend(0xffb0c4bc.toInt(), 0xff145442.toInt(), position)
+            else blend(palette.switchOff, palette.switchOn, position)
             val radius = capsule.height() / 2
             paint.color = fill
             paint.alpha = if (fullInk) 255 else 140

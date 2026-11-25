@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -11,6 +12,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.TextPaint
@@ -18,6 +20,7 @@ import android.text.style.MetricAffectingSpan
 import android.text.style.RelativeSizeSpan
 import androidx.core.content.res.ResourcesCompat
 import android.view.Gravity
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.view.animation.LinearInterpolator
@@ -29,13 +32,21 @@ import kotlin.math.sin
 /** The chosen instrument face, measured as fractions of its outside diameter. */
 internal class BoilerTemperatureDial(context: Context, private val heading: TextView,
     private val value: TextView, private val target: TextView, private val pressure: TextView,
-    private val power: HoyiSwitch, private val steam: Boolean) : FrameLayout(context) {
+    private val power: HoyiSwitch, private val steam: Boolean,
+    decrease: View? = null, increase: View? = null,
+) : FrameLayout(context) {
     private val density = resources.displayMetrics.density
     private val style = TaskProductVisualStyle(context)
     private val dark = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
-    internal val faceFill = if (dark) style.homePage else 0xfffcfaf7.toInt()
-    private val ink = if (dark) style.homeDialInk else Color.rgb(10, 30, 19)
-    private val marks = if (dark) Color.rgb(129, 155, 143) else Color.rgb(160, 182, 149)
+    internal val faceFill = if (dark) 0xff152322.toInt() else 0xfff5faf7.toInt()
+    private val ink = if (dark) style.homeDialInk else 0xff102f2c.toInt()
+    private val marks = if (dark) 0xff839f98.toInt() else 0xff90b1a6.toInt()
+    private val ruleColor = if (dark) 0xff456360.toInt() else 0xffc9dfd6.toInt()
+    private val stripFill = if (dark) 0xff254440.toInt() else 0xffe4f4ed.toInt()
+    private val arcInk = if (!dark && context.themePalette() == AppThemePalette.CLASSIC) 0xff02c55b.toInt() else style.homeDialProgress
+    private val decrease = decrease
+    private val increase = increase
+    private val steps = listOfNotNull(decrease, increase)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bounds = RectF()
     private val icon = Path()
@@ -51,31 +62,52 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
         setWillNotDraw(false)
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            colors = if (dark) intArrayOf(style.homeDialBorder, style.surface, style.homeDialBorder)
-            else intArrayOf(Color.WHITE, 0xfff5f3ef.toInt(), Color.WHITE)
+            setColor(faceFill)
+            setStroke(density.roundToInt().coerceAtLeast(1), ruleColor)
         }
-        elevation = 3 * density
+        elevation = 2 * density
         for (field in listOf(heading, value, target, pressure)) {
-            field.gravity = Gravity.CENTER; field.setTextColor(ink)
+            field.gravity = Gravity.CENTER
+            field.setTextColor(ink)
             field.includeFontPadding = false
             field.setLineSpacing(0f, 1f)
-            field.minimumHeight = 0; field.minHeight = 0
+            field.minimumHeight = 0
+            field.minHeight = 0
             field.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
             addView(field)
         }
         heading.typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        value.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        value.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         target.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         pressure.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-        // CJK fallback and Roboto have different natural advances from the reference.
-        // Tune these native text runs independently without baking glyphs into a bitmap.
-        heading.textScaleX = 1.05f
-        value.textScaleX = 1.03f
-        target.textScaleX = 1.07f
-        pressure.textScaleX = 1.16f
-        power.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        pressure.textScaleX = 1.12f
+
+        power.gravity = Gravity.CENTER
         power.setPaddingRelative(0, 0, 0, 0)
         addView(power)
+        val buttonInk = if (dark) 0xffc9f2e5.toInt() else 0xff104c3e.toInt()
+        for (step in steps) {
+            step.background = RippleDrawable(
+                ColorStateList.valueOf(if (dark) 0x44a4d4c7 else 0x33164e40),
+                null,
+                GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.WHITE) },
+            )
+            step.minimumWidth = touch
+            step.minimumHeight = touch
+            step.setPadding(0, 0, 0, 0)
+            step.isFocusable = true
+            if (step is TextView) {
+                step.gravity = Gravity.CENTER
+                step.includeFontPadding = false
+                step.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                step.textScaleX = 1.12f
+                step.setTextColor(ColorStateList(
+                    arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+                    intArrayOf(if (dark) 0xff8aa8a0.toInt() else 0xff63847a.toInt(), buttonInk),
+                ))
+            }
+            addView(step)
+        }
     }
 
     private val numeralFace by lazy { ResourcesCompat.getFont(context, R.font.task_chinese_bold) }
@@ -149,98 +181,108 @@ internal class BoilerTemperatureDial(context: Context, private val heading: Text
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val diameter = minOf(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
         setMeasuredDimension(diameter, diameter)
-        val factor = AppTextUnits.pixels(resources, 16f) / (16f * density)
-        fun set(field: TextView, width: Float, height: Float, fraction: Float) {
-            val px = diameter * fraction * factor
+        fun setTextSize(field: TextView, fraction: Float, minimumSp: Float = 0f) {
+            val px = AppTextUnits.pixels(resources, maxOf(diameter * fraction / density, minimumSp))
             if (field.textSize != px) field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px)
-            val widthSpec = exact((diameter * width).roundToInt())
-            val referenceHeight = (diameter * height).roundToInt()
-            field.measure(widthSpec, exact(referenceHeight))
-            // The reference slot is an anchor, not a cap: Android's actual layout may
-            // require taller font metrics for this face or a larger app font setting.
-            // Keep the center anchor while giving the complete line its native height.
-            val lineHeight = (field.layout?.height ?: 0) +
-                field.compoundPaddingTop + field.compoundPaddingBottom
-            if (lineHeight > referenceHeight) field.measure(widthSpec, exact(lineHeight))
         }
-        set(heading, .70f, .11f, .070f)
-        set(value, .78f, .20f, .167f)
-        set(target, .64f, .105f, .064f)
-        set(pressure, .58f, .108f, .066f)
+        fun measureField(field: TextView, width: Float, fraction: Float, minimumSp: Float) {
+            setTextSize(field, fraction, minimumSp)
+            field.measure(exact((diameter * width).roundToInt()), MeasureSpec.UNSPECIFIED)
+        }
+        measureField(heading, .35f, .060f, 9f)
+        measureField(value, .81f, .181f, 19f)
+        measureField(target, if (steps.isEmpty()) .66f else .43f, .058f, 9f)
+        measureField(pressure, .64f, .066f, 9f)
         power.setDialDiameter(diameter)
-        val bottomPadding = (diameter * .013f).roundToInt()
-        // Native Switch lays its ink against END even without a label. Center the smaller
-        // track inside the full-size touch target without translating the control itself.
+        // Native Switch lays its ink against END even without a label. Keep the small
+        // artwork centered within a full 48dp keyboard, touch and accessibility target.
         val endPadding = (touch - power.switchMinWidth).coerceAtLeast(0) / 2
-        if (power.paddingBottom != bottomPadding || power.paddingEnd != endPadding)
-            power.setPaddingRelative(0, 0, endPadding, bottomPadding)
+        if (power.paddingEnd != endPadding) power.setPaddingRelative(0, 0, endPadding, 0)
         power.measure(exact(touch), exact(touch))
+        for (step in steps) {
+            if (step is TextView) setTextSize(step, .108f)
+            step.measure(exact(touch), exact(touch))
+        }
     }
 
     private fun exact(size: Int) = MeasureSpec.makeMeasureSpec(size, MeasureSpec.EXACTLY)
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        fun at(view: android.view.View, y: Float, opticalX: Float = 0f, anchorHeight: Int = view.measuredHeight) {
-            val x = (width - view.measuredWidth) / 2 + (width * opticalX).roundToInt()
-            val t = (height * y - anchorHeight / 2f).roundToInt()
-            view.layout(x, t, x + view.measuredWidth, t + view.measuredHeight)
+        fun at(view: View, y: Float, x: Float = .5f) {
+            val offset = (width * x - view.measuredWidth / 2f).roundToInt()
+                .coerceIn(0, (width - view.measuredWidth).coerceAtLeast(0))
+            val t = (height * y - view.measuredHeight / 2f).roundToInt()
+            view.layout(offset, t, offset + view.measuredWidth, t + view.measuredHeight)
         }
-        at(heading, .300f)
-        // The measured Noto glyphs sit 16 normalized pixels lower than Roboto in
-        // the same line box. Align the live line optically to the reference anchor.
-        val numberSlot = (height * .20f).roundToInt()
-        // A taller native line can use extra descent space without pulling the
-        // previously accepted number's visible ink upward.
-        if (numeralFace != null) at(value, .428f, .012f, numberSlot)
-        else at(value, .455f, anchorHeight = numberSlot)
-        at(target, .728f)
-        val x = (width - power.measuredWidth) / 2
-        power.layout(x, target.top - touch, x + power.measuredWidth, target.top)
-        at(pressure, .864f)
+        val actionY = .645f
+        // In a narrow dial the hit rectangle can extend outside the visible mint
+        // bar; keep it disjoint from the power hit rectangle above it.
+        at(heading, .244f, .452f)
+        at(power, minOf(.249f, actionY - touch.toFloat() / height.coerceAtLeast(1))
+            .coerceAtLeast(touch / 2f / height.coerceAtLeast(1)), .725f)
+        at(value, .427f)
+        at(target, actionY)
+        decrease?.let { at(it, actionY, .232f) }
+        increase?.let { at(it, actionY, .768f) }
+        at(pressure, .832f)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val d = width.toFloat()
+        if (d <= 0f) return
         val c = d / 2f
-        // Face, rim and arc: reference face is ~96%, arc center radius ~44%.
         paint.style = Paint.Style.FILL
+        paint.color = Color.WHITE
         paint.shader = LinearGradient(0f, 0f, 0f, d,
-            if (dark) intArrayOf(style.surface, faceFill) else intArrayOf(0xfffdfbf8.toInt(), faceFill),
+            if (dark) intArrayOf(0xff1b302e.toInt(), faceFill) else intArrayOf(0xfffbfefa.toInt(), faceFill),
             null, Shader.TileMode.CLAMP)
-        canvas.drawCircle(c, c, d * .481f, paint)
+        canvas.drawCircle(c, c, d * .494f, paint)
         paint.shader = null
-        val r = d * .442f
+        val r = d * .459f
         bounds.set(c-r, c-r, c+r, c+r)
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = d * .034f; paint.strokeCap = Paint.Cap.ROUND
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = d * .026f
+        paint.strokeCap = Paint.Cap.ROUND
         paint.color = style.homeDialTrack
-        canvas.drawArc(bounds, 140f, 260f, false, paint)
+        canvas.drawArc(bounds, 148f, 244f, false, paint)
         val fraction = homeBoilerArcFraction(currentTemperature, targetTemperature)
         if (fraction > 0f) {
-            paint.color = style.homeDialProgress
-            canvas.drawArc(bounds, 140f, 260f * fraction, false, paint)
+            paint.color = arcInk
+            canvas.drawArc(bounds, 148f, 244f * fraction, false, paint)
         }
         for (step in -12..12) {
             val angle = Math.toRadians(270.0 + step * 10)
-            val major = step == 0 || kotlin.math.abs(step) == 9
-            val outer = d * .409f
-            val inner = outer - d * (if (major) .026f else .017f)
+            val major = step == 0 || kotlin.math.abs(step) == 5 || kotlin.math.abs(step) == 9
+            val outer = d * .435f
+            val inner = outer - d * (if (major) .024f else .015f)
             paint.color = if (major) ink else marks
-            paint.strokeWidth = d * if (major) .0055f else .0035f
-            val x = cos(angle).toFloat(); val y = sin(angle).toFloat()
+            paint.strokeWidth = d * if (major) .005f else .003f
+            val x = cos(angle).toFloat()
+            val y = sin(angle).toFloat()
             canvas.drawLine(c + x * inner, c + y * inner, c + x * outer, c + y * outer, paint)
         }
-        paint.color = ink; paint.strokeWidth = d * .0055f
-        for (step in listOf(-45, 45)) {
-            val angle = Math.toRadians(270.0 + step)
-            val x = cos(angle).toFloat(); val y = sin(angle).toFloat()
-            canvas.drawLine(c + x * d * .383f, c + y * d * .383f, c + x * d * .409f, c + y * d * .409f, paint)
+
+        paint.style = Paint.Style.FILL
+        paint.color = stripFill
+        // Keep a wrapped target comfortably inside the strip at small diameters.
+        val halfStrip = maxOf(d * .071f, target.measuredHeight / 2f + density)
+        canvas.drawRoundRect(d * .143f, d * .65f - halfStrip, d * .857f, d * .65f + halfStrip,
+            halfStrip, halfStrip, paint)
+
+        paint.style = Paint.Style.STROKE
+        paint.color = ruleColor
+        paint.strokeWidth = d * .003f
+        canvas.drawLine(d * .202f, d * .319f, d * .798f, d * .319f, paint)
+        canvas.drawLine(d * .202f, d * .762f, d * .798f, d * .762f, paint)
+        canvas.drawLine(d * .615f, d * .216f, d * .615f, d * .282f, paint)
+        if (steps.isNotEmpty()) {
+            canvas.drawLine(d * .309f, d * .61f, d * .309f, d * .69f, paint)
+            canvas.drawLine(d * .691f, d * .61f, d * .691f, d * .69f, paint)
         }
-        paint.color = marks; paint.strokeWidth = d * .004f
-        canvas.drawLine(d * .255f, d * .799f, d * .745f, d * .799f, paint)
         canvas.save()
-        canvas.translate(c - d * .061f, d * (if (steam) .142f else .150f))
-        canvas.scale(d * .122f / 100f, d * (if (steam) .110f else .104f) / 100f)
-        paint.color = if (dark) style.homeDialProgress else 0xff08602b.toInt()
+        canvas.translate(d * .225f, d * .218f)
+        canvas.scale(d * .072f / 100f, d * .064f / 100f)
+        paint.color = ink
         paint.strokeWidth = 8f; paint.strokeJoin = Paint.Join.ROUND
         if (steam) {
             icon.reset()

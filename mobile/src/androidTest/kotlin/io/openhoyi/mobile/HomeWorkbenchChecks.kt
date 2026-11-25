@@ -76,10 +76,14 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                         homeConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
                     check(dials.size == if (compact) 0 else 2)
                     dials.forEach { dial ->
-                        check((dial.background as android.graphics.drawable.GradientDrawable).color?.defaultColor == style.surface)
-                        descendants(dial).filterIsInstance<TextView>().forEach { text ->
-                            check(text.currentTextColor == style.homeDialInk)
-                        }
+                        check((dial.background as android.graphics.drawable.GradientDrawable).color?.defaultColor == dial.faceFill)
+                        val live = descendants(dial).filterIsInstance<TextView>().single { it.tag.toString().endsWith("/temperature") }
+                        check(androidx.core.graphics.ColorUtils.calculateContrast(live.currentTextColor, dial.faceFill) >= 4.5)
+                        val target = descendants(dial).single { it.tag.toString().endsWith("/target") }
+                        val minus = descendants(dial).single { it.tag.toString().endsWith("/target-decrease") }
+                        val plus = descendants(dial).single { it.tag.toString().endsWith("/target-increase") }
+                        check(minus.left < target.left && plus.right > target.right)
+                        check(minus.top == plus.top && minus.bottom == plus.bottom)
                     }
                     for (slot in 1..4) {
                         val action = checkNotNull(root.findViewWithTag<View>("product/home/direct-preset/$slot"))

@@ -21,6 +21,68 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
 
+    private fun checkHomeBoilerTargetSteps(host: MainPageTestHost, service: MobileService) {
+        val home = host.select(TaskDestination.BREW)
+        val root = checkNotNull(home.view)
+        val initial = checkNotNull(service.snapshot.settings)
+        fun step(key: String, delta: Int, brew: Int, steam: Int) {
+            val action = if (delta < 0) "decrease" else "increase"
+            val button = checkNotNull(root.findViewWithTag<Button>("product/home/$key/target-$action"))
+            val deadline = SystemClock.elapsedRealtime() + 5000
+            var clicked = false
+            while (!clicked && SystemClock.elapsedRealtime() < deadline) {
+                test.runOnMainSync {
+                    if (button.isShown && button.isEnabled) clicked = button.performClick()
+                }
+                if (!clicked) SystemClock.sleep(50)
+            }
+            check(clicked) { "$key target $action never accepted a Mock input" }
+            test.runOnMainSync {
+                val observed = checkNotNull(service.snapshot.settings)
+                check(observed.brewTemperatureC == brew && observed.steamTemperatureC == steam) {
+                    "$key target $action changed the wrong Mock temperature: $observed"
+                }
+                check(observed.flags == initial.flags) { "Temperature changes must not toggle heating" }
+                val target = checkNotNull(root.findViewWithTag<TextView>("product/home/$key/target"))
+                val expected = if (key == "brew-boiler") brew else steam
+                check(target.text.endsWith("$expected °C")) { "$key did not display the observed target" }
+            }
+        }
+        val brew = initial.brewTemperatureC
+        val steam = initial.steamTemperatureC
+        val brewDelta = if (brew == BoilerTargetSteps.Boiler.BREW.limits.last) -1 else 1
+        val steamDelta = if (steam == BoilerTargetSteps.Boiler.STEAM.limits.first) 1 else -1
+        val brewAction = if (brewDelta < 0) "decrease" else "increase"
+        val brewButton = checkNotNull(root.findViewWithTag<HomeBoilerTargetButton>("product/home/brew-boiler/target-$brewAction"))
+        test.runOnMainSync {
+            val baseline = checkNotNull(service.homeBoilerTargetInteraction(BoilerTargetSteps.Boiler.BREW, brewDelta))
+            fun replaceBaseline() {
+                brewButton.renderedIdentity = Any()
+                brewButton.renderedIdentity = baseline
+            }
+            brewButton.renderedIdentity = baseline
+            val now = SystemClock.uptimeMillis()
+            val touch = android.view.MotionEvent.obtain(now, now, android.view.MotionEvent.ACTION_DOWN, 20f, 20f, 0)
+            try {
+                brewButton.onTouchEvent(touch)
+                replaceBaseline()
+                check(!brewButton.performClick()) { "An old touch must not submit a target for the new baseline" }
+                touch.action = android.view.MotionEvent.ACTION_CANCEL
+                brewButton.onTouchEvent(touch)
+            } finally { touch.recycle() }
+            val confirm = android.view.KeyEvent.KEYCODE_ENTER
+            brewButton.onKeyDown(confirm, android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, confirm))
+            replaceBaseline()
+            check(!brewButton.performClick()) { "An old keyboard press must not submit a target for the new baseline" }
+            brewButton.onKeyUp(confirm, android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, confirm))
+            check(service.snapshot.settings?.brewTemperatureC == brew)
+        }
+        step("brew-boiler", brewDelta, brew + brewDelta, steam)
+        step("brew-boiler", -brewDelta, brew, steam)
+        step("steam-boiler", steamDelta, brew, steam + steamDelta)
+        step("steam-boiler", -steamDelta, brew, steam)
+    }
+
     private fun compactHomeGeometry(host: MainPageTestHost, activeCup: Boolean, lastCurveRecorded: Boolean = false) {
         val activity = host.activity
         val real = android.graphics.Point()
@@ -675,6 +737,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 val readyDeadline = SystemClock.elapsedRealtime() + 10000
                 while (!service.machineSettingsFresh && SystemClock.elapsedRealtime() < readyDeadline) SystemClock.sleep(50)
                 check(service.machineSettingsFresh) { "Mock machine settings never became fresh" }
+                checkHomeBoilerTargetSteps(host, service)
                 check(curvePrefs.edit().putString("selected", "factory-v3-002").commit())
                 DirectStartChecks(test).startOnce(host, service)
                 val shotDeadline = SystemClock.elapsedRealtime() + 5000
