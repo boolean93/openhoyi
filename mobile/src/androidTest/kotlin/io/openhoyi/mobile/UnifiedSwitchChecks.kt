@@ -15,6 +15,7 @@ import android.widget.TextView
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.MachineSettingChange
+import io.openhoyi.protocol.Settings
 import io.openhoyi.session.SettingsWriteTracker
 
 /** Offscreen component regression: no preference, service or device writes. */
@@ -155,17 +156,19 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
         val dial = BoilerTemperatureDial(context, label("Brew"), temperature,
             target, pressure, power, steam = false)
         val hold = HomeBoilerDialHold()
-        val owner = Any()
-        val address = "00:00:00:AB:CD:01"
-        val frame = IdleTelemetry(9140, 11980, 88, 9, 0, 0, 1, 0, ByteFrame(byteArrayOf()))
+        val identity = Any()
+        val raw = ByteFrame(byteArrayOf())
+        val frame = IdleTelemetry(9140, 11980, 88, 9, 0, 0, 1, 0, raw)
+        val settings = Settings(1, 1, 1, 0, 92, 0, 120, 0, 80, 0, 0, raw)
         fun present(display: HomeBoilerDialHold.Display) {
             val live = display.frame as? IdleTelemetry
             val current = live?.brewTemperatureHundredthsC?.div(100f)
             target.text = display.brewTarget?.let { "$it °C" } ?: "—"
             pressure.text = MachineHomeReadings.from(live).brewPressure
             dial.present(current, display.brewTarget?.toFloat())
+            power.isChecked = display.settings?.brewHeating == true
         }
-        present(hold.resolve(owner, address, frame, 1000, 92, 120, 1000, hold = false))
+        present(hold.resolve(identity, frame, 1000, settings, canHold = true, active = false))
         val diameter = (200 * context.resources.displayMetrics.density).toInt()
         val exact = View.MeasureSpec.makeMeasureSpec(diameter, View.MeasureSpec.EXACTLY)
         dial.measure(exact, exact)
@@ -186,11 +189,11 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
             power.isEnabled = false
             // Match Home’s rendering guard: projecting readback is not a second user click.
             power.setOnCheckedChangeListener(null)
-            power.isChecked = false
         }
         try {
+            hold.arm(identity)
             project()
-            present(hold.resolve(owner, address, null, null, null, null, 2800, hold = true))
+            present(hold.resolve(identity, null, null, null, canHold = true, active = true))
             check(temperature.text.toString() == "91.4 °C" && target.text.toString() == "92 °C")
             check(!power.isChecked && !power.isEnabled)
             check(!HomeBoilerSwitchPresentation.showInline(
@@ -200,12 +203,14 @@ internal class UnifiedSwitchChecks(private val test: Instrumentation) {
             }
             val failed = SettingsWriteTracker.State.FAILED
             project()
-            present(hold.resolve(owner, address, null, null, null, null, 4000, hold = false))
-            check(temperature.text.toString() == "—" && target.text.toString() == "—")
+            present(hold.resolve(identity, null, null, null, canHold = true, active = false))
+            check(temperature.text.toString() == "91.4 °C" && target.text.toString() == "92 °C")
             check(!power.isChecked && writes == 1)
             check(HomeBoilerSwitchPresentation.showInline(
                 HomeBoilerSwitchPresentation.label(true, false, pending, failed)))
             check(render().let { image -> try { !enabled.sameAs(image) } finally { image.recycle() } })
+            present(hold.resolve(null, null, null, null, canHold = false, active = false))
+            check(temperature.text.toString() == "—" && target.text.toString() == "—")
         } finally {
             enabled.recycle()
         }
