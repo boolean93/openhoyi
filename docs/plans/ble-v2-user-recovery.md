@@ -45,3 +45,7 @@
 [首条回报，仍在启动](../evidence/ble-v2-user-recovery/dev182-shot-first-report.png) · [确认萃取](../evidence/ble-v2-user-recovery/dev182-shot-confirmed.png) · [离线结果卡](../evidence/ble-v2-user-recovery/dev182-completion-preview.png)
 
 平板最终安装的是常规 Debug 主包 `io.openhoyi.mobile`，版本 `0.2.0-blev2debug.182`，覆盖前后 Android 用户 ID 均为 10202。签名与原包一致，已装 APK SHA-256 与源码构建产物均为 `ec3f66b5e9f4fd0495bd91ce9e4af27c62c39f9b3f5e83c76371e8a34204bc2e`。验收后两份辅助包恢复到各自原哈希。此次没有操作真实锅炉、发起真实萃取或向 AI 服务提交评价请求。
+
+## 合入 develop
+
+平板试用后，用户确认常规 OpenHOYI 默认使用本次试用的 v2 配置。Debug 和 Release 共用 `BLE_V2_DELIVERY=true`、`BLE_V2_SPLIT_ADMISSION=true`，develop 自动构建的主包也沿用此配置。Mock 与更新测试包使用模拟驱动。开发时显式传 `-PhoyiBleV2Delivery=false` 可同时关闭两项；旧读取器遇到 v2 待核对记录仍保持保护。PR 按仓库流程进入 develop，通过必需 CI 后合并。

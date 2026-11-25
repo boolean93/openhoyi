@@ -94,23 +94,26 @@ val mockOptimizationControl = providers.gradleProperty("hoyiMockOptimizationCont
 if (mockOptimizationControl && (optimizeMock || updateChecks)) {
     throw GradleException("Mock optimization control cannot be combined with optimization or update fixtures")
 }
-val bleV2Delivery = providers.gradleProperty("hoyiBleV2Delivery").orNull?.let {
+val bleV2DeliveryOverride = providers.gradleProperty("hoyiBleV2Delivery").orNull?.let {
     when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiBleV2Delivery must be true or false") }
-} ?: false
+}
+val bleV2Delivery = bleV2DeliveryOverride ?: true
 val bleSameIdQa = providers.gradleProperty("hoyiBleSameIdQa").orNull?.let {
     when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiBleSameIdQa must be true or false") }
 } ?: false
-if (bleSameIdQa && (!bleV2Delivery || updateChecks || optimizeMock || mockOptimizationControl)) {
+if (bleSameIdQa && (bleV2DeliveryOverride != true || updateChecks || optimizeMock || mockOptimizationControl)) {
     throw GradleException("Same-ID BLE QA requires V2 and a plain standalone Mock build")
 }
-val bleV2SplitAdmission = providers.gradleProperty("hoyiBleV2SplitAdmission").orNull?.let {
+val bleV2SplitAdmissionOverride = providers.gradleProperty("hoyiBleV2SplitAdmission").orNull?.let {
     when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiBleV2SplitAdmission must be true or false") }
-} ?: false
-if (bleV2SplitAdmission && !bleV2Delivery) throw GradleException("Split admission requires the local V2 mode")
+}
+val bleV2SplitAdmission = bleV2SplitAdmissionOverride ?: bleV2Delivery
+if (bleV2SplitAdmission && !bleV2Delivery) throw GradleException("Split admission requires BLE V2 delivery")
 val realBleExistingId = providers.gradleProperty("hoyiRealBleExistingId").orNull?.let {
     when (it) { "true" -> true; "false" -> false; else -> throw GradleException("hoyiRealBleExistingId must be true or false") }
 } ?: false
-if (realBleExistingId && (updateChecks || optimizeMock || mockOptimizationControl || bleSameIdQa || bleV2Delivery || bleV2SplitAdmission)) {
+if (realBleExistingId && (updateChecks || optimizeMock || mockOptimizationControl || bleSameIdQa ||
+    bleV2DeliveryOverride == true || bleV2SplitAdmissionOverride == true)) {
     throw GradleException("Real BLE on the existing ID requires its own isolated configuration")
 }
 if (realBleExistingId) {
@@ -127,9 +130,9 @@ android {
     defaultConfig {
         applicationId = "io.openhoyi.mobile"
         buildConfigField("boolean", "MANUAL_REAL_BLE_EXISTING_ID", "false")
-        buildConfigField("boolean", "BLE_V2_DELIVERY", "false")
+        buildConfigField("boolean", "BLE_V2_DELIVERY", bleV2Delivery.toString())
         buildConfigField("boolean", "BLE_SAME_ID_QA", "false")
-        buildConfigField("boolean", "BLE_V2_SPLIT_ADMISSION", "false")
+        buildConfigField("boolean", "BLE_V2_SPLIT_ADMISSION", bleV2SplitAdmission.toString())
         minSdk = 26
         targetSdk = 35
         // Filter transitive AndroidX locales as well as application translations.
@@ -150,8 +153,6 @@ android {
     buildTypes {
         getByName("debug") {
             buildConfigField("boolean", "MOCK_MODE", "false")
-            buildConfigField("boolean", "BLE_V2_DELIVERY", bleV2Delivery.toString())
-            buildConfigField("boolean", "BLE_V2_SPLIT_ADMISSION", bleV2SplitAdmission.toString())
         }
         getByName("release") {
             buildConfigField("boolean", "MOCK_MODE", "false")
