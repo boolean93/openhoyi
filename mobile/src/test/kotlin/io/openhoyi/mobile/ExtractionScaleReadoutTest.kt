@@ -7,6 +7,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ExtractionScaleReadoutTest {
+    private val origin = ExtractionScaleReadout.ScaleOrigin(1, 0)
     private val ready = DeviceState.READY
     private fun sample(weight: Int = 1234, at: Long = 1000) = ScaleObservation(weight, at,
         ScaleCapabilities(), ScaleEvidence.LIVE_READ_ONLY, raw = ByteFrame(byteArrayOf()))
@@ -24,8 +25,8 @@ class ExtractionScaleReadoutTest {
     }
     @Test fun firstObservedEndFreezesEvenAfterCupRemovalAndReconnection() {
         val p = ExtractionScaleReadout(); p.begin("a", 3600); p.brewing()
-        p.observedIdle(sample(3520), ready, 1000)
-        p.observedIdle(sample(-20000, 1100), ready, 1100)
+        p.observedIdle(sample(3520), ready, 1000, origin)
+        p.observedIdle(sample(-20000, 1100), ready, 1100, origin)
         p.finish(true)
         val end = p.value(sample(-20000, 2000), ready, 2000)
         assertEquals(3520, end.hundredthsGram); assertTrue(end.ended)
@@ -33,7 +34,7 @@ class ExtractionScaleReadoutTest {
     }
     @Test fun missingEndCannotBeBackfilledByFreshPostEndSample() {
         val p=ExtractionScaleReadout();p.begin("a", null);p.brewing()
-        p.observedIdle(sample(), ready, 2501);p.finish(true)
+        p.observedIdle(sample(), ready, 2501, origin);p.finish(true)
         assertEquals(ExtractionScaleReadout.Reason.END_UNAVAILABLE,p.value(sample(5000,3000),ready,3000).reason)
     }
     @Test fun nextCupResetsFrozenAndTargetAndFreshReconnectCanDisplay() {
@@ -45,16 +46,16 @@ class ExtractionScaleReadoutTest {
     @Test fun unknownAndNoBrewingEndNeverClaimNormalReading() {
         val p=ExtractionScaleReadout();p.begin("a", 3600)
         assertEquals(ExtractionScaleReadout.Reason.UNKNOWN,p.value(sample(),ready,1000,true).reason)
-        p.observedIdle(sample(),ready,1000);p.finish(true)
+        p.observedIdle(sample(),ready,1000, origin);p.finish(true)
         assertNull(p.value(sample(),ready,1000).hundredthsGram)
         p.begin("b", 0);p.finish(false)
         assertEquals(ExtractionScaleReadout.Reason.UNKNOWN,p.value(sample(),ready,1000).reason)
     }
     @Test fun transientIdleIsDiscardedWhenBrewingResumes() {
         val p = ExtractionScaleReadout(); p.begin("a", 3600); p.brewing()
-        p.observedIdle(sample(1000), ready, 1000)
+        p.observedIdle(sample(1000), ready, 1000, origin)
         p.brewing()
-        p.observedIdle(sample(3500, 2000), ready, 2000)
+        p.observedIdle(sample(3500, 2000), ready, 2000, origin)
         p.finish(true)
         assertEquals(3500, p.value(sample(), ready, 3000).hundredthsGram)
     }
@@ -69,7 +70,7 @@ class ExtractionScaleReadoutTest {
         runtime.stop()
         val stopped = runtime.sample(2000)
         assertTrue(stopped.coffee is IdleTelemetry)
-        p.observedIdle(stopped.scaleObservation, stopped.scaleState, 2000)
+        p.observedIdle(stopped.scaleObservation, stopped.scaleState, 2000, origin)
         p.finish(true)
         assertEquals(70, p.value(null, ready, 9000).hundredthsGram)
     }
@@ -129,7 +130,7 @@ class ExtractionScaleReadoutTest {
         assertEquals(1194,p.value(sample(),ready,1000).hundredthsGram)
     }
     @Test fun endpointFreezesItsValueAndNameEvenIfOwnershipLaterChanges() {
-        val p=netProjection();p.brewing();p.observedIdle(sample(3540),ready,1000)
+        val p=netProjection();p.brewing();p.observedIdle(sample(3540),ready,1000, origin)
         p.observeProof(owner(epoch=2),null,ExtractionState.ENDED_OBSERVED)
         p.finish(true)
         val end=p.value(sample(-20000,3000),ready,3000)
@@ -140,7 +141,7 @@ class ExtractionScaleReadoutTest {
         assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,p.value(sample(),ready,1000).source)
     }
     @Test fun unknownFinishNeverReusesNetEndpoint() {
-        val p=netProjection();p.brewing();p.observedIdle(sample(3540),ready,1000);p.finish(false)
+        val p=netProjection();p.brewing();p.observedIdle(sample(3540),ready,1000, origin);p.finish(false)
         val end=p.value(sample(),ready,1000)
         assertNull(end.hundredthsGram);assertEquals(ExtractionScaleReadout.Reason.UNKNOWN,end.reason)
         assertEquals(ExtractionScaleReadout.Source.RAW_SCALE,end.source)
@@ -152,7 +153,32 @@ class ExtractionScaleReadoutTest {
         ByteFrame(byteArrayOf()))
     private fun ExtractionScaleReadout.completionFrame(
         frame: HoyiMessage, at: Long, now: Long = at, reading: ScaleObservation? = null, currentShot: Boolean = true,
-    ) = observeFrame(frame, at, now, currentShot, reading, ready)
+        scaleOrigin: ExtractionScaleReadout.ScaleOrigin = origin,
+    ) = observeFrame(frame, at, now, currentShot, reading, ready, scaleOrigin)
+
+    @Test fun completionSubtractsOpeningCupWeightWithoutTaring() {
+        val cup = ExtractionScaleReadout()
+        cup.begin("manual", null)
+        cup.completionFrame(completionBrewing().copy(elapsedSeconds = 1), 1000, reading = sample(12000, 1000))
+        cup.completionFrame(completionBrewing(), 15000, reading = sample(14000, 15000))
+        cup.completionFrame(completionIdle(), 18000, reading = sample(15490, 18000))
+        cup.completionFrame(completionIdle(), 18200, reading = sample(0, 18200))
+        cup.finish(true)
+        assertEquals(ExtractionScaleReadout.CompletionWeight(3490, ExtractionScaleReadout.Source.BEVERAGE),
+            cup.completionWeight("manual"))
+    }
+
+    @Test fun completionNeverSubtractsAcrossAReconnectOrTare() {
+        for (endOrigin in listOf(origin.copy(connectionEpoch = 2), origin.copy(tareGeneration = 1))) {
+            val cup = ExtractionScaleReadout()
+            cup.begin("app", null)
+            cup.completionFrame(completionBrewing().copy(elapsedSeconds = 0), 1000, reading = sample(1000, 1000))
+            cup.completionFrame(completionIdle(), 18000, reading = sample(3490, 18000), scaleOrigin = endOrigin)
+            cup.finish(true)
+            assertEquals(ExtractionScaleReadout.CompletionWeight(3490, ExtractionScaleReadout.Source.RAW_SCALE),
+                cup.completionWeight("app"))
+        }
+    }
 
     @Test fun cardDistinguishesNetAndRawAtThisShotsEndpoint() {
         val confirmed = netProjection()

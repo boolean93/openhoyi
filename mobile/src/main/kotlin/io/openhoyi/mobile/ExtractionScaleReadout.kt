@@ -12,6 +12,8 @@ import java.util.Locale
 /** Display only. Global tare state does not establish a baseline for this cup. */
 internal class ExtractionScaleReadout {
     enum class Source { RAW_SCALE, BEVERAGE }
+    data class ScaleOrigin(val connectionEpoch: Long, val tareGeneration: Long)
+    data class OpeningWeight(val frameAt: Long, val hundredthsGram: Int, val origin: ScaleOrigin)
     data class CompletionWeight(val hundredthsGram: Int, val source: Source)
     data class Owner(val hub:Any,val controller:Any,val shotSerial:Long,val scaleEpoch:Long,val address:String)
     data class Proof(val shotSerial:Long,val baselineHundredthsGram:Int,val confirmedAtMs:Long)
@@ -26,6 +28,8 @@ internal class ExtractionScaleReadout {
     private var trace: String? = null
     private var target: Int? = null
     private var terminal: Value? = null
+    private var opening: OpeningWeight? = null
+    private var endDelta: Int? = null
     private var endRawHundredthsGram: Int? = null
     private var endCandidate: Value? = null
     private var brewingObserved = false
@@ -34,7 +38,9 @@ internal class ExtractionScaleReadout {
     private var proofRevoked = false
     private var lastFrameAt: Long? = null
 
-    fun begin(id: String, targetHundredthsGram: Int?, appOwner:Owner? = null) {
+    fun begin(id: String, targetHundredthsGram: Int?, appOwner:Owner? = null, openingWeight: OpeningWeight? = null) {
+        opening = openingWeight
+        endDelta = null
         trace = id; target = targetHundredthsGram?.takeIf { it > 0 }
         terminal = null; endRawHundredthsGram = null; endCandidate = null; brewingObserved = false
         owner = appOwner?.takeIf { target != null }; proof = null; proofRevoked = false
@@ -72,26 +78,34 @@ internal class ExtractionScaleReadout {
         if (terminal != null) return
         brewingObserved = true
         // An idle blip followed by more brewing was not this cup's endpoint.
-        endRawHundredthsGram = null; endCandidate = null
+        endDelta = null; endRawHundredthsGram = null; endCandidate = null
     }
     /** First idle notification after brewing owns the endpoint, even if its reading is missing. */
-    fun observedIdle(sample: ScaleObservation?, state: DeviceState, now: Long) {
+    fun observedIdle(sample: ScaleObservation?, state: DeviceState, now: Long, origin: ScaleOrigin?) {
         if (trace == null || terminal != null || endCandidate != null || !brewingObserved) return
         endCandidate = reading(sample, state, now)
         // Keep the original endpoint too: tare proof can be revoked before finish.
-        endRawHundredthsGram = sample?.hundredthsGram
+        val raw = sample?.hundredthsGram?.takeIf { endCandidate?.hundredthsGram != null }
+        endRawHundredthsGram = raw
+        val start = opening
+        if (raw != null && start != null && start.origin == origin) {
+            endDelta = (raw - start.hundredthsGram).takeIf { it >= 0 }
+        }
     }
     /** The live readout and result card share the first qualified idle reading after brewing. */
     fun observeFrame(
         frame: HoyiMessage, at: Long, now: Long, currentShot: Boolean,
-        sample: ScaleObservation?, scaleState: DeviceState,
+        sample: ScaleObservation?, scaleState: DeviceState, origin: ScaleOrigin?,
     ) {
         if (trace == null || terminal != null || !currentShot || !TelemetryFreshness.isFresh(at, now) ||
             lastFrameAt?.let { at <= it } == true) return
         if (frame !is ExtractionTelemetry && frame !is IdleTelemetry) return
         lastFrameAt = at
-        if (frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait) brewing()
-        if (frame is IdleTelemetry) observedIdle(sample, scaleState, at)
+        if (frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait) {
+            if (opening == null) opening = openingWeight(frame, at, sample, scaleState, origin)
+            brewing()
+        }
+        if (frame is IdleTelemetry) observedIdle(sample, scaleState, at, origin)
     }
 
     fun finish(observedEnd: Boolean) {
@@ -103,6 +117,7 @@ internal class ExtractionScaleReadout {
     fun completionWeight(shotId: String): CompletionWeight? {
         val end = terminal?.takeIf { trace == shotId } ?: return null
         val grams = end.hundredthsGram ?: return null
+        endDelta?.let { return CompletionWeight(it, Source.BEVERAGE) }
         return if (end.source == Source.BEVERAGE && !proofRevoked && grams >= 0)
             CompletionWeight(grams, Source.BEVERAGE)
         else endRawHundredthsGram?.let { CompletionWeight(it, Source.RAW_SCALE) }
@@ -115,6 +130,13 @@ internal class ExtractionScaleReadout {
         return reading(sample, state, now).copy(targetHundredthsGram = target)
     }
     companion object {
+        fun openingWeight(frame: ExtractionTelemetry, at: Long, sample: ScaleObservation?, state: DeviceState,
+            origin: ScaleOrigin?): OpeningWeight? {
+            if (origin == null || !frame.valveOpen || frame.brewWait || frame.elapsedSeconds !in 0..1) return null
+            val raw = LiveTelemetry.scale(sample, state, at) ?: return null
+            return OpeningWeight(at, raw.hundredthsGram, origin)
+        }
+
         fun live(sample: ScaleObservation?, state: DeviceState, now: Long): Value {
             val current = LiveTelemetry.scale(sample, state, now)
             if (current != null) return Value(current.hundredthsGram)

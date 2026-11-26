@@ -134,6 +134,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
     internal var brewFeedbackResult: BrewFeedbackResult? = null
         private set
     private val passiveShot = PassiveShotDetector()
+    private var passiveOpeningWeight: ExtractionScaleReadout.OpeningWeight? = null
     private var passiveHistoryId: String? = null
     /** A started passive observation only owns history/series/navigation after it is committed. */
     private var passiveCommitted = false
@@ -462,10 +463,14 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         return extractionScaleReadout.value(snapshot.scaleObservation, snapshot.scaleState, now,
             shotState == ExtractionState.OUTCOME_UNKNOWN)
     }
+    private fun scaleOrigin(): ExtractionScaleReadout.ScaleOrigin? {
+        if (tareState == StandaloneTare.State.WRITING || tareState == StandaloneTare.State.WAITING_ZERO) return null
+        return ExtractionScaleReadout.ScaleOrigin(scaleConnectionEpoch, hub?.scaleTareGeneration ?: 0L)
+    }
     private fun observeExtractionScaleEndpoint(frame: HoyiMessage, at: Long, now: Long, currentShot: Boolean) {
         observeScaleReadoutProof()
         extractionScaleReadout.observeFrame(frame, at, now, currentShot && snapshot.coffeeState == DeviceState.READY,
-            snapshot.scaleObservation, snapshot.scaleState)
+            snapshot.scaleObservation, snapshot.scaleState, scaleOrigin())
     }
     private val appElapsedOutcomeWasUnknown: Boolean get() =
         if (mockExtractionOwner != null) mockExtractionScenario.displayOutcomeWasUnknown
@@ -1047,6 +1052,13 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
         val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
             passiveShot.observe(frame, observedAt, appShotInProgress) else emptyList()
+        // The passive detector recognizes a cup on the second frame. Retain the scale value
+        // from its actual first frame instead of substituting the newer snapshot at Started.
+        if (!passiveShot.active && !appShotInProgress && frame is ExtractionTelemetry &&
+            snapshot.coffeeState == DeviceState.READY && TelemetryFreshness.isFresh(receivedAtMs, now)) {
+            passiveOpeningWeight = ExtractionScaleReadout.openingWeight(frame, receivedAtMs,
+                snapshot.scaleObservation, snapshot.scaleState, scaleOrigin())
+        }
         // Water is flowing now, so the realtime chart and navigation start at Started under a
         // provisional identity. Only Committed creates a history entry.
         passiveEvents.forEach { passiveEvent ->
@@ -1072,7 +1084,9 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                         (observedAt - passiveEvent.first.atMs)
                     val provisionalId = java.util.UUID.randomUUID().toString()
                     series.begin(provisionalId, passiveEvent.first.atMs, "manual", passive = true)
-                    extractionScaleReadout.begin(provisionalId, null)
+                    extractionScaleReadout.begin(provisionalId, null,
+                        openingWeight = passiveOpeningWeight?.takeIf { it.frameAt == passiveEvent.first.atMs })
+                    passiveOpeningWeight = null
                     observeExtractionScaleEndpoint(frame, receivedAtMs, now, currentShot = true)
                     manualPresentation.started(provisionalId)
                     val feedbackSlot = passiveEvent.first.frame.slotOrPhase
@@ -1546,6 +1560,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         if (mock != null) {
             val result = mock.tare()
             if (result == null) {
+                scaleConnectionEpoch++
                 refreshMock(mock)
                 event(ResourceMessage(R.string.service_tare_mock), "mock.tare")
             }
