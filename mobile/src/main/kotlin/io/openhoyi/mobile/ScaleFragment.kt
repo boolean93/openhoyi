@@ -192,13 +192,12 @@ class ScaleFragment : Fragment() {
         root.observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { photo ->
             if (showingPhoto == photo) return@observeActiveWallpaper
             showingPhoto = photo
-            val inset = if (photo) style.dp(12) else 0
-            val verticalInset = if (photo) style.dp(8) else 0
+            val inset = if (photo) style.dp(8) else 0
+            val compactInset = if (photo) style.dp(4) else 0
             headerWords?.setPaddingRelative(inset, 0, inset, 0)
-            timerReadout.setPaddingRelative(inset, 0, inset, 0)
-            device.setPaddingRelative(inset, verticalInset, inset, verticalInset)
-            val statusInset = if (photo) style.dp(4) else 0
-            tareStatus.setPaddingRelative(inset, statusInset, inset, statusInset)
+            timerReadout.setPaddingRelative(inset, compactInset, inset, compactInset)
+            device.setPaddingRelative(inset, inset, inset, inset)
+            tareStatus.setPaddingRelative(inset, compactInset, inset, compactInset)
             (tareStatus.layoutParams as LinearLayout.LayoutParams).apply {
                 width = if (photo) LinearLayout.LayoutParams.WRAP_CONTENT else LinearLayout.LayoutParams.MATCH_PARENT
                 gravity = if (photo) android.view.Gravity.CENTER_HORIZONTAL else -1
