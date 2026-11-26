@@ -13,7 +13,7 @@ class HistoryDetailActivity : ThemedActivity() {
         // This page alone tightens shell whitespace; shared/live page chrome remains unchanged.
         (body.parent as? LinearLayout)?.setPadding(dp(16), dp(4), dp(16), dp(4))
         val header = (body.tag as BeanPageRegions).header
-        header.protectHistoryPhotoSection(visual.palette)
+        header.protectPhotoSection(visual.palette)
         (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(4)
         val comparisonHost = header.takeIf {
             resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f

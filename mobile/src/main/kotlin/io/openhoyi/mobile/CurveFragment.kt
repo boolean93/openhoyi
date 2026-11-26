@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 
 /** Browsing stays local; machine-recipe writes require a separate explicit confirmation. */
@@ -314,6 +315,10 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             protectBrowserTools()
         }
         val list = ListView(host).apply {
+            tag = "product/curve-library/results"
+            protectRoundedBackdropContent(productStyle.surface, shieldRadius, clipContent = true, photoContentEnd = {
+                if (childCount > 0 && lastVisiblePosition == count - 1) getChildAt(childCount - 1) else null
+            })
             divider = android.graphics.drawable.ColorDrawable(productStyle.border)
             dividerHeight = dp(1)
             selector = productStyle.shape(productStyle.selected)
@@ -374,18 +379,24 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }
         curveList = list
         list.adapter = adapter
-        val listHolder = FrameLayout(host).apply {
-            tag = "product/curve-library/results"
-            protectRoundedBackdropContent(productStyle.surface, shieldRadius, clipContent = true)
-        }
+        val listHolder = FrameLayout(host)
         browser.addView(listHolder, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         listHolder.addView(list, FrameLayout.LayoutParams(-1, -1))
         val emptyState = TextView(host).apply {
             text = getString(R.string.curve_empty)
             productStyle.apply(this, TaskProductVisualStyle.body, true)
             gravity = android.view.Gravity.CENTER
+            protectRoundedBackdropContent(productStyle.surface, shieldRadius, photoFill = wallpaperTint(productStyle.surface))
         }
-        listHolder.addView(emptyState, FrameLayout.LayoutParams(-1, -1))
+        listHolder.addView(emptyState, FrameLayout.LayoutParams(-1, -1, android.view.Gravity.CENTER))
+        emptyState.observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { photo ->
+            val params = emptyState.layoutParams
+            val height = if (photo) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT
+            if (params.height != height) {
+                params.height = height
+                emptyState.layoutParams = params
+            }
+        }
         list.emptyView = emptyState
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 

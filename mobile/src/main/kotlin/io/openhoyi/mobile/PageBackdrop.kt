@@ -140,6 +140,16 @@ internal fun View.protectRoundedBackdropContent(
         photoContentEnd))
 }
 
+/** Photo-only contrast for a semantic region; existing solid and gradient treatments stay intact. */
+internal fun View.protectPhotoSection(
+    style: TaskProductVisualStyle,
+    group: Any? = null,
+    photoContentEnd: (() -> View?)? = null,
+) {
+    protectRoundedBackdropContent(style.surface, style.dp(12), group = group,
+        photoFill = wallpaperTint(style.surface), photoOnly = true, photoContentEnd = photoContentEnd)
+}
+
 /** A native surface or translucent overlay supplies its own contrast treatment, including its labels. */
 internal fun View.keepOwnBackdropTreatment() {
     setTag(R.id.page_backdrop_content, OwnBackdropTreatment)

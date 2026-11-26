@@ -55,14 +55,16 @@ class ScaleFragment : Fragment() {
             savedInstanceState?.takeIf {it.containsKey("scale.timer.origin")}?.getLong("scale.timer.origin")))
         val visual = ScaleVisualStyle(host)
         val style = visual.palette
+        val photoTint = wallpaperTint(style.surface)
         val (root,body)=visual.fragmentPage(host,R.string.scale_title,R.string.scale_subtitle)
         val header = (body.tag as BeanPageRegions).header
-        (header.getChildAt(0) as? LinearLayout)?.let { words ->
+        val headerWords = header.getChildAt(0) as? LinearLayout
+        headerWords?.let { words ->
             words.removeAllViews()
             if (BuildConfig.MOCK_MODE) words.addView(style.text(getString(R.string.scale_mock_notice),
                 TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-1, -2))
         }
-        header.protectRoundedBackdropContent(style.surface, style.dp(12))
+        header.protectRoundedBackdropContent(style.surface, style.dp(12), photoFill = photoTint)
         header.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
         (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = 0
         guard=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/guard",true).also {
@@ -136,17 +138,14 @@ class ScaleFragment : Fragment() {
             required+trendHeight
         }
         val timerCard=style.column("product/scale/timer")
-        val timerReadoutShield = Any()
-        fun View.protectTimerReadout() = protectRoundedBackdropContent(style.surface, style.dp(12), group = timerReadoutShield)
         style.add(secondary,timerCard)
-        style.add(timerCard,style.text(getString(R.string.scale_timer_title),TaskProductVisualStyle.section)
-            .apply { protectTimerReadout() })
-        timerValue=style.text("",TaskProductVisualStyle.largeValue,"product/scale/timer/value").apply { protectTimerReadout() }
-        style.add(timerCard,timerValue,16)
-        style.add(timerCard,style.text(getString(R.string.m6_app_timer),TaskProductVisualStyle.auxiliary,secondary=true)
-            .apply { protectTimerReadout() },8)
-        style.add(timerCard,style.text(getString(R.string.scale_timer_help),TaskProductVisualStyle.auxiliary,secondary=true)
-            .apply { protectTimerReadout() },8)
+        val timerReadout = style.column().apply { protectRoundedBackdropContent(style.surface, style.dp(12)) }
+        style.add(timerCard,timerReadout)
+        style.add(timerReadout,style.text(getString(R.string.scale_timer_title),TaskProductVisualStyle.section))
+        timerValue=style.text("",TaskProductVisualStyle.largeValue,"product/scale/timer/value")
+        style.add(timerReadout,timerValue,16)
+        style.add(timerReadout,style.text(getString(R.string.m6_app_timer),TaskProductVisualStyle.auxiliary,secondary=true),8)
+        style.add(timerReadout,style.text(getString(R.string.scale_timer_help),TaskProductVisualStyle.auxiliary,secondary=true),8)
         // Keep the existing 16dp gap visible between the readout and these controls.
         val timerActions=style.row("product/scale/timer/actions").apply {
             protectRoundedBackdropContent(style.surface, style.dp(12))
@@ -155,11 +154,11 @@ class ScaleFragment : Fragment() {
         timerToggle=HoyiUi.button(host,timerActions,getString(R.string.scale_timer_start)) {
             if(timer.running)timer.pause(MobileMonotonicClock.elapsedRealtime())else timer.start(MobileMonotonicClock.elapsedRealtime());renderScale()
         }.apply {style.button(this,outline=true);tag="product/scale/timer/toggle";layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {marginEnd=style.dp(16)}}
-        toolLink(timerActions,getString(R.string.scale_timer_reset),centered=true) {timer.reset();renderScale()}.apply {
+        val timerReset = toolLink(timerActions,getString(R.string.scale_timer_reset),centered=true) {timer.reset();renderScale()}.apply {
             style.button(this);tag="product/scale/timer/reset";layoutParams=LinearLayout.LayoutParams(0,-2,1f)
         }
         val device=style.column("product/scale/device").apply {
-            protectRoundedBackdropContent(style.surface, style.dp(12))
+            protectRoundedBackdropContent(style.surface, style.dp(12), photoFill = photoTint)
         }
         style.add(secondary,device,24)
         style.add(device,style.text(getString(R.string.scale_device_section),TaskProductVisualStyle.section))
@@ -185,6 +184,37 @@ class ScaleFragment : Fragment() {
         toolLink(device,getString(R.string.scale_settings)) {host.openSettingsSection("scale")}.apply {
             style.button(this);HomeVisualIcon.buttonIcon(this,"chevron",atEnd=true);tag="product/scale/settings"
             layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(8)}
+        }
+        listOf(timerToggle, timerReset).forEach {
+            it.protectRoundedBackdropContent(style.surface, style.dp(12), photoOnly = true)
+        }
+        var showingPhoto = false
+        root.observeActiveWallpaper((host.application as MobileApplication).pageBackgrounds) { photo ->
+            if (showingPhoto == photo) return@observeActiveWallpaper
+            showingPhoto = photo
+            val inset = if (photo) style.dp(12) else 0
+            val verticalInset = if (photo) style.dp(8) else 0
+            headerWords?.setPaddingRelative(inset, 0, inset, 0)
+            timerReadout.setPaddingRelative(inset, 0, inset, 0)
+            device.setPaddingRelative(inset, verticalInset, inset, verticalInset)
+            val statusInset = if (photo) style.dp(4) else 0
+            tareStatus.setPaddingRelative(inset, statusInset, inset, statusInset)
+            (tareStatus.layoutParams as LinearLayout.LayoutParams).apply {
+                width = if (photo) LinearLayout.LayoutParams.WRAP_CONTENT else LinearLayout.LayoutParams.MATCH_PARENT
+                gravity = if (photo) android.view.Gravity.CENTER_HORIZONTAL else -1
+            }
+            if (photo) {
+                // The button already paints its own enabled, disabled and focused states.
+                tare.keepOwnBackdropTreatment()
+                tareStatus.protectRoundedBackdropContent(style.surface, style.dp(12))
+                timerActions.setTag(R.id.page_backdrop_content, null)
+            } else {
+                listOf(tare, tareStatus).forEach {
+                    it.protectRoundedBackdropContent(style.surface, style.dp(12), group = tareGroup)
+                }
+                timerActions.protectRoundedBackdropContent(style.surface, style.dp(12))
+            }
+            root.requestLayout()
         }
         // Construction only: keep the timer first; short-height trend details follow the routine tools.
         secondary.findViewWithTag<android.view.View>("scale-trend-fallback")?.let { fallback ->

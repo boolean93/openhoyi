@@ -47,6 +47,12 @@ internal fun ThemedActivity.beanList(body: LinearLayout): LinearLayout {
     return LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; scroll.addView(this) }
 }
 
+/** Table separators still show, but a heading need not paint over the shared photo panel. */
+internal fun View.useParentBeanWallpaper(activity: ThemedActivity) {
+    tintPanelForWallpaper((activity.application as MobileApplication).pageBackgrounds,
+        android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+}
+
 /** Short sections follow their content height; only explicit multiline editors fill the workspace.
  * Each section stays alive while another section is selected, preserving unsaved text. */
 internal class BeanSections(private val activity: ThemedActivity, body: LinearLayout,

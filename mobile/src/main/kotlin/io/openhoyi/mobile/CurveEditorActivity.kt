@@ -516,7 +516,10 @@ class CurveEditorActivity : ThemedActivity() {
             }
         }
         style.visual.action(actionRow, getString(R.string.beans_cancel), "product/form/curve-editor/cancel", top = 0) { finish() }
-            .layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
+            .apply {
+                protectPhotoSection(style.visual)
+                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
+            }
         val saveLabel = if (aiRequested) when (aiDraftKind) {
             AiCurveCard.Kind.REPLACE -> R.string.ai_curve_editor_save_changes
             AiCurveCard.Kind.COPY_FACTORY -> R.string.curve_editor_save_copy
@@ -529,6 +532,7 @@ class CurveEditorActivity : ThemedActivity() {
         val save = style.visual.action(actionRow, getString(saveLabel),
             "product/form/curve-editor/save", primary = true, top = 0) {}
         save.layoutParams = LinearLayout.LayoutParams(-2, -2)
+        save.keepOwnBackdropTreatment()
         if (aiRequested) save.isEnabled = aiDraft?.available() == true
         sections.actions.addView(actionRow, LinearLayout.LayoutParams(-1, -2))
         save.setOnClickListener {

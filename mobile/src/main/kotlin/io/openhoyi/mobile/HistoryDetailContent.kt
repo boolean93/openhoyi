@@ -2,7 +2,6 @@ package io.openhoyi.mobile
 
 import android.app.AlertDialog
 import android.content.Intent
-import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import io.openhoyi.session.StopReason
@@ -223,11 +222,6 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         }
     }, "history-detail-reader").start()
 }
-/** Back the section once rather than letting the photo fallback box each label, number and unit. */
-internal fun View.protectHistoryPhotoSection(style: TaskProductVisualStyle) {
-    protectRoundedBackdropContent(style.surface, style.dp(12), photoFill = wallpaperTint(style.surface), photoOnly = true)
-}
-
 /** M5-only composition; models, source resolution and sample reader semantics remain identical. */
 private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId: String?, standalone: Boolean,
     comparisonHost: LinearLayout?, openFullPage: (() -> Unit)?, visual: ExtractionHistoryVisualStyle) {
@@ -245,7 +239,7 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         return
     }
     val identity = HistoryVisualFlow(this, style.dp(16), style.dp(8)).apply { tag = "product/history/identity-meta" }
-    identity.protectHistoryPhotoSection(style)
+    identity.protectPhotoSection(style)
     if (standalone) identity.addView(style.text(curve, TaskProductVisualStyle.body, "product/history/identity"))
     identity.addView(style.text(date(entry.startedAtMs), TaskProductVisualStyle.auxiliary, "product/history/date", true))
     if (entry.status != ShotHistory.Status.ENDED) identity.addView(style.text(status(entry.status), TaskProductVisualStyle.auxiliary, "product/history/status").apply {
@@ -279,12 +273,12 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
     plot.chart = chart
     plot.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(4) })
     val summary = style.column("product/history/summary")
-    summary.protectHistoryPhotoSection(style)
+    summary.protectPhotoSection(style)
     style.add(summary, metrics)
     val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
     style.add(summary, chartStatus, 4)
     val actions = style.column("product/history/actions").apply { if (!standalone) orientation = LinearLayout.HORIZONTAL }
-    actions.protectHistoryPhotoSection(style)
+    actions.protectPhotoSection(style)
     val footer = HistoryToolbarRow(this, style.dp(16), style.dp(4)) {
         plot.metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (plot.metricCells.size - 1)
     }.apply { tag = "product/history/summary-actions" }
@@ -400,17 +394,17 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     })
     val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
     if (resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT) meta.addView(chartStatus)
-    else chartStatus.protectHistoryPhotoSection(style)
+    else chartStatus.protectPhotoSection(style)
     val warning = if (entry.status == ShotHistory.Status.UNKNOWN) style.text(getString(R.string.history_unknown_warning),
         TaskProductVisualStyle.auxiliary, "product/history/warning").apply {
             setTextColor(visual.warningInk)
             tintPanelForWallpaper(app.pageBackgrounds, style.shape(visual.warningSurface))
         } else null
     val header = EmbeddedHistoryHeader(this, title, identity, titleSpacer, more, meta, warning, style.dp(16), style.dp(8))
-    header.protectHistoryPhotoSection(style)
+    header.protectPhotoSection(style)
     style.add(preview.content, header)
     val metrics = preview.metrics
-    metrics.protectHistoryPhotoSection(style)
+    metrics.protectPhotoSection(style)
     style.add(preview.content, metrics, 16)
     fun metric(label: Int, number: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
         val labelView = style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true)
@@ -441,12 +435,12 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     val bean = if (permanent != null) summary(R.string.journal_bean, permanent.notes.beanName) else
         style.text(getString(if (journalFailed) R.string.journal_unavailable else R.string.journal_migrate_hint), TaskProductVisualStyle.auxiliary, secondary = true)
     style.add(preview.content, bean, 16)
-    bean.protectHistoryPhotoSection(style)
+    bean.protectPhotoSection(style)
     val taste = summary(R.string.journal_taste, permanent?.notes?.taste).apply { if (permanent == null) visibility = android.view.View.GONE }
     style.add(preview.content, taste, 8)
-    taste.protectHistoryPhotoSection(style)
+    taste.protectPhotoSection(style)
     val actions = style.row("product/history/actions").apply { gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL }
-    actions.protectHistoryPhotoSection(style)
+    actions.protectPhotoSection(style)
     fun action(text: String, id: String, primary: Boolean, glyph: String, click: () -> Unit) {
         val button = style.button(android.widget.Button(this), primary).apply {
             this.text = text; tag = id; setOnClickListener { click() }; HomeVisualIcon.buttonIcon(this, glyph)
