@@ -290,9 +290,9 @@ class ProductPagesTest(unittest.TestCase):
                 self.assertIn(f'width="{size[0]}" height="{size[1]}"', self.html)
         group = SITE / "assets/community/wechat-group.png"
         self.assertEqual(hashlib.sha256(group.read_bytes()).hexdigest(),
-                         "21f1ce43072139b8ec784a38d8054e1f9066fe768c4c6712bab2656af9073090")
-        self.assertIn('wechat-group.png?v=20261114', self.html)
-        self.assertIn("11 月 22 日前有效", self.html)
+                         "5a5bad6c351a2e16592e8ffca4b5563f51912ffd4117f17ba9caad88b9216058")
+        self.assertIn('wechat-group.png?v=20261126', self.html)
+        self.assertIn("12 月 3 日前有效", self.html)
         support = self.section("support")
         for text in ("请我喝杯咖啡", "OpenHOYI 交流群", "自愿赞助", "群二维码会过期",
                      "应用版本、Android 版本、设备型号与固件、复现步骤和脱敏日志"):
