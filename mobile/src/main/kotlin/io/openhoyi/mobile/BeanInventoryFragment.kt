@@ -75,13 +75,14 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         val batches = inventory.batches()
         val headerGroup = Any()
         val radius = productStyle.dp(12)
+        val photoFill = wallpaperTint(productStyle.surface)
         val headerTools = resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f
         val hasSeparateTools = batches.isNotEmpty() && !headerTools
         val header = (body.tag as BeanPageRegions).header.apply {
             // The rule only reaches rounded corners when the header ends the panel.
             // A separate tools row keeps this rule inside the same, larger round surface.
             protectRoundedBackdropContent(productStyle.surface, radius,
-                group = headerGroup.takeIf { hasSeparateTools }, clipContent = !hasSeparateTools)
+                group = headerGroup.takeIf { hasSeparateTools }, clipContent = !hasSeparateTools, photoFill = photoFill)
             tag = "product/inventory/header"; gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false
             foreground = inventoryRules(bottom = true)
         }
@@ -115,7 +116,7 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         }
         val tools=LinearLayout(host).apply {
             orientation=LinearLayout.HORIZONTAL; gravity=Gravity.END; isBaselineAligned=false
-            protectRoundedBackdropContent(productStyle.surface, radius, group = headerGroup)
+            protectRoundedBackdropContent(productStyle.surface, radius, group = headerGroup, photoFill = photoFill)
         }
         val toolsParent = if (headerTools) (body.tag as BeanPageRegions).header else body
         toolsParent.addView(tools, LinearLayout.LayoutParams(if (headerTools) -2 else -1, -2))
@@ -145,12 +146,12 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         })
         body.addView(panes, LinearLayout.LayoutParams(-1, 0, 1f))
         productStyle.add(panes.browserBody, productStyle.text(getString(R.string.inventory_visual_in_stock), TaskProductVisualStyle.section,
-            "product/inventory/list-title").apply { protectRoundedBackdropContent(productStyle.surface, radius) })
+            "product/inventory/list-title").apply { protectRoundedBackdropContent(productStyle.surface, radius, photoFill = photoFill) })
         val list = host.beanList(panes.browserBody)
         listScroll = list.parent as ScrollView
         listScroll?.apply {
             tag = "product/inventory/list-scroll"
-            protectRoundedBackdropContent(productStyle.surface, radius, clipContent = true, photoContentEnd = {
+            protectRoundedBackdropContent(productStyle.surface, radius, clipContent = true, photoFill = photoFill, photoContentEnd = {
                 list.getChildAt(list.childCount - 1)
             })
         }
@@ -160,7 +161,11 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
         listScroll?.post { restoreListWhenReady() }
         val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
         val back = productStyle.button(HoyiUi.button(host, panes.detailBody, getString(R.string.beans_back_to_list)) { showList() })
-        val metadata = host.beanList(panes.detailBody).apply { tag = "inventory-batch-metadata" }
+        val metadata = host.beanList(panes.detailBody).apply {
+            tag = "inventory-batch-metadata"
+            // The ScrollView fills the viewport; its empty tail should still show the photo.
+            protectPhotoSection(productStyle, photoContentEnd = { getChildAt(childCount - 1) })
+        }
         val actionRegion = object : LinearLayout(host) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val inline = View.MeasureSpec.getSize(widthMeasureSpec) >= productStyle.dp(480)
@@ -173,7 +178,7 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }.apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false; tag = "product/inventory/actions" }
-        val dock = productStyle.column("product/inventory/dock")
+        val dock = productStyle.column("product/inventory/dock").apply { protectPhotoSection(productStyle) }
         panes.detailBody.addView(dock, LinearLayout.LayoutParams(-1, -2).apply { topMargin = productStyle.dp(8) })
         dock.addView(actionRegion, LinearLayout.LayoutParams(-1, -2))
         val consumptionHint = productStyle.row("product/inventory/consumption-hint").apply { gravity = Gravity.TOP }
@@ -258,7 +263,9 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             productStyle.divider(metadata, 2, 2)
             productStyle.add(metadata, productStyle.text(getString(R.string.batch_recent_events), TaskProductVisualStyle.section))
             val ledgerHeadings = productStyle.row("product/inventory/events/header").apply {
-                setBackgroundColor(productStyle.disabled); foreground = inventoryRules(bottom = true)
+                setBackgroundColor(productStyle.disabled)
+                useParentBeanWallpaper(host)
+                foreground = inventoryRules(bottom = true)
             }
             metadata.addView(ledgerHeadings, LinearLayout.LayoutParams(-1, -2))
             listOf(R.string.ledger_type, R.string.ledger_change, R.string.beans_reason).forEachIndexed { index, label ->

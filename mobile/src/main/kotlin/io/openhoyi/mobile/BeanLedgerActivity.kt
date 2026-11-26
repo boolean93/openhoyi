@@ -20,11 +20,15 @@ class BeanLedgerActivity : ThemedActivity() {
     override fun onStart() {
         super.onStart()
         val body = style.page(this, getString(R.string.beans_ledger_title))
+        (body.tag as BeanPageRegions).header.protectPhotoSection(style)
         val inventory = beanInventory(body) ?: return
         val batchId = intent.getStringExtra(BeanBatchActivity.BATCH_ID)
         val batches = inventory.batches().associateBy { it.batch.id }
         batches[batchId]?.let { item ->
-            val summary = style.row("product/ledger/summary").apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+            val summary = style.row("product/ledger/summary").apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                protectPhotoSection(style)
+            }
             body.addView(summary, LinearLayout.LayoutParams(-1, -2))
             val identity = style.column()
             summary.addView(identity, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = style.dp(16) })
@@ -68,7 +72,7 @@ class BeanLedgerActivity : ThemedActivity() {
         }
         style.divider(body, 16, 16)
         style.add(body, style.text(getString(R.string.ledger_order), TaskProductVisualStyle.auxiliary,
-            "product/ledger/order", true))
+            "product/ledger/order", true).apply { protectPhotoSection(style) })
         ledgerRow(body, listOf(getString(R.string.ledger_type), getString(R.string.ledger_change),
             getString(R.string.ledger_balance), getString(R.string.beans_batch_id, "").trim(), getString(R.string.beans_reason)), true)
             .apply { tag = "product/ledger/header"; (layoutParams as LinearLayout.LayoutParams).topMargin = style.dp(16) }

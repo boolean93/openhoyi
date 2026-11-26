@@ -93,7 +93,10 @@ class BeanBatchActivity : ThemedActivity() {
             override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
             @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
         }
-        val header = (body.tag as BeanPageRegions).header.apply { isBaselineAligned = false }
+        val header = (body.tag as BeanPageRegions).header.apply {
+            isBaselineAligned = false
+            protectPhotoSection(style)
+        }
         val words = (0 until header.childCount).map(header::getChildAt).filterIsInstance<LinearLayout>().first()
         val pageTitle = words.getChildAt(0) as android.widget.TextView
         words.removeView(pageTitle)
@@ -108,6 +111,7 @@ class BeanBatchActivity : ThemedActivity() {
         }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(16) }
             HomeVisualIcon.buttonIcon(this, "chevron", atEnd = true) }
         val summary = style.row("product/batch/summary").apply {
+            protectPhotoSection(style)
             orientation = if (phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             if (!phone) foreground = rules(true)
         }
@@ -164,12 +168,14 @@ class BeanBatchActivity : ThemedActivity() {
             style.add(cell, style.text(date?.toString() ?: getString(R.string.beans_not_set), TaskProductVisualStyle.body, "product/batch/date/$index/value"), 8)
         }
         val dateRegion = pair(style.text(getString(R.string.batch_information), TaskProductVisualStyle.section), dates, "date-layout", false)
+            .apply { protectPhotoSection(style) }
         val ledgerButton = style.button(android.widget.Button(this)).apply {
             text = getString(R.string.beans_ledger); tag = "product/batch/ledger"
             HomeVisualIcon.buttonIcon(this, "chevron", atEnd = true)
             setOnClickListener { startActivity(Intent(this@BeanBatchActivity, BeanLedgerActivity::class.java).putExtra(BATCH_ID, item.batch.id)) }
         }
         val recentHeading = pair(style.text(getString(R.string.batch_recent_events), TaskProductVisualStyle.section), ledgerButton, "recent-heading", true)
+            .apply { protectPhotoSection(style) }
         fun eventRow(values: List<String>, heading: Boolean, key: String): LinearLayout = style.row(key).apply {
             setPadding(0, style.dp(8), 0, style.dp(8)); foreground = rules()
             if (heading) setBackgroundColor(style.disabled) else minimumHeight = style.dp(48)
@@ -266,7 +272,9 @@ class BeanBatchActivity : ThemedActivity() {
             setCompoundDrawablesRelativeWithIntrinsicBounds(HomeVisualIcon.drawable(this@BeanBatchActivity, "info", style.muted), null, null, null)
             compoundDrawablePadding = style.dp(8)
         }
-        body.addView(formStyle.footer(notice, actions, "batch", topRule = true), LinearLayout.LayoutParams(-1, -2))
+        body.addView(formStyle.footer(notice, actions, "batch", topRule = true).apply {
+            protectPhotoSection(style)
+        }, LinearLayout.LayoutParams(-1, -2))
         body.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             productLayoutEvidence.put("headerActualHeightPx", header.height).put("footerActualHeightPx", body.getChildAt(body.childCount - 1).height)
                 .put("eventsViewportActualPx", recentScroll.height).put("eventsContentActualPx", recent.height)
