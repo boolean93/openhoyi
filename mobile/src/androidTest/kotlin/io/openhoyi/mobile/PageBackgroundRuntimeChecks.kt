@@ -431,19 +431,34 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 "product/history/list", "product/history/empty-card") },
         ) { history.findViewWithTag("product/history/count") }
         val beans = go(TaskDestination.BEANS)
-        captureApplied(host, beans, "$mode-beans.png", backing = style.surface,
+        captureApplied(host, beans, "$mode-beans.png", backing = style.surface, translucentCover = true,
             requiredWallpaper = { sampleGap ->
                 shieldCorners(beans, beans.findViewWithTag("product/inventory/header")) +
                     shortCollectionGap(beans, "product/inventory/list-scroll", sampleGap)
             },
             foregroundSurfaces = { visibleCollectionSurfaces(host, beans,
-                "product/inventory/list-scroll", "product/inventory/empty-card") },
+                "product/inventory/list-scroll", "product/inventory/empty-card", listFill = wallpaperTint(style.surface)) },
             inventoryForeground = {
                 val add = beans.findViewWithTag<Button>("product/inventory/add")
                 check(add.isShown && add.isEnabled && add.isClickable && add.text == host.getString(R.string.beans_add))
                 InventoryForeground(beans.findViewWithTag("product/inventory/header"), add)
             },
         ) { beans.findViewWithTag("product/inventory/header-summary") }
+        if (mode == "dark") {
+            main {
+                val list = beans.findViewWithTag<ScrollView>("product/inventory/list-scroll")
+                check(collectionRows(list).first().performClick())
+            }
+            await("Selected bean title and stock have one translucent backing, without opaque label strips") {
+                val paper = beans.background as PageBackdrop
+                val regions = listOf("product/inventory/name", "product/inventory/balance-summary").map { tag ->
+                    localRect(beans, beans.findViewWithTag<View>(tag)) ?: return@await false
+                }
+                paper.roundedAreas.count { area ->
+                    area.fill == wallpaperTint(style.surface) && regions.all(area.clip::contains)
+                } == 1 && regions.none { row -> paper.protectedAreas.orEmpty().any { Rect.intersects(it, row) } }
+            }
+        }
 
         // Selecting this read-only view is not a start/prepare gesture. Assert both remain idle.
         val service = main { checkNotNull(host.currentService) }
@@ -567,6 +582,7 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
 
     private fun visibleCollectionSurfaces(
         host: MainActivity, root: View, listTag: String, emptyTag: String,
+        listFill: Int = TaskProductVisualStyle(host).surface,
     ): List<SolidSurface> {
         val list = root.findViewWithTag<View>(listTag)
         val listRect = list?.takeIf { it.isShown }?.let { localRect(root, it) }
@@ -583,12 +599,13 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
             val last = if (list is ListView && list.lastVisiblePosition != list.count - 1) null
                 else rows.lastOrNull()?.let { localRect(root, it) }
             val expected = Rect(listRect).apply { if (last != null) bottom = minOf(bottom, last.bottom) }
-            check(list.clipToOutline && paper.roundedAreas.any { it.clip == expected && it.fill == style.surface })
+            check(list.clipToOutline && paper.roundedAreas.any { it.clip == expected && it.fill == listFill })
             return rows.mapNotNull { row ->
                 val visible = localRect(root, row) ?: return@mapNotNull null
                 if (visible.height() < HoyiUi.dp(host, 24)) return@mapNotNull null
                 val selected = row.isActivated || (row.background as? ColorDrawable)?.color == style.selected
-                SolidSurface(row, if (selected) style.selected else style.surface)
+                if (selected || Color.alpha(listFill) == 255) SolidSurface(row, if (selected) style.selected else listFill)
+                else null
             }.also { check(it.isNotEmpty()) }
         }
         return listOf(SolidSurface(checkNotNull(empty), host.appColor(R.color.mobile_surface)))
@@ -599,10 +616,11 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         val quantity = root.findViewWithTag<View>("product/scale/quantity")
         val isPhone = host.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
         val timerValue = root.findViewWithTag<View>("product/scale/timer/value")
-        val timerActions = root.findViewWithTag<View>("product/scale/timer/actions")
+        val timerToggle = root.findViewWithTag<View>("product/scale/timer/toggle")
+        val timerReset = root.findViewWithTag<View>("product/scale/timer/reset")
         captureApplied(host, root, name, backing = style.surface,
             foregroundSurfaces = {
-                if (isPhone) listOf(SolidSurface(timerValue, style.surface), SolidSurface(timerActions, style.surface))
+                if (isPhone) listOf(timerValue, timerToggle, timerReset).map { SolidSurface(it, style.surface) }
                 else emptyList()
             },
             requiredWallpaper = { sampleGap ->
@@ -610,14 +628,19 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
                 if (isPhone) {
                     val paper = root.background as PageBackdrop
                     val valueRect = checkNotNull(localRect(root, timerValue))
-                    val actionsRect = checkNotNull(localRect(root, timerActions))
                     val readout = paper.roundedAreas.single { it.clip.contains(valueRect) }
-                    val actions = paper.roundedAreas.single { it.clip.contains(actionsRect) }
-                    check(readout.bounds.bottom < actions.bounds.top)
-                    val left = maxOf(readout.bounds.left, actions.bounds.left)
-                    val right = minOf(readout.bounds.right, actions.bounds.right)
+                    val actions = listOf(timerToggle, timerReset).map { button ->
+                        val visible = checkNotNull(localRect(root, button))
+                        paper.roundedAreas.single { it.fill == style.surface && it.clip.contains(visible) }
+                    }.sortedBy { it.bounds.left }
+                    val (first, second) = actions
+                    check(readout.bounds.bottom < first.bounds.top && first.bounds.right < second.bounds.left)
+                    val left = maxOf(readout.bounds.left, first.bounds.left)
+                    val right = minOf(readout.bounds.right, second.bounds.right)
                     val inset = (right - left) / 4
-                    corners + sampleGap(Rect(left + inset, readout.bounds.bottom, right - inset, actions.bounds.top))
+                    corners + sampleGap(Rect(left + inset, readout.bounds.bottom, right - inset, first.bounds.top)) +
+                        sampleGap(Rect(first.bounds.right, maxOf(first.clip.top, second.clip.top),
+                            second.bounds.left, minOf(first.clip.bottom, second.clip.bottom)))
                 } else corners
             },
         ) { quantity }
@@ -625,16 +648,20 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
 
     private fun captureCurvePage(host: MainActivity, root: View, name: String) {
         val style = TaskProductVisualStyle(host)
-        val list = root.findViewWithTag<View>("product/curve-library/results")
+        val list = root.findViewWithTag<ListView>("product/curve-library/results")
         val filters = root.findViewWithTag<View>("product/curve-library/filter")
         captureApplied(host, root, name, backing = style.surface,
             requiredWallpaper = {
                 val paper = root.background as PageBackdrop
                 val toolBounds = checkNotNull(localRect(root, filters))
                 val listBounds = checkNotNull(localRect(root, list))
+                val expectedClip = Rect(listBounds)
+                if (list.childCount > 0 && list.lastVisiblePosition == list.count - 1) {
+                    expectedClip.bottom = minOf(listBounds.bottom, checkNotNull(localRect(root, list.getChildAt(list.childCount - 1))).bottom)
+                }
                 val countBounds = checkNotNull(localRect(root, root.findViewWithTag("product/curve-library/count")))
                 val tools = checkNotNull(paper.roundedAreas.singleOrNull { it.clip.contains(toolBounds) && it.clip.contains(countBounds) })
-                val results = checkNotNull(paper.roundedAreas.singleOrNull { it.clip.contains(listBounds) })
+                val results = checkNotNull(paper.roundedAreas.singleOrNull { it.clip == expectedClip })
                 check(tools != results && tools.bounds.bottom < results.bounds.top && list.clipToOutline)
                 check(tools.fill == wallpaperTint(style.surface) && results.fill == style.surface)
                 shieldCorners(root, list) + shieldCorners(root, filters)

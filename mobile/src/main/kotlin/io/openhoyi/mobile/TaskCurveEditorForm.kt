@@ -66,6 +66,8 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         tag = "product/form/curve-editor/fixed-actions"
         setPadding(0, dp(8), 0, 0)
         setBackgroundColor(style.visual.page)
+        tintPanelForWallpaper((activity.application as MobileApplication).pageBackgrounds,
+            android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
     }
     val configurationFields = cell()
     val supportingBody = panel()
@@ -131,6 +133,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         column.setPadding(0, 0, 0, dp(12))
         // The curve name is the title itself; retain the back/tools/details controls.
         val header = (body.tag as BeanPageRegions).header
+        header.protectPhotoSection(style.visual)
         val words = (0 until header.childCount).map(header::getChildAt)
             .first { it is LinearLayout }
         val titleIndex = header.indexOfChild(words)
@@ -142,7 +145,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         }
         header.addView(metadata[0], titleIndex, LinearLayout.LayoutParams(0, -2, 1f))
         header.contentDescription = null
-        val toolbarFields = CardGrid(140, 2)
+        val toolbarFields = CardGrid(140, 2).apply { protectPhotoSection(style.visual) }
         listOf(metadata[1], metadata[2]).forEach(toolbarFields::addView)
         val toolbar = object : android.widget.FrameLayout(activity) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
