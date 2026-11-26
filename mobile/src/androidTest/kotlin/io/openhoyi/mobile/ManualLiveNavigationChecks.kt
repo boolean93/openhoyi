@@ -15,6 +15,10 @@ import androidx.lifecycle.Lifecycle
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
+import io.openhoyi.protocol.ScaleCapabilities
+import io.openhoyi.protocol.ScaleEvidence
+import io.openhoyi.protocol.ScaleObservation
+import io.openhoyi.session.DeviceState
 import java.io.File
 
 /** Real visible MainActivity route, fed only by the existing synthetic Mock service on a disposable runner. */
@@ -316,8 +320,11 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
 
         fun manualCup(seconds: Int): Pair<String, ShotHistory.Entry> {
             val knownIds = app.history.entries.map { it.id }.toSet()
-            fun offer(frame: io.openhoyi.protocol.HoyiMessage, delta: Long) {
+            fun offer(frame: io.openhoyi.protocol.HoyiMessage, delta: Long, weight: Int? = null) {
                 MobileMonotonicClock.advanceForMock(clock, MobileMonotonicClock.elapsedRealtime() + delta)
+                if (weight != null) service.offerScaleVisualInput(clock, DeviceState.READY,
+                    ScaleObservation(weight, MobileMonotonicClock.elapsedRealtime(), ScaleCapabilities(),
+                        ScaleEvidence.LIVE_READ_ONLY, raw = ByteFrame(byteArrayOf())))
                 service.offerMockExtractionFrame(clock, frame)
             }
             fun frame(second: Int) = ExtractionTelemetry(6, second, 89, second * 10, 9300,
@@ -325,12 +332,12 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             lateinit var feedbackId: String
             test.runOnMainSync {
                 check(!page.feedbackUi.isShowing && !service.manualShotActive)
-                offer(frame(1), 450)
-                offer(frame(2), 450)
+                offer(frame(1), 450, weight = 12000)
+                offer(frame(2), 450, weight = 12050)
                 feedbackId = requireNotNull(service.manualChartIdentity)
                 for (second in 3..seconds) offer(frame(second), 1000)
                 // End only after the existing passive idle gap; no fabricated completion call.
-                offer(IdleTelemetry(9300, 12000, 0, 0, 0, 0, 25, 0, ByteFrame(byteArrayOf())), 2901)
+                offer(IdleTelemetry(9300, 12000, 0, 0, 0, 0, 25, 0, ByteFrame(byteArrayOf())), 2901, weight = 15490)
                 check(!service.manualShotActive)
             }
             val entry = app.history.entries.single { it.id !in knownIds }
@@ -341,6 +348,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             return feedbackId to entry
         }
 
+        test.runOnMainSync { service.installScaleVisualInput(clock) }
         try {
             test.runOnMainSync { check(feedback.setEnabled(true)) }
             manualCup(13) // first frame 1 + 12 seconds of actual progress
@@ -355,7 +363,8 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             await("qualified manual cup opens the real completion dialog") {
                 service.brewFeedbackResult?.let { it.shotId == feedbackId &&
                     it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW &&
-                    it.outputHundredthsGram == null && it.endCupCount == 25 } == true &&
+                    it.completionWeight == ExtractionScaleReadout.CompletionWeight(3490, ExtractionScaleReadout.Source.BEVERAGE) &&
+                    it.endCupCount == 25 } == true &&
                     page.feedbackUi.isShowing
             }
             val expectedPace = main.getString(R.string.completion_card_flow_slow)
@@ -388,7 +397,10 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                     page.lifecycle.currentState == Lifecycle.State.RESUMED
             }
         } finally {
-            test.runOnMainSync { check(feedback.setEnabled(previous)) }
+            test.runOnMainSync {
+                service.clearScaleVisualInput(clock)
+                check(feedback.setEnabled(previous))
+            }
         }
     }
 

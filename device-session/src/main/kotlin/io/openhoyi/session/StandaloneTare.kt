@@ -16,6 +16,7 @@ class StandaloneTare(private val storage:Storage=VolatileStorage(),private val c
     val unresolved: Boolean get() = state in setOf(State.WRITING, State.WAITING_ZERO, State.UNKNOWN)
     private var priorUnknown = false
     private var serial = 0L
+    val generation: Long get() = serial
     private var writtenAt = 0L
     private var writtenAfterSample = 0L
     private var deadline: Long? = null

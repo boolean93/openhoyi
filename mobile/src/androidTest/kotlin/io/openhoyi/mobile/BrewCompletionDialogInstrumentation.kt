@@ -37,7 +37,8 @@ class BrewCompletionDialogInstrumentation : Instrumentation() {
             var reviews = 0
             runOnMainSync {
                 val result = BrewCompletionDialog(owner, BrewFeedbackClips.Level.HIGH_FLOW,
-                    outputHundredthsGram = 3620, endCupCount = 128) { reviews++ }
+                    completionWeight = ExtractionScaleReadout.CompletionWeight(3490, ExtractionScaleReadout.Source.RAW_SCALE),
+                    endCupCount = 128) { reviews++ }
                 val dialog = result.dialog
                 popup = dialog
                 result.show()
@@ -58,7 +59,9 @@ class BrewCompletionDialogInstrumentation : Instrumentation() {
 
                 check(!status.isShown)
                 fun reading(tag: String) = root.findViewWithTag<TextView>("completion-card/$tag").text.toString()
-                check(reading("weight/number") == "36.2" && reading("weight/unit") == "g")
+                check(reading("weight/number") == "34.9" && reading("weight/unit") == "g")
+                val weightGroup = root.findViewWithTag<LinearLayout>("completion-card/weight-group")
+                check((weightGroup.getChildAt(0) as TextView).text == owner.getString(R.string.history_end_scale))
                 check(reading("cups/number") == "128")
                 check(reading("flow") == owner.getString(R.string.completion_card_flow_fast))
                 check(reading("note") == owner.getString(R.string.feedback_note))

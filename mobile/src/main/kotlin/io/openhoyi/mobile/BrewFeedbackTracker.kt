@@ -12,7 +12,7 @@ internal data class BrewFeedbackResult(
     val finalWaterTenthsMl: Int,
     val flowHeuristic: Double,
     val level: BrewFeedbackClips.Level,
-    val outputHundredthsGram: Int? = null,
+    val completionWeight: ExtractionScaleReadout.CompletionWeight? = null,
     val endCupCount: Int? = null,
 )
 
@@ -72,7 +72,7 @@ internal class BrewFeedbackTracker {
             current.endCupCount = cupCount
     }
 
-    fun finish(shotId: String, observedEnd: Boolean, outputHundredthsGram: Int? = null): BrewFeedbackResult? {
+    fun finish(shotId: String, observedEnd: Boolean, completionWeight: ExtractionScaleReadout.CompletionWeight? = null): BrewFeedbackResult? {
         val current = cup?.takeIf { it.id == shotId } ?: return null
         cup = null
         val early = current.earlyWater ?: return null
@@ -89,7 +89,7 @@ internal class BrewFeedbackTracker {
         }
         return BrewFeedbackResult(current.id, current.maxActiveSeconds, current.preinfusionSeconds,
             early, current.lastWater, rate, level,
-            outputHundredthsGram = outputHundredthsGram,
+            completionWeight = completionWeight,
             endCupCount = current.endCupCount)
     }
 }

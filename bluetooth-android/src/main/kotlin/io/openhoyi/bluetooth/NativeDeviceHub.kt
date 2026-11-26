@@ -53,6 +53,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     private val standaloneTare=if(tareStorage==null)StandaloneTare { SystemClock.elapsedRealtime() }
         else StandaloneTare(tareStorage) { SystemClock.elapsedRealtime() }
     private var scaleSampleSerial=0L
+    val scaleTareGeneration get()=standaloneTare.generation
     val scaleTareState get()=standaloneTare.state
     private val reconnect=ReconnectPolicy().apply { if(rememberedScaleSuppressed)manualDisconnect() }
     private val coffeeReconnect=CoffeeReconnectPolicy()
