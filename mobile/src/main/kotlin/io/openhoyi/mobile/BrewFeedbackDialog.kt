@@ -71,7 +71,7 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
     }
     private fun show(result: BrewFeedbackResult, voice: Int, autoplay: Boolean) {
         variant = voice
-        val card = BrewCompletionDialog(activity, result.level, result.outputHundredthsGram, result.endCupCount) {
+        val card = BrewCompletionDialog(activity, result.level, result.completionWeight, result.endCupCount) {
             val ticket = reviewAccess.issue(result) ?: return@BrewCompletionDialog
             stop()
             try { activity.startActivity(CompletionReviewChatActivity.intent(activity, ticket)) }

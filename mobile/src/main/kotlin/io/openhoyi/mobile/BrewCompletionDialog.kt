@@ -19,7 +19,7 @@ import java.util.Locale
 internal class BrewCompletionDialog(
     private val activity: Activity,
     level: BrewFeedbackClips.Level,
-    outputHundredthsGram: Int? = null,
+    completionWeight: ExtractionScaleReadout.CompletionWeight? = null,
     endCupCount: Int? = null,
     private val onReview: () -> Unit,
 ) {
@@ -36,8 +36,12 @@ internal class BrewCompletionDialog(
     private val body = style.column("completion-card/body").apply {
         setPadding(style.dp(24), style.dp(4), style.dp(24), style.dp(5))
         val weight = style.column("completion-card/weight-group").apply {
-            val label = activity.getString(R.string.completion_card_weight)
-            val number = outputHundredthsGram?.let { numberFormat.format(it / 100.0) }
+            val raw = completionWeight?.source == ExtractionScaleReadout.Source.RAW_SCALE
+            val label = activity.getString(if (raw) R.string.history_end_scale else R.string.completion_card_weight)
+            val number = completionWeight?.let {
+                val grams = it.hundredthsGram / 100.0
+                if (raw) String.format(locale ?: Locale.getDefault(), "%.1f", grams) else numberFormat.format(grams)
+            }
             style.add(this, style.text(label, TaskProductVisualStyle.auxiliary, secondary = true))
             addView(quantity(label, number, R.string.completion_card_gram_unit, TaskProductVisualStyle.largeValue,
                 "completion-card/weight"), LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))

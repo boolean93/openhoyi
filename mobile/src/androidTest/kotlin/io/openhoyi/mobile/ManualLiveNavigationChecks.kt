@@ -355,7 +355,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             await("qualified manual cup opens the real completion dialog") {
                 service.brewFeedbackResult?.let { it.shotId == feedbackId &&
                     it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW &&
-                    it.outputHundredthsGram == null && it.endCupCount == 25 } == true &&
+                    it.completionWeight == null && it.endCupCount == 25 } == true &&
                     page.feedbackUi.isShowing
             }
             val expectedPace = main.getString(R.string.completion_card_flow_slow)

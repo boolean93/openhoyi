@@ -152,23 +152,26 @@ class ExtractionScaleReadoutTest {
         ByteFrame(byteArrayOf()))
     private fun ExtractionScaleReadout.completionFrame(
         frame: HoyiMessage, at: Long, now: Long = at, reading: ScaleObservation? = null, currentShot: Boolean = true,
-    ) = observeCompletionEndpoint(frame, at, now, currentShot, reading, ready)
+    ) = observeFrame(frame, at, now, currentShot, reading, ready)
 
-    @Test fun cardRequiresConfirmedTerminalBeverageFromThisShot() {
+    @Test fun cardDistinguishesNetAndRawAtThisShotsEndpoint() {
         val confirmed = netProjection()
         confirmed.completionFrame(completionBrewing(), 1000)
         confirmed.completionFrame(completionIdle(), 2000, reading = sample(3660, 2000))
-        assertNull(confirmed.confirmedTerminalBeverage("app"))
+        assertNull(confirmed.completionWeight("app"))
         confirmed.finish(true)
-        assertEquals(3620, confirmed.confirmedTerminalBeverage("app"))
-        assertNull(confirmed.confirmedTerminalBeverage("other"))
+        assertEquals(ExtractionScaleReadout.CompletionWeight(3620, ExtractionScaleReadout.Source.BEVERAGE), confirmed.completionWeight("app"))
+        assertNull(confirmed.completionWeight("other"))
 
-        for ((grams, expected) in listOf(40 to 0, 39 to null)) {
+        for ((grams, expected) in listOf(
+            40 to ExtractionScaleReadout.CompletionWeight(0, ExtractionScaleReadout.Source.BEVERAGE),
+            39 to ExtractionScaleReadout.CompletionWeight(39, ExtractionScaleReadout.Source.RAW_SCALE),
+        )) {
             val net = netProjection()
             net.completionFrame(completionBrewing(), 1000)
             net.completionFrame(completionIdle(), 2000, reading = sample(grams, 2000))
             net.finish(true)
-            assertEquals(expected, net.confirmedTerminalBeverage("app"))
+            assertEquals(expected, net.completionWeight("app"))
         }
 
         val raw = ExtractionScaleReadout()
@@ -176,7 +179,19 @@ class ExtractionScaleReadoutTest {
         raw.completionFrame(completionBrewing(), 1000)
         raw.completionFrame(completionIdle(), 2000, reading = sample(3620, 2000))
         raw.finish(true)
-        assertNull(raw.confirmedTerminalBeverage("passive"))
+        assertEquals(ExtractionScaleReadout.Source.RAW_SCALE, raw.completionWeight("passive")?.source)
+    }
+
+    @Test fun completionKeepsTheSameRawReadingAfterCupRemovalWithoutTareProof() {
+        val readout = ExtractionScaleReadout()
+        readout.begin("manual", null)
+        readout.completionFrame(completionBrewing(), 1000)
+        readout.completionFrame(completionIdle(), 2000, reading = sample(3490, 2000))
+        readout.completionFrame(completionIdle(), 2100, reading = sample(0, 2100))
+        readout.finish(true)
+        val weight = readout.completionWeight("manual")
+        assertEquals(ExtractionScaleReadout.CompletionWeight(3490, ExtractionScaleReadout.Source.RAW_SCALE), weight)
+        assertEquals(readout.value(null, ready, 3000).hundredthsGram, weight?.hundredthsGram)
     }
 
     @Test fun cardSkipsStaleReverseAndOutOfShotIdleButDoesNotBackfillMissingValidEndpoint() {
@@ -188,20 +203,19 @@ class ExtractionScaleReadoutTest {
         net.completionFrame(completionIdle(), 3700)
         net.completionFrame(completionIdle(), 3800, reading = sample(5000, 3800))
         net.finish(true)
-        assertNull(net.confirmedTerminalBeverage("app"))
+        assertNull(net.completionWeight("app"))
     }
 
-    @Test fun cardRejectsRevokedEndpointBeforeFinishWithoutChangingExistingEndedReadout() {
+    @Test fun cardUsesOriginalScaleReadingWhenTareProofIsRevokedBeforeFinish() {
         val net = netProjection()
-        net.brewing()
         net.completionFrame(completionBrewing(), 1000)
         val endpoint = sample(3660, 2000)
-        net.observedIdle(endpoint, ready, 2000)
         net.completionFrame(completionIdle(), 2000, reading = endpoint)
         net.observeProof(owner(epoch = 2), null, ExtractionState.ENDED_OBSERVED)
         net.finish(true)
         assertEquals(3620, net.value(null, DeviceState.DISCONNECTED, 4000).hundredthsGram)
-        assertNull(net.confirmedTerminalBeverage("app"))
+        assertEquals(ExtractionScaleReadout.CompletionWeight(3660, ExtractionScaleReadout.Source.RAW_SCALE),
+            net.completionWeight("app"))
     }
 
     @Test fun cardEvidenceAlreadyFrozenDoesNotChangeAfterLaterDisconnect() {
@@ -210,7 +224,7 @@ class ExtractionScaleReadoutTest {
         net.completionFrame(completionIdle(), 2000, reading = sample(3660, 2000))
         net.finish(true)
         net.observeProof(null, null, ExtractionState.IDLE)
-        assertEquals(3620, net.confirmedTerminalBeverage("app"))
+        assertEquals(3620, net.completionWeight("app")?.hundredthsGram)
     }
 
 }

@@ -462,12 +462,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
         return extractionScaleReadout.value(snapshot.scaleObservation, snapshot.scaleState, now,
             shotState == ExtractionState.OUTCOME_UNKNOWN)
     }
-    private fun observeExtractionScaleEndpoint(frame: HoyiMessage, at: Long) {
+    private fun observeExtractionScaleEndpoint(frame: HoyiMessage, at: Long, now: Long, currentShot: Boolean) {
         observeScaleReadoutProof()
-        if (frame is io.openhoyi.protocol.ExtractionTelemetry && frame.valveOpen && !frame.brewWait)
-            extractionScaleReadout.brewing()
-        if (frame is IdleTelemetry)
-            extractionScaleReadout.observedIdle(snapshot.scaleObservation, snapshot.scaleState, at)
+        extractionScaleReadout.observeFrame(frame, at, now, currentShot && snapshot.coffeeState == DeviceState.READY,
+            snapshot.scaleObservation, snapshot.scaleState)
     }
     private val appElapsedOutcomeWasUnknown: Boolean get() =
         if (mockExtractionOwner != null) mockExtractionScenario.displayOutcomeWasUnknown
@@ -595,8 +593,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                 ?: scaleTrend.observe(null, snapshot.scaleState, now)
         }
         snapshot.coffee?.let {
-            observeExtractionScaleEndpoint(it, now)
-            if (mockExtractionOwner == null) observeAppFeedbackEndCupCount(it, now, now)
+            if (mockExtractionOwner == null) {
+                observeExtractionScaleEndpoint(it, now, now, currentShot = true)
+                observeAppFeedbackEndCupCount(it, now, now)
+            }
         }
     }
     private val mockTick = object : Runnable {
@@ -1038,12 +1038,10 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             else -> snapshot
         }
         val observedAt = snapshot.coffeeAt ?: elapsedNow()
-        observeExtractionScaleEndpoint(frame, observedAt)
         val now = elapsedNow()
-        val currentAppFrame = hub?.extraction?.acceptsDisplayFrameTime(receivedAtMs) == true &&
-            snapshot.coffeeState == DeviceState.READY
-        extractionScaleReadout.observeCompletionEndpoint(frame, receivedAtMs, now, currentAppFrame,
-            snapshot.scaleObservation, snapshot.scaleState)
+        val currentFrame = passiveShot.active || mockExtractionOwner != null ||
+            hub?.extraction?.acceptsDisplayFrameTime(receivedAtMs) == true
+        observeExtractionScaleEndpoint(frame, receivedAtMs, now, currentFrame)
         if (frame is IdleTelemetry) observeAppFeedbackEndCupCount(frame, receivedAtMs, now)
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
@@ -1075,7 +1073,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
                     val provisionalId = java.util.UUID.randomUUID().toString()
                     series.begin(provisionalId, passiveEvent.first.atMs, "manual", passive = true)
                     extractionScaleReadout.begin(provisionalId, null)
-                    extractionScaleReadout.brewing()
+                    observeExtractionScaleEndpoint(frame, receivedAtMs, now, currentShot = true)
                     manualPresentation.started(provisionalId)
                     val feedbackSlot = passiveEvent.first.frame.slotOrPhase
                     beginBrewFeedback(provisionalId, feedbackSlot, if (feedbackSlot == 6) 0 else null,
@@ -3285,7 +3283,7 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             val eligible = BrewFeedbackCompletion.allowed(observedEnd, snapshot.coffeeState,
                 snapshot.alarmBits, if (feedbackAppShot) hub?.extraction?.stopReason else null)
             brewFeedbackResult = runCatching {
-                brewFeedback.finish(id, eligible, extractionScaleReadout.confirmedTerminalBeverage(id))
+                brewFeedback.finish(id, eligible, extractionScaleReadout.completionWeight(id))
             }.getOrNull()
             runCatching { feedbackDelivery.publish(brewFeedbackResult,
                 fixtureShotEffects == null && (application as MobileApplication).feedbackPreferences.enabled) }

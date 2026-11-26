@@ -41,8 +41,9 @@ class BrewFeedbackTrackerTest {
         tracker.observeEndCupCount("cup", 128, 2000, 3501)
         tracker.observeEndCupCount("cup", 0, 2000, 3500)
         tracker.observeEndCupCount("cup", 129, 3500, 3500)
-        val result = tracker.finish("cup", true, outputHundredthsGram = 0)!!
-        assertEquals(0, result.outputHundredthsGram)
+        val zero = ExtractionScaleReadout.CompletionWeight(0, ExtractionScaleReadout.Source.BEVERAGE)
+        val result = tracker.finish("cup", true, zero)!!
+        assertEquals(zero, result.completionWeight)
         assertEquals(0, result.endCupCount)
         assertEquals(400, result.finalWaterTenthsMl)
 
@@ -50,7 +51,7 @@ class BrewFeedbackTrackerTest {
         observe(tracker, 5, 50, 3000, id = "next")
         observe(tracker, 30, 400, 4000, id = "next")
         val next = tracker.finish("next", true)!!
-        assertNull(next.outputHundredthsGram)
+        assertNull(next.completionWeight)
         assertNull(next.endCupCount)
     }
     @Test fun unknownFinishAndNewCupCannotReusePreviousEarlySnapshot() {

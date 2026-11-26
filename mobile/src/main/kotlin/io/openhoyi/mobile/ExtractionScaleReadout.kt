@@ -12,6 +12,7 @@ import java.util.Locale
 /** Display only. Global tare state does not establish a baseline for this cup. */
 internal class ExtractionScaleReadout {
     enum class Source { RAW_SCALE, BEVERAGE }
+    data class CompletionWeight(val hundredthsGram: Int, val source: Source)
     data class Owner(val hub:Any,val controller:Any,val shotSerial:Long,val scaleEpoch:Long,val address:String)
     data class Proof(val shotSerial:Long,val baselineHundredthsGram:Int,val confirmedAtMs:Long)
     enum class Reason { NO_SCALE, DISCONNECTED, UNAVAILABLE, STALE, END_UNAVAILABLE, UNKNOWN }
@@ -25,22 +26,19 @@ internal class ExtractionScaleReadout {
     private var trace: String? = null
     private var target: Int? = null
     private var terminal: Value? = null
-    private var endObserved = false
+    private var endRawHundredthsGram: Int? = null
     private var endCandidate: Value? = null
     private var brewingObserved = false
     private var owner:Owner? = null
     private var proof:Proof? = null
     private var proofRevoked = false
-    private var completionFrameAt: Long? = null
-    private var completionBrewingObserved = false
-    private var completionIdleObserved = false
-    private var completionGrams: Int? = null
+    private var lastFrameAt: Long? = null
 
     fun begin(id: String, targetHundredthsGram: Int?, appOwner:Owner? = null) {
         trace = id; target = targetHundredthsGram?.takeIf { it > 0 }
-        terminal = null; endObserved = false; endCandidate = null; brewingObserved = false
+        terminal = null; endRawHundredthsGram = null; endCandidate = null; brewingObserved = false
         owner = appOwner?.takeIf { target != null }; proof = null; proofRevoked = false
-        completionFrameAt = null; completionBrewingObserved = false; completionIdleObserved = false; completionGrams = null
+        lastFrameAt = null
     }
     /** A mismatch revokes net display for this cup, even if the same address later reconnects. */
     fun observeProof(current:Owner?, confirmed:Proof?, state:ExtractionState) {
@@ -74,32 +72,26 @@ internal class ExtractionScaleReadout {
         if (terminal != null) return
         brewingObserved = true
         // An idle blip followed by more brewing was not this cup's endpoint.
-        endObserved = false; endCandidate = null
+        endRawHundredthsGram = null; endCandidate = null
     }
     /** First idle notification after brewing owns the endpoint, even if its reading is missing. */
     fun observedIdle(sample: ScaleObservation?, state: DeviceState, now: Long) {
-        if (trace == null || terminal != null || endObserved || !brewingObserved) return
-        endObserved = true
+        if (trace == null || terminal != null || endCandidate != null || !brewingObserved) return
         endCandidate = reading(sample, state, now)
+        // Keep the original endpoint too: tare proof can be revoked before finish.
+        endRawHundredthsGram = sample?.hundredthsGram
     }
-    /** Preserve the first qualified idle endpoint for the result card, even if weight is unavailable. */
-    fun observeCompletionEndpoint(
+    /** The live readout and result card share the first qualified idle reading after brewing. */
+    fun observeFrame(
         frame: HoyiMessage, at: Long, now: Long, currentShot: Boolean,
         sample: ScaleObservation?, scaleState: DeviceState,
     ) {
-        if (owner == null || terminal != null || proofRevoked || !currentShot ||
-            !TelemetryFreshness.isFresh(at, now) || completionFrameAt?.let { at <= it } == true) return
+        if (trace == null || terminal != null || !currentShot || !TelemetryFreshness.isFresh(at, now) ||
+            lastFrameAt?.let { at <= it } == true) return
         if (frame !is ExtractionTelemetry && frame !is IdleTelemetry) return
-        completionFrameAt = at
-        if (frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait) {
-            completionBrewingObserved = true
-            completionIdleObserved = false
-            completionGrams = null
-        } else if (frame is IdleTelemetry && completionBrewingObserved && !completionIdleObserved) {
-            completionIdleObserved = true
-            val endpoint = reading(sample, scaleState, at)
-            completionGrams = endpoint.hundredthsGram?.takeIf { endpoint.source == Source.BEVERAGE && it >= 0 }
-        }
+        lastFrameAt = at
+        if (frame is ExtractionTelemetry && frame.valveOpen && !frame.brewWait) brewing()
+        if (frame is IdleTelemetry) observedIdle(sample, scaleState, at)
     }
 
     fun finish(observedEnd: Boolean) {
@@ -108,9 +100,12 @@ internal class ExtractionScaleReadout {
             else Value(endCandidate?.hundredthsGram,
                 if (endCandidate?.hundredthsGram == null) Reason.END_UNAVAILABLE else null, target, true, endCandidate?.source ?: Source.RAW_SCALE)
     }
-    /** A net result requires this shot's terminal baseline proof; a negative reading is not zero output. */
-    fun confirmedTerminalBeverage(shotId: String): Int? = completionGrams?.takeIf {
-        trace == shotId && !proofRevoked && terminal?.let { it.ended && it.reason != Reason.UNKNOWN } == true
+    fun completionWeight(shotId: String): CompletionWeight? {
+        val end = terminal?.takeIf { trace == shotId } ?: return null
+        val grams = end.hundredthsGram ?: return null
+        return if (end.source == Source.BEVERAGE && !proofRevoked && grams >= 0)
+            CompletionWeight(grams, Source.BEVERAGE)
+        else endRawHundredthsGram?.let { CompletionWeight(it, Source.RAW_SCALE) }
     }
 
     fun value(sample: ScaleObservation?, state: DeviceState, now: Long,
