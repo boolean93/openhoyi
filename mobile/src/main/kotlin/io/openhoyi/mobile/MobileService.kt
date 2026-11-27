@@ -3328,14 +3328,8 @@ class MobileService private constructor(detachedCore:Boolean) : Service() {
             val capture = if (eligible) brewFeedbackResult?.let {
                 app.completionShotReview.begin(it, entry.id)
             } else null
-            val language = if (capture != null) app.languagePreferences.current else null
             app.samples.save(finished.first, finished.second, if (capture == null && reviewConfig == null) null else { points ->
-                if (capture != null && language != null) {
-                    val body = runCatching {
-                        ShotReviewWire.request(points, entry.observedMachineElapsedSeconds, language)
-                    }.getOrNull()
-                    app.completionShotReview.persisted(capture, body)
-                }
+                if (capture != null) app.completionShotReview.persisted(capture, hasSamples = points.isNotEmpty())
                 if (reviewConfig != null) app.shotReviews.afterPersisted(entry, points, reviewConfig)
             })
         }

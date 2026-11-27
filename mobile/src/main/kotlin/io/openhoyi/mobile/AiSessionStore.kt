@@ -35,12 +35,25 @@ internal object AiSessionCodec {
         return raw
     }
     private fun encodeObject(s: AiSession): JsonObject = buildJsonObject {
-            put("schema", 6); put("model", s.modelId);
+            val hasCompletion = s.lines.any { it.completionShotId != null } ||
+                s.inactive.any { slot -> slot.lines.any { it.completionShotId != null } }
+            put("schema", if (hasCompletion) 7 else 6)
+            put("model", s.modelId)
             require(s.inactive.size <= 1 && s.inactive.all { it.inactive.isEmpty() && it.epoch == s.epoch && it.modelId != s.modelId })
             put("inactive", JsonArray(s.inactive.map(::encodeObject))); put("ocr", AiOcrRecords.encode(s.ocr)); put("epoch", s.epoch); put("draft", s.draft)
             put("draftAttachments", AiAttachmentConversation.encode(s.draftAttachments))
             put("hoyiScreenshotSourceId", JsonNull)
-            put("lines", buildJsonArray { s.lines.forEach { add(buildJsonObject { put("user", it.user); put("text", it.text); put("attachments", AiAttachmentConversation.encode(it.attachments)); put("curveCards", JsonArray(it.curveCards.map { card -> Json.parseToJsonElement(card.encode().toString()) })) }) } })
+            put("lines", buildJsonArray {
+                s.lines.forEach { line ->
+                    add(buildJsonObject {
+                        put("user", line.user)
+                        put("text", line.text)
+                        put("attachments", AiAttachmentConversation.encode(line.attachments))
+                        put("curveCards", JsonArray(line.curveCards.map { card -> Json.parseToJsonElement(card.encode().toString()) }))
+                        line.completionShotId?.let { put("completionShotId", it) }
+                    })
+                }
+            })
             put("context", buildJsonObject {
                 put("summary", s.protocol.summary?.let(::JsonPrimitive) ?: JsonNull)
                 put("coveredLines", s.protocol.coveredLines)
@@ -64,7 +77,7 @@ internal object AiSessionCodec {
     }
     private fun decodeObject(o: JsonObject, allowInactive: Boolean): AiSession {
         val schema = o["schema"]?.jsonPrimitive?.int
-        require(schema in 1..6)
+        require(schema in 1..7)
         require(o.keys == setOf("schema", "epoch", "draft", "lines", "protocol", "usage") + (if (schema != 1) setOf("context") else emptySet()) + (if (schema!! >= 3) setOf("draftAttachments") else emptySet()) + (if (schema!! >= 4) setOf("model", "inactive", "ocr") else emptySet()) + (if (schema!! >= 6) setOf("hoyiScreenshotSourceId") else emptySet()))
         fun string(obj: JsonObject, name: String) = (obj[name] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: error("Invalid session")
         val epoch = string(o, "epoch"); require(epoch.matches(Regex("[a-f0-9-]{36}")))
@@ -76,7 +89,12 @@ internal object AiSessionCodec {
         } else emptyList()
         val draft = string(o, "draft"); require(draft.length <= AiChatPolicy.INPUT_CHARS)
         val lines = o.getValue("lines").jsonArray.map { element ->
-            val line = element.jsonObject; require(line.keys == setOf("user", "text") + (if (schema!! >= 3) setOf("attachments") else emptySet()) + (if (schema >= 5) setOf("curveCards") else emptySet()))
+            val line = element.jsonObject
+            val fields = setOf("user", "text") + (if (schema!! >= 3) setOf("attachments") else emptySet()) +
+                (if (schema >= 5) setOf("curveCards") else emptySet())
+            val completionShotId = if (schema >= 7 && "completionShotId" in line) string(line, "completionShotId") else null
+            val expectedFields = if (completionShotId != null) fields + "completionShotId" else fields
+            require(line.keys == expectedFields)
             val user = (line["user"] as? JsonPrimitive)?.takeUnless { it.isString }?.booleanOrNull ?: error("Invalid session")
             val cards = if (schema!! >= 5) line.getValue("curveCards").jsonArray.let { values ->
                 require(values.size <= AiCurveCard.MAX_CARDS_PER_TURN + 1)
@@ -86,7 +104,7 @@ internal object AiSessionCodec {
             require(cards.count { it.kind != AiCurveCard.Kind.RECOMMENDATION } <= 1)
             val references = cards.filter { it.kind == AiCurveCard.Kind.RECOMMENDATION }
             require(references.size <= AiCurveCard.MAX_CARDS_PER_TURN && references.map { it.id }.distinct().size == references.size)
-            AiChatLine(user, string(line, "text"), AiAttachmentConversation.decode(line["attachments"]).also { require(user || it.isEmpty()) }, cards)
+            AiChatLine(user, string(line, "text"), AiAttachmentConversation.decode(line["attachments"]).also { require(user || it.isEmpty()) }, cards, completionShotId)
         }
         require(lines.size % 2 == 0 && lines.size <= 20000)
         require(lines.withIndex().all { (i, l) -> l.user == (i % 2 == 0) && l.text.isNotBlank() && l.text.length <= if (l.user) AiChatPolicy.INPUT_CHARS else AiChatPolicy.OUTPUT_CHARS })

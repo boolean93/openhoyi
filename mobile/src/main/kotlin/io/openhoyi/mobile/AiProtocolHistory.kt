@@ -80,7 +80,7 @@ internal class AiProtocolTurn(
     private val schemaTokens: Long = AiContextPolicy.DEFAULT_SCHEMA_TOKENS,
 ) : KoogHttpClient by delegate {
     private val prefix = listOf(buildJsonObject { put("role", "system"); put("content", AiChatPolicy.SYSTEM) }) +
-        lines.drop(base.coveredLines).map { buildJsonObject { put("role", if (it.user) "user" else "assistant"); put("content", it.text) } } +
+        lines.drop(base.coveredLines).map { buildJsonObject { put("role", if (it.user) "user" else "assistant"); put("content", it.wireText) } } +
         buildJsonObject { put("role", "user"); put("content", input) }
     private val responses = mutableListOf<JsonObject>()
     private var candidate: List<JsonObject>? = null

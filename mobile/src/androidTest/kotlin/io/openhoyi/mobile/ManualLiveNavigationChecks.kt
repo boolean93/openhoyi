@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -19,7 +20,9 @@ import io.openhoyi.protocol.ScaleCapabilities
 import io.openhoyi.protocol.ScaleEvidence
 import io.openhoyi.protocol.ScaleObservation
 import io.openhoyi.session.DeviceState
+import org.json.JSONObject
 import java.io.File
+import java.security.KeyStore
 
 /** Real visible MainActivity route, fed only by the existing synthetic Mock service on a disposable runner. */
 internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
@@ -315,6 +318,17 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
         val app = main.application as MobileApplication
         val feedback = app.feedbackPreferences
         val previous = feedback.enabled
+        val sandbox = AiAndroidHttpSandbox.install()
+        val requestCount = sandbox.requestCount
+        val key = AiKeyStore(app)
+        val consent = app.getSharedPreferences("ai_consent", 0)
+        val keyAlias = "io.openhoyi.mobile.deepseek_api_key.v1"
+        val androidKeys = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        check(key.status() == AiKeyStatus.MISSING && !androidKeys.containsAlias(keyAlias) &&
+            !consent.contains(AiConsentPolicy.VERSION_KEY))
+        var seededKey = false
+        var chat: AiChatActivity? = null
+        val draft = "Unsent coffee notes"
         // The repository may return queued samples; a separate store proves disk readback.
         val persistedSamples = ShotSamplesStore(File(app.filesDir, "shot_samples"))
 
@@ -350,6 +364,17 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
 
         test.runOnMainSync { service.installScaleVisualInput(clock) }
         try {
+            seededKey = true
+            check(key.save("fake-sentinel-manual-completion"))
+            check(consent.edit().putInt(AiConsentPolicy.VERSION_KEY, AiConsentPolicy.CURRENT_VERSION).commit())
+            val draftOwner = open(main, AiChatActivity::class.java).also { chat = it }
+            test.runOnMainSync {
+                descendants(draftOwner.window.decorView).filterIsInstance<EditText>().single().setText(draft)
+                draftOwner.finish()
+            }
+            await("Chat draft closes before completing the cup") { draftOwner.isDestroyed && main.hasWindowFocus() }
+            chat = null
+
             test.runOnMainSync { check(feedback.setEnabled(true)) }
             manualCup(13) // first frame 1 + 12 seconds of actual progress
             test.waitForIdleSync()
@@ -359,7 +384,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 }
             }
 
-            val (feedbackId, _) = manualCup(18)
+            val (feedbackId, entry) = manualCup(18)
             await("qualified manual cup opens the real completion dialog") {
                 service.brewFeedbackResult?.let { it.shotId == feedbackId &&
                     it.machineSeconds == 18 && it.level == BrewFeedbackClips.Level.LOW_FLOW &&
@@ -384,22 +409,95 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 }
             } finally { screenshot.recycle() }
 
-            val close = main.getString(R.string.feedback_done)
-            check(waitForActiveWindow { window ->
-                val matches = window.findAccessibilityNodeInfosByText(close)
-                try {
-                    matches.any { it.text?.toString() == close && it.isVisibleToUser &&
-                        it.isEnabled && it.isClickable && it.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
-                } finally { matches.forEach { it.recycle() } }
-            }) { "Real completion dialog Close could not be clicked" }
-            await("Close dismisses the result without leaving the same Extraction page") {
+            check(sandbox.requestCount == requestCount)
+            val reply = "For the next cup, try grinding slightly finer and keep the dose unchanged."
+            val toolArguments = JSONObject().put("shotId", entry.id).put("limit", 2)
+            sandbox.enqueue(body = AiAndroidHttpSandbox.toolAnswer("extraction_samples", toolArguments.toString()))
+            sandbox.enqueue(body = AiAndroidHttpSandbox.answer(reply))
+            val monitor = test.addMonitor(AiChatActivity::class.java.name, null, false)
+            val review = main.getString(R.string.completion_card_review)
+            val reviewed = try {
+                check(waitForActiveWindow { window ->
+                    val matches = window.findAccessibilityNodeInfosByText(review)
+                    try {
+                        matches.any { it.text?.toString() == review && it.isVisibleToUser &&
+                            it.isEnabled && it.isClickable && it.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+                    } finally { matches.forEach { it.recycle() } }
+                }) { "Real completion dialog AI review could not be clicked" }
+                test.waitForMonitorWithTimeout(monitor, 5000) as? AiChatActivity
+                    ?: error("Completion AI review did not open the ordinary chat")
+            } finally { test.removeMonitor(monitor) }
+            chat = reviewed
+            val question = reviewed.getString(R.string.completion_card_request)
+            fun bubbleTexts(tag: String) = descendants(reviewed.window.decorView)
+                .filter { it.tag == tag && it.isShown }
+                .flatMap { row -> descendants(row).filterIsInstance<TextView>() }
+                .filter { it.getGlobalVisibleRect(Rect()) }
+                .map { it.text.toString() }.toList()
+            await("ordinary Chat displays the completion question and its offline reply") {
+                bubbleTexts("ai/chat/user").count { it == question } == 1 &&
+                    bubbleTexts("ai/chat/assistant").contains(reply) && reviewed.hasWindowFocus()
+            }
+            fun messagesForRequest(index: Int): List<JSONObject> {
+                val messages = JSONObject(sandbox.lastBodies[index]).getJSONArray("messages")
+                return (0 until messages.length()).map(messages::getJSONObject)
+            }
+            check(sandbox.requestCount == requestCount + 2)
+            val userText = messagesForRequest(requestCount).last { it.getString("role") == "user" }.getString("content")
+            check(userText.startsWith(question) && "shotId=${entry.id}." in userText && feedbackId !in userText)
+            val toolResult = messagesForRequest(requestCount + 1).single { it.getString("role") == "tool" }
+            check(toolResult.getString("tool_call_id") == "call1")
+            val samples = JSONObject(toolResult.getString("content"))
+            check(samples.getString("status") == "available" && samples.getString("shotId") == entry.id)
+            val saved = persistedSamples.load(entry.id)
+            val observed = samples.getJSONArray("items")
+            check(samples.getInt("total") == saved.size && observed.length() == 2)
+            saved.take(2).forEachIndexed { index, point ->
+                val item = observed.getJSONObject(index)
+                check(item.getLong("elapsedMs") == point.elapsedMs &&
+                    item.getDouble("pressureBar") == point.pressureTenthsBar / 10.0)
+            }
+            val chatScreenshot = requireNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(app.filesDir, "completion-chat.png").outputStream().use {
+                    check(chatScreenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { chatScreenshot.recycle() }
+            val followUp = "What should I change next?"
+            val followUpReply = "Change only the grind setting so you can compare the two cups."
+            sandbox.enqueue(body = AiAndroidHttpSandbox.answer(followUpReply))
+            test.runOnMainSync {
+                val views = descendants(reviewed.window.decorView)
+                val input = views.filterIsInstance<EditText>().single()
+                check(input.text.toString() == draft)
+                input.setText(followUp)
+                val send = views.single { it.contentDescription == reviewed.getString(R.string.ai_send) }
+                check(send.isEnabled && send.performClick())
+            }
+            await("ordinary follow-up stays in the completed cup's conversation") {
+                bubbleTexts("ai/chat/user").containsAll(listOf(question, followUp)) &&
+                    bubbleTexts("ai/chat/assistant").contains(followUpReply)
+            }
+            check(sandbox.requestCount == requestCount + 3)
+            val followUpUsers = messagesForRequest(requestCount + 2)
+                .filter { it.getString("role") == "user" }.map { it.getString("content") }
+            check(followUpUsers.takeLast(2) == listOf(userText, followUp))
+            sandbox.assertDrained()
+            test.runOnMainSync { reviewed.finish() }
+            await("returning from normal Chat leaves the same Extraction page without reopening the card") {
                 !page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page &&
-                    page.lifecycle.currentState == Lifecycle.State.RESUMED
+                    page.lifecycle.currentState == Lifecycle.State.RESUMED && main.hasWindowFocus()
             }
         } finally {
             test.runOnMainSync {
+                chat?.finish()
                 service.clearScaleVisualInput(clock)
                 check(feedback.setEnabled(previous))
+            }
+            check(consent.edit().remove(AiConsentPolicy.VERSION_KEY).commit())
+            if (seededKey) {
+                check(key.delete())
+                androidKeys.deleteEntry(keyAlias)
             }
         }
     }

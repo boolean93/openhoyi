@@ -67,9 +67,10 @@ if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGAT
     raise SystemExit('Manual live navigation failed; evidence retained')
 PY
   adb exec-out run-as "$app" cat files/porcelain-manual-result.png > "$results/porcelain-manual-result.png"
+  adb exec-out run-as "$app" cat files/completion-chat.png > "$results/completion-chat.png"
 fi
 
-# Check flow feedback, conditional AI review and dismissal in the native dialog.
+# Check flow feedback, conditional AI review and dismissal in the isolated native dialog.
 python3 - "$results/completion-dialog.txt" <<'PY'
 from pathlib import Path
 import subprocess, sys

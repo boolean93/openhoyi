@@ -103,7 +103,9 @@ internal class AiAndroidHttpSandbox private constructor() {
         fun answer(text: String, finishReason: String = "stop"): String =
             """{"id":"fixture","system_fingerprint":"fixture","object":"chat.completion","created":1,"model":"deepseek-flash","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"offline fixture reasoning","content":${org.json.JSONObject.quote(text)}},"finish_reason":${org.json.JSONObject.quote(finishReason)}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"""
 
-        val toolAnswer: String get() =
-            """{"id":"fixture","system_fingerprint":"fixture","object":"chat.completion","created":1,"model":"deepseek-flash","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"offline fixture reasoning","content":null,"tool_calls":[{"id":"call1","type":"function","function":{"name":"current_status","arguments":"{}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"""
+        val toolAnswer: String get() = toolAnswer("current_status", "{}")
+
+        fun toolAnswer(name: String, arguments: String): String =
+            """{"id":"fixture","system_fingerprint":"fixture","object":"chat.completion","created":1,"model":"deepseek-flash","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"offline fixture reasoning","content":null,"tool_calls":[{"id":"call1","type":"function","function":{"name":${org.json.JSONObject.quote(name)},"arguments":${org.json.JSONObject.quote(arguments)}}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"""
     }
 }

@@ -55,6 +55,14 @@ class AiCredentialPolicyTest(unittest.TestCase):
         self.assertIn("isLongClickable = false", key)
         self.assertIn("setTextIsSelectable(false)", key)
 
+    def test_completion_review_uses_the_private_chat_activity(self):
+        activities = {activity.get(ANDROID + "name"): activity
+                      for activity in self.application().findall("activity")}
+        chat = activities[".AiChatActivity"]
+        self.assertEqual("false", chat.get(ANDROID + "exported"))
+        self.assertIsNone(chat.find("intent-filter"))
+        self.assertNotIn(".CompletionReviewChatActivity", activities)
+
     def test_file_providers_are_private_and_share_only_verified_updates(self):
         providers = self.application().findall("provider")
         contracts = {

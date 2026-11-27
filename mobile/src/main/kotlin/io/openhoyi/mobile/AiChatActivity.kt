@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.content.ServiceConnection
@@ -64,6 +65,7 @@ internal class AiChatViewState : ViewModel() {
     val attachments = mutableListOf<AiAttachment>()
     var attachmentGeneration = 0L
     val submission = AiChatPendingDraft()
+    var completionReviewTicket: String? = null
     var draft: String
         get() = submission.draft
         set(value) { submission.draft = value }
@@ -86,6 +88,12 @@ class AiChatActivity : ThemedActivity() {
         internal const val SETTINGS_MODEL = "model"
         internal const val SETTINGS_REASONING = "reasoning"
         internal const val SETTINGS_USAGE = "usage"
+        private const val COMPLETION_REVIEW_TICKET = "openhoyi.completion-review-ticket"
+
+        internal fun completionReviewIntent(context: Context, ticket: String): Intent =
+            Intent(context, AiChatActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                .putExtra(COMPLETION_REVIEW_TICKET, ticket)
     }
     private val memory by lazy { ViewModelProvider(this)[AiChatViewState::class.java] }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -110,6 +118,8 @@ class AiChatActivity : ThemedActivity() {
     private var pickerEpoch: String? = null
     private var pickerGeneration = -1L
     private var busy = false
+    private var pendingCompletionQuestion: String? = null
+    private val completionReviewAccess get() = (application as MobileApplication).completionShotReviewAccess
     private var generation = 0L
     private var consentDialog: AlertDialog? = null
     private var linkDialog: AlertDialog? = null
@@ -148,6 +158,7 @@ class AiChatActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         restoreSession()
+        if (savedInstanceState == null) memory.completionReviewTicket = intent.getStringExtra(COMPLETION_REVIEW_TICKET)
         pickerEpoch = savedInstanceState?.getString("ai-picker-epoch")
         pickerGeneration = savedInstanceState?.getLong("ai-picker-generation", -1L) ?: -1L
         visual = SettingsVisualStyle(this)
@@ -215,6 +226,42 @@ class AiChatActivity : ThemedActivity() {
         memory.keyRevision = revision
         if (consented()) binding.start()
     }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Reuse the suspended chat when it opened the extraction page via a curve card.
+        intent.getStringExtra(COMPLETION_REVIEW_TICKET)?.let { memory.completionReviewTicket = it }
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        val ticket = memory.completionReviewTicket ?: return
+        if (!completionReviewAccess.hasConfiguredKey()) {
+            abandonCompletionReview()
+            memory.notice = R.string.ai_key_unavailable
+            render()
+            return
+        }
+        withChatConsent(onCancelled = {
+            if (!isChangingConfigurations) abandonCompletionReview()
+        }) {
+            memory.completionReviewTicket = null
+            val review = completionReviewAccess.consume(ticket, consent = true)
+            if (review == null) {
+                memory.notice = R.string.completion_card_unavailable
+                render()
+            } else {
+                confirmAttachments(emptyList()) {
+                    begin(review.line(getString(R.string.completion_card_request)), review.keyRevision)
+                }
+            }
+        }
+    }
+
+    private fun abandonCompletionReview() {
+        memory.completionReviewTicket?.let(completionReviewAccess::abandon)
+        memory.completionReviewTicket = null
+    }
+
     private fun restoreSession() {
         if (!memory.restored) {
             memory.restored = true
@@ -498,16 +545,24 @@ class AiChatActivity : ThemedActivity() {
             }
     }
     private fun confirmAttachments(text: String) {
-        val active = memory.protocol.messages.any { AiAttachmentConversation.items(it).isNotEmpty() }
-        if (memory.attachments.isEmpty() && !active) { begin(text); return }
+        confirmAttachments(memory.attachments) {
+            if (input.text.toString().ifBlank { getString(R.string.ai_attachment_question) } == text) begin(text)
+        }
+    }
+
+    private fun confirmAttachments(outgoing: List<AiAttachment>, onConfirmed: () -> Unit) {
         if (attachmentDialog != null || busy || attachmentBusy) return
+        val history = memory.protocol
+        val active = history.messages.any { AiAttachmentConversation.items(it).isNotEmpty() }
+        if (outgoing.isEmpty() && !active) { onConfirmed(); return }
         val epoch = memory.credentialEpoch
         val version = memory.attachmentGeneration
         attachmentDialog = AlertDialog.Builder(this).setTitle(R.string.ai_attachment_send_title)
             .setMessage(R.string.ai_attachment_send_body)
             .setNegativeButton(R.string.ai_cancel, null)
             .setPositiveButton(R.string.ai_attachment_send) { _, _ ->
-                if (epoch == memory.credentialEpoch && version == memory.attachmentGeneration && input.text.toString().ifBlank { getString(R.string.ai_attachment_question) } == text) begin(text)
+                if (epoch == memory.credentialEpoch && version == memory.attachmentGeneration && history === memory.protocol)
+                    onConfirmed()
             }.create().also { dialog ->
                 dialog.setOnDismissListener { if (attachmentDialog === dialog) attachmentDialog = null }
                 dialog.show(); visual.dialog(dialog)
@@ -645,17 +700,26 @@ class AiChatActivity : ThemedActivity() {
         if (AiKeyStore(this).status() != AiKeyStatus.SAVED) {
             memory.notice = R.string.ai_key_unavailable; render(); return
         }
-        if (consented()) { sendAfterConsent(text); return }
+        withChatConsent { sendAfterConsent(text) }
+    }
+
+    private fun withChatConsent(onCancelled: () -> Unit = {}, onAuthorized: () -> Unit) {
+        if (consented()) { onAuthorized(); return }
         if (consentDialog != null) return
+        var agreed = false
         consentDialog = AlertDialog.Builder(this).setTitle(R.string.ai_consent_title).setMessage(getString(R.string.ai_consent_body, AiChatPolicy.SEARCH_CALLS))
             .setNegativeButton(R.string.ai_cancel, null)
             .setPositiveButton(R.string.ai_agree) { _, _ ->
                 // Memory-only assent is sufficient for this send if persistence fails; retry asks again.
                 getSharedPreferences("ai_consent", MODE_PRIVATE).edit().putInt(AiConsentPolicy.VERSION_KEY, AiConsentPolicy.CURRENT_VERSION).commit()
                 binding.start()
-                sendAfterConsent(text)
+                agreed = true
+                onAuthorized()
             }.create().also { dialog ->
-                dialog.setOnDismissListener { consentDialog = null }
+                dialog.setOnDismissListener {
+                    consentDialog = null
+                    if (!agreed) onCancelled()
+                }
                 dialog.show(); visual.dialog(dialog)
                 listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE).forEach { which ->
                     dialog.getButton(which)?.apply { setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null }
@@ -675,9 +739,23 @@ class AiChatActivity : ThemedActivity() {
         }
         confirmAttachments(text)
     }
-    private fun begin(text: String) {
-        val attachments = sendAttachments()
-        if (busy || attachmentBusy || !AiChatPolicy.accepts(memory.lines, text) || !memory.submission.begin(text)) return
+    private fun begin(text: String) = begin(AiChatLine(true, text, sendAttachments()))
+
+    private fun begin(line: AiChatLine, expectedKeyRevision: Long? = null) {
+        val text = line.wireText
+        val attachments = line.attachments
+        val preservesDraft = line.completionShotId != null
+        if (busy || attachmentBusy) return
+        if (!AiChatPolicy.accepts(memory.lines, text)) {
+            memory.notice = R.string.ai_storage_limit
+            render()
+            return
+        }
+        if (preservesDraft) {
+            // The completion question is not a draft and never inherits draft attachments.
+            rememberInput()
+            pendingCompletionQuestion = line.text
+        } else if (!memory.submission.begin(line.text)) return
         cancelCurveProposal()
         busy = true
         compactionStatus = CompactionStatus.IDLE
@@ -690,17 +768,19 @@ class AiChatActivity : ThemedActivity() {
         memory.notice = 0
         memory.diagnostic = null
         memory.failureAttemptId = null; memory.failureNotice = 0; retryProgress = null
-        memory.selectionStart = input.selectionStart.coerceAtLeast(0)
-        memory.selectionEnd = input.selectionEnd.coerceAtLeast(0)
-        input.text.clear()
+        if (!preservesDraft) {
+            memory.selectionStart = input.selectionStart.coerceAtLeast(0)
+            memory.selectionEnd = input.selectionEnd.coerceAtLeast(0)
+            input.text.clear()
+        }
         render()
         scroll?.post { scroll?.fullScroll(View.FOCUS_DOWN) }
-        // Save the pending question as a draft before any request or tool can begin.
+        // Checkpoint the draft before any request or tool can begin.
         if (!persistSession()) {
-            restorePendingDraft(); busy = false; render(); return
+            finishPendingSubmission(); busy = false; render(); return
         }
         if (!synchronized(sessionLock) { sessionBase?.let(AiSessionCodec::hasTurnHeadroom) == true }) {
-            restorePendingDraft(); busy = false; memory.notice = R.string.ai_storage_limit; render(); return
+            finishPendingSubmission(); busy = false; memory.notice = R.string.ai_storage_limit; render(); return
         }
         val initialization = AiDiagnostics()
         val attempt = requestDiagnostics.begin(memory.protocol.modelId)
@@ -741,7 +821,7 @@ class AiChatActivity : ThemedActivity() {
                     }
                 }, onCompactionStarted = {
                     if (token == generation) { compactionStatus = CompactionStatus.RUNNING; render() }
-                }) { compacted ->
+                }, expectedKeyRevision = expectedKeyRevision) { compacted ->
                     if (token != generation || AiKeyStore(this@AiChatActivity).credentialEpoch() != memory.credentialEpoch) false
                     else {
                         val previous = memory.protocol
@@ -759,14 +839,17 @@ class AiChatActivity : ThemedActivity() {
                     }
                 }
                 if (token != generation) return@launch
-                memory.lines += AiChatLine(true, text, attachments)
+                memory.lines += line
                 memory.protocol = result.history
                 val proposalCard = coordinator?.pending(curveEpoch())?.let { runCatching { AiCurveCard.proposal(it) }.getOrNull() }
                 memory.lines += AiChatLine(false, result.text, curveCards = result.curveCards + listOfNotNull(proposalCard))
-                memory.submission.committed()
+                if (!preservesDraft) {
+                    memory.submission.committed()
+                    memory.attachments.clear()
+                    memory.attachmentGeneration++
+                }
                 rememberInput()
                 preview.finish()
-                memory.attachments.clear(); memory.attachmentGeneration++
                 requestDiagnostics.succeeded(attempt)
             } catch (_: CancellationException) {
                 if (token == generation) preview.interrupt()
@@ -821,7 +904,7 @@ class AiChatActivity : ThemedActivity() {
                 if (diagnosticAttempt === attempt) diagnosticAttempt = null
                 if (token == generation) {
                     if (compactionStatus == CompactionStatus.RUNNING) compactionStatus = CompactionStatus.FAILED
-                    restorePendingDraft()
+                    finishPendingSubmission()
                     busy = false; request = null; retryProgress = null
                     // Partial/safety/error results may keep display evidence, never a live save action.
                     cancelCurveProposal()
@@ -854,7 +937,7 @@ class AiChatActivity : ThemedActivity() {
         if (!busy) return
         diagnosticAttempt?.let(requestDiagnostics::cancelled); diagnosticAttempt = null
         generation++; request?.cancel(); request = null; busy = false
-        restorePendingDraft()
+        finishPendingSubmission()
         memory.diagnostic = null
         memory.notice = R.string.ai_interrupted
         persistSession()
@@ -957,11 +1040,13 @@ class AiChatActivity : ThemedActivity() {
         val ocrStatus = memory.ocr.filter { record -> memory.attachments.any { it.id == record.original.id } }.joinToString("\n") {
             it.original.name + ": " + getString(ocrNotice(it.status)) + (it.pages?.let { count -> "\n" + getString(R.string.ai_ocr_reference, count, it.referenceInput ?: 0, it.referenceOutput ?: 0) } ?: "")
         }
-        presentation.render(memory.lines, memory.submission.pending ?: memory.draft, busy, listOf(compactionMessage, statusText.takeUnless { compactionStatus == CompactionStatus.RUNNING && retryProgress == null }.orEmpty(), contextStatus, ocrStatus).filter { it.isNotBlank() }.joinToString("\n"), memory.attachments, attachmentBusy, memory.protocol.modelId, memory.credentialEpoch, "${memory.credentialEpoch}:${memory.protocol.modelId}:${memory.contextGeneration}",
-            allowDraftWhileBusy = canEditDuringReply(), draftCapacity = memory.submission.remainingDraftCapacity(AiChatPolicy.INPUT_CHARS))
+        presentation.render(memory.lines, pendingCompletionQuestion ?: memory.submission.pending ?: memory.draft, busy, listOf(compactionMessage, statusText.takeUnless { compactionStatus == CompactionStatus.RUNNING && retryProgress == null }.orEmpty(), contextStatus, ocrStatus).filter { it.isNotBlank() }.joinToString("\n"), memory.attachments, attachmentBusy, memory.protocol.modelId, memory.credentialEpoch, "${memory.credentialEpoch}:${memory.protocol.modelId}:${memory.contextGeneration}",
+            allowDraftWhileBusy = canEditDuringReply(), draftCapacity = memory.submission.remainingDraftCapacity(AiChatPolicy.INPUT_CHARS),
+            pendingAttachments = if (pendingCompletionQuestion != null) emptyList() else memory.attachments)
         presentation.updateStreamPreview(streamPreview.snapshot())
     }
-    private fun restorePendingDraft() {
+    private fun finishPendingSubmission() {
+        pendingCompletionQuestion = null
         val draft = memory.submission.restore(if (::input.isInitialized) input.text.toString() else "") ?: return
         if (::input.isInitialized) {
             presentation.setDraftCapacity(AiChatPolicy.INPUT_CHARS)
@@ -997,6 +1082,7 @@ class AiChatActivity : ThemedActivity() {
         super.onStop()
     }
     override fun onDestroy() {
+        if (isFinishing) abandonCompletionReview()
         // A cancelled transport can finish on IO after this Activity has been replaced.
         synchronized(sessionLock) { usageGeneration++ }
         presentation.dismissOptions()

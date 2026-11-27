@@ -766,6 +766,7 @@ internal class AiChatPresentation(
         val lines: List<AiChatLine>,
         val busy: Boolean,
         val pendingDraft: String?,
+        val pendingAttachments: List<AiAttachment>,
         val attachments: List<AiAttachment>,
         val draftImagesEnabled: Boolean,
         val ownerEpoch: String?,
@@ -776,7 +777,7 @@ internal class AiChatPresentation(
     private var renderedContent: ContentRender? = null
 
     private fun renderContent(state: ContentRender) {
-        val (lines, busy, draft, attachments, draftImagesEnabled, ownerEpoch, previewSession) = state
+        val (lines, busy, draft, pendingAttachments, attachments, draftImagesEnabled, ownerEpoch, previewSession) = state
         val cardActions = state.cardActions.iterator()
         // Synthetic offline shells pass no owner, so they never open storage or create a loader.
         if (ownerEpoch != null && imagePreviews == null) imagePreviews = AiImagePreviews(context, root)
@@ -812,8 +813,8 @@ internal class AiChatPresentation(
                 style.add(transcript, cardHost, 8)
             }
         }
-        if (busy) bubble(AiImagePreviewPolicy.visibleText(requireNotNull(draft), attachments), true,
-            attachments.filter { it.kind == AiAttachmentKind.IMAGE })
+        if (busy) bubble(AiImagePreviewPolicy.visibleText(requireNotNull(draft), pendingAttachments), true,
+            pendingAttachments.filter { it.kind == AiAttachmentKind.IMAGE })
         style.add(transcript, streamHost, 8)
         style.add(transcript, status, 12)
         renderDraftImages(if (busy) emptyList() else attachments, draftImagesEnabled)
@@ -826,7 +827,7 @@ internal class AiChatPresentation(
         input.filters = arrayOf(InputFilter.LengthFilter(capacity))
     }
 
-    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null, allowDraftWhileBusy: Boolean = false, draftCapacity: Int = AiChatPolicy.INPUT_CHARS) {
+    fun render(lines: List<AiChatLine>, draft: String, busy: Boolean, statusText: String, attachments: List<AiAttachment> = emptyList(), attachmentBusy: Boolean = false, modelId: String = AiModelPolicy.FLASH, ownerEpoch: String? = null, previewSession: String? = null, allowDraftWhileBusy: Boolean = false, draftCapacity: Int = AiChatPolicy.INPUT_CHARS, pendingAttachments: List<AiAttachment> = attachments) {
         currentModelId = AiModelPolicy.known(modelId).id
         this.busy = busy
         val cardActions = lines.filterNot { it.user }.flatMap { line ->
@@ -834,7 +835,7 @@ internal class AiChatPresentation(
         }
         // A status refresh must not detach the view that owns an in-flight long press.
         // Snapshot the mutable host lists; actual content, ownership or card action changes still rebuild.
-        val content = ContentRender(lines.toList(), busy, draft.takeIf { busy }, attachments.toList(),
+        val content = ContentRender(lines.toList(), busy, draft.takeIf { busy }, pendingAttachments.takeIf { busy }.orEmpty().toList(), attachments.toList(),
             !busy && !attachmentBusy, ownerEpoch, previewSession, cardActions)
         if (content != renderedContent) {
             dismissMessageCopy()
