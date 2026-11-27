@@ -50,6 +50,7 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
         onProgress: (AiStreamDelta) -> Unit = {},
         onToolStarted: () -> Unit = {},
         onCompactionStarted: () -> Unit = {},
+        expectedKeyRevision: Long? = null,
         onCompacted: (AiProtocolHistory) -> Boolean = { false }): AiChatReply {
         val replyScope = AiReplyScope()
         return replyScope.run {
@@ -57,6 +58,7 @@ internal class AiChatEngine(private val context: Context, private val data: AiRe
             if (modelId != history.modelId || !AiModelPolicy.accepts(modelId, attachments + history.messages.flatMap { AiAttachmentConversation.items(it) })) throw AiFailure(AiProblem.MODEL)
             if (credentials.status() != AiKeyStatus.SAVED) throw AiFailure(AiProblem.KEY)
             val revision = credentials.revision()
+            if (expectedKeyRevision != null && revision != expectedKeyRevision) throw AiFailure(AiProblem.KEY)
             val epoch = credentials.credentialEpoch() ?: throw AiFailure(AiProblem.KEY)
             val vault = AiAttachmentVault(context, epoch)
             val attachmentMessages = listOf(AiAttachmentConversation.message(input, attachments))
@@ -136,7 +138,7 @@ internal class AiChatSession(
             val config = AIAgentConfig(
                 prompt = prompt("openhoyi-chat", params) {
                     system(AiChatPolicy.SYSTEM)
-                    lines.forEach { if (it.user) user(it.text) else assistant(it.text) }
+                    lines.forEach { if (it.user) user(it.wireText) else assistant(it.text) }
                 },
                 model = LLModel(provider = LLMProvider.DeepSeek, id = AiModelPolicy.known(modelId).id,
                     capabilities = listOf(LLMCapability.Completion, LLMCapability.Tools, LLMCapability.Temperature),
@@ -235,10 +237,10 @@ internal class AiChatSession(
             if (!validArgs(args, setOf("offset", "limit", "curveId"))) invalid()
             else withContext(Dispatchers.IO) { data.history(string(args, "curveId"), integer(args, "offset", 0), integer(args, "limit", 10)) }
         })
-        tool(readTool("extraction_samples", "Read saved sample pages for an exact extraction_history shotId, not current status. Respect units, nulls and source/segment metadata; never reconstruct missing data. Follow nextOffset only as needed and disclose truncation.",
+        tool(readTool("extraction_samples", "Read saved samples for an exact shotId, not live status. Respect units, nulls and source/segment metadata; never reconstruct missing data. Follow nextOffset only as needed and disclose truncation.",
             optional = listOf(ToolParameterDescriptor("offset", "Sample offset 0..2000", ToolParameterType.Integer),
                 ToolParameterDescriptor("limit", "Samples per page 1..100; default 100", ToolParameterType.Integer)),
-            required = listOf(ToolParameterDescriptor("shotId", "Exact shotId returned by extraction_history, [A-Za-z0-9-]{1,64}", ToolParameterType.String))) { args ->
+            required = listOf(ToolParameterDescriptor("shotId", "Exact shotId, [A-Za-z0-9-]{1,64}", ToolParameterType.String))) { args ->
             val id = string(args, "shotId")
             if (!validArgs(args, setOf("shotId", "offset", "limit")) || id == null || !AiExtractionSamples.validId(id) ||
                 integer(args, "offset", 0) !in 0..2000 || integer(args, "limit", 100) !in 1..100) invalid()

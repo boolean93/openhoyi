@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="completion_card_review">AI 评价</string>
-    <string name="completion_card_waiting">正在评价本杯…</string>
     <string name="completion_card_unavailable">评价暂不可用</string>
-    <string name="completion_card_unknown">评价结果未确认</string>
-    <string name="completion_card_request">请根据刚结束这一杯的萃取曲线评价一下，给出下一杯最值得调整的一点。</string>
+    <string name="completion_card_request">帮我看看刚结束这杯的萃取曲线，下一杯最值得调哪里？</string>
     <string name="completion_card_saving">保存采样中…</string>
     <string name="completion_card_no_samples">采样不可用</string>
     <string name="completion_card_weight">液重</string>

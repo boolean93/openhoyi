@@ -1,6 +1,5 @@
 package io.openhoyi.mobile
 
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -14,20 +13,27 @@ class CompletionShotReviewTest {
         val first = feedback("manual-provisional")
         val capture = requireNotNull(route.begin(first, "manual-persisted"))
         assertNull(route.issue(first, 3))
-        route.persisted(capture, "only first cup")
+        route.persisted(capture)
         assertEquals("ticket", route.issue(first, 3))
         assertNull(route.issue(first, 3))
         val second = feedback("second")
         val next = requireNotNull(route.begin(second, "second-persisted"))
-        route.persisted(capture, "stale overwrite")
+        route.persisted(capture)
         assertFalse(route.ready(second))
-        route.persisted(next, "only second cup")
+        route.persisted(next)
         assertTrue(route.ready(second))
         assertNull(route.issue(second, 3)) // Do not overwrite the first pending navigation.
         assertNull(route.consume("ticket", 3, false))
         val request = requireNotNull(route.consume("ticket", 3, true))
         assertEquals("manual-persisted", request.historyId)
-        assertEquals("only first cup", request.body)
+        val visibleQuestion = "Can you review the shot I just finished?"
+        val line = request.line(visibleQuestion)
+        assertEquals(visibleQuestion, line.text)
+        val outbound = line.wireText
+        assertTrue(outbound.startsWith(visibleQuestion))
+        assertTrue(outbound.contains("shotId=manual-persisted"))
+        assertFalse(outbound.contains("second-persisted"))
+        assertFalse(outbound.contains("manual-provisional"))
         assertNull(route.consume("ticket", 3, true))
     }
 
@@ -35,30 +41,24 @@ class CompletionShotReviewTest {
         val route = CompletionShotReview { "ticket" }
         val cup = feedback("manual-provisional")
         val capture = requireNotNull(route.begin(cup, "persisted"))
-        route.persisted(capture, "body")
+        route.persisted(capture)
         assertNull(route.issue(cup, null))
         assertEquals("ticket", route.issue(cup, 1))
         assertNull(route.consume("ticket", 2, true))
         assertNull(route.consume("ticket", 1, true))
         val next = requireNotNull(route.begin(cup, "other"))
-        route.persisted(next, "other body")
+        route.persisted(next)
         assertEquals("ticket", route.issue(cup, 2))
         route.abandon("ticket")
         assertNull(route.consume("ticket", 2, true))
     }
 
-    @Test fun fakeProviderReceivesOnlyExplicitEvidenceOnce() = runBlocking {
-        val request = CompletionShotReview.Request("record", "one-cup evidence", 3)
-        var calls = 0
-        val send: suspend (CompletionShotReview.Request) -> String = {
-            calls++
-            assertEquals("one-cup evidence", it.body)
-            """{"choices":[{"finish_reason":"stop","message":{"content":"{\"good\":\"stable\",\"deviation\":\"none\",\"nextCup\":\"measure dose\"}"}}]}"""
-        }
-        assertEquals(ShotReviewStatus.FAILED, runCompletionShotReview(request, { false }, send).status)
-        assertEquals(ShotReviewResult(ShotReviewStatus.READY, "stable\nnone\nmeasure dose"),
-            runCompletionShotReview(request, { true }, send))
-        assertEquals(ShotReviewStatus.FAILED, runCompletionShotReview(request, { true }, send).status)
-        assertEquals(1, calls)
+    @Test fun aFailedSampleReadDoesNotEnableTheReview() {
+        val route = CompletionShotReview()
+        val cup = feedback("cup")
+        val capture = requireNotNull(route.begin(cup, "cup"))
+        route.persisted(capture, hasSamples = false)
+        assertEquals(CompletionShotReview.Availability.UNAVAILABLE, route.availability(cup))
+        assertNull(route.issue(cup, 1))
     }
 }

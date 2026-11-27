@@ -51,6 +51,17 @@ class AiSessionStoreTest {
         assertEquals(1L, recovered.snapshot().unknownChat)
         assertEquals(1L, recovered.snapshot().requests)
     }
+    @Test fun completedShotKeepsItsExactProtocolAnchorAfterRestoration() {
+        val base = state()
+        val question = "帮我看看刚结束这杯的萃取曲线。"
+        val lines = listOf(AiChatLine(true, question, completionShotId = "first-cup"), base.lines.last())
+        val protocol = AiProtocolHistory.checked(AiContextPolicy.lines(lines))
+        val restored = AiSessionCodec.decode(AiSessionCodec.encode(AiSession(epoch, lines, protocol, base.draft, base.usage)))
+        assertEquals(question, restored.lines.first().text)
+        assertEquals("first-cup", restored.lines.first().completionShotId)
+        assertTrue(restored.protocol.messages.first().getValue("content").jsonPrimitive.content.contains("shotId=first-cup"))
+        assertEquals(base.draft, restored.draft)
+    }
     @Test fun credentialChangeIsolatesSession() {
         val storage = Storage(); val keys = Keys(); val store = AiSessionStore(storage, keys)
         store.load(epoch); assertTrue(store.save(state()))
@@ -82,7 +93,7 @@ class AiSessionStoreTest {
         val mismatch = AiSession(epoch, emptyList(), good.protocol, "", good.usage)
         assertTrue(runCatching { AiSessionCodec.encode(mismatch) }.isFailure)
         val encoded = AiSessionCodec.encode(good).toString(Charsets.UTF_8)
-        assertTrue(runCatching { AiSessionCodec.decode(encoded.replace("\"schema\":6", "\"schema\":7").toByteArray()) }.isFailure)
+        assertTrue(runCatching { AiSessionCodec.decode(encoded.replace("\"schema\":6", "\"schema\":8").toByteArray()) }.isFailure)
         assertTrue(runCatching { AiSessionCodec.decode(ByteArray(AiSessionCodec.MAX_BYTES + 1)) }.isFailure)
     }
     @Test fun unreadableStorageNeverCreatesReplacementKey() {

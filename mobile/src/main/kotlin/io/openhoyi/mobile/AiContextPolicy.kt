@@ -59,7 +59,7 @@ internal object AiContextPolicy {
         (it["role"] == JsonPrimitive("assistant") && (it["tool_calls"] as? JsonArray).isNullOrEmpty()) }
         .map { JsonObject(it.filterKeys { k -> k == "role" || k == "content" || k == AiAttachmentConversation.FIELD }) }
     fun lines(lines: List<AiChatLine>) = lines.map {
-        AiAttachmentConversation.withItems(buildJsonObject { put("role", if (it.user) "user" else "assistant"); put("content", it.text) }, it.attachments)
+        AiAttachmentConversation.withItems(buildJsonObject { put("role", if (it.user) "user" else "assistant"); put("content", it.wireText) }, it.attachments)
     }
     fun matches(history: AiProtocolHistory, lines: List<AiChatLine>) = history.coveredLines <= lines.size &&
         visible(history.messages) == lines(lines.drop(history.coveredLines))

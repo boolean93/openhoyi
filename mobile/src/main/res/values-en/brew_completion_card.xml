@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="completion_card_review">AI review</string>
-    <string name="completion_card_waiting">Reviewing this extraction…</string>
     <string name="completion_card_unavailable">Review unavailable</string>
-    <string name="completion_card_unknown">Review outcome not confirmed</string>
-    <string name="completion_card_request">Review the extraction curve for the shot I just finished and suggest the single most useful adjustment for the next shot.</string>
+    <string name="completion_card_request">Can you review the extraction curve for the shot I just finished? What should I change first for the next one?</string>
     <string name="completion_card_saving">Saving samples…</string>
     <string name="completion_card_no_samples">Samples unavailable</string>
     <string name="completion_card_weight">Liquid weight</string>

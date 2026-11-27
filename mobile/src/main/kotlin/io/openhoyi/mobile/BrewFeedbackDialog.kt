@@ -74,7 +74,7 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
         val card = BrewCompletionDialog(activity, result.level, result.completionWeight, result.endCupCount) {
             val ticket = reviewAccess.issue(result) ?: return@BrewCompletionDialog
             stop()
-            try { activity.startActivity(CompletionReviewChatActivity.intent(activity, ticket)) }
+            try { activity.startActivity(AiChatActivity.completionReviewIntent(activity, ticket)) }
             catch (_: RuntimeException) { reviewAccess.abandon(ticket) }
         }
         val created = card.dialog
