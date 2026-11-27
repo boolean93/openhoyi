@@ -49,7 +49,7 @@ adb shell wm dismiss-keyguard
 adb install "$app_apk"
 adb install "$test_apk"
 if [[ "$mode" != "--completion-only" ]]; then
-python3 - "$results/result.txt" <<'PY'
+if ! python3 - "$results/result.txt" <<'PY'
 from pathlib import Path
 import subprocess, sys
 output = Path(sys.argv[1])
@@ -66,6 +66,14 @@ if (result.returncode or 'INSTRUMENTATION_RESULT: manualLive=MANUAL_LIVE_NAVIGAT
         or 'INSTRUMENTATION_CODE: -1' not in lines):
     raise SystemExit('Manual live navigation failed; evidence retained')
 PY
+then
+  for artifact in completion-chat-failure.json completion-chat-failure.png porcelain-manual-result.png completion-chat.png; do
+    if adb shell "run-as $app test -s files/$artifact"; then
+      adb exec-out run-as "$app" cat "files/$artifact" > "$results/$artifact"
+    fi
+  done
+  exit 1
+fi
   adb exec-out run-as "$app" cat files/porcelain-manual-result.png > "$results/porcelain-manual-result.png"
   adb exec-out run-as "$app" cat files/completion-chat.png > "$results/completion-chat.png"
 fi

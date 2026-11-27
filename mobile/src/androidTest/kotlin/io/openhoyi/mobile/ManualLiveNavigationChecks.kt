@@ -13,6 +13,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
@@ -329,6 +330,51 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
         var seededKey = false
         var chat: AiChatActivity? = null
         val draft = "Unsent coffee notes"
+        val reply = "For the next cup, try grinding slightly finer and keep the dose unchanged."
+        val followUp = "What should I change next?"
+        val followUpReply = "Change only the grind setting so you can compare the two cups."
+
+        fun captureWindow(name: String) {
+            val image = requireNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(app.filesDir, name).outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            } finally { image.recycle() }
+        }
+
+        fun captureFailure(activity: AiChatActivity?) {
+            val snapshot = JSONObject().put("requests", sandbox.requestCount - requestCount)
+            test.runOnMainSync {
+                if (activity != null && !activity.isDestroyed) {
+                    val state = ViewModelProvider(activity)[AiChatViewState::class.java]
+                    val question = activity.getString(R.string.completion_card_request)
+                    snapshot.put("lifecycle", activity.lifecycle.currentState.name)
+                        .put("windowFocused", activity.hasWindowFocus())
+                        .put("ticketPending", state.completionReviewTicket != null)
+                        .put("restored", state.restored)
+                        .put("credentialReady", state.credentialEpoch != null)
+                        .put("draftPreserved", state.draft == draft)
+                        .put("draftSendPending", state.submission.pending != null)
+                        .put("notice", if (state.notice == 0) "none" else activity.resources.getResourceEntryName(state.notice))
+                        .put("stage", state.diagnostic?.stage?.name ?: "none")
+                        .put("failureKind", state.diagnostic?.kind?.name ?: "none")
+                        .put("protocolMessages", state.protocol.messages.size)
+                        .put("transcriptLines", state.lines.size)
+                    val expected = listOf(question, reply, followUp, followUpReply)
+                    expected.forEachIndexed { index, text ->
+                        val tag = if (index % 2 == 0) "ai/chat/user" else "ai/chat/assistant"
+                        val matches = descendants(activity.window.decorView).filter { it.tag == tag }
+                            .flatMap { row -> descendants(row).filterIsInstance<TextView>() }
+                            .filter { it.text.toString() == text }.toList()
+                        snapshot.put("message$index", JSONObject()
+                            .put("committed", state.lines.count { it.text == text })
+                            .put("rendered", matches.size)
+                            .put("visible", matches.count { it.isShown && it.getGlobalVisibleRect(Rect()) }))
+                    }
+                }
+            }
+            File(app.filesDir, "completion-chat-failure.json").writeText(snapshot.toString(2))
+            captureWindow("completion-chat-failure.png")
+        }
         // The repository may return queued samples; a separate store proves disk readback.
         val persistedSamples = ShotSamplesStore(File(app.filesDir, "shot_samples"))
 
@@ -410,7 +456,6 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             } finally { screenshot.recycle() }
 
             check(sandbox.requestCount == requestCount)
-            val reply = "For the next cup, try grinding slightly finer and keep the dose unchanged."
             val toolArguments = JSONObject().put("shotId", entry.id).put("limit", 2)
             sandbox.enqueue(body = AiAndroidHttpSandbox.toolAnswer("extraction_samples", toolArguments.toString()))
             sandbox.enqueue(body = AiAndroidHttpSandbox.answer(reply))
@@ -457,14 +502,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 check(item.getLong("elapsedMs") == point.elapsedMs &&
                     item.getDouble("pressureBar") == point.pressureTenthsBar / 10.0)
             }
-            val chatScreenshot = requireNotNull(test.uiAutomation.takeScreenshot())
-            try {
-                File(app.filesDir, "completion-chat.png").outputStream().use {
-                    check(chatScreenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
-                }
-            } finally { chatScreenshot.recycle() }
-            val followUp = "What should I change next?"
-            val followUpReply = "Change only the grind setting so you can compare the two cups."
+            captureWindow("completion-chat.png")
             sandbox.enqueue(body = AiAndroidHttpSandbox.answer(followUpReply))
             test.runOnMainSync {
                 val views = descendants(reviewed.window.decorView)
@@ -488,6 +526,9 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 !page.feedbackUi.isShowing && main.supportFragmentManager.primaryNavigationFragment === page &&
                     page.lifecycle.currentState == Lifecycle.State.RESUMED && main.hasWindowFocus()
             }
+        } catch (failure: Throwable) {
+            runCatching { captureFailure(chat) }.exceptionOrNull()?.let(failure::addSuppressed)
+            throw failure
         } finally {
             test.runOnMainSync {
                 chat?.finish()

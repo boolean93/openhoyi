@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -101,11 +102,23 @@ internal class AiAndroidHttpSandbox private constructor() {
         }
 
         fun answer(text: String, finishReason: String = "stop"): String =
-            """{"id":"fixture","system_fingerprint":"fixture","object":"chat.completion","created":1,"model":"deepseek-flash","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"offline fixture reasoning","content":${org.json.JSONObject.quote(text)}},"finish_reason":${org.json.JSONObject.quote(finishReason)}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"""
+            stream(""""content":${JSONObject.quote(text)}""", finishReason)
 
         val toolAnswer: String get() = toolAnswer("current_status", "{}")
 
-        fun toolAnswer(name: String, arguments: String): String =
-            """{"id":"fixture","system_fingerprint":"fixture","object":"chat.completion","created":1,"model":"deepseek-flash","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"offline fixture reasoning","content":null,"tool_calls":[{"id":"call1","type":"function","function":{"name":${org.json.JSONObject.quote(name)},"arguments":${org.json.JSONObject.quote(arguments)}}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}"""
+        fun toolAnswer(name: String, arguments: String): String = stream(
+            """"tool_calls":[{"index":0,"id":"call1","type":"function","function":{"name":${JSONObject.quote(name)},"arguments":${JSONObject.quote(arguments)}}}]""",
+            "tool_calls",
+        )
+
+        private fun stream(delta: String, finishReason: String): String {
+            val header = """"id":"fixture","system_fingerprint":"fixture","object":"chat.completion.chunk","created":1,"model":"deepseek-flash""""
+            return listOf(
+                """{$header,"choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"offline fixture reasoning",$delta},"finish_reason":null}]}""",
+                """{$header,"choices":[{"index":0,"delta":{},"finish_reason":${JSONObject.quote(finishReason)}}]}""",
+                """{$header,"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}""",
+                "[DONE]",
+            ).joinToString(separator = "", transform = { "data: $it\n\n" })
+        }
     }
 }
