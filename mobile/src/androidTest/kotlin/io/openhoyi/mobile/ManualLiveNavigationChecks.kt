@@ -22,6 +22,7 @@ import io.openhoyi.protocol.ScaleEvidence
 import io.openhoyi.protocol.ScaleObservation
 import io.openhoyi.session.DeviceState
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.File
 import java.security.KeyStore
 
@@ -483,6 +484,7 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 bubbleTexts("ai/chat/user").count { it == question } == 1 &&
                     bubbleTexts("ai/chat/assistant").contains(reply) && reviewed.hasWindowFocus()
             }
+            captureWindow("completion-chat.png")
             fun messagesForRequest(index: Int): List<JSONObject> {
                 val messages = JSONObject(sandbox.lastBodies[index]).getJSONArray("messages")
                 return (0 until messages.length()).map(messages::getJSONObject)
@@ -492,7 +494,11 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
             check(userText.startsWith(question) && "shotId=${entry.id}." in userText && feedbackId !in userText)
             val toolResult = messagesForRequest(requestCount + 1).single { it.getString("role") == "tool" }
             check(toolResult.getString("tool_call_id") == "call1")
-            val samples = JSONObject(toolResult.getString("content"))
+            // Koog serializes the tool's String result as a JSON string in the message content.
+            val encodedSamples = JSONTokener(toolResult.getString("content"))
+            val rawSamples = encodedSamples.nextValue() as? String ?: error("Tool result was not a JSON string")
+            check(!encodedSamples.more()) { "Unexpected data after encoded tool result" }
+            val samples = JSONObject(rawSamples)
             check(samples.getString("status") == "available" && samples.getString("shotId") == entry.id)
             val saved = persistedSamples.load(entry.id)
             val observed = samples.getJSONArray("items")
@@ -502,7 +508,6 @@ internal class ManualLiveNavigationChecks(private val test: Instrumentation) {
                 check(item.getLong("elapsedMs") == point.elapsedMs &&
                     item.getDouble("pressureBar") == point.pressureTenthsBar / 10.0)
             }
-            captureWindow("completion-chat.png")
             sandbox.enqueue(body = AiAndroidHttpSandbox.answer(followUpReply))
             test.runOnMainSync {
                 val views = descendants(reviewed.window.decorView)
