@@ -23,7 +23,11 @@ data class ShotPoint(
     val beverageHundredthsGram: Int? = null,
     val beverageSource: BeverageWeightSource? = null,
     val beverageSegmentId: Int? = null,
-)
+) {
+    /** The 0x80 brew-wait bit marks a pump pause; the pressure field still reports a measurement. */
+    internal val chartPressureBar: Float?
+        get() = if (brewing == false && statusBits?.and(0x20) != 0x20) null else pressureTenthsBar / 10f
+}
 
 /** Same-cup timing snapshot; interrupted=true freezes the timer even when seconds is null. */
 data class ShotTimingEvidence(
@@ -185,7 +189,7 @@ class ShotSeries {
 
 /** Aligned display-only pressure values. Null marks a plot gap, not a deleted sample. */
 internal object RealtimeShotProjection {
-    fun values(points:List<ShotPoint>):List<Float?> = points.map { if(it.brewing==false)null else it.pressureTenthsBar/10f }
+    fun values(points: List<ShotPoint>): List<Float?> = points.map { it.chartPressureBar }
 }
 
 /** Observed interval only: never infer missing head/tail or sum contiguous fragments. */
