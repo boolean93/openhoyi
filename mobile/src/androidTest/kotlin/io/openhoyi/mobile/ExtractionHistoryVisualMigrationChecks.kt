@@ -34,7 +34,6 @@ import android.widget.EditText
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ListView
-import android.widget.Spinner
 import android.widget.TextView
 import io.openhoyi.bean.Bean
 import io.openhoyi.bean.BeanBatch
@@ -1046,18 +1045,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val explanation=requireNotNull(chart.embeddedExplanationView)
         val saved=scroll.scrollY;check(saved==0) {"M5 fresh initial History preview must not start pre-scrolled"}
         val nativeBefore=scope.journal.exportJson();val reached=JSONArray()
-        fun fixedActions() {
-            listOf("product/history/review" to 56,"product/history/full-page" to 48).forEach {(tag,minimum) ->
-                val action=requireNotNull(root(activity).findViewWithTag<Button>(tag))
-                check(action.height>=HoyiUi.dp(activity,minimum) && historyVisibility(action).getBoolean("complete") && whole(observation(action)))
-            }
-        }
         fun reach(view:View, name:String) {
             main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
             frames.committedFrame(root(activity))
-            capture(activity,File(folder,"states/history-preview-$name-reachable"))
+            if (view !is Button) capture(activity,File(folder,"states/history-preview-$name-reachable"))
             main {
-                check(historyVisibility(view).getBoolean("complete"));fixedActions()
+                check(historyVisibility(view).getBoolean("complete"))
+                if(view is Button) check(view.width>=HoyiUi.dp(activity,48) && view.height>=HoyiUi.dp(activity,48))
                 if(view is TextView)check(whole(observation(view))) {"M5 full explanation/note text cannot be reached"}
                 if(view===chart) {
                     val evidence=requireNotNull(embeddedHistoryEvidence(activity));val inks=evidence.getJSONArray("axisInk")
@@ -1071,6 +1065,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
         }
         try {
+            for (action in listOf("ai-review", "compare", "full-page", "review")) {
+                val button=requireNotNull(scroll.findViewWithTag<Button>("product/history/$action"))
+                reach(button,action)
+            }
             reach(chart,"chart")
             reach(explanation,"explanation")
             val notes=nodes(root(activity)).filterIsInstance<TextView>().filter {it.tag=="full-text-details" && it.isShown}
@@ -1078,7 +1076,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             notes.forEachIndexed {index,note ->reach(note,"note-$index")}
         } finally {
             main {scroll.scrollTo(0,saved)};frames.committedFrame(root(activity))
-            main {check(scroll.scrollY==saved);fixedActions();check(chart.embeddedExplanationView===explanation)}
+            main {check(scroll.scrollY==saved);check(chart.embeddedExplanationView===explanation)}
         }
         check(scope.journal.exportJson()==nativeBefore)
         capture(activity,File(folder,"states/history-preview-restored"))
@@ -1501,13 +1499,30 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         activity=recreate(activity); chartReady(activity)
         main { check(field(activity,"firstId")==second && field(activity,"secondId")==first && field(activity,"selectedMetric")==ChartMetric.TEMPERATURE) }
         capture(activity,File(folder,"states/swapped-recreated"))
-        // Select the real placeholder; do not reflectively overwrite either identity.
-        main { root(activity).findViewWithTag<Spinner>("comparison-first").setSelection(0) }
-        await("placeholder clears cup and projection") { field(activity,"firstId")==null && (field(activity,"chart") as TwoCupChartView).firstPoints.isEmpty() }
-        capture(activity,File(folder,"states/placeholder-clears"))
+        main { check(root(activity).findViewWithTag<View>("comparison-change-second").performClick()) }
+        fun picker(): View = ((activity as BrewComparisonActivity).supportFragmentManager
+            .findFragmentByTag(HistoryCupPicker.TAG) as HistoryCupPicker).requireDialog().window!!.decorView
+        main {
+            val candidates = picker().findViewWithTag<android.widget.ListView>("history-cup-options")
+            val selection = (0 until candidates.count).first { (candidates.getItemAtPosition(it) as BrewJournal.Observation).id == first }
+            candidates.setSelection(selection)
+        }
+        await("explicit comparison candidate is visible") { picker().findViewWithTag<View>("history-cup-option-$first") != null }
+        main {
+            check(!picker().findViewWithTag<Button>("history-cup-confirm").isEnabled)
+            check(picker().findViewWithTag<View>("history-cup-option-$first").performClick())
+            check(picker().findViewWithTag<Button>("history-cup-confirm").isEnabled)
+        }
+        activity=recreate(activity)
+        main {
+            val confirm = picker().findViewWithTag<Button>("history-cup-confirm")
+            check(confirm.isEnabled && confirm.performClick())
+        }
+        chartReady(activity)
+        main { check(field(activity,"firstId")==second && field(activity,"secondId")==first && field(activity,"selectedMetric")==ChartMetric.TEMPERATURE) }
         check(scope.journal.exportJson()==original)
         File(folder,"comparison-business.json").writeText(JSONObject().put("cases",cases).put("swapRecreateIdsAndMetric",true)
-            .put("placeholderClearsIdentityAndProjection",true).put("journalUnchanged",true).put("completed",true).toString(2))
+            .put("replacementRequiresExplicitChoiceAndRestoresDraft",true).put("journalUnchanged",true).put("completed",true).toString(2))
     }
     private fun <T> historyMainValue(block:()->T):T {
         var value:Any?=null
@@ -1721,11 +1736,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         try {
             check(root(activity).findViewWithTag<Button>("product/history/review") != null)
             check(root(activity).findViewWithTag<Button>("product/history/details") != null)
-            val compare=root(activity).findViewWithTag<Button>("product/history/compare") ?:
-                nodes(root(activity)).filterIsInstance<Button>().single {it.text.toString()==activity.getString(R.string.journal_compare)}
-            val actionButtons=listOf("product/history/review" to requireNotNull(root(activity).findViewWithTag<Button>("product/history/review")),
-                "product/history/details" to requireNotNull(root(activity).findViewWithTag<Button>("product/history/details")),
-                "product/history/compare" to compare)
+            val actionButtons=listOf("review","details","compare","ai-review").map { action ->
+                val tag="product/history/$action"
+                tag to requireNotNull(root(activity).findViewWithTag<Button>(tag))
+            }
             for((index,pair) in actionButtons.withIndex()) {
                 val (tag,button)=pair
                 main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
@@ -2586,10 +2600,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             check(it.isShown && it.isAttachedToWindow) {"M5 required comparison target missing/hidden: $tag"}
         }
         val targets=linkedMapOf<String,View>()
-        val controlTags=listOf("comparison-first","comparison-second","comparison-swap") +
+        val controlTags=listOf("comparison-change-second","comparison-swap") +
             listOf("PRESSURE","WATER","WEIGHT","TEMPERATURE").map {"comparison-metric-$it"}
         controlTags.forEach {targets[it]=tagged(toolbar,it)}
         targets["comparison-source-legend"]=tagged(toolbar,"comparison-source-legend")
+        targets["comparison-cup-measurements-2"]=tagged(toolbar,"comparison-cup-measurements-2")
         val selectedStatuses=listOf(first,second).filterIsInstance<String>().map {requireNotNull(scope.journal.find(it)).observation.status}
         val expectedWarning=selectedStatuses.any {it=="UNKNOWN"}
         val warning=nodes(toolbar).filter {it.tag=="product/comparison/warning"}.single()
@@ -2601,7 +2616,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         check(rows.size==4 && rows.all {it.childCount==3})
         check((rows[0].getChildAt(0) as TextView).text.isEmpty())
         targets["summary-header"]=rows[0]
-        listOf("duration" to R.string.history_duration,"end-scale" to R.string.history_end_scale,"taste" to R.string.journal_taste)
+        listOf("duration" to R.string.history_record_elapsed,"end-scale" to R.string.history_end_scale,"taste" to R.string.journal_taste)
             .forEachIndexed {index,(key,label) ->
                 val row=rows[index+1]
                 check(row.tag=="comparison-summary-row-$index" && (row.getChildAt(0) as TextView).text.toString()==activity.getString(label))
@@ -3072,29 +3087,34 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         main {check((list(activity).getItemAtPosition(0) as ShotHistory.Entry).id!=scope.firstId)}
         selectHistory(activity,scope.firstId)
         val content=root(activity)
-        val header=content.findViewWithTag<View>("product/history/header")
+        val header=content.findViewWithTag<View>("product/history/sources")
         check(header.findViewWithTag<View>("product/history/ai-review")==null)
-        val title=content.findViewWithTag<View>("product/history/title-row")
-        val review=requireNotNull(title.findViewWithTag<Button>("product/history/ai-review"))
-        val more=requireNotNull(title.findViewWithTag<View>("product/history/more"))
+        val previewHeader=content.findViewWithTag<View>("product/history/preview-header")
+        val review=requireNotNull(previewHeader.findViewWithTag<Button>("product/history/ai-review"))
+        val compare=requireNotNull(previewHeader.findViewWithTag<Button>("product/history/compare"))
+        val more=requireNotNull(previewHeader.findViewWithTag<View>("product/history/more"))
         val chart=content.findViewWithTag<ShotChartView>("product/history/chart")
         val samples=scope.expectedSamples(scope.firstId)
         check(samples.isNotEmpty())
         await("selected non-latest curve loaded") {chart.points==samples}
         val capture=frames.screenshot(activity,content,File(directory,"window.png")) {
             val reviewBounds=historyVisibility(review)
+            val compareBounds=historyVisibility(compare)
             val moreBounds=historyVisibility(more)
             check(review.isEnabled && review.text==activity.getString(R.string.completion_card_review))
-            check(reviewBounds.getBoolean("complete") && moreBounds.getBoolean("complete"))
+            val colors=TaskProductVisualStyle(activity)
+            check(review.currentTextColor==colors.onPrimary && compare.currentTextColor==colors.accent)
+            check(reviewBounds.getBoolean("complete") && compareBounds.getBoolean("complete") && moreBounds.getBoolean("complete"))
             val reviewRect=reviewBounds.getJSONArray("rectPx")
+            val compareRect=compareBounds.getJSONArray("rectPx")
             val moreRect=moreBounds.getJSONArray("rectPx")
-            check(reviewRect.getInt(2)<=moreRect.getInt(0) &&
-                reviewRect.getInt(1)<moreRect.getInt(3) && moreRect.getInt(1)<reviewRect.getInt(3))
+            check(reviewRect.getInt(2)<=compareRect.getInt(0) && compareRect.getInt(2)<=moreRect.getInt(0))
+            check(reviewRect.getInt(1)<compareRect.getInt(3) && compareRect.getInt(1)<reviewRect.getInt(3))
             check(chart.points==samples)
             val visibleChart=Rect()
             check(chart.getGlobalVisibleRect(visibleChart) && visibleChart.height()>=HoyiUi.dp(activity,96))
             JSONObject().put("selectedShot",scope.firstId).put("samples",chart.points.size)
-                .put("review",reviewBounds).put("more",moreBounds)
+                .put("review",reviewBounds).put("compare",compareBounds).put("more",moreBounds)
         }
         WindowProofStreamingWriter.writeStrict(capture.target,File(directory,"geometry.json"))
         val position=capture.target.getJSONObject("review").getJSONArray("rectPx")
@@ -3113,7 +3133,29 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         main {requireNotNull(focusedJournalDialog(activity)).getButton(AlertDialog.BUTTON_NEGATIVE).performClick()}
         await("history selection and focus survive cancellation") {
-            activity.hasWindowFocus() && content.findViewWithTag<ShotChartView>("product/history/chart")?.points==samples
+            activity.hasWindowFocus() && content.findViewWithTag<ShotChartView>("product/history/chart")===chart && chart.points==samples
+        }
+        val detailLink=requireNotNull(content.findViewWithTag<Button>("product/history/full-page"))
+        val viewport=requireNotNull(content.findViewWithTag<ScrollView>("product/history/preview-scroll"))
+        main { detailLink.requestRectangleOnScreen(Rect(0,0,detailLink.width,detailLink.height),true) }
+        val previewScroll=historyMainValue { viewport.scrollY }
+        main {
+            check(historyVisibility(detailLink).getBoolean("complete"))
+            check(detailLink.performClick())
+        }
+        var detail:HistoryDetailActivity?=null
+        await("full detail opens the selected shot") {
+            (scope.activeActivity() as? HistoryDetailActivity)?.let { page ->
+                detail=page
+                page.hasWindowFocus() && page.intent.getStringExtra("shotId")==scope.firstId &&
+                    root(page).findViewWithTag<ShotChartView>("product/history/chart")?.points==samples
+            } ?: false
+        }
+        main { requireNotNull(detail).onBackPressedDispatcher.onBackPressed() }
+        await("native Back returns to the selected shot") {
+            activity.hasWindowFocus() && activity.findViewById<View>(android.R.id.content)
+                .findViewWithTag<View>("history-selection-${scope.firstId}") != null &&
+                root(activity).findViewWithTag<ScrollView>("product/history/preview-scroll")?.scrollY==previewScroll
         }
         scope.closeActivities()
     }

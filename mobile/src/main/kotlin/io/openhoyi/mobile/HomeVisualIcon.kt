@@ -125,6 +125,21 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
             "check" -> { line(5f,12f,10f,17f); line(10f,17f,20f,6f) }
             "new" -> { canvas.drawCircle(12f,12f,9f,paint); line(7f,12f,17f,12f); line(12f,7f,12f,17f) }
             "edit" -> { canvas.drawPath(Path().apply { moveTo(4f,16f); lineTo(16f,4f); lineTo(20f,8f); lineTo(8f,20f); lineTo(3f,21f); close() },paint); line(13f,7f,17f,11f) }
+            "spark" -> {
+                canvas.drawPath(Path().apply {
+                    moveTo(11f,3f); lineTo(13.2f,9.8f); lineTo(20f,12f); lineTo(13.2f,14.2f)
+                    lineTo(11f,21f); lineTo(8.8f,14.2f); lineTo(2f,12f); lineTo(8.8f,9.8f); close()
+                }, paint)
+                line(20f,2f,20f,8f); line(17f,5f,23f,5f)
+            }
+            "compare" -> {
+                line(3f,18f,8f,11f); line(8f,11f,12f,14f); line(12f,14f,21f,5f)
+                line(3f,8f,8f,5f); line(8f,5f,13f,18f); line(13f,18f,21f,14f)
+            }
+            "expand" -> {
+                line(4f,10f,4f,4f); line(4f,4f,10f,4f); line(14f,4f,20f,4f); line(20f,4f,20f,10f)
+                line(4f,14f,4f,20f); line(4f,20f,10f,20f); line(14f,20f,20f,20f); line(20f,20f,20f,14f)
+            }
             "manage" -> { line(3f,6f,21f,6f); line(3f,12f,21f,12f); line(3f,18f,21f,18f)
                 canvas.drawCircle(9f,6f,2f,paint); canvas.drawCircle(16f,12f,2f,paint); canvas.drawCircle(7f,18f,2f,paint) }
             "moon" -> canvas.drawPath(Path().apply {

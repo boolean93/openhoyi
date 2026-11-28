@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_browser_source_info">%1$s，%2$d 条，查看保留规则</string>
+    <string name="history_browser_source_info_unknown">%1$s，记录数不可用，查看保留规则</string>
+    <string name="history_browser_record_count">%1$d 条记录</string>
+    <string name="history_browser_local_retention">最多保留 30 天，最多 500 条。</string>
+    <string name="history_browser_journal_retention">长期保留萃取记录和个人复盘。原始采样仍按本机缓存规则保留。</string>
+    <string name="history_browser_scale_reading">秤读数 %1$s</string>
+</resources>

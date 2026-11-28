@@ -429,16 +429,18 @@ def require_reach(folder,page,expected_warning=False):
         reach=json.loads((folder/'history-preview-reachability.json').read_text())
         assert reach['completed'] and reach['initialScrollY']==reach['restoredScrollY']==0
         assert reach['exactScrollRestored'] and reach['permanentExplanationIdentityPreserved'] and reach['readOnlyJournalUnchanged']
-        assert [x['target'] for x in reach['targets']]==['chart','explanation','note-0','note-1']
+        controls=['ai-review','compare','full-page','review']
+        subjects=['chart','explanation','note-0','note-1']
+        assert [x['target'] for x in reach['targets']]==controls+subjects
         assert all(x['visibility']['complete'] for x in reach['targets'])
-        phases=[f'history-preview-{x}' for x in ('chart-reachable','explanation-reachable','note-0-reachable','note-1-reachable','restored')]
+        phases=[f'history-preview-{x}-reachable' for x in subjects]+['history-preview-restored']
     elif page=='history-detail':
         require_standalone_header(folder)
         reach=json.loads((folder/'detail-business.json').read_text())
         assert reach['completed'] and reach['savedNotesReachable'] and reach['exactScrollRestored']
         assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['shotIdUnchanged'] and reach['journalUnchanged'] and reach['noEditOrSaveInvoked']
         assert reach['notesSource']=='actual_BrewJournal_Notes_in_actual_details_dialog'
-        assert {x['tag'] for x in reach['actionsReachable']} == {'product/history/review','product/history/details','product/history/compare'}
+        assert {x['tag'] for x in reach['actionsReachable']} == {'product/history/review','product/history/details','product/history/compare','product/history/ai-review'}
         for action in reach['actionsReachable']:
             require_text_layout(action['layout'])
             proof=require_proof(folder/action['proof'])
@@ -457,8 +459,8 @@ def require_reach(folder,page,expected_warning=False):
         reach=json.loads((folder/'comparison-reachability.json').read_text())
         assert reach['completed'] and reach['exactScrollRestored'] and reach['idsAndMetricUnchanged'] and reach['journalUnchanged']
         assert reach['initialScrollPx']==reach['restoredScrollPx'] and len(reach['initialScrollPx'])==2
-        assert reach['summaryRowCount']==4 and reach['tasteTargetCount']==2 and reach['toolbarControlCount']==7
-        expected={'comparison-first','comparison-second','comparison-swap',
+        assert reach['summaryRowCount']==4 and reach['tasteTargetCount']==2 and reach['toolbarControlCount']==6
+        expected={'comparison-change-second','comparison-swap','comparison-cup-measurements-2',
             'comparison-metric-PRESSURE','comparison-metric-WATER','comparison-metric-WEIGHT','comparison-metric-TEMPERATURE',
             'comparison-source-legend','comparison-source-1','comparison-source-2',
             'summary-header','summary-duration','summary-end-scale','summary-taste','taste-A','taste-B',
@@ -757,10 +759,11 @@ for path in manifests:
         budget=preview['budget']
         require_embedded_header(preview,False)
         require_embedded_metrics_budget(budget,m['window']['nodes'])
-        for name in ('availableHeightPx','fixedFooterNaturalPx','contentViewportPx','headerAndMetricsNaturalPx',
+        for name in ('availableHeightPx','contentViewportPx','headerAndMetricsNaturalPx',
             'chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','chartMarginsPx','fullNaturalPx',
             'chartLegendNaturalPx','externalExplanationNaturalPx','externalExplanationTopMarginPx','chartOverlayPaddingPx'):
             assert name in budget,(path,name)
+        assert budget['contentViewportPx']==budget['availableHeightPx']
         assert budget['minimumPlotDp']==96 and budget['chartLegendNaturalPx']>0 and budget['externalExplanationNaturalPx']>0
         assert budget['explanationPlacement']=='same_permanent_producer_view_after_complete_chart_before_notes'
         assert preview['actualPlotHeightDp']>=96 and preview['initialVisiblePlotHeightDp']>=96
@@ -772,15 +775,6 @@ for path in manifests:
         if m['window']['fontScale']==1.0:
             assert preview['chart']['complete'] and preview['axisInk']
             assert all(ink['completeInVisiblePlotView'] for ink in preview['axisInk'])
-        reach=json.loads((folder/'history-preview-reachability.json').read_text())
-        assert reach['completed'] and reach['initialScrollY']==reach['restoredScrollY']==0
-        assert reach['exactScrollRestored'] and reach['permanentExplanationIdentityPreserved'] and reach['readOnlyJournalUnchanged']
-        assert [target['target'] for target in reach['targets']]==['chart','explanation','note-0','note-1']
-        assert all(target['visibility']['complete'] for target in reach['targets'])
-        for phase in ('chart-reachable','explanation-reachable','note-0-reachable','note-1-reachable','restored'):
-            expected=folder/'states'/f'history-preview-{phase}'/'window-frame-sync.json'
-            assert expected.is_file(),('Missing expected History reach/restore proof',str(expected))
-            proof=json.loads(expected.read_text());assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000
     if m['page']!='extraction':
         require_reach(folder,m['page'])
         if m['page']=='history-detail':require_standalone(folder,m['window'],False)

@@ -594,56 +594,73 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             check(detail.tag == expected?.let { "history-selection-${it.id}" })
             for (index in 0 until list.childCount) {
                 val entry = entries[list.firstVisiblePosition + index]
-                check(list.getChildAt(index).isActivated == (entry.id == selectedId))
+                val row = list.getChildAt(index)
+                check(row.isActivated == (entry.id == selectedId))
+                val prefix = "product/history/list/${entry.id}"
+                val time = requireNotNull(row.findViewWithTag<TextView>("$prefix/time"))
+                check(Regex("[0-9]{2}:[0-9]{2}:[0-9]{2}$").containsMatchIn(time.text))
+                val timing = requireNotNull(row.findViewWithTag<TextView>("$prefix/metadata/timing"))
+                check(timing.text.toString().replace('\u00a0', ' ') == host.activity.shotTimingSummary(entry))
+                val scale = requireNotNull(row.findViewWithTag<TextView>("$prefix/metadata/scale"))
+                check(scale.visibility == View.VISIBLE && (entry.weightHundredthsGram == null) == scale.text.endsWith("—"))
+                val status = requireNotNull(row.findViewWithTag<TextView>("$prefix/status"))
+                check((entry.status == ShotHistory.Status.ENDED) == (status.visibility == View.GONE))
             }
         }
         return selectedId
     }
 
-    private fun checkHistoryComparisonEntry(host: MainPageTestHost, history: HistoryFragment) {
+    private fun checkHistoryBrowser(host: MainPageTestHost, history: HistoryFragment) {
         val page = requireNotNull(history.view)
         val activity = host.activity
 
         fun source(label: Int) = descendants(page).filterIsInstance<TextView>()
             .single { it.isShown && it.text.toString() == activity.getString(label) }
 
-        fun openComparisonFrom(label: Int) {
-            val monitor = test.addMonitor(BrewComparisonActivity::class.java.name, null, false)
-            var comparison: BrewComparisonActivity? = null
-            try {
-                test.runOnMainSync {
-                    check(source(label).isSelected)
-                    val entry = requireNotNull(page.findViewWithTag<Button>("product/history/compare-entry"))
-                    val visible = Rect()
-                    val minimum = HoyiUi.dp(activity, 48)
-                    check(entry.isShown && entry.isEnabled && entry.getGlobalVisibleRect(visible))
-                    check(visible.width() == entry.width && visible.height() == entry.height &&
-                        entry.width >= minimum && entry.height >= minimum)
-                    val layout = requireNotNull(entry.layout)
-                    check(entry.text.toString() == activity.getString(R.string.journal_compare) &&
-                        layout.getLineEnd(layout.lineCount - 1) == entry.text.length &&
-                        (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 })
-                    check(entry.performClick())
+        fun checkSource(label: Int, rules: Int) {
+            test.runOnMainSync {
+                val collection = requireNotNull(page.findViewWithTag<TaskCollectionLayout>("task-collection"))
+                val controls = requireNotNull(collection.browserBody.findViewWithTag<ViewGroup>("product/history/sources"))
+                check(page.findViewWithTag<View>("product/history/header") == null)
+                check(collection.browserBody.findViewWithTag<View>("product/history/compare-entry") == null)
+                check(source(label).isSelected)
+                val count = requireNotNull(controls.findViewWithTag<TextView>("product/history/count"))
+                val list = requireNotNull(collection.browserBody.findViewWithTag<ListView>("product/history/list"))
+                check(count.text.toString() == list.count.toString() || count.text.toString() == "—")
+                val visible = Rect()
+                val minimum = HoyiUi.dp(activity, 48)
+                check(count.isShown && count.getGlobalVisibleRect(visible) &&
+                    visible.width() >= minimum && visible.height() >= minimum)
+                check(controls.findViewWithTag<View>("product/history/io-menu")?.isShown == true)
+                check(count.performClick())
+                val tracked = MainActivity::class.java.getDeclaredField("transientDialogs").apply { isAccessible = true }
+                val dialog = (tracked.get(activity) as List<*>)
+                    .filterIsInstance<android.app.AlertDialog>().last { it.isShowing }
+                check(dialog.findViewById<TextView>(android.R.id.message).text.toString()
+                    .contains(activity.getString(rules)))
+                dialog.dismiss()
+                if (list.count == 0) {
+                    val empty = requireNotNull(collection.browserBody.findViewWithTag<Button>("product/history/empty-compare"))
+                    check(empty.isShown)
+                    check(empty.performClick())
                 }
-                comparison = test.waitForMonitorWithTimeout(monitor, 10000) as? BrewComparisonActivity
-                    ?: error("History comparison entry did not open the comparison page")
-                check(!comparison.intent.hasExtra(BrewComparisonActivity.FIRST_SHOT_ID) &&
-                    !comparison.intent.hasExtra(BrewComparisonActivity.SECOND_SHOT_ID)) {
-                    "The entry must retain the comparison page's default journal selections"
-                }
-            } finally {
-                test.removeMonitor(monitor)
-                comparison?.let { test.runOnMainSync { it.finish() } }
-                test.waitForIdleSync()
             }
-            check(host.active("root:HISTORY") === history)
-            test.runOnMainSync { check(source(label).isSelected) }
+            test.waitForIdleSync()
+            test.runOnMainSync {
+                val list = requireNotNull(page.findViewWithTag<ListView>("product/history/list"))
+                if (list.count == 0) {
+                    val picker = activity.supportFragmentManager.findFragmentByTag("history-cup-picker") as? androidx.fragment.app.DialogFragment
+                    checkNotNull(picker) { "Empty history did not open the cup picker" }
+                    picker.dismiss()
+                }
+            }
+            test.waitForIdleSync()
         }
 
-        openComparisonFrom(R.string.history_local_tab)
+        checkSource(R.string.history_local_tab, R.string.history_browser_local_retention)
         test.runOnMainSync { check(source(R.string.journal_tab).performClick()) }
         test.waitForIdleSync()
-        openComparisonFrom(R.string.journal_tab)
+        checkSource(R.string.journal_tab, R.string.history_browser_journal_retention)
         test.runOnMainSync { check(source(R.string.history_local_tab).performClick()) }
         test.waitForIdleSync()
     }
@@ -737,7 +754,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 search!!.setText("navigation-state")
             }
             val history = host.select(TaskDestination.HISTORY) as HistoryFragment
-            checkHistoryComparisonEntry(host, history)
+            checkHistoryBrowser(host, history)
             val initialHistorySelection = checkHistoryLanding(host, history)
             var historyList: ListView? = null
             var historyPosition = 0

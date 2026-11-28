@@ -1,0 +1,6 @@
+<resources>
+    <item type="id" name="history_detail_scroll" />
+    <string name="history_preview_more_actions">本杯更多操作</string>
+    <string name="history_preview_personal_review">个人复盘</string>
+    <string name="history_preview_edit_review">编辑复盘</string>
+</resources>

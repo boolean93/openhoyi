@@ -12,10 +12,10 @@ import kotlinx.coroutines.withContext
 internal fun ThemedActivity.historyAiReviewButton(
     style: TaskProductVisualStyle,
     shotId: String,
-): Button = style.button(Button(this)).apply {
+): Button = style.button(Button(this), primary = true).apply {
     tag = "product/history/ai-review"
     setText(R.string.completion_card_review)
-    maxWidth = style.dp(112)
+    HomeVisualIcon.buttonIcon(this, "spark")
     val activity = this@historyAiReviewButton
     val app = application as MobileApplication
     val access = app.completionShotReviewAccess

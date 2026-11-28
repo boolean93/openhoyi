@@ -1,0 +1,5 @@
+<resources>
+    <string name="history_preview_more_actions">More shot actions</string>
+    <string name="history_preview_personal_review">Personal review</string>
+    <string name="history_preview_edit_review">Edit review</string>
+</resources>
