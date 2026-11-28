@@ -6,7 +6,8 @@ import android.widget.LinearLayout
 
 /** Stable list/detail regions. Measurement never changes selection, search or preferences. */
 internal class TaskCollectionLayout(context: Context, private val browserFraction: Float = .4f,
-    private val retainTwoPaneDuringIme: Boolean = false) : LinearLayout(context) {
+    private val retainTwoPaneDuringIme: Boolean = false,
+    private val browserWidthDp: IntRange = 320..Int.MAX_VALUE) : LinearLayout(context) {
     val browserBody = LinearLayout(context).apply { orientation = VERTICAL }
     val detailBody = LinearLayout(context).apply { orientation = VERTICAL }
     private var twoPane: Boolean? = null
@@ -54,9 +55,13 @@ internal class TaskCollectionLayout(context: Context, private val browserFractio
             }
         }
         val policyHeight = if (imeVisible) maxOf((height / density).toInt(), 360) else (height / density).toInt()
+        val browserMinimum = dp(browserWidthDp.first)
+        val detailReserve = dp(280 + 24)
         val split = TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
-            policyHeight).twoPaneAllowed && width >= dp(320 + 280 + 24)
-        val browserWidth = if (split) (width * browserFraction).toInt().coerceIn(dp(320), width - dp(280 + 24)) else width
+            policyHeight, primaryMinimumWidthDp = browserWidthDp.first).twoPaneAllowed &&
+            width >= browserMinimum + detailReserve
+        val browserWidth = if (split) (width * browserFraction).toInt()
+            .coerceIn(browserMinimum, minOf(dp(browserWidthDp.last), width - detailReserve)) else width
         val changed = twoPane != split
         twoPane = split
         orientation = if (split) HORIZONTAL else VERTICAL

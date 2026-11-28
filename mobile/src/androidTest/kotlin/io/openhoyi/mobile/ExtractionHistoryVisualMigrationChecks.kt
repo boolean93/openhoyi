@@ -361,7 +361,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
         }
-        fun prepare() {
+        fun prepare(includeHistoryYield: Boolean = false) {
             check(!::logs.isInitialized && !::samples.isInitialized)
             logs=TraceStore(File(ownedDirectory,"traces"))
             samples=ShotSamplesRepository(File(ownedDirectory,"samples")) { sampleFailures.add(it); logs.record("fixture.samples_error",mapOf("type" to it.javaClass.simpleName)) }
@@ -392,7 +392,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "后段流速略快，希望更平稳。","柑橘酸质，焦糖甜感，尾段略干。","研磨调细一点，其他条件不变。")
             journal.edit(firstId,notes)
             journal.edit(secondId,notes.copy(taste="焦糖甜感更明显。",nextAdjustment="保持当前参数。"))
-            val first=points(27400,604,3620); val second=points(31000,650,3950)
+            if (page == "history") {
+                journal.edit(historySpecialIds.getValue("sample-gap"), BrewJournal.Notes(nextAdjustment = "下次只调细研磨。"))
+            }
+            val first=points(27400,604,3620).let { points ->
+                if (includeHistoryYield) points.map { point ->
+                    point.copy(beverageHundredthsGram = requireNotNull(point.weightHundredthsGram) * 9 / 10,
+                        beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0)
+                } else points
+            }
+            val second=points(31000,650,3950)
             sampleInputs[firstId]=first; sampleInputs[secondId]=second
             (1..37).forEach { index ->
                 val ordinary=points(30000,620,3600)
@@ -1040,24 +1049,42 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "M5 standard History initial actual axis glyph is clipped"}
         }
     }
-    private fun historyPreviewReachability(activity: Activity, scope:Scope, folder:File, emptyExpected:Boolean=false) {
+    private fun historyPreviewReachability(activity: Activity, scope:Scope, folder:File,
+        sourceNotes: BrewJournal.Notes, emptyExpected:Boolean=false) {
         val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/history/preview-scroll"))
         val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
         val explanation=requireNotNull(chart.embeddedExplanationView)
         val saved=scroll.scrollY;check(saved==0) {"M5 fresh initial History preview must not start pre-scrolled"}
         val nativeBefore=scope.journal.exportJson();val reached=JSONArray()
-        fun fixedActions() {
-            listOf("product/history/review" to 56,"product/history/full-page" to 48).forEach {(tag,minimum) ->
-                val action=requireNotNull(root(activity).findViewWithTag<Button>(tag))
-                check(action.height>=HoyiUi.dp(activity,minimum) && historyVisibility(action).getBoolean("complete") && whole(observation(action)))
+        val review = requireNotNull(scroll.findViewWithTag<View>("product/history/personal-review"))
+        val reviewAction = requireNotNull(review.findViewWithTag<Button>("product/history/review"))
+        val expectedFields = listOfNotNull(
+            sourceNotes.taste.takeIf(String::isNotBlank)?.let { "taste" to (R.string.journal_taste to it) },
+            sourceNotes.nextAdjustment.takeIf(String::isNotBlank)?.let { "next" to (R.string.journal_next to it) },
+        )
+        val expectedSummaries = expectedFields.map { (_, field) ->
+            activity.getString(R.string.journal_field_value, activity.getString(field.first), field.second)
+        }
+        val hasNotes = expectedSummaries.isNotEmpty()
+        val expectedAction = activity.getString(if (hasNotes) R.string.history_preview_edit_review else R.string.journal_review)
+        val notes = historyMainValue {
+            val texts = visibleTextViews(review)
+            check(texts.filterIsInstance<Button>() == listOf(reviewAction) && reviewAction.text.toString() == expectedAction)
+            val summary = texts.filterNot { it === reviewAction }
+            val expectedTexts = if (hasNotes) listOf(activity.getString(R.string.history_preview_personal_review)) + expectedSummaries
+                else emptyList()
+            check(summary.map { it.text.toString() } == expectedTexts) {
+                "History preview must only show the expected saved fields, without empty title or placeholders"
             }
+            if (hasNotes) summary.drop(1) else summary
         }
         fun reach(view:View, name:String) {
             main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
             frames.committedFrame(root(activity))
-            capture(activity,File(folder,"states/history-preview-$name-reachable"))
+            if (view !is Button) capture(activity,File(folder,"states/history-preview-$name-reachable"))
             main {
-                check(historyVisibility(view).getBoolean("complete"));fixedActions()
+                check(historyVisibility(view).getBoolean("complete"))
+                if(view is Button) check(view.width>=HoyiUi.dp(activity,48) && view.height>=HoyiUi.dp(activity,48))
                 if(view is TextView)check(whole(observation(view))) {"M5 full explanation/note text cannot be reached"}
                 if(view===chart) {
                     val evidence=requireNotNull(embeddedHistoryEvidence(activity));val inks=evidence.getJSONArray("axisInk")
@@ -1071,19 +1098,22 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
         }
         try {
+            for (action in listOf("ai-review", "compare", "full-page", "review")) {
+                val button=requireNotNull(scroll.findViewWithTag<Button>("product/history/$action"))
+                reach(button,action)
+            }
             reach(chart,"chart")
             reach(explanation,"explanation")
-            val notes=nodes(root(activity)).filterIsInstance<TextView>().filter {it.tag=="full-text-details" && it.isShown}
-            check(notes.size==2)
-            notes.forEachIndexed {index,note ->reach(note,"note-$index")}
+            notes.zip(expectedFields).forEach { (note, field) -> reach(note, "note-${field.first}") }
         } finally {
             main {scroll.scrollTo(0,saved)};frames.committedFrame(root(activity))
-            main {check(scroll.scrollY==saved);fixedActions();check(chart.embeddedExplanationView===explanation)}
+            main {check(scroll.scrollY==saved);check(chart.embeddedExplanationView===explanation)}
         }
         check(scope.journal.exportJson()==nativeBefore)
         capture(activity,File(folder,"states/history-preview-restored"))
         File(folder,"history-preview-reachability.json").writeText(JSONObject().put("targets",reached).put("initialScrollY",saved)
             .put("restoredScrollY",scroll.scrollY).put("exactScrollRestored",true).put("permanentExplanationIdentityPreserved",true)
+            .put("reviewActionText",expectedAction).put("reviewSummaryCount",notes.size)
             .put("readOnlyJournalUnchanged",true).put("completed",true).toString(2))
     }
     private fun screenObservation(view:View):JSONObject {
@@ -1721,11 +1751,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         try {
             check(root(activity).findViewWithTag<Button>("product/history/review") != null)
             check(root(activity).findViewWithTag<Button>("product/history/details") != null)
-            val compare=root(activity).findViewWithTag<Button>("product/history/compare") ?:
-                nodes(root(activity)).filterIsInstance<Button>().single {it.text.toString()==activity.getString(R.string.journal_compare)}
-            val actionButtons=listOf("product/history/review" to requireNotNull(root(activity).findViewWithTag<Button>("product/history/review")),
-                "product/history/details" to requireNotNull(root(activity).findViewWithTag<Button>("product/history/details")),
-                "product/history/compare" to compare)
+            val actionButtons=listOf("review","details","compare","ai-review").map { action ->
+                val tag="product/history/$action"
+                tag to requireNotNull(root(activity).findViewWithTag<Button>(tag))
+            }
             for((index,pair) in actionButtons.withIndex()) {
                 val (tag,button)=pair
                 main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
@@ -2777,7 +2806,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                                 val taste=row.getChildAt(1) as TextView
                                 check(taste.text.toString()=="—" && !taste.isClickable) { "M5 comparison blank first-cup taste must not carry second-cup notes" }
                                 proof.put("blankNotesPlaceholder",taste.text.toString()).put("blankTasteDisclosureDisabled",true)
-                            } else {
+                            } else if (page == "history-detail") {
                                 val placeholders=nodes(root(activity)).filterIsInstance<TextView>().count { it.text.toString()==activity.getString(R.string.journal_optional) }
                                 check(placeholders>0) { "M5 blank legal notes must not display prior cup notes" }
                                 proof.put("blankNotesPlaceholderCount",placeholders)
@@ -2814,7 +2843,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             .put("singleReadOnlyHistoryRootService",page=="history" && scope.readOnlyHistoryRootService())
                     }
                     when(page) {
-                        "history"->historyPreviewReachability(activity,scope,caseDirectory,expected.isEmpty())
+                        "history"->historyPreviewReachability(activity,scope,caseDirectory,source.notes,expected.isEmpty())
                         "history-detail"->detailReachability(activity,scope,caseDirectory)
                         else->comparisonReachability(activity,scope,caseDirectory)
                     }
@@ -3048,7 +3077,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 val collectionDirectory=File(directory,"collection").apply {check(mkdirs())}
                 val collectionScope=Scope(collectionDirectory,"history")
                 scope=collectionScope
-                collectionScope.prepare()
+                collectionScope.prepare(includeHistoryYield = true)
                 collectionScope.install(dark=true)
                 captureHistoryAiReview(collectionScope,collectionDirectory)
             }
@@ -3073,29 +3102,41 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         main {check((list(activity).getItemAtPosition(0) as ShotHistory.Entry).id!=scope.firstId)}
         selectHistory(activity,scope.firstId)
         val content=root(activity)
-        val header=content.findViewWithTag<View>("product/history/header")
+        val header=content.findViewWithTag<View>("product/history/sources")
         check(header.findViewWithTag<View>("product/history/ai-review")==null)
-        val title=content.findViewWithTag<View>("product/history/title-row")
-        val review=requireNotNull(title.findViewWithTag<Button>("product/history/ai-review"))
-        val more=requireNotNull(title.findViewWithTag<View>("product/history/more"))
+        val previewHeader=content.findViewWithTag<View>("product/history/preview-header")
+        val review=requireNotNull(previewHeader.findViewWithTag<Button>("product/history/ai-review"))
+        val compare=requireNotNull(previewHeader.findViewWithTag<Button>("product/history/compare"))
+        val more=requireNotNull(previewHeader.findViewWithTag<View>("product/history/more"))
         val chart=content.findViewWithTag<ShotChartView>("product/history/chart")
         val samples=scope.expectedSamples(scope.firstId)
         check(samples.isNotEmpty())
         await("selected non-latest curve loaded") {chart.points==samples}
         val capture=frames.screenshot(activity,content,File(directory,"window.png")) {
             val reviewBounds=historyVisibility(review)
+            val compareBounds=historyVisibility(compare)
             val moreBounds=historyVisibility(more)
             check(review.isEnabled && review.text==activity.getString(R.string.completion_card_review))
-            check(reviewBounds.getBoolean("complete") && moreBounds.getBoolean("complete"))
+            val colors=TaskProductVisualStyle(activity)
+            check(review.currentTextColor==colors.onPrimary && compare.currentTextColor==colors.accent)
+            check(listOf(review,compare).all { it.background.current is android.graphics.drawable.RippleDrawable })
+            check(reviewBounds.getBoolean("complete") && compareBounds.getBoolean("complete") && moreBounds.getBoolean("complete"))
             val reviewRect=reviewBounds.getJSONArray("rectPx")
+            val compareRect=compareBounds.getJSONArray("rectPx")
             val moreRect=moreBounds.getJSONArray("rectPx")
-            check(reviewRect.getInt(2)<=moreRect.getInt(0) &&
-                reviewRect.getInt(1)<moreRect.getInt(3) && moreRect.getInt(1)<reviewRect.getInt(3))
+            check(reviewRect.getInt(2)<=compareRect.getInt(0) && compareRect.getInt(2)<=moreRect.getInt(0))
+            check(reviewRect.getInt(1)==compareRect.getInt(1) && reviewRect.getInt(3)==compareRect.getInt(3))
+            val legend=requireNotNull(chart.findViewWithTag<View>("product/history/chart-legend"))
+            val legendButtons=nodes(legend).filterIsInstance<Button>()
+            check(legendButtons.map {it.tag}==listOf("chart-metric:PRESSURE","chart-metric:WATER",
+                "chart-metric:WEIGHT","chart-metric:TEMPERATURE","chart-metric:YIELD"))
+            check(legendButtons.map {it.top}.distinct().size==1 && legendButtons.all {it.lineCount==1 && it.height>=HoyiUi.dp(activity,48)})
             check(chart.points==samples)
-            val visibleChart=Rect()
-            check(chart.getGlobalVisibleRect(visibleChart) && visibleChart.height()>=HoyiUi.dp(activity,96))
+            val visiblePlotDp=requireNotNull(embeddedHistoryEvidence(activity)).getDouble("initialVisiblePlotHeightDp")
+            check(visiblePlotDp>=160.0)
             JSONObject().put("selectedShot",scope.firstId).put("samples",chart.points.size)
-                .put("review",reviewBounds).put("more",moreBounds)
+                .put("review",reviewBounds).put("compare",compareBounds).put("more",moreBounds)
+                .put("legend",JSONArray(legendButtons.map(::historyVisibility))).put("visiblePlotDp",visiblePlotDp)
         }
         WindowProofStreamingWriter.writeStrict(capture.target,File(directory,"geometry.json"))
         val position=capture.target.getJSONObject("review").getJSONArray("rectPx")
@@ -3114,7 +3155,29 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         main {requireNotNull(focusedJournalDialog(activity)).getButton(AlertDialog.BUTTON_NEGATIVE).performClick()}
         await("history selection and focus survive cancellation") {
-            activity.hasWindowFocus() && content.findViewWithTag<ShotChartView>("product/history/chart")?.points==samples
+            activity.hasWindowFocus() && content.findViewWithTag<ShotChartView>("product/history/chart")===chart && chart.points==samples
+        }
+        val detailLink=requireNotNull(content.findViewWithTag<Button>("product/history/full-page"))
+        val viewport=requireNotNull(content.findViewWithTag<ScrollView>("product/history/preview-scroll"))
+        main { detailLink.requestRectangleOnScreen(Rect(0,0,detailLink.width,detailLink.height),true) }
+        val previewScroll=historyMainValue { viewport.scrollY }
+        main {
+            check(historyVisibility(detailLink).getBoolean("complete"))
+            check(detailLink.performClick())
+        }
+        var detail:HistoryDetailActivity?=null
+        await("full detail opens the selected shot") {
+            (scope.activeActivity() as? HistoryDetailActivity)?.let { page ->
+                detail=page
+                page.hasWindowFocus() && page.intent.getStringExtra("shotId")==scope.firstId &&
+                    root(page).findViewWithTag<ShotChartView>("product/history/chart")?.points==samples
+            } ?: false
+        }
+        main { requireNotNull(detail).onBackPressedDispatcher.onBackPressed() }
+        await("native Back returns to the selected shot") {
+            activity.hasWindowFocus() && activity.findViewById<View>(android.R.id.content)
+                .findViewWithTag<View>("history-selection-${scope.firstId}") != null &&
+                root(activity).findViewWithTag<ScrollView>("product/history/preview-scroll")?.scrollY==previewScroll
         }
         scope.closeActivities()
     }
@@ -3318,7 +3381,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "extraction"->{active.verifyExtraction(activity,captureStartedAtRealMs,captureFinishedAtRealMs)
                     manifest.put("chartHeaderReachability",extractionChartHeaderReachability(activity,active,directory,captured))
                     extractionReachability(activity,directory)}
-                "history"->{historyPreviewReachability(activity,active,directory);savedHistoryBusiness(activity,active,directory)}
+                "history"->{
+                    historyPreviewReachability(activity, active, directory, requireNotNull(active.journal.find(active.firstId)).notes)
+                    savedHistoryBusiness(activity,active,directory)
+                }
                 "history-detail"->detailReachability(activity,active,directory)
                 else->{comparisonReachability(activity,active,directory);comparisonBusiness(activity,active,directory)}
             }

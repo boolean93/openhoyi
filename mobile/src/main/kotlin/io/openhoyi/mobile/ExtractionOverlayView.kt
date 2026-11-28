@@ -25,7 +25,10 @@ import kotlin.math.ceil
 internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null,
     private val embeddedHistory: Boolean = false, private val standalonePlotMinimumDp: Float? = null,
     private val allowSampleInspection: Boolean = true) : LinearLayout(context) {
-    private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory, standaloneAxes = standalonePlotMinimumDp != null) }
+    private val productRenderer = visual?.let {
+        ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory,
+            standaloneAxes = standalonePlotMinimumDp != null, embeddedHistory = embeddedHistory)
+    }
     internal val standalonePlotMinimumHeightPx get() = standaloneMinimumPlotHeight(measuredWidth.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels)
     internal fun standaloneMinimumPlotHeight(width: Int) = standalonePlotMinimumDp?.let {
         configureStandaloneLegendBand(width)
@@ -447,7 +450,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     init {
         orientation = VERTICAL
-        setBackgroundColor(visual?.palette?.surface ?: context.getColor(R.color.mobile_surface))
+        setBackgroundColor(if (embeddedHistory && visual != null) visual.embeddedChartSurface
+            else visual?.palette?.surface ?: context.getColor(R.color.mobile_surface))
         addView(header, LayoutParams(-1, -2))
         addView(fixedAxisNotice, LayoutParams(-1, -2))
         addView(plot, LayoutParams(-1, 0, 1f))
@@ -723,7 +727,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             ?.takeIf { it.elapsedMs == data.observedThroughMs }
         val name = "${metricName(metric)} ${latest?.let { (if (it.estimated) "≈ " else "") + format(it.value) } ?: "—"} ${metric.unit}"
         val fullTitle = "$name\n${format(range.low)}–${format(range.high)} ${metric.unit}"
-        val visibleTitle = if (embeddedHistory) "${metricName(metric)} ${metric.unit}" else fullTitle
+        val visibleTitle = if (embeddedHistory) "${embeddedLegendName(metric)} ${metric.unit}" else fullTitle
         if (button.text.toString() != visibleTitle) button.text = visibleTitle
         button.contentDescription = fullTitle.replace('\n', ';') + "; " + context.getString(R.string.task_chart_hint)
     }
@@ -917,6 +921,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     })
+    private fun embeddedLegendName(metric: ChartMetric) = when (metric) {
+        ChartMetric.WATER -> context.getString(R.string.history_preview_legend_water)
+        ChartMetric.WEIGHT -> context.getString(R.string.history_preview_legend_scale)
+        ChartMetric.TEMPERATURE -> context.getString(R.string.history_preview_legend_temperature)
+        ChartMetric.YIELD -> context.getString(R.string.history_preview_legend_yield)
+        else -> metricName(metric)
+    }
     private fun metricColor(metric: ChartMetric): Int {
         visual?.let { return if (embeddedHistory) it.metric(metric) else it.liveMetric(metric) }
         val dark = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
@@ -996,11 +1007,31 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             }
         }
         private val gap get() = dp(4f).toInt()
+        private val embeddedGap get() = dp(8f).toInt()
         private var columns = 4
         private var naturalRow = false
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val available = MeasureSpec.getSize(widthMeasureSpec)
             naturalRow=false
+            var embeddedColumns: Int? = null
+            if (embeddedHistory && childCount > 0) {
+                val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+                val children = (0 until childCount).map { getChildAt(it) as Button }
+                children.forEach { it.measure(natural, natural) }
+                val total = children.sumOf { it.measuredWidth } + embeddedGap * (childCount - 1)
+                if (children.all { it.lineCount == 1 } && total <= available) {
+                    val height = children.maxOf { it.measuredHeight }
+                    children.forEach { child ->
+                        child.measure(MeasureSpec.makeMeasureSpec(child.measuredWidth, MeasureSpec.EXACTLY),
+                            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+                    }
+                    naturalRow = true
+                    setMeasuredDimension(available, height)
+                    return
+                }
+                val widest = children.maxOf { it.measuredWidth }
+                embeddedColumns = ((available + gap) / (widest + gap)).coerceIn(1, childCount)
+            }
             if((liveCompactChrome && resources.configuration.orientation!=android.content.res.Configuration.ORIENTATION_PORTRAIT) || standalonePlotMinimumDp != null) {
                 val unspecified=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
                 val widths=(0 until childCount).map { i ->
@@ -1046,7 +1077,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     if ((child as Button).lineCount > 2 || child.measuredHeight > dp(64f)) singleRowFits = false
                 }
             }
-            columns = if (liveCompactChrome && resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) 2 else if (singleRowFits) 4 else 2
+            columns = embeddedColumns ?: if (liveCompactChrome && resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) 2 else if (singleRowFits) 4 else 2
             if (standalonePlotMinimumDp != null && standaloneNaturalWidth > (available - gap) / 2) columns = 1
             val childWidth = ((available - gap * (columns - 1)) / columns).coerceAtLeast(1)
             var rowHeight = 0
@@ -1079,7 +1110,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     val child=getChildAt(i)
                     val start=if(layoutDirection==View.LAYOUT_DIRECTION_RTL) width-x-child.measuredWidth else x
                     child.layout(start,0,start+child.measuredWidth,child.measuredHeight)
-                    x+=child.measuredWidth
+                    x+=child.measuredWidth + if (embeddedHistory) embeddedGap else 0
                 }
                 if (standalonePlotMinimumDp != null && childCount > 0) {
                     var visibleLeft = Int.MAX_VALUE; var visibleRight = Int.MIN_VALUE

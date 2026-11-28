@@ -424,21 +424,25 @@ def require_text_layout(layout,skip_taste=False):
         assert text['ellipsisCount']==0 and text['layoutHeightPx']<=text['contentHeightPx']
         assert all(x['leftPx']>=0 and x['rightPx']<=text['contentWidthPx'] for x in text['horizontalLayoutLines'])
 
-def require_reach(folder,page,expected_warning=False):
+def require_reach(folder,page,expected_warning=False,expected_review_fields=()):
     if page=='history':
         reach=json.loads((folder/'history-preview-reachability.json').read_text())
         assert reach['completed'] and reach['initialScrollY']==reach['restoredScrollY']==0
         assert reach['exactScrollRestored'] and reach['permanentExplanationIdentityPreserved'] and reach['readOnlyJournalUnchanged']
-        assert [x['target'] for x in reach['targets']]==['chart','explanation','note-0','note-1']
+        controls=['ai-review','compare','full-page','review']
+        subjects=['chart','explanation',*(f'note-{field}' for field in expected_review_fields)]
+        assert [x['target'] for x in reach['targets']]==controls+subjects
+        assert reach['reviewSummaryCount']==len(expected_review_fields)
+        assert reach['reviewActionText']==('编辑' if expected_review_fields else '写个人复盘')
         assert all(x['visibility']['complete'] for x in reach['targets'])
-        phases=[f'history-preview-{x}' for x in ('chart-reachable','explanation-reachable','note-0-reachable','note-1-reachable','restored')]
+        phases=[f'history-preview-{x}-reachable' for x in subjects]+['history-preview-restored']
     elif page=='history-detail':
         require_standalone_header(folder)
         reach=json.loads((folder/'detail-business.json').read_text())
         assert reach['completed'] and reach['savedNotesReachable'] and reach['exactScrollRestored']
         assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['shotIdUnchanged'] and reach['journalUnchanged'] and reach['noEditOrSaveInvoked']
         assert reach['notesSource']=='actual_BrewJournal_Notes_in_actual_details_dialog'
-        assert {x['tag'] for x in reach['actionsReachable']} == {'product/history/review','product/history/details','product/history/compare'}
+        assert {x['tag'] for x in reach['actionsReachable']} == {'product/history/review','product/history/details','product/history/compare','product/history/ai-review'}
         for action in reach['actionsReachable']:
             require_text_layout(action['layout'])
             proof=require_proof(folder/action['proof'])
@@ -757,10 +761,11 @@ for path in manifests:
         budget=preview['budget']
         require_embedded_header(preview,False)
         require_embedded_metrics_budget(budget,m['window']['nodes'])
-        for name in ('availableHeightPx','fixedFooterNaturalPx','contentViewportPx','headerAndMetricsNaturalPx',
+        for name in ('availableHeightPx','contentViewportPx','headerAndMetricsNaturalPx',
             'chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','chartMarginsPx','fullNaturalPx',
             'chartLegendNaturalPx','externalExplanationNaturalPx','externalExplanationTopMarginPx','chartOverlayPaddingPx'):
             assert name in budget,(path,name)
+        assert budget['contentViewportPx']==budget['availableHeightPx']
         assert budget['minimumPlotDp']==96 and budget['chartLegendNaturalPx']>0 and budget['externalExplanationNaturalPx']>0
         assert budget['explanationPlacement']=='same_permanent_producer_view_after_complete_chart_before_notes'
         assert preview['actualPlotHeightDp']>=96 and preview['initialVisiblePlotHeightDp']>=96
@@ -772,17 +777,8 @@ for path in manifests:
         if m['window']['fontScale']==1.0:
             assert preview['chart']['complete'] and preview['axisInk']
             assert all(ink['completeInVisiblePlotView'] for ink in preview['axisInk'])
-        reach=json.loads((folder/'history-preview-reachability.json').read_text())
-        assert reach['completed'] and reach['initialScrollY']==reach['restoredScrollY']==0
-        assert reach['exactScrollRestored'] and reach['permanentExplanationIdentityPreserved'] and reach['readOnlyJournalUnchanged']
-        assert [target['target'] for target in reach['targets']]==['chart','explanation','note-0','note-1']
-        assert all(target['visibility']['complete'] for target in reach['targets'])
-        for phase in ('chart-reachable','explanation-reachable','note-0-reachable','note-1-reachable','restored'):
-            expected=folder/'states'/f'history-preview-{phase}'/'window-frame-sync.json'
-            assert expected.is_file(),('Missing expected History reach/restore proof',str(expected))
-            proof=json.loads(expected.read_text());assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000
     if m['page']!='extraction':
-        require_reach(folder,m['page'])
+        require_reach(folder,m['page'],expected_review_fields=('taste','next') if m['page']=='history' else ())
         if m['page']=='history-detail':require_standalone(folder,m['window'],False)
         assert isolation['noServiceBeforeOriginalDelegateRestore']
         if m['page']=='history':
@@ -814,7 +810,8 @@ for path in manifests:
             assert observed['densityDpi']==m['window']['densityDpi'] and observed['fontScale']==m['window']['fontScale']
             assert observed['uiModeNightMeaning']==m['window']['uiModeNightMeaning'] and not observed['imeVisible']
             require_proof(target/'window-frame-sync.json')
-            require_reach(target,m['page'],expected_warning=case['observation']['status']=='UNKNOWN')
+            require_reach(target,m['page'],expected_warning=case['observation']['status']=='UNKNOWN',
+                expected_review_fields=('next',) if m['page']=='history' and case['case']=='sample-gap' else ())
             if m['page']=='history-detail':require_standalone(target,observed,case['case']=='missing-samples')
             if m['page']=='history':
                 assert case['declaredReferenceSamples']==[]
@@ -832,7 +829,7 @@ for path in manifests:
                 if m['page']!='comparison': assert case['displayedElapsed']=='—' and case['displayedWeight']=='—'
             elif case['case']=='no-notes':
                 if m['page']=='comparison': assert case['blankNotesPlaceholder']=='—' and case['blankTasteDisclosureDisabled']
-                else: assert case['blankNotesPlaceholderCount']>0
+                elif m['page']=='history-detail': assert case['blankNotesPlaceholderCount']>0
             elif case['case']=='sample-gap':
                 assert len(segments)==2 and segments[0][-1]==3000 and segments[1][0]==8000
                 assert not case['actualWaterResetTimesMs']
