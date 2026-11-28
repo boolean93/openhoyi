@@ -58,7 +58,7 @@ internal data class FourMetricChartData(
     val waterResetsMs: List<Long>,
     val referenceWaterResetsMs: List<Long>,
     val pauseBaselineMs: Set<Long> = emptySet(),
-    /** Left edge of the displayed time window; the realtime chart scrolls a fixed 10 s window. */
+    /** Left edge of the displayed time window; whole-cup projections start at zero. */
     val timeStartMs: Long = 0L,
 )
 
@@ -122,33 +122,21 @@ internal object FourMetricChartProjection {
         }
         val referenceEnd = if (!liveFlow || referenceDrivesLiveAxes)
             reference.lastOrNull()?.elapsedMs ?: 0L else 0L
-        val observedEnd = maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L, referenceEnd)
-        // The realtime chart keeps the whole cup visible: a 10 s minimum end, then continuous
-        // scale-out as the observed duration grows. An idle preview with no current observation
-        // still shows the full reference cup from zero.
-        val timeStart: Long
-        val timeEnd: Long
-        if (liveFlow) {
-            // The realtime time axis always starts at 0: the first 10 s stay 0-10 and after that
-            // the end continuously follows the observed duration, so the whole cup stays visible
-            // and is smoothly compressed instead of the window scrolling.
-            timeStart = 0L
-            timeEnd = if (fixedLiveAxes) FixedChartAxes.TIME_END_MS else if (referenceDrivesLiveAxes)
-                maxOf(10_000L, reference.lastOrNull()?.elapsedMs ?: 0L)
-            else maxOf(10_000L, points.lastOrNull()?.elapsedMs ?: 0L)
-        } else {
+        val observedThrough = points.lastOrNull()?.elapsedMs
+        val timeEnd = when {
+            // In fixed mode, only the current cup can extend the initial time range.
+            liveFlow && fixedLiveAxes -> maxOf(FixedChartAxes.INITIAL_TIME_END_MS, observedThrough ?: 0L)
+            liveFlow -> maxOf(10_000L, observedThrough ?: referenceEnd)
             // Historical/comparison charts snap the whole-cup end to a readable time step.
-            timeStart = 0L
-            timeEnd = ChartAxisScale.timeAxis(observedEnd, roundUp = true).endMs
+            else -> ChartAxisScale.timeAxis(maxOf(1000L, observedThrough ?: 0L, referenceEnd), roundUp = true).endMs
         }
         return FourMetricChartData(
             series,
-            points.lastOrNull()?.elapsedMs,
+            observedThrough,
             timeEnd,
             resets(points),
             resets(reference),
             if (livePauseBaseline) pauseBaselines(points) else emptySet(),
-            timeStart,
         )
     }
 

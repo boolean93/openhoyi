@@ -20,15 +20,15 @@ class FixedChartAxesTest {
             assertEquals(maxOf(10000L, time), FourMetricChartProjection.build(points, emptyList(), liveFlow = true).timeEndMs)
         }
     }
-    @Test fun everyAxisIsConstantAcrossTimeSeedsPriorRangesAndReference() {
-        for (time in listOf(0L, 1000L, 10000L, 30000L, 39000L, 72000L)) {
+    @Test fun timeKeepsTheStartAndShowsTheWholeCupWhileMetricAxesStayFixed() {
+        for (time in listOf(0L, 39_900L, 40_000L, 40_250L, 72_000L)) {
             val data = FourMetricChartProjection.build(listOf(point(time)), listOf(point(90000, temperature = 6000)),
                 previousRanges = ChartMetric.entries.associateWith { ChartRange(-100f, 500f) },
                 liveFlow = true, includeLiveWeight = true, fixedLiveAxes = true,
                 expectedLiveRanges = ChartMetric.entries.associateWith { ChartRange(0f, 200f) },
                 expandAllLiveAxes = true)
             assertEquals(0L, data.timeStartMs)
-            assertEquals(40000L, data.timeEndMs)
+            assertEquals(maxOf(40_000L, time), data.timeEndMs)
             data.series.forEach { series ->
                 assertEquals(FixedChartAxes.axis(series.metric).range, series.range)
                 assertEquals(FixedChartAxes.axis(series.metric).step, series.step, 0f)
@@ -39,7 +39,7 @@ class FixedChartAxesTest {
         val points = listOf(point(0, 160, 1010, 7900, 0, 6100), point(1000, weight = 550), point(41000))
         val data = project(points)
         val overflow = FixedChartAxes.overflow(data, selectableLiveMetrics.toSet())
-        assertTrue(overflow.time)
+        assertFalse(overflow.time)
         assertEquals(setOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.FLOW, ChartMetric.TEMPERATURE,
             ChartMetric.YIELD), overflow.metrics)
         assertEquals(16f, data.series.first { it.metric == ChartMetric.PRESSURE }.current.first().first().value, 0f)
@@ -48,9 +48,15 @@ class FixedChartAxesTest {
         assertEquals(3, data.series.first { it.metric == ChartMetric.WATER }.current.flatten().size)
     }
     @Test fun referenceOverflowAndHiddenMetricsAreSeparate() {
-        val data = project(listOf(point(1000)), listOf(point(41000, temperature = 7900)))
+        val reference = listOf(point(41_000))
+        val idle = project(emptyList(), reference)
+        assertEquals(40_000L, idle.timeEndMs)
+        assertTrue(FixedChartAxes.overflow(idle, selectableLiveMetrics.toSet(), reference = true).time)
+        val data = project(listOf(point(1000)), reference)
         assertFalse(FixedChartAxes.overflow(data, selectableLiveMetrics.toSet()).any)
-        assertTrue(FixedChartAxes.overflow(data, selectableLiveMetrics.toSet(), reference = true).any)
+        assertTrue(FixedChartAxes.overflow(data, selectableLiveMetrics.toSet(), reference = true).time)
+        val caughtUp = project(listOf(point(41_000)), reference)
+        assertFalse(FixedChartAxes.overflow(caughtUp, selectableLiveMetrics.toSet(), reference = true).any)
         val excursion = project(listOf(point(1000, pressure = 151)))
         assertFalse(FixedChartAxes.overflow(excursion, setOf(ChartMetric.WATER)).any)
         assertEquals(setOf(ChartMetric.PRESSURE), FixedChartAxes.overflow(excursion, setOf(ChartMetric.PRESSURE)).metrics)
