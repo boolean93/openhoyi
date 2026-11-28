@@ -3032,6 +3032,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 finally {main {write(app,"journalObservationFailure",null)}}
             }
             check(active.readOnlyHistoryRootService())
+            if(case=="tablet-dark-medium") {
+                scope=null
+                active.cleanup()
+                val collectionDirectory=File(directory,"collection").apply {check(mkdirs())}
+                val collectionScope=Scope(collectionDirectory,"history")
+                scope=collectionScope
+                collectionScope.prepare()
+                collectionScope.install(dark=true)
+                captureHistoryAiReview(collectionScope,collectionDirectory)
+            }
             report.put("mechanicalStatus","PASS_NOT_VISUAL_ACCEPTANCE")
         } catch(error:Throwable) {failure=error;report.put("mechanicalStatus","FAIL").put("failure",error.stackTraceToString())}
         finally {
@@ -3045,6 +3055,54 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         failure?.let {throw it}
     }
+
+    private fun captureHistoryAiReview(scope: Scope, directory: File) {
+        val activity=MainPageTestHost.launch(test,TaskDestination.HISTORY).activity
+        scope.captureHistoryRootService(activity)
+        assertInitialHistoryPreview(activity,journalSource=false)
+        main {check((list(activity).getItemAtPosition(0) as ShotHistory.Entry).id!=scope.firstId)}
+        selectHistory(activity,scope.firstId)
+        val content=root(activity)
+        val review=content.findViewWithTag<Button>("product/history/ai-review")
+        val tools=content.findViewWithTag<View>("product/history/io-menu")
+        val chart=content.findViewWithTag<ShotChartView>("product/history/chart")
+        val samples=scope.expectedSamples(scope.firstId)
+        check(samples.isNotEmpty())
+        await("selected non-latest curve loaded") {chart.points==samples}
+        val capture=frames.screenshot(activity,content,File(directory,"window.png")) {
+            val reviewBounds=historyVisibility(review)
+            val toolsBounds=historyVisibility(tools)
+            check(review.isEnabled && review.text==activity.getString(R.string.completion_card_review))
+            check(tools.isEnabled && tools.contentDescription==activity.getString(R.string.task_tools))
+            check(review.parent===tools.parent && reviewBounds.getBoolean("complete") && toolsBounds.getBoolean("complete"))
+            check(chart.points==samples)
+            val visibleChart=Rect()
+            check(chart.getGlobalVisibleRect(visibleChart) && visibleChart.height()>=HoyiUi.dp(activity,96))
+            JSONObject().put("selectedShot",scope.firstId).put("samples",chart.points.size)
+                .put("review",reviewBounds).put("tools",toolsBounds)
+        }
+        WindowProofStreamingWriter.writeStrict(capture.target,File(directory,"geometry.json"))
+        val position=capture.target.getJSONObject("review").getJSONArray("rectPx")
+        val x=(position.getInt(0)+position.getInt(2))/2f
+        val y=(position.getInt(1)+position.getInt(3))/2f
+        check(AiKeyStore(context).status()==AiKeyStatus.MISSING) { "History review fixture requires empty credentials" }
+        val down=SystemClock.uptimeMillis()
+        listOf(android.view.MotionEvent.ACTION_DOWN,android.view.MotionEvent.ACTION_UP).forEach { action ->
+            val event=android.view.MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,x,y,0)
+            event.source=android.view.InputDevice.SOURCE_TOUCHSCREEN
+            try {check(test.uiAutomation.injectInputEvent(event,true))} finally {event.recycle()}
+        }
+        await("history review opens the missing-key prompt") {
+            focusedJournalDialog(activity)?.findViewById<TextView>(android.R.id.message)
+                ?.text==activity.getString(R.string.ai_key_missing)
+        }
+        main {requireNotNull(focusedJournalDialog(activity)).getButton(AlertDialog.BUTTON_NEGATIVE).performClick()}
+        await("history selection and focus survive cancellation") {
+            activity.hasWindowFocus() && content.findViewWithTag<ShotChartView>("product/history/chart")?.points==samples
+        }
+        scope.closeActivities()
+    }
+
     /** Finished-shot geometry proof: inject presentation changes only, never call a provider. */
     fun runShotReviewLayout(arguments: Bundle) {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")

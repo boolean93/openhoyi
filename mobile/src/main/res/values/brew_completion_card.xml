@@ -15,4 +15,5 @@
     <string name="completion_card_one_cup_unit">杯</string>
     <string name="completion_card_measurement">%1$s，%2$s %3$s</string>
     <string name="completion_card_measurement_unavailable">%1$s，暂无数据</string>
+    <string name="history_ai_review_request">帮我看看这杯的萃取曲线，下一杯最值得调哪里？</string>
 </resources>

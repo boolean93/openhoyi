@@ -27,6 +27,10 @@ class HistoryActivity : ThemedActivity() {
     private var showJournal = false
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailContent: LinearLayout
+    private lateinit var historyReview: Button
+    private fun visibleReviewId(): String? = selectedIds[showJournal]?.takeIf { id ->
+        collection.detailBody.visibility == View.VISIBLE && rows.any { it.id == id }
+    }
     private val selectedIds = mutableMapOf<Boolean, String>()
     private var restoreDetail = false
     private var compact = true
@@ -112,6 +116,8 @@ class HistoryActivity : ThemedActivity() {
                 beanShowDialog(dialog)
             }
         }
+        historyReview = this.historyAiReviewButton(style, ::visibleReviewId).apply { isEnabled = false }
+        header.addView(historyReview, LinearLayout.LayoutParams(-2, -2))
         header.addView(ioMenu, LinearLayout.LayoutParams(dp(48), dp(48)))
         val list = ListView(this).apply {
             divider = android.graphics.drawable.ColorDrawable(style.border)
@@ -215,6 +221,7 @@ class HistoryActivity : ThemedActivity() {
         collection.onPresentationChanged = { split, visible ->
             compact = !split
             back.visibility = if (compact) View.VISIBLE else View.GONE
+            historyReview.isEnabled = visibleReviewId() != null
             updateBack(compact && visible)
         }
         collection.detailRequested = restoreDetail
@@ -319,6 +326,7 @@ class HistoryActivity : ThemedActivity() {
         detailContent.removeAllViews()
         detailContent.tag = null
         val selected = rows.firstOrNull { it.id == selectedIds[showJournal] }
+        historyReview.isEnabled = visibleReviewId() != null
         if (selected == null) {
             selectedIds.remove(showJournal)
             collection.detailRequested = false

@@ -251,7 +251,8 @@ class AiChatActivity : ThemedActivity() {
                 render()
             } else {
                 confirmAttachments(emptyList()) {
-                    begin(review.line(getString(R.string.completion_card_request)), review.keyRevision)
+                    val question = if (review.fromHistory) R.string.history_ai_review_request else R.string.completion_card_request
+                    begin(review.line(getString(question)), review.keyRevision, review.historyId.takeIf { review.fromHistory })
                 }
             }
         }
@@ -741,7 +742,7 @@ class AiChatActivity : ThemedActivity() {
     }
     private fun begin(text: String) = begin(AiChatLine(true, text, sendAttachments()))
 
-    private fun begin(line: AiChatLine, expectedKeyRevision: Long? = null) {
+    private fun begin(line: AiChatLine, expectedKeyRevision: Long? = null, selectedHistoryId: String? = null) {
         val text = line.wireText
         val attachments = line.attachments
         val preservesDraft = line.completionShotId != null
@@ -787,7 +788,7 @@ class AiChatActivity : ThemedActivity() {
         diagnosticAttempt = attempt
         request = scope.launch {
             try {
-                val data = LocalAiReadOnlyData(this@AiChatActivity) { service?.snapshot }
+                val data = LocalAiReadOnlyData(this@AiChatActivity, selectedHistoryId) { service?.snapshot }
                 val app = application as MobileApplication
                 val coordinator = app.customCurvesResult.getOrNull()?.let { store ->
                     curveCoordinator ?: AiCurveWriteCoordinator(store, resolveFactory = { id -> app.curves.find(id) }) { id -> app.curveDeletionGuards.values.none { it(id) } }.also { curveCoordinator = it }
