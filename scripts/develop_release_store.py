@@ -8,6 +8,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,9 +19,15 @@ STATE_BRANCH = "automation/apk-publishing"
 
 
 class ApiError(RuntimeError):
-    def __init__(self, status):
+    def __init__(self, status, *, method=None, attempts=1):
         self.status = status
-        super().__init__(f"GitHub API rejected request ({status}); no automatic write retry")
+        operation = f"{method} request" if method else "request"
+        detail = f"GitHub API rejected {operation} ({status})"
+        if method != "GET":
+            detail += "; no automatic write retry"
+        elif attempts > 1:
+            detail += f" after {attempts} attempts"
+        super().__init__(detail)
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -49,14 +57,23 @@ class GitHub:
         body = data if upload_name else (json.dumps(data).encode() if data is not None else None)
         if body is not None:
             headers["Content-Type"] = "application/octet-stream" if upload_name else "application/json"
-        try:
-            with self.opener.open(urllib.request.Request(url, body, headers, method=method), timeout=120) as response:
-                raw = response.read()
-        except urllib.error.HTTPError as error:
-            raise ApiError(error.code) from None
-        except (urllib.error.URLError, TimeoutError):
-            raise RuntimeError("GitHub response unknown; reconcile server state before retry") from None
-        return raw if binary else (json.loads(raw) if raw else None)
+        # Retry only the individual read. A failing write may have landed on the server.
+        for attempts, retry_delay in enumerate((2, 5, 10, None), start=1):
+            request = urllib.request.Request(url, body, headers, method=method)
+            try:
+                with self.opener.open(request, timeout=120) as response:
+                    raw = response.read()
+            except urllib.error.HTTPError as error:
+                status = error.code
+                error.close()
+                if method != "GET" or status != 502 or retry_delay is None:
+                    raise ApiError(status, method=method, attempts=attempts) from None
+                print(f"GitHub API GET returned HTTP 502; retrying in {retry_delay}s.", file=sys.stderr, flush=True)
+                time.sleep(retry_delay)
+            except (urllib.error.URLError, TimeoutError):
+                raise RuntimeError("GitHub response unknown; reconcile server state before retry") from None
+            else:
+                return raw if binary else (json.loads(raw) if raw else None)
 
     def optional(self, path):
         try:

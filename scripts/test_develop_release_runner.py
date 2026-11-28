@@ -1,6 +1,7 @@
 """Offline state-transition regressions; no network, Android build, or signing keys."""
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager, redirect_stderr
 from copy import deepcopy
+from io import BytesIO, StringIO
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ import re
 import tempfile
 import unittest
 from unittest import mock
+from urllib.error import HTTPError
 
 import develop_release as runner
 from develop_release_policy import allocate_version
@@ -141,6 +143,59 @@ class ReleaseAPI:
         return {**json.loads(self.contents["distribution.json"]),
                 "_release": deepcopy(self.release), "_assets": deepcopy(self.assets),
                 "_manifestHash": sha256(self.contents["distribution.json"])}
+
+
+class GitHubRequestTests(unittest.TestCase):
+    def setUp(self):
+        self.api = GitHub(runner.REPO, "private-token")
+        self.log = StringIO()
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(redirect_stderr(self.log))
+        self.sleep = stack.enter_context(mock.patch("time.sleep"))
+        self.open = stack.enter_context(mock.patch.object(self.api.opener, "open"))
+
+    def http_error(self, status):
+        return HTTPError("https://example.com/?private-query", status, "private-message", {},
+                         BytesIO(b"private-response"))
+
+    def test_retries_a_transient_502_on_an_asset_download(self):
+        payload = b"downloaded asset"
+        self.open.side_effect = [self.http_error(502), BytesIO(payload)]
+        self.assertEqual(self.api.asset({"id": 7, "size": len(payload)}), payload)
+        self.sleep.assert_called_once_with(2)
+        self.assertEqual([call.args[0].get_method() for call in self.open.call_args_list], ["GET", "GET"])
+        self.assertRegex(self.log.getvalue(), r"GET.*502.*2s")
+
+    def test_persistent_get_502_stops_after_four_attempts_without_leaking_details(self):
+        self.open.side_effect = [self.http_error(502) for _ in range(4)]
+        with self.assertRaisesRegex(ApiError, r"GET.*502.*4 attempts") as error:
+            self.api.request("releases?private-query")
+        self.assertEqual(error.exception.status, 502)
+        self.assertEqual(self.open.call_count, 4)
+        self.assertEqual(self.sleep.call_args_list, [mock.call(2), mock.call(5), mock.call(10)])
+        diagnostics = self.log.getvalue() + str(error.exception)
+        for secret in ("private-query", "private-message", "private-response", "private-token"):
+            self.assertNotIn(secret, diagnostics)
+
+    def test_write_502_is_never_replayed(self):
+        for method in ("POST", "PATCH"):
+            with self.subTest(method=method):
+                self.open.reset_mock()
+                self.open.side_effect = self.http_error(502)
+                with self.assertRaisesRegex(ApiError, rf"{method}.*502.*no automatic write retry"):
+                    self.api.request("git/refs", method, {"private": "state"})
+                self.open.assert_called_once()
+        self.sleep.assert_not_called()
+
+    def test_other_statuses_do_not_retry_and_optional_still_handles_404(self):
+        self.open.side_effect = [self.http_error(503), self.http_error(404)]
+        with self.assertRaisesRegex(ApiError, r"GET.*503"):
+            self.api.request("git/refs")
+        self.open.assert_called_once()
+        self.assertIsNone(self.api.optional("git/ref/heads/optional"))
+        self.assertEqual(self.open.call_count, 2)
+        self.sleep.assert_not_called()
 
 
 class DevelopReleaseRunnerTests(unittest.TestCase):
