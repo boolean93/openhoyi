@@ -90,6 +90,7 @@ internal object FourMetricChartProjection {
         expandAllLiveAxes: Boolean = false,
         includeLiveWeight: Boolean = false,
         fixedLiveAxes: Boolean = false,
+        fixedInitialTimeSeconds: Int = FixedChartAxes.DEFAULT_INITIAL_TIME_SECONDS,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
@@ -125,7 +126,8 @@ internal object FourMetricChartProjection {
         val observedThrough = points.lastOrNull()?.elapsedMs
         val timeEnd = when {
             // In fixed mode, only the current cup can extend the initial time range.
-            liveFlow && fixedLiveAxes -> maxOf(FixedChartAxes.INITIAL_TIME_END_MS, observedThrough ?: 0L)
+            liveFlow && fixedLiveAxes -> maxOf(FixedChartAxes.initialTimeSeconds(fixedInitialTimeSeconds) * 1_000L,
+                observedThrough ?: 0L)
             liveFlow -> maxOf(10_000L, observedThrough ?: referenceEnd)
             // Historical/comparison charts snap the whole-cup end to a readable time step.
             else -> ChartAxisScale.timeAxis(maxOf(1000L, observedThrough ?: 0L, referenceEnd), roundUp = true).endMs

@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item name="fixed_chart_initial_time_input" type="id" />
     <string name="fixed_chart_section">实时曲线</string>
     <string name="fixed_chart_axes">固定坐标轴</string>
+    <string name="fixed_chart_initial_time">时间轴起始时长</string>
+    <string name="fixed_chart_initial_time_value">%1$s：%2$d 秒</string>
+    <string name="fixed_chart_initial_time_positive_integer">请输入大于 0 的整数秒数</string>
+    <string name="fixed_chart_initial_time_save">保存</string>
     <string name="fixed_chart_overflow">部分数据超出固定范围：%1$s。完整数据保留</string>
     <string name="fixed_chart_reference_overflow">参考曲线部分超出固定范围</string>
 </resources>

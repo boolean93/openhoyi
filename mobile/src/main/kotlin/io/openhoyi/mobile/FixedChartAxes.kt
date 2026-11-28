@@ -1,11 +1,21 @@
 package io.openhoyi.mobile
 
+import android.content.SharedPreferences
+
 /** Display bounds only. Never changes observations, extraction controls or history. */
 internal object FixedChartAxes {
     const val PREFERENCES = "chart_display"
     const val KEY = "fixed_axes"
     const val DEFAULT = false
-    const val INITIAL_TIME_END_MS = 40_000L
+    const val INITIAL_TIME_SECONDS_KEY = "initial_time_seconds"
+    const val DEFAULT_INITIAL_TIME_SECONDS = 40
+
+    fun initialTimeSeconds(stored: Any?): Int =
+        (stored as? Int)?.takeIf { it > 0 } ?: DEFAULT_INITIAL_TIME_SECONDS
+
+    fun readInitialTimeSeconds(preferences: SharedPreferences): Int =
+        initialTimeSeconds(preferences.all[INITIAL_TIME_SECONDS_KEY])
+
     fun axis(metric: ChartMetric): ChartAxisScale.YAxis = when (metric) {
         ChartMetric.PRESSURE -> ChartAxisScale.YAxis(ChartRange(0f, 15f), 3f)
         ChartMetric.WATER -> ChartAxisScale.YAxis(ChartRange(0f, 100f), 20f)

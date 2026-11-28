@@ -17,7 +17,7 @@
     <string name="settings_category_apply">Apply</string>
     <string name="settings_category_preview">Preview</string>
     <string name="settings_category_shortcut_hint">Studio mode requires target temperature.</string>
-    <string name="settings_category_axes_hint">Fixed vertical scales. The time axis starts at 0–40 s and extends with the shot.</string>
+    <string name="settings_category_axes_hint">The vertical scales stay fixed. The time axis starts at zero and expands when the shot exceeds the initial duration.</string>
     <string name="settings_category_feedback_hint">Show feedback and play a prompt at completion.</string>
     <string name="settings_category_diagnostics_label">Diagnostic log</string>
     <string name="settings_category_weekly_active">Enable weekly schedule</string>

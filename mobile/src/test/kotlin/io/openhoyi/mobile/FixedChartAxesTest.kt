@@ -7,18 +7,38 @@ class FixedChartAxesTest {
     private fun point(ms: Long, pressure: Int = 90, water: Int = 350, temperature: Int = 9200,
         weight: Int = 3600, yield: Int? = 3600) = ShotPoint(ms, pressure, 0, water, temperature, weight,
             0, true, beverageHundredthsGram = yield)
-    private fun project(points: List<ShotPoint>, reference: List<ShotPoint> = emptyList()) =
+    private fun project(points: List<ShotPoint>, reference: List<ShotPoint> = emptyList(),
+        initialSeconds: Int = FixedChartAxes.DEFAULT_INITIAL_TIME_SECONDS) =
         FourMetricChartProjection.build(points, reference, liveFlow = true, includeLiveWeight = true,
-            fixedLiveAxes = true)
+            fixedLiveAxes = true, fixedInitialTimeSeconds = initialSeconds)
 
     @Test fun defaultOffRetainsOriginalDynamicAxes() {
         assertFalse(FixedChartAxes.DEFAULT)
         for (time in listOf(5000L, 12000L)) {
             val points = listOf(point(time))
             assertEquals(FourMetricChartProjection.build(points, emptyList(), liveFlow = true),
-                FourMetricChartProjection.build(points, emptyList(), liveFlow = true, fixedLiveAxes = false))
+                FourMetricChartProjection.build(points, emptyList(), liveFlow = true, fixedLiveAxes = false,
+                    fixedInitialTimeSeconds = 60))
             assertEquals(maxOf(10000L, time), FourMetricChartProjection.build(points, emptyList(), liveFlow = true).timeEndMs)
         }
+    }
+    @Test fun configuredSixtySecondStartExtendsWithTheCup() {
+        for ((observed, expectedEnd) in listOf(55_000L to 60_000L, 60_000L to 60_000L, 65_000L to 65_000L)) {
+            val data = project(listOf(point(observed)), listOf(point(90_000L)), initialSeconds = 60)
+            assertEquals(0L, data.timeStartMs)
+            assertEquals(expectedEnd, data.timeEndMs)
+        }
+    }
+    @Test fun missingOrInvalidStoredDurationFallsBackAndMaxIntKeepsGridBounded() {
+        for (stored in listOf(null, "60", 0, -1, Int.MAX_VALUE.toLong() + 1)) {
+            assertEquals(40, FixedChartAxes.initialTimeSeconds(stored))
+        }
+        assertEquals(1, FixedChartAxes.initialTimeSeconds(1))
+        val end = project(emptyList(), initialSeconds = Int.MAX_VALUE).timeEndMs
+        assertEquals(Int.MAX_VALUE * 1_000L, end)
+        val scale = ChartAxisScale.timeAxis(end)
+        assertEquals(end, scale.majorTicks.last())
+        assertTrue(scale.majorTicks.size <= 8 && scale.minorTicks.size <= 8)
     }
     @Test fun timeKeepsTheStartAndShowsTheWholeCupWhileMetricAxesStayFixed() {
         for (time in listOf(0L, 39_900L, 40_000L, 40_250L, 72_000L)) {
@@ -86,7 +106,7 @@ class FixedChartAxesTest {
     @Test fun historyIgnoresFixedLiveFlagAndMissingYieldIsNotInvented() {
         val points = listOf(point(72000, yield = null))
         assertEquals(FourMetricChartProjection.build(points, points),
-            FourMetricChartProjection.build(points, points, fixedLiveAxes = true))
+            FourMetricChartProjection.build(points, points, fixedLiveAxes = true, fixedInitialTimeSeconds = 90))
         assertFalse(project(points).series.any { it.metric == ChartMetric.YIELD })
     }
 }

@@ -125,14 +125,18 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var inspectionDialog: AlertDialog? = null
     private val axisPreferences = context.getSharedPreferences(FixedChartAxes.PREFERENCES, Context.MODE_PRIVATE)
     private var fixedAxes = axisPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
+    private var fixedInitialTimeSeconds = FixedChartAxes.readInitialTimeSeconds(axisPreferences)
     private val axisPreferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key == FixedChartAxes.KEY) refreshAxisPreference()
+        if (key == null || key == FixedChartAxes.KEY || key == FixedChartAxes.INITIAL_TIME_SECONDS_KEY) refreshAxisPreference()
     }
     private fun refreshAxisPreference() {
         val next = axisPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
-        if (next == fixedAxes) return
+        val nextSeconds = FixedChartAxes.readInitialTimeSeconds(axisPreferences)
+        val modeChanged = next != fixedAxes
+        if (!modeChanged && nextSeconds == fixedInitialTimeSeconds) return
         fixedAxes = next
-        if (!liveChart) return
+        fixedInitialTimeSeconds = nextSeconds
+        if (!liveChart || (!fixedAxes && !modeChanged)) return
         stopRenderTransition()
         previousRanges = emptyMap()
         previousSteps = emptyMap()
@@ -545,7 +549,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart,
             allowLiveExpansion = allowYExpansion, expectedLiveRanges = expectedRanges,
             previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes, includeLiveWeight = liveChart,
-            fixedLiveAxes = liveChart && fixedAxes)
+            fixedLiveAxes = liveChart && fixedAxes, fixedInitialTimeSeconds = fixedInitialTimeSeconds)
         var projected = project(false)
         if (liveChart && !fixedAxes && !yExpansionStarted && points.isNotEmpty() && projected.series.filter { it.metric in liveMetrics }.any { series ->
                 val before = previousRanges[series.metric] ?: ChartAxisScale.yAxis(

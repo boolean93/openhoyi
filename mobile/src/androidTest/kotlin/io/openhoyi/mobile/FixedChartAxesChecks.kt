@@ -15,12 +15,12 @@ internal class FixedChartAxesChecks(private val test: Instrumentation) {
         var failure: Throwable? = null
         test.runOnMainSync {
             val prefs = test.targetContext.getSharedPreferences(FixedChartAxes.PREFERENCES, Context.MODE_PRIVATE)
-            val present = prefs.contains(FixedChartAxes.KEY)
-            val prior = prefs.getBoolean(FixedChartAxes.KEY, false)
+            val prior = prefs.all.toMap()
             val series = test.targetContext.getSharedPreferences("chart_series", Context.MODE_PRIVATE)
             val priorSeries = series.getStringSet("visible", null)?.toSet()
             try {
-                check(prefs.edit().putBoolean(FixedChartAxes.KEY, true).commit())
+                check(prefs.edit().putBoolean(FixedChartAxes.KEY, true)
+                    .putInt(FixedChartAxes.INITIAL_TIME_SECONDS_KEY, 60).commit())
                 check(series.edit().remove("visible").commit())
                 for ((language, font, dark, widthDp) in listOf(
                     Quad(AppLanguage.CHINESE, AppFontSize.LARGE, false, 320),
@@ -45,9 +45,7 @@ internal class FixedChartAxesChecks(private val test: Instrumentation) {
                     false, AppFontSize.MEDIUM))
             } catch (error: Throwable) { failure = error }
             finally {
-                val edit = prefs.edit()
-                if (present) edit.putBoolean(FixedChartAxes.KEY, prior) else edit.remove(FixedChartAxes.KEY)
-                check(edit.commit())
+                restoreMockPreferences(prefs, prior)
                 check(series.edit().putStringSet("visible", priorSeries).commit())
             }
         }
@@ -58,7 +56,7 @@ internal class FixedChartAxesChecks(private val test: Instrumentation) {
         val chart = ExtractionOverlayView(context, ExtractionHistoryVisualStyle(context)).apply {
             liveCompactChrome = true
         }
-        for ((lastSecond, endLabel) in listOf(39 to "40.0 s", 41 to "41.0 s")) {
+        for ((lastSecond, endLabel) in listOf(59 to "60.0 s", 65 to "65.0 s")) {
             chart.points = (0..lastSecond).map { second ->
                 ShotPoint(second * 1_000L, 60 + second, 0, second * 10, 9200, null, brewing = true)
             }
@@ -74,7 +72,7 @@ internal class FixedChartAxesChecks(private val test: Instrumentation) {
             val left = bounds.getDouble(0)
             val right = bounds.getDouble(2)
             val end = plot.getLong("projectionTimeEndMs")
-            check(end == maxOf(40, lastSecond) * 1_000L)
+            check(end == maxOf(60, lastSecond) * 1_000L)
             val path = operations.single {
                 it.optString("operation") == "path" && it.optString("metric") == "PRESSURE" && !it.getBoolean("reference")
             }.getJSONArray("verticesPx")
