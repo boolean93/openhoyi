@@ -5,7 +5,7 @@ import java.util.UUID
 /** Bridges a local feedback dialog to the *same* durably sampled cup. No latest-shot lookup. */
 internal class CompletionShotReview(private val token: () -> String = { UUID.randomUUID().toString() }) {
     class Capture internal constructor(val feedback: BrewFeedbackResult, val historyId: String)
-    class Request internal constructor(val historyId: String, val keyRevision: Long) {
+    class Request internal constructor(val historyId: String, val keyRevision: Long, val fromHistory: Boolean = false) {
         fun line(question: String) = AiChatLine(true, question, completionShotId = historyId)
     }
     private data class Handoff(val token: String, val request: Request)
@@ -55,6 +55,12 @@ internal class CompletionShotReview(private val token: () -> String = { UUID.ran
             handoff = Handoff(it, Request(owner.historyId, keyRevision))
             signal()
         }
+    }
+
+    /** The visible history selection supplies its own ID, independent of live feedback. */
+    @Synchronized fun issueHistory(historyId: String, keyRevision: Long?): String? {
+        if (keyRevision == null || handoff != null || !AiExtractionSamples.validId(historyId)) return null
+        return token().also { handoff = Handoff(it, Request(historyId, keyRevision, fromHistory = true)) }
     }
 
     @Synchronized fun abandon(token: String) {

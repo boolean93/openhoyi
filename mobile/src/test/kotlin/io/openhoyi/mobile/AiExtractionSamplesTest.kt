@@ -60,6 +60,17 @@ class AiExtractionSamplesTest {
         assertEquals("samples_unavailable", AiExtractionSamples.read("shot-1", 0, 100, { listOf(shot) }, { emptyList() }).getString("status"))
     }
 
+    @Test fun anExplicitHistoryReviewReadsOnlyItsSelectedSavedCurve() {
+        val reads = mutableListOf<String>()
+        fun read(id: String) = AiExtractionSamples.read(id, 0, 100, { listOf(shot) },
+            { selected -> reads += selected; listOf(point(10)) }, selectedHistoryId = "older")
+
+        assertEquals("not_found", read("shot-1").getString("status"))
+        assertTrue(reads.isEmpty())
+        assertEquals("older", read("older").getString("shotId"))
+        assertEquals(listOf("older"), reads)
+    }
+
     @Test fun realStoreReadsLegacyAndRejectsCorruptionWithoutWriting() {
         val dir = Files.createTempDirectory("ai-samples-").toFile()
         try {

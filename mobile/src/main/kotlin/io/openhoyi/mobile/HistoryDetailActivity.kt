@@ -18,7 +18,14 @@ class HistoryDetailActivity : ThemedActivity() {
         val comparisonHost = header.takeIf {
             resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f
         }
-        renderHistoryDetail(body, intent.getStringExtra("shotId"), standalone = true, comparisonHost = comparisonHost, visual = visual)
+        val shotId = intent.getStringExtra("shotId")
+        renderHistoryDetail(body, shotId, standalone = true, comparisonHost = comparisonHost, visual = visual)
+        val hasCurve = body.findViewWithTag<ShotChartView>("product/history/chart") != null
+        if (hasCurve && shotId != null) {
+            val tools = header.findViewWithTag<android.view.View>("task-tools-host")
+            header.addView(historyAiReviewButton(visual.palette, shotId),
+                header.indexOfChild(tools), LinearLayout.LayoutParams(-2, -2))
+        }
     }
     private fun dp(value: Int) = HoyiUi.dp(this, value)
 }

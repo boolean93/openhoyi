@@ -15,4 +15,5 @@
     <string name="completion_card_one_cup_unit">cup</string>
     <string name="completion_card_measurement">%1$s, %2$s %3$s</string>
     <string name="completion_card_measurement_unavailable">%1$s, unavailable</string>
+    <string name="history_ai_review_request">Can you review this extraction curve? What should I change first for the next shot?</string>
 </resources>

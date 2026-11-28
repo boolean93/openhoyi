@@ -53,6 +53,26 @@ class CompletionShotReviewTest {
         assertNull(route.consume("ticket", 2, true))
     }
 
+    @Test fun selectedHistoryTicketUsesThatCupAndCannotBeReplacedOrReplayed() {
+        val route = CompletionShotReview { "history-ticket" }
+        val recent = feedback("recent")
+        val capture = requireNotNull(route.begin(recent, "recent"))
+        route.persisted(capture)
+
+        assertNull(route.issueHistory("invalid/id", 7))
+        assertNull(route.issueHistory("older", null))
+        val ticket = requireNotNull(route.issueHistory("older", 7))
+        assertNull(route.issueHistory("different", 7))
+        assertNull(route.issue(recent, 7))
+        assertNull(route.consume(ticket, 7, false))
+        val selected = requireNotNull(route.consume(ticket, 7, true))
+        assertTrue(selected.fromHistory)
+        assertEquals("older", selected.historyId)
+        assertTrue(selected.line("Review this cup").wireText.contains("shotId=older"))
+        assertNull(route.consume(ticket, 7, true))
+        assertTrue(route.ready(recent))
+    }
+
     @Test fun aFailedSampleReadDoesNotEnableTheReview() {
         val route = CompletionShotReview()
         val cup = feedback("cup")

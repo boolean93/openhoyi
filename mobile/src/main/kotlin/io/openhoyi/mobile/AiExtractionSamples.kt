@@ -3,17 +3,20 @@ package io.openhoyi.mobile
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Read-only, exact journal membership before opening any sample file. No recovery or writers. */
+/** Read-only samples for journal members or the one native record explicitly selected for review. */
 internal object AiExtractionSamples {
     const val MAX_OUTPUT_CHARS = 32_000
     fun validId(id: String) = id.matches(Regex("[A-Za-z0-9-]{1,64}"))
 
     fun read(shotId: String, offset: Int, limit: Int,
-        observations: () -> List<BrewJournal.Observation>, load: (String) -> List<ShotPoint>): JSONObject {
+        observations: () -> List<BrewJournal.Observation>, load: (String) -> List<ShotPoint>,
+        selectedHistoryId: String? = null): JSONObject {
         if (!validId(shotId) || offset !in 0..ShotSeries.MAX_POINTS || limit !in 1..100)
             return status("invalid_arguments")
         return try {
-            if (observations().none { it.id == shotId }) return status("not_found")
+            val allowed = if (selectedHistoryId != null) shotId == selectedHistoryId
+                else observations().any { it.id == shotId }
+            if (!allowed) return status("not_found")
             val points = load(shotId)
             if (points.isEmpty()) status("samples_unavailable") else page(shotId, points, offset, limit)
         } catch (_: Exception) { status("unavailable") }

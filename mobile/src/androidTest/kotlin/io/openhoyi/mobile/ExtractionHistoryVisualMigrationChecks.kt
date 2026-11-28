@@ -88,6 +88,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
+    private fun mainServiceBound(activity: MainActivity): Boolean {
+        val lease = field(activity, "serviceBinding\$delegate") as Lazy<*>
+        return (lease.value as VisibleServiceBinding).bound
+    }
     private fun field(owner: Any, name: String): Any? {
         val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
         val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
@@ -728,7 +732,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                                 val extraction=activity.supportFragmentManager.findFragmentByTag("extraction") as? ExtractionFragment
                                     ?: return@forEach
                                 val handler=field(extraction,"handler") as Handler
-                                check(field(extraction,"service")==null && field(activity,"bound")==false && field(extraction,"visible")==false &&
+                                check(field(extraction,"service")==null && !mainServiceBound(activity) && field(extraction,"visible")==false &&
                                     !handler.hasCallbacks(field(extraction,"refresh") as Runnable)) { "M5 destroyed Extraction still holds a service or refresh" }
                             }
                             if(serviceBound) { context.unbindService(serviceConnection); serviceBound=false }
@@ -768,7 +772,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         main {
                             check(readOnlyHistoryRootService()) { "M5 History root changed its single read-only service" }
                             tracked.filterIsInstance<MainActivity>().forEach { activity ->
-                                check(field(activity,"service")==null && field(activity,"bound")==false) {
+                                check(activity.currentService==null && !mainServiceBound(activity)) {
                                     "M5 destroyed History Main retained a service binding" }
                             }
                             if(page=="history") check(context.stopService(Intent(context,MobileService::class.java))) {
@@ -2941,6 +2945,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(bounds.width()==requireNotNull(arguments.getString("expectedWidth")).toInt() &&
                     bounds.height()==requireNotNull(arguments.getString("expectedHeight")).toInt())
                 val folder=File(directory,label).apply {mkdirs()}
+                if (label=="main") main {
+                    val review=requireNotNull(root(page).findViewWithTag<Button>("product/history/ai-review"))
+                    check(review.isEnabled && historyVisibility(review).getBoolean("complete"))
+                    LanguageUiLayoutChecks.textFits(review,"full-screen history AI review")
+                }
                 val initial=capture(page,folder)
                 report.put(label,JSONObject().put("actualAppFont",app.fontSizePreferences.current.key).put("actualAppFontScale",config.fontScale)
                     .put("densityDpi",config.densityDpi).put("windowBoundsPx",rect(bounds)).put("multiWindow",page.isInMultiWindowMode)
@@ -3032,6 +3041,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 finally {main {write(app,"journalObservationFailure",null)}}
             }
             check(active.readOnlyHistoryRootService())
+            if(case=="tablet-dark-medium") {
+                scope=null
+                active.cleanup()
+                val collectionDirectory=File(directory,"collection").apply {check(mkdirs())}
+                val collectionScope=Scope(collectionDirectory,"history")
+                scope=collectionScope
+                collectionScope.prepare()
+                collectionScope.install(dark=true)
+                captureHistoryAiReview(collectionScope,collectionDirectory)
+            }
             report.put("mechanicalStatus","PASS_NOT_VISUAL_ACCEPTANCE")
         } catch(error:Throwable) {failure=error;report.put("mechanicalStatus","FAIL").put("failure",error.stackTraceToString())}
         finally {
@@ -3045,6 +3064,60 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         failure?.let {throw it}
     }
+
+    private fun captureHistoryAiReview(scope: Scope, directory: File) {
+        val activity=MainPageTestHost.launch(test,TaskDestination.HISTORY).activity
+        scope.captureHistoryRootService(activity)
+        assertInitialHistoryPreview(activity,journalSource=false)
+        main {check((list(activity).getItemAtPosition(0) as ShotHistory.Entry).id!=scope.firstId)}
+        selectHistory(activity,scope.firstId)
+        val content=root(activity)
+        val header=content.findViewWithTag<View>("product/history/header")
+        check(header.findViewWithTag<View>("product/history/ai-review")==null)
+        val title=content.findViewWithTag<View>("product/history/title-row")
+        val review=requireNotNull(title.findViewWithTag<Button>("product/history/ai-review"))
+        val more=requireNotNull(title.findViewWithTag<View>("product/history/more"))
+        val chart=content.findViewWithTag<ShotChartView>("product/history/chart")
+        val samples=scope.expectedSamples(scope.firstId)
+        check(samples.isNotEmpty())
+        await("selected non-latest curve loaded") {chart.points==samples}
+        val capture=frames.screenshot(activity,content,File(directory,"window.png")) {
+            val reviewBounds=historyVisibility(review)
+            val moreBounds=historyVisibility(more)
+            check(review.isEnabled && review.text==activity.getString(R.string.completion_card_review))
+            check(reviewBounds.getBoolean("complete") && moreBounds.getBoolean("complete"))
+            val reviewRect=reviewBounds.getJSONArray("rectPx")
+            val moreRect=moreBounds.getJSONArray("rectPx")
+            check(reviewRect.getInt(2)<=moreRect.getInt(0) &&
+                reviewRect.getInt(1)<moreRect.getInt(3) && moreRect.getInt(1)<reviewRect.getInt(3))
+            check(chart.points==samples)
+            val visibleChart=Rect()
+            check(chart.getGlobalVisibleRect(visibleChart) && visibleChart.height()>=HoyiUi.dp(activity,96))
+            JSONObject().put("selectedShot",scope.firstId).put("samples",chart.points.size)
+                .put("review",reviewBounds).put("more",moreBounds)
+        }
+        WindowProofStreamingWriter.writeStrict(capture.target,File(directory,"geometry.json"))
+        val position=capture.target.getJSONObject("review").getJSONArray("rectPx")
+        val x=(position.getInt(0)+position.getInt(2))/2f
+        val y=(position.getInt(1)+position.getInt(3))/2f
+        check(AiKeyStore(context).status()==AiKeyStatus.MISSING) { "History review fixture requires empty credentials" }
+        val down=SystemClock.uptimeMillis()
+        listOf(android.view.MotionEvent.ACTION_DOWN,android.view.MotionEvent.ACTION_UP).forEach { action ->
+            val event=android.view.MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,x,y,0)
+            event.source=android.view.InputDevice.SOURCE_TOUCHSCREEN
+            try {check(test.uiAutomation.injectInputEvent(event,true))} finally {event.recycle()}
+        }
+        await("history review opens the missing-key prompt") {
+            focusedJournalDialog(activity)?.findViewById<TextView>(android.R.id.message)
+                ?.text==activity.getString(R.string.ai_key_missing)
+        }
+        main {requireNotNull(focusedJournalDialog(activity)).getButton(AlertDialog.BUTTON_NEGATIVE).performClick()}
+        await("history selection and focus survive cancellation") {
+            activity.hasWindowFocus() && content.findViewWithTag<ShotChartView>("product/history/chart")?.points==samples
+        }
+        scope.closeActivities()
+    }
+
     /** Finished-shot geometry proof: inject presentation changes only, never call a provider. */
     fun runShotReviewLayout(arguments: Bundle) {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
