@@ -348,9 +348,6 @@ internal fun ThemedActivity.renderHistoryPreview(
         openFullPage, visual, recoverTiming, onReadFailure)
 }
 
-private fun ThemedActivity.historyReviewActionLabel(record: BrewJournal.Entry): String =
-    getString(if (record.notes == BrewJournal.Notes()) R.string.journal_review else R.string.history_preview_edit_review)
-
 private fun ThemedActivity.historyShotActions(
     style: TaskProductVisualStyle, shotId: String, preview: Boolean = false,
 ): EmbeddedHistoryActionsRow {
@@ -371,16 +368,69 @@ private fun ThemedActivity.historyShotActions(
 /** Notes may change while the same cup's chart and scroll position remain on screen. */
 internal fun ThemedActivity.refreshHistoryPreviewNotes(body: LinearLayout, preview: HistoryPreview): Boolean {
     val permanent = preview.permanent ?: return false
-    val section = body.findViewWithTag<LinearLayout>("product/history/personal-review") ?: return false
-    for ((label, value) in listOf(R.string.journal_bean to permanent.notes.beanName, R.string.journal_taste to permanent.notes.taste)) {
-        val field = section.findViewWithTag<LinearLayout>("product/history/note/$label/row")
-            .findViewWithTag<android.widget.TextView>("full-text-details")
-        val actual = value?.takeIf(String::isNotBlank) ?: getString(R.string.journal_optional)
-        field.text = actual
-        field.contentDescription = actual
-    }
-    section.findViewWithTag<android.widget.Button>("product/history/review").text = historyReviewActionLabel(permanent)
+    val section = body.findViewWithTag<android.view.View>("product/history/personal-review") as? EmbeddedHistoryReview
+        ?: return false
+    section.bind(permanent.notes)
     return true
+}
+
+private class EmbeddedHistoryReview(
+    activity: ThemedActivity,
+    style: TaskProductVisualStyle,
+    onEdit: () -> Unit,
+) : LinearLayout(activity) {
+    private val title = style.text(activity.getString(R.string.history_preview_personal_review),
+        TaskProductVisualStyle.action, "product/history/review-title").apply {
+        minHeight = style.dp(48)
+        androidx.core.view.ViewCompat.setAccessibilityHeading(this, true)
+        protectPhotoSection(style)
+    }
+    private val action = style.button(android.widget.Button(activity)).apply {
+        tag = "product/history/review"
+        HomeVisualIcon.buttonIcon(this, "edit")
+        protectRoundedBackdropContent(style.surface, style.dp(12), photoFill = wallpaperTint(style.surface))
+        setOnClickListener { onEdit() }
+    }
+    private val summaries = List(2) { index ->
+        style.text("", TaskProductVisualStyle.body, "product/history/review-summary/$index").apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            protectPhotoSection(style)
+        }
+    }
+
+    init {
+        orientation = VERTICAL
+        tag = "product/history/personal-review"
+        val header = HistoryVisualFlow(activity, style.dp(8), style.dp(4))
+        header.addView(title)
+        header.addView(action)
+        style.add(this, header)
+        summaries.forEach { style.add(this, it, 4) }
+    }
+
+    fun bind(notes: BrewJournal.Notes) {
+        val dose = notes.doseMg?.let { context.getString(R.string.journal_grams, BeanQuantity.formatGrams(it)) }
+        val items = listOf(
+            R.string.journal_taste to notes.taste,
+            R.string.journal_next to notes.nextAdjustment,
+            R.string.journal_bean to notes.beanName,
+            R.string.history_preview_dose to dose,
+            R.string.journal_grind to notes.grind,
+            R.string.journal_expectation to notes.curveExpectation,
+        ).filter { (_, value) -> !value.isNullOrBlank() }.take(summaries.size)
+        val hasNotes = items.isNotEmpty()
+        title.visibility = if (hasNotes) VISIBLE else GONE
+        action.setText(if (hasNotes) R.string.history_preview_edit_review else R.string.journal_review)
+        action.contentDescription = if (hasNotes) context.getString(R.string.history_preview_edit_review_description) else null
+        summaries.forEachIndexed { index, summary ->
+            val item = items.getOrNull(index)
+            summary.text = item?.let { (label, value) ->
+                context.getString(R.string.journal_field_value, context.getString(label), value)
+            }.orEmpty()
+            summary.visibility = if (item != null) VISIBLE else GONE
+        }
+    }
 }
 
 /** One scroll viewport owns the primary actions, chart, and notes. */
@@ -478,42 +528,18 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         style.add(preview.content, chartStatus, 8)
         style.add(preview.content, metrics, 12)
     }
-    fun summary(label: Int, value: String?): LinearLayout = style.row("product/history/note/$label/row").apply {
-        gravity = android.view.Gravity.CENTER_VERTICAL
-        addView(style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(16) })
-        val actual = value?.takeIf { it.isNotBlank() } ?: getString(R.string.journal_optional)
-        addView(style.text(actual, TaskProductVisualStyle.body, "full-text-details").apply {
-            maxLines = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) Int.MAX_VALUE else 1
-            ellipsize = if (maxLines == 1) android.text.TextUtils.TruncateAt.END else null; contentDescription = actual
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-    }
-    val notes = style.column("product/history/personal-review")
-    notes.protectPhotoSection(style)
-    style.add(preview.content, notes, 12)
-    if (permanent != null) {
-        val notesTitle = style.text(getString(R.string.history_preview_personal_review), TaskProductVisualStyle.action)
-        val notesHeader = HistoryToolbarRow(this, style.dp(8), style.dp(4)) {
-            val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            notesTitle.measure(natural, natural)
-            notesTitle.measuredWidth
-        }
-        notesHeader.addView(notesTitle)
-        notesHeader.addView(style.button(android.widget.Button(this)).apply {
-            text = historyReviewActionLabel(permanent)
-            tag = "product/history/review"
-            HomeVisualIcon.buttonIcon(this, "edit")
-            setOnClickListener {
-                startActivity(Intent(this@renderEmbeddedHistoryPreview, BrewReviewActivity::class.java)
-                    .putExtra(BrewReviewActivity.SHOT_ID, entry.id))
-            }
-        })
-        style.add(notes, notesHeader)
-        style.add(notes, summary(R.string.journal_bean, permanent.notes.beanName), 4)
-        style.add(notes, summary(R.string.journal_taste, permanent.notes.taste), 4)
+    val notes = if (permanent != null) {
+        EmbeddedHistoryReview(this, style) {
+            startActivity(Intent(this, BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.id))
+        }.apply { bind(permanent.notes) }
     } else {
-        style.add(notes, style.text(getString(if (journalFailed) R.string.journal_unavailable else R.string.journal_migrate_hint),
-            TaskProductVisualStyle.auxiliary, secondary = true))
+        style.column("product/history/personal-review").apply {
+            protectPhotoSection(style)
+            style.add(this, style.text(getString(if (journalFailed) R.string.journal_unavailable else R.string.journal_migrate_hint),
+                TaskProductVisualStyle.auxiliary, secondary = true))
+        }
     }
+    style.add(preview.content, notes, 12)
     Thread({
         val points = runCatching { app.samples.load(entry.id) }
         chart.post {

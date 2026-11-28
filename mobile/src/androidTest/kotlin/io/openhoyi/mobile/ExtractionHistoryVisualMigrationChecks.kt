@@ -392,6 +392,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "后段流速略快，希望更平稳。","柑橘酸质，焦糖甜感，尾段略干。","研磨调细一点，其他条件不变。")
             journal.edit(firstId,notes)
             journal.edit(secondId,notes.copy(taste="焦糖甜感更明显。",nextAdjustment="保持当前参数。"))
+            if (page == "history") {
+                journal.edit(historySpecialIds.getValue("sample-gap"), BrewJournal.Notes(nextAdjustment = "下次只调细研磨。"))
+            }
             val first=points(27400,604,3620).let { points ->
                 if (includeHistoryYield) points.map { point ->
                     point.copy(beverageHundredthsGram = requireNotNull(point.weightHundredthsGram) * 9 / 10,
@@ -1046,12 +1049,35 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "M5 standard History initial actual axis glyph is clipped"}
         }
     }
-    private fun historyPreviewReachability(activity: Activity, scope:Scope, folder:File, emptyExpected:Boolean=false) {
+    private fun historyPreviewReachability(activity: Activity, scope:Scope, folder:File,
+        sourceNotes: BrewJournal.Notes, emptyExpected:Boolean=false) {
         val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/history/preview-scroll"))
         val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
         val explanation=requireNotNull(chart.embeddedExplanationView)
         val saved=scroll.scrollY;check(saved==0) {"M5 fresh initial History preview must not start pre-scrolled"}
         val nativeBefore=scope.journal.exportJson();val reached=JSONArray()
+        val review = requireNotNull(scroll.findViewWithTag<View>("product/history/personal-review"))
+        val reviewAction = requireNotNull(review.findViewWithTag<Button>("product/history/review"))
+        val expectedFields = listOfNotNull(
+            sourceNotes.taste.takeIf(String::isNotBlank)?.let { "taste" to (R.string.journal_taste to it) },
+            sourceNotes.nextAdjustment.takeIf(String::isNotBlank)?.let { "next" to (R.string.journal_next to it) },
+        )
+        val expectedSummaries = expectedFields.map { (_, field) ->
+            activity.getString(R.string.journal_field_value, activity.getString(field.first), field.second)
+        }
+        val hasNotes = expectedSummaries.isNotEmpty()
+        val expectedAction = activity.getString(if (hasNotes) R.string.history_preview_edit_review else R.string.journal_review)
+        val notes = historyMainValue {
+            val texts = visibleTextViews(review)
+            check(texts.filterIsInstance<Button>() == listOf(reviewAction) && reviewAction.text.toString() == expectedAction)
+            val summary = texts.filterNot { it === reviewAction }
+            val expectedTexts = if (hasNotes) listOf(activity.getString(R.string.history_preview_personal_review)) + expectedSummaries
+                else emptyList()
+            check(summary.map { it.text.toString() } == expectedTexts) {
+                "History preview must only show the expected saved fields, without empty title or placeholders"
+            }
+            if (hasNotes) summary.drop(1) else summary
+        }
         fun reach(view:View, name:String) {
             main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
             frames.committedFrame(root(activity))
@@ -1078,9 +1104,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             reach(chart,"chart")
             reach(explanation,"explanation")
-            val notes=nodes(root(activity)).filterIsInstance<TextView>().filter {it.tag=="full-text-details" && it.isShown}
-            check(notes.size==2)
-            notes.forEachIndexed {index,note ->reach(note,"note-$index")}
+            notes.zip(expectedFields).forEach { (note, field) -> reach(note, "note-${field.first}") }
         } finally {
             main {scroll.scrollTo(0,saved)};frames.committedFrame(root(activity))
             main {check(scroll.scrollY==saved);check(chart.embeddedExplanationView===explanation)}
@@ -1089,6 +1113,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         capture(activity,File(folder,"states/history-preview-restored"))
         File(folder,"history-preview-reachability.json").writeText(JSONObject().put("targets",reached).put("initialScrollY",saved)
             .put("restoredScrollY",scroll.scrollY).put("exactScrollRestored",true).put("permanentExplanationIdentityPreserved",true)
+            .put("reviewActionText",expectedAction).put("reviewSummaryCount",notes.size)
             .put("readOnlyJournalUnchanged",true).put("completed",true).toString(2))
     }
     private fun screenObservation(view:View):JSONObject {
@@ -2781,7 +2806,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                                 val taste=row.getChildAt(1) as TextView
                                 check(taste.text.toString()=="—" && !taste.isClickable) { "M5 comparison blank first-cup taste must not carry second-cup notes" }
                                 proof.put("blankNotesPlaceholder",taste.text.toString()).put("blankTasteDisclosureDisabled",true)
-                            } else {
+                            } else if (page == "history-detail") {
                                 val placeholders=nodes(root(activity)).filterIsInstance<TextView>().count { it.text.toString()==activity.getString(R.string.journal_optional) }
                                 check(placeholders>0) { "M5 blank legal notes must not display prior cup notes" }
                                 proof.put("blankNotesPlaceholderCount",placeholders)
@@ -2818,7 +2843,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             .put("singleReadOnlyHistoryRootService",page=="history" && scope.readOnlyHistoryRootService())
                     }
                     when(page) {
-                        "history"->historyPreviewReachability(activity,scope,caseDirectory,expected.isEmpty())
+                        "history"->historyPreviewReachability(activity,scope,caseDirectory,source.notes,expected.isEmpty())
                         "history-detail"->detailReachability(activity,scope,caseDirectory)
                         else->comparisonReachability(activity,scope,caseDirectory)
                     }
@@ -3355,7 +3380,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "extraction"->{active.verifyExtraction(activity,captureStartedAtRealMs,captureFinishedAtRealMs)
                     manifest.put("chartHeaderReachability",extractionChartHeaderReachability(activity,active,directory,captured))
                     extractionReachability(activity,directory)}
-                "history"->{historyPreviewReachability(activity,active,directory);savedHistoryBusiness(activity,active,directory)}
+                "history"->{
+                    historyPreviewReachability(activity, active, directory, requireNotNull(active.journal.find(active.firstId)).notes)
+                    savedHistoryBusiness(activity,active,directory)
+                }
                 "history-detail"->detailReachability(activity,active,directory)
                 else->{comparisonReachability(activity,active,directory);comparisonBusiness(activity,active,directory)}
             }
