@@ -1017,8 +1017,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val available = MeasureSpec.getSize(widthMeasureSpec)
             naturalRow=false
-            if (embeddedHistory && childCount > 0 &&
-                resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            var embeddedColumns: Int? = null
+            if (embeddedHistory && childCount > 0) {
                 val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
                 val children = (0 until childCount).map { getChildAt(it) as Button }
                 children.forEach { it.measure(natural, natural) }
@@ -1033,6 +1033,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     setMeasuredDimension(available, height)
                     return
                 }
+                val widest = children.maxOf { it.measuredWidth }
+                embeddedColumns = ((available + gap) / (widest + gap)).coerceIn(1, childCount)
             }
             if((liveCompactChrome && resources.configuration.orientation!=android.content.res.Configuration.ORIENTATION_PORTRAIT) || standalonePlotMinimumDp != null) {
                 val unspecified=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
@@ -1079,7 +1081,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     if ((child as Button).lineCount > 2 || child.measuredHeight > dp(64f)) singleRowFits = false
                 }
             }
-            columns = if (liveCompactChrome && resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) 2 else if (singleRowFits) 4 else 2
+            columns = embeddedColumns ?: if (liveCompactChrome && resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_PORTRAIT) 2 else if (singleRowFits) 4 else 2
             if (standalonePlotMinimumDp != null && standaloneNaturalWidth > (available - gap) / 2) columns = 1
             val childWidth = ((available - gap * (columns - 1)) / columns).coerceAtLeast(1)
             var rowHeight = 0

@@ -525,7 +525,6 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
                     entry.copy(observedSampleCoverageMs = observedSampleCoverage(it))
                 else entry
                 chart.points = it
-                preview.formatPortraitLegend()
                 timingQuantity.present(recovered.timingValue ?: "—", if (recovered.timingValue != null) "s" else null)
                 metrics.findViewWithTag<android.widget.TextView>("product/history/elapsed/label")?.text = getString(recovered.timingLabel)
                 sampledWater.present(it.lastOrNull()?.waterTenthsMl?.let { water -> "%.1f".format(Locale.ROOT, water / 10.0) } ?: "—", if (it.isNotEmpty()) "ml" else null)
@@ -697,26 +696,6 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
     init {
         orientation = VERTICAL; tag = "product/history/preview"
         addView(viewport, LayoutParams(-1, 0, 1f))
-    }
-    fun formatPortraitLegend() {
-        if (!portrait) return
-        ChartMetric.values().forEach { metric ->
-            val button = chart.findViewWithTag<android.widget.Button>("chart-metric:$metric") ?: return@forEach
-            if (!button.isEnabled) return@forEach
-            val label = context.getString(when (metric) {
-                ChartMetric.PRESSURE -> R.string.task_chart_pressure
-                ChartMetric.WATER -> R.string.task_chart_water
-                ChartMetric.YIELD -> R.string.chart_series_yield
-                ChartMetric.WEIGHT -> R.string.task_chart_weight
-                ChartMetric.FLOW -> R.string.task_chart_flow
-                ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
-            })
-            button.text = "$label\n${metric.unit}"
-            val swatch = button.compoundDrawablesRelative[0] ?: button.compoundDrawablesRelative[1]
-            swatch?.setBounds(0, 0, style.dp(18), style.dp(2))
-            button.setCompoundDrawablesRelative(null, swatch, null, null)
-            button.gravity = android.view.Gravity.CENTER
-        }
     }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         if (portrait) {
