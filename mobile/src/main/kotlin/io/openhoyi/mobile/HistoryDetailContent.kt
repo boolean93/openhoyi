@@ -379,6 +379,7 @@ private class EmbeddedHistoryReview(
     style: TaskProductVisualStyle,
     onEdit: () -> Unit,
 ) : LinearLayout(activity) {
+    private val headerGap = style.dp(8)
     private val title = style.text(activity.getString(R.string.history_preview_personal_review),
         TaskProductVisualStyle.action, "product/history/review-title").apply {
         minHeight = style.dp(48)
@@ -392,7 +393,9 @@ private class EmbeddedHistoryReview(
         setOnClickListener { onEdit() }
     }
     private val summaries = List(2) { index ->
-        style.text("", TaskProductVisualStyle.body, "product/history/review-summary/$index").apply {
+        ReviewSummary(activity).apply {
+            style.apply(this, TaskProductVisualStyle.body)
+            tag = "product/history/review-summary/$index"
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
             protectPhotoSection(style)
@@ -402,11 +405,11 @@ private class EmbeddedHistoryReview(
     init {
         orientation = VERTICAL
         tag = "product/history/personal-review"
-        val header = HistoryVisualFlow(activity, style.dp(8), style.dp(4))
+        val header = HistoryVisualFlow(activity, headerGap, style.dp(4))
         header.addView(title)
         header.addView(action)
+        summaries.forEach { header.addView(it) }
         style.add(this, header)
-        summaries.forEach { style.add(this, it, 4) }
     }
 
     fun bind(notes: BrewJournal.Notes) {
@@ -425,10 +428,36 @@ private class EmbeddedHistoryReview(
         action.contentDescription = if (hasNotes) context.getString(R.string.history_preview_edit_review_description) else null
         summaries.forEachIndexed { index, summary ->
             val item = items.getOrNull(index)
+            summary.mayShareHeader = items.size == 1 && index == 0
             summary.text = item?.let { (label, value) ->
                 context.getString(R.string.journal_field_value, context.getString(label), value)
             }.orEmpty()
             summary.visibility = if (item != null) VISIBLE else GONE
+        }
+    }
+
+    private inner class ReviewSummary(activity: ThemedActivity) : android.widget.TextView(activity) {
+        var mayShareHeader = false
+            set(value) {
+                if (field != value) {
+                    field = value
+                    requestLayout()
+                }
+            }
+
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            val available = MeasureSpec.getSize(widthMeasureSpec)
+            val occupied = title.measuredWidth + action.measuredWidth + 2 * headerGap
+            val rows = layout
+            if (mayShareHeader && measuredWidth <= available - occupied &&
+                rows?.lineCount == 1 && rows.getEllipsisCount(0) == 0) {
+                val rowHeight = maxOf(measuredHeight, title.measuredHeight, action.measuredHeight)
+                setMeasuredDimension(measuredWidth, resolveSize(rowHeight, heightMeasureSpec))
+            } else if (measuredWidth < available) {
+                // A full-width item always starts on a new line in HistoryVisualFlow.
+                super.onMeasure(MeasureSpec.makeMeasureSpec(available, MeasureSpec.EXACTLY), heightMeasureSpec)
+            }
         }
     }
 }
