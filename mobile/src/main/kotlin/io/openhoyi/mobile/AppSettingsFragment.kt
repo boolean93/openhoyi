@@ -239,14 +239,36 @@ class AppSettingsFragment : Fragment() {
         root.brewingRow("shortcuts", R.string.shortcut_start_setting, R.string.settings_category_shortcut_hint, requireNotNull(shortcutToggle))
         val chartSection = sections.getValue("chart")
         val chartPreferences = activity.getSharedPreferences(FixedChartAxes.PREFERENCES, android.content.Context.MODE_PRIVATE)
+        val chartTime = visual.action(Button(activity), icon = "chevron", atEnd = true).apply {
+            tag = "product/settings/chart/initial-time"
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            setOnClickListener {
+                if (childFragmentManager.findFragmentByTag(FixedChartInitialTimeDialog.TAG) == null) {
+                    FixedChartInitialTimeDialog().showNow(childFragmentManager, FixedChartInitialTimeDialog.TAG)
+                }
+            }
+        }
+        fun refreshChartTime() {
+            chartTime.text = getString(R.string.fixed_chart_initial_time_value,
+                getString(R.string.fixed_chart_initial_time), FixedChartAxes.readInitialTimeSeconds(chartPreferences))
+        }
+        refreshChartTime()
+        childFragmentManager.setFragmentResultListener(FixedChartInitialTimeDialog.TAG, viewLifecycleOwner) { _, _ ->
+            refreshChartTime()
+        }
         val chartToggle = HoyiSwitch(activity).apply {
             text = getString(R.string.fixed_chart_axes)
             isChecked = chartPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
             tag = "product/settings/chart/fixed-axes"
             visual.switch(this, 52)
-            setOnCheckedChangeListener { _, checked -> chartPreferences.edit().putBoolean(FixedChartAxes.KEY, checked).apply() }
+            chartTime.isEnabled = isChecked
+            setOnCheckedChangeListener { _, checked ->
+                chartPreferences.edit().putBoolean(FixedChartAxes.KEY, checked).apply()
+                chartTime.isEnabled = checked
+            }
         }.also { chartSection.addView(it, LinearLayout.LayoutParams(-1, -2)) }
         root.brewingRow("chart", R.string.fixed_chart_axes, R.string.settings_category_axes_hint, chartToggle)
+        style.add(chartSection, chartTime)
         val theme = sections.getValue("appearance")
         appearanceCard = AppThemePreferencesCard(activity, theme, visual, inlineSwatches = true) { activity.recreate() }
         addBackgroundSettingsRow(activity, theme, visual, inlinePresets = true)

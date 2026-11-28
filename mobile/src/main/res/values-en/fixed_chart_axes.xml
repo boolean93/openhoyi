@@ -2,8 +2,10 @@
 <resources>
     <string name="fixed_chart_section">Live chart</string>
     <string name="fixed_chart_axes">Fixed axes</string>
-    <string name="fixed_chart_axes_hint">Keep fixed scales. Out-of-range data is indicated; all data is retained.</string>
+    <string name="fixed_chart_initial_time">Initial time-axis duration</string>
+    <string name="fixed_chart_initial_time_value">%1$s: %2$d s</string>
+    <string name="fixed_chart_initial_time_positive_integer">Enter a whole number of seconds greater than 0</string>
+    <string name="fixed_chart_initial_time_save">Save</string>
     <string name="fixed_chart_overflow">Out-of-range data: %1$s. Full data retained</string>
     <string name="fixed_chart_reference_overflow">Reference partly outside fixed range</string>
-    <string name="fixed_chart_time_overflow">time over 40 s</string>
 </resources>

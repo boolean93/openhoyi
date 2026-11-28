@@ -3002,9 +3002,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     val oldFixed=field(overlay,"fixedAxes") as Boolean
                     try {
                         main {write(overlay,"fixedAxes",true)
-                            chart.points=expected+expected.last().copy(elapsedMs=FixedChartAxes.TIME_END_MS+1000)}
+                            chart.points=expected+expected.last().copy(elapsedMs=expected.last().elapsedMs+1000,
+                                pressureTenthsBar=160, brewing=true)}
                         frames.committedFrame(root(page))
-                        requireNotice("product/extraction/fixed-axis-notice",page.getString(R.string.fixed_chart_time_overflow),"fixed-overflow-visible")
+                        requireNotice("product/extraction/fixed-axis-notice",page.getString(R.string.task_chart_pressure),"fixed-overflow-visible")
                         checkLayout(page,File(folder,"fixed-overflow-visible"))
                     } finally { main {write(overlay,"fixedAxes",oldFixed);chart.points=expected}; frames.committedFrame(root(page)) }
                 }

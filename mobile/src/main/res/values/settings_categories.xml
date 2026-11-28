@@ -17,7 +17,7 @@
     <string name="settings_category_apply">应用</string>
     <string name="settings_category_preview">试听</string>
     <string name="settings_category_shortcut_hint">工作室模式需先达温。</string>
-    <string name="settings_category_axes_hint">仅影响显示</string>
+    <string name="settings_category_axes_hint">纵轴固定；横轴始终从 0 秒开始，超过起始时长后随萃取延长。</string>
     <string name="settings_category_feedback_hint">完成后显示反馈并播放提示音。</string>
     <string name="settings_category_diagnostics_label">诊断日志</string>
     <string name="settings_category_weekly_active">启用周计划</string>

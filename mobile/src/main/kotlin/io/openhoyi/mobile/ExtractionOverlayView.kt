@@ -58,8 +58,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             lastUpdateGapMs = updateGap
             if (pendingTraceReset) {
                 // The Activity sets a new cup identity before replacing its points; once the new
-                // observations arrive the fresh 0-10 s window is applied. An attached idle preview
-                // may animate into it, probes/other contexts snap.
+                // observations arrive the fresh time axis is applied.
                 pendingTraceReset = false
                 snapAxisOnNextBuild = true
             }
@@ -92,7 +91,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             previousRanges = emptyMap()
             lastPointUpdateAt = null
             // The Activity sets identity before replacing points; do not animate or retain the
-            // old cup range, and defer the fresh 0-10 s window to the points replacement.
+            // old cup range, and defer the fresh time axis to the points replacement.
             pendingTraceReset = true
             snapAxisOnNextBuild = true
             lastYExpansionAt = 0L
@@ -126,14 +125,18 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var inspectionDialog: AlertDialog? = null
     private val axisPreferences = context.getSharedPreferences(FixedChartAxes.PREFERENCES, Context.MODE_PRIVATE)
     private var fixedAxes = axisPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
+    private var fixedInitialTimeSeconds = FixedChartAxes.readInitialTimeSeconds(axisPreferences)
     private val axisPreferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key == FixedChartAxes.KEY) refreshAxisPreference()
+        if (key == null || key == FixedChartAxes.KEY || key == FixedChartAxes.INITIAL_TIME_SECONDS_KEY) refreshAxisPreference()
     }
     private fun refreshAxisPreference() {
         val next = axisPreferences.getBoolean(FixedChartAxes.KEY, FixedChartAxes.DEFAULT)
-        if (next == fixedAxes) return
+        val nextSeconds = FixedChartAxes.readInitialTimeSeconds(axisPreferences)
+        val modeChanged = next != fixedAxes
+        if (!modeChanged && nextSeconds == fixedInitialTimeSeconds) return
         fixedAxes = next
-        if (!liveChart) return
+        fixedInitialTimeSeconds = nextSeconds
+        if (!liveChart || (!fixedAxes && !modeChanged)) return
         stopRenderTransition()
         previousRanges = emptyMap()
         previousSteps = emptyMap()
@@ -546,7 +549,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart,
             allowLiveExpansion = allowYExpansion, expectedLiveRanges = expectedRanges,
             previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes, includeLiveWeight = liveChart,
-            fixedLiveAxes = liveChart && fixedAxes)
+            fixedLiveAxes = liveChart && fixedAxes, fixedInitialTimeSeconds = fixedInitialTimeSeconds)
         var projected = project(false)
         if (liveChart && !fixedAxes && !yExpansionStarted && points.isNotEmpty() && projected.series.filter { it.metric in liveMetrics }.any { series ->
                 val before = previousRanges[series.metric] ?: ChartAxisScale.yAxis(
@@ -559,8 +562,6 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             yExpansionStarted = true
             lastYExpansionAt = now
         }
-        // The live time window (0-10 s filling, then a scrolling 10 s window) comes from the
-        // projection; history/comparison keep their whole-cup end.
         val target: FourMetricChartData = projected
         // previousRanges tracks the committed target only; animation frames never feed back.
         // An expansion (optional or clipping) starts a new 3 s batch window so the next optional
@@ -573,8 +574,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         previousSteps = target.series.associate { it.metric to it.step }
         if (expanded) lastYExpansionAt = now
         if (liveChart && displayedData(data).series.size != displayedData(target).series.size) requestLayout()
-        // Snap for static contexts, unattached probes, identity/selection changes and the first
-        // observation; progress-driven live changes animate.
+        // Fixed metric axes snap to the projected time bound; the trace still has its own reveal.
+        // Dynamic live axes animate only progress within the same cup.
         val snap = !liveChart || fixedAxes || !isAttachedToWindow || snapAxisOnNextBuild ||
             data.observedThroughMs == null || target.observedThroughMs == null
         snapAxisOnNextBuild = false
@@ -782,9 +783,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val current = FixedChartAxes.overflow(data, visibleMetrics)
         val reference = FixedChartAxes.overflow(data, visibleMetrics, reference = true)
         return listOfNotNull(
-            if (current.any) context.getString(R.string.fixed_chart_overflow,
-                (listOfNotNull(context.getString(R.string.fixed_chart_time_overflow).takeIf { current.time }) +
-                    current.metrics.map(::metricName)).joinToString(" · ")) else null,
+            if (current.metrics.isNotEmpty()) context.getString(R.string.fixed_chart_overflow,
+                current.metrics.joinToString(" · ", transform = ::metricName)) else null,
             context.getString(R.string.fixed_chart_reference_overflow).takeIf { reference.any },
         ).joinToString("\n")
     }
@@ -1207,7 +1207,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
                     if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))
-                if(liveChart && liveCompactChrome && !(fixedAxes && (data.observedThroughMs ?: 0L) > FixedChartAxes.TIME_END_MS) && endpointLabels.draw(canvas,plotBounds,rendered,revealThroughMs,unavailableLiveMetrics,traceIdentity)) postInvalidateOnAnimation()
+                if (liveChart && liveCompactChrome &&
+                    endpointLabels.draw(canvas, plotBounds, rendered, revealThroughMs, unavailableLiveMetrics, traceIdentity)) {
+                    postInvalidateOnAnimation()
+                }
                 return
             }
             val fm = labels.fontMetrics
