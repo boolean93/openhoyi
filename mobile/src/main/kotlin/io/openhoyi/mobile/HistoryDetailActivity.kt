@@ -21,9 +21,9 @@ class HistoryDetailActivity : ThemedActivity() {
         val shotId = intent.getStringExtra("shotId")
         renderHistoryDetail(body, shotId, standalone = true, comparisonHost = comparisonHost, visual = visual)
         val hasCurve = body.findViewWithTag<ShotChartView>("product/history/chart") != null
-        if (hasCurve) {
+        if (hasCurve && shotId != null) {
             val tools = header.findViewWithTag<android.view.View>("task-tools-host")
-            header.addView(historyAiReviewButton(visual.palette) { shotId },
+            header.addView(historyAiReviewButton(visual.palette, shotId),
                 header.indexOfChild(tools), LinearLayout.LayoutParams(-2, -2))
         }
     }

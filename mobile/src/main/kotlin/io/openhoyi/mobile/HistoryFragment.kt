@@ -48,14 +48,8 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
     }
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailContent: LinearLayout
-    private lateinit var historyReview: Button
-    private fun visibleReviewId(): String? = selectedIds[showJournal]?.takeIf { id ->
-        collection.detailBody.visibility == View.VISIBLE && rows.any { it.id == id }
-    }
     private val selectedIds = mutableMapOf<Boolean, String>()
     private var portraitDetailBack: Button? = null
-    private var portraitReview: Button? = null
-    private var showPortraitReview = false
     private var restoreDetail = false
     private var compact = true
     private var renderedPreview: HistoryPreview? = null
@@ -154,8 +148,6 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
                 toolsDialog = AppDialog.show(dialog)
             }
         }
-        historyReview = host.historyAiReviewButton(style, ::visibleReviewId).apply { isEnabled = false }
-        header.addView(historyReview, LinearLayout.LayoutParams(-2, -2))
         header.addView(ioMenu, LinearLayout.LayoutParams(dp(48), dp(48)))
         val list = ListView(host).apply {
             tag = "product/history/list"
@@ -261,17 +253,13 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         collection.browserBody.findViewWithTag<View>("product/history/compare-entry")
             ?.protectRoundedBackdropContent(style.surface, dp(12))
         val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }).also { portraitDetailBack = it }
-        portraitReview = null
-        showPortraitReview = false
         val screen = collection
         screen.onPresentationChanged = { split, visible ->
             val enteringSplit = compact && split
             compact = !split
             back.visibility = if (compact) View.VISIBLE else View.GONE
-            showPortraitReview = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT && compact && visible
-            header.visibility = if (showPortraitReview) View.GONE else View.VISIBLE
-            portraitReview?.visibility = if (showPortraitReview) View.VISIBLE else View.GONE
-            historyReview.isEnabled = visibleReviewId() != null
+            val hideListHeader = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT && compact && visible
+            header.visibility = if (hideListHeader) View.GONE else View.VISIBLE
             updateBack(compact && visible)
             if (enteringSplit) screen.post {
                 if (collection === screen && screen.isAttachedToWindow && !compact) renderSelection()
@@ -384,7 +372,6 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         val selected = previousSelection ?: if (compact) null else rows.firstOrNull()
         if (selected == null) selectedIds.remove(showJournal) else selectedIds[showJournal] = selected.id
         if (selected?.id != previousId) adapter.notifyDataSetChanged()
-        historyReview.isEnabled = visibleReviewId() != null
 
         val preview = selected?.let { host.historyPreview(it) }
         val selectionTag = selected?.let { "history-selection-${it.id}" }
@@ -392,7 +379,6 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             detailContent.childCount > 0) return
         renderedPreview = preview
         detailContent.removeAllViews()
-        portraitReview = null
         detailContent.tag = selectionTag
         if (preview == null) {
             HoyiUi.label(host, detailContent, getString(R.string.history_select_record), 18)
@@ -411,11 +397,6 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
                 back.text = ""; back.contentDescription = getString(R.string.history_back_to_list)
                 HomeVisualIcon.buttonIcon(back, "back")
                 title.addView(back, 0, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(8) })
-                val review = host.historyAiReviewButton(style, ::visibleReviewId).apply {
-                    visibility = if (showPortraitReview) View.VISIBLE else View.GONE
-                }
-                title.addView(review, title.childCount - 1, LinearLayout.LayoutParams(-2, -2))
-                portraitReview = review
             }
         }
     }

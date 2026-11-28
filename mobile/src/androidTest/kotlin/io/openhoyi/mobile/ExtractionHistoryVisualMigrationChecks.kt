@@ -2945,6 +2945,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(bounds.width()==requireNotNull(arguments.getString("expectedWidth")).toInt() &&
                     bounds.height()==requireNotNull(arguments.getString("expectedHeight")).toInt())
                 val folder=File(directory,label).apply {mkdirs()}
+                if (label=="main") main {
+                    val review=requireNotNull(root(page).findViewWithTag<Button>("product/history/ai-review"))
+                    check(review.isEnabled && historyVisibility(review).getBoolean("complete"))
+                    LanguageUiLayoutChecks.textFits(review,"full-screen history AI review")
+                }
                 val initial=capture(page,folder)
                 report.put(label,JSONObject().put("actualAppFont",app.fontSizePreferences.current.key).put("actualAppFontScale",config.fontScale)
                     .put("densityDpi",config.densityDpi).put("windowBoundsPx",rect(bounds)).put("multiWindow",page.isInMultiWindowMode)
@@ -3067,23 +3072,29 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         main {check((list(activity).getItemAtPosition(0) as ShotHistory.Entry).id!=scope.firstId)}
         selectHistory(activity,scope.firstId)
         val content=root(activity)
-        val review=content.findViewWithTag<Button>("product/history/ai-review")
-        val tools=content.findViewWithTag<View>("product/history/io-menu")
+        val header=content.findViewWithTag<View>("product/history/header")
+        check(header.findViewWithTag<View>("product/history/ai-review")==null)
+        val title=content.findViewWithTag<View>("product/history/title-row")
+        val review=requireNotNull(title.findViewWithTag<Button>("product/history/ai-review"))
+        val more=requireNotNull(title.findViewWithTag<View>("product/history/more"))
         val chart=content.findViewWithTag<ShotChartView>("product/history/chart")
         val samples=scope.expectedSamples(scope.firstId)
         check(samples.isNotEmpty())
         await("selected non-latest curve loaded") {chart.points==samples}
         val capture=frames.screenshot(activity,content,File(directory,"window.png")) {
             val reviewBounds=historyVisibility(review)
-            val toolsBounds=historyVisibility(tools)
+            val moreBounds=historyVisibility(more)
             check(review.isEnabled && review.text==activity.getString(R.string.completion_card_review))
-            check(tools.isEnabled && tools.contentDescription==activity.getString(R.string.task_tools))
-            check(review.parent===tools.parent && reviewBounds.getBoolean("complete") && toolsBounds.getBoolean("complete"))
+            check(reviewBounds.getBoolean("complete") && moreBounds.getBoolean("complete"))
+            val reviewRect=reviewBounds.getJSONArray("rectPx")
+            val moreRect=moreBounds.getJSONArray("rectPx")
+            check(reviewRect.getInt(2)<=moreRect.getInt(0) &&
+                reviewRect.getInt(1)<moreRect.getInt(3) && moreRect.getInt(1)<reviewRect.getInt(3))
             check(chart.points==samples)
             val visibleChart=Rect()
             check(chart.getGlobalVisibleRect(visibleChart) && visibleChart.height()>=HoyiUi.dp(activity,96))
             JSONObject().put("selectedShot",scope.firstId).put("samples",chart.points.size)
-                .put("review",reviewBounds).put("tools",toolsBounds)
+                .put("review",reviewBounds).put("more",moreBounds)
         }
         WindowProofStreamingWriter.writeStrict(capture.target,File(directory,"geometry.json"))
         val position=capture.target.getJSONObject("review").getJSONArray("rectPx")

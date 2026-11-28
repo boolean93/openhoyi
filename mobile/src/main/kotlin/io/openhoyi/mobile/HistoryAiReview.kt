@@ -8,10 +8,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Resolve the visible selection on tap and hand it to the existing chat disclosure flow. */
+/** Bind the visible record and hand it to the existing chat disclosure flow. */
 internal fun ThemedActivity.historyAiReviewButton(
     style: TaskProductVisualStyle,
-    selectedId: () -> String?,
+    shotId: String,
 ): Button = style.button(Button(this)).apply {
     tag = "product/history/ai-review"
     setText(R.string.completion_card_review)
@@ -21,7 +21,6 @@ internal fun ThemedActivity.historyAiReviewButton(
     val access = app.completionShotReviewAccess
     var reading = false
     setOnClickListener {
-        val id = selectedId() ?: return@setOnClickListener
         if (reading) return@setOnClickListener
         if (!access.hasConfiguredKey()) {
             val message = if (AiKeyStore(activity).status() == AiKeyStatus.MISSING)
@@ -39,11 +38,11 @@ internal fun ThemedActivity.historyAiReviewButton(
         lifecycleScope.launch {
             try {
                 val hasSamples = withContext(Dispatchers.IO) {
-                    AiExtractionSamples.validId(id) && runCatching {
-                        app.samples.loadPersisted(id).isNotEmpty()
+                    AiExtractionSamples.validId(shotId) && runCatching {
+                        app.samples.loadPersisted(shotId).isNotEmpty()
                     }.getOrDefault(false)
                 }
-                if (isFinishing || isDestroyed || !isShown || !hasWindowFocus() || selectedId() != id) return@launch
+                if (isFinishing || isDestroyed || !isAttachedToWindow || !isShown || !hasWindowFocus()) return@launch
                 if (!hasSamples) {
                     beanShowDialog(AlertDialog.Builder(activity)
                         .setTitle(R.string.completion_card_review)
@@ -51,7 +50,7 @@ internal fun ThemedActivity.historyAiReviewButton(
                         .setPositiveButton(android.R.string.ok, null).create())
                     return@launch
                 }
-                val ticket = access.issueHistory(id) ?: return@launch
+                val ticket = access.issueHistory(shotId) ?: return@launch
                 try { startActivity(AiChatActivity.completionReviewIntent(activity, ticket)) }
                 catch (_: RuntimeException) { access.abandon(ticket) }
             } finally {
