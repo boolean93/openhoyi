@@ -77,6 +77,9 @@ class HistoryActivity : ThemedActivity() {
             else startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
+        style.action(actions, getString(R.string.history_browser_legacy_menu), "product/history/open-legacy") {
+            startActivity(Intent(this, LegacyHistoryActivity::class.java))
+        }
         val ioMenu = ImageButton(this).apply {
             tag = "product/history/io-menu"; contentDescription = getString(R.string.task_tools)
             setImageDrawable(HomeVisualIcon.drawable(this@HistoryActivity, "more", style.accent))
@@ -95,17 +98,14 @@ class HistoryActivity : ThemedActivity() {
         historyList = list
         adapter = HistoryBrowserAdapter(this, visual, showJournal) { selectedIds[showJournal] }
         list.adapter = adapter
-        collection = TaskCollectionLayout(this)
+        collection = historyBrowserCollection(this)
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
-        sources = HistoryBrowserSources(this, style, showJournal, ioMenu, navigationTools) {
-            if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
-            else {
-                rememberList()
-                showJournal = it == 1
-                restoreDetail = false
-                buildScreen()
-                render()
-            }
+        sources = HistoryBrowserSources(this, style, showJournal, ioMenu, navigationTools) { journal ->
+            rememberList()
+            showJournal = journal
+            restoreDetail = false
+            buildScreen()
+            render()
         }
         style.add(collection.browserBody, sources)
         val back = style.button(HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() })

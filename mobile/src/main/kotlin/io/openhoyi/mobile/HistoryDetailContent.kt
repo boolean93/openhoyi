@@ -351,13 +351,21 @@ internal fun ThemedActivity.renderHistoryPreview(
 private fun ThemedActivity.historyReviewActionLabel(record: BrewJournal.Entry): String =
     getString(if (record.notes == BrewJournal.Notes()) R.string.journal_review else R.string.history_preview_edit_review)
 
-private fun ThemedActivity.historyShotActions(style: TaskProductVisualStyle, shotId: String): EmbeddedHistoryActionsRow {
+private fun ThemedActivity.historyShotActions(
+    style: TaskProductVisualStyle, shotId: String, preview: Boolean = false,
+): EmbeddedHistoryActionsRow {
     val actions = style.row("product/history/shot-actions")
-    actions.addView(historyAiReviewButton(style, shotId), LinearLayout.LayoutParams(-2, -2))
-    style.action(actions, getString(R.string.journal_compare), "product/history/compare", outline = true, top = 0) {
+    val review = historyAiReviewButton(style, shotId)
+    actions.addView(review, LinearLayout.LayoutParams(-2, -2))
+    val compare = style.action(actions, getString(R.string.journal_compare), "product/history/compare", outline = true, top = 0) {
         showHistoryCupPicker(shotId)
     }.also { HomeVisualIcon.buttonIcon(it, "compare") }
-    return EmbeddedHistoryActionsRow(this, style, actions, rowTag = "product/history/shot-actions-row")
+    if (preview) listOf(review, compare).forEach { button ->
+        button.minHeight = style.dp(48)
+        button.minimumHeight = style.dp(48)
+        button.setPadding(style.dp(12), style.dp(8), style.dp(12), style.dp(8))
+    }
+    return EmbeddedHistoryActionsRow(this, style, actions, rowTag = "product/history/shot-actions-row", equalInlineHeight = preview)
 }
 
 /** Notes may change while the same cup's chart and scroll position remain on screen. */
@@ -416,16 +424,16 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
             setTextColor(visual.warningInk)
             background = style.shape(visual.warningSurface)
         } else null
-    val header = EmbeddedHistoryHeader(this, title, identity, historyShotActions(style, entry.id),
+    val header = EmbeddedHistoryHeader(this, title, identity, historyShotActions(style, entry.id, preview = true),
         more, meta, warning, style)
     header.protectPhotoSection(style)
     style.add(preview.content, header)
     val metrics = preview.metrics
     metrics.protectPhotoSection(style)
-    fun metric(label: Int, number: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
+    fun metric(label: Int, number: String, unit: String?, id: String): HistoryQuantity {
         val labelView = style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true)
-        val quantity = HistoryQuantity(this, visual, id, large = prominent).apply { present(number, unit) }
-        val cell = EmbeddedHistoryMetricCell(this, style.dp(8), labelView, quantity).apply { tag = "$id/cell" }
+        val quantity = HistoryQuantity(this, visual, id, large = false).apply { present(number, unit) }
+        val cell = EmbeddedHistoryMetricCell(this, style.dp(4), labelView, quantity).apply { tag = "$id/cell" }
         preview.metricCells += cell
         metrics.addView(cell)
         return quantity
@@ -434,10 +442,11 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         if (entry.timingValue != null) "s" else null, "product/history/elapsed")
     metric(R.string.history_end_scale, entry.weightHundredthsGram?.let { "%.2f".format(Locale.ROOT, it / 100.0) } ?: "—",
         if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
-    val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water", false)
+    val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water")
     if (!preview.portrait) style.add(preview.content, metrics, 8)
-    val chartTitle = style.text(getString(R.string.extraction_chart), TaskProductVisualStyle.section, "product/history/chart-title").apply {
-        setPaddingRelative(style.dp(8), 0, 0, 0)
+    val chartTitle = style.text(getString(R.string.extraction_chart), TaskProductVisualStyle.action, "product/history/chart-title").apply {
+        setPaddingRelative(style.dp(12), 0, 0, 0)
+        if (openFullPage != null) minimumHeight = style.dp(48)
     }
     val chartHeading = openFullPage?.let { open ->
         HistoryToolbarRow(this, style.dp(8), style.dp(4)) {
@@ -454,12 +463,17 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
             })
         }
     } ?: chartTitle
-    chartHeading.setBackgroundColor(style.surface)
+    fun chartEdge(top: Boolean) = style.shape(visual.embeddedChartSurface).apply {
+        val radius = style.dp(12).toFloat()
+        cornerRadii = if (top) floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+            else floatArrayOf(0f, 0f, 0f, 0f, radius, radius, radius, radius)
+    }
+    chartHeading.background = chartEdge(top = true)
     style.add(preview.content, chartHeading, 8)
     preview.content.addView(chart, LinearLayout.LayoutParams(-1, -2))
     // The actual chart producer retains this permanent view and updates its text from the same projection.
     // Only embedded History places it after the complete chart, before its notes; resize never reparents it.
-    style.add(preview.content, requireNotNull(chart.embeddedExplanationView).apply { setBackgroundColor(style.surface) })
+    style.add(preview.content, requireNotNull(chart.embeddedExplanationView).apply { background = chartEdge(top = false) })
     if (preview.portrait) {
         style.add(preview.content, chartStatus, 8)
         style.add(preview.content, metrics, 12)
@@ -477,7 +491,7 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     notes.protectPhotoSection(style)
     style.add(preview.content, notes, 12)
     if (permanent != null) {
-        val notesTitle = style.text(getString(R.string.history_preview_personal_review), TaskProductVisualStyle.section)
+        val notesTitle = style.text(getString(R.string.history_preview_personal_review), TaskProductVisualStyle.action)
         val notesHeader = HistoryToolbarRow(this, style.dp(8), style.dp(4)) {
             val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
             notesTitle.measure(natural, natural)
@@ -679,7 +693,7 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
     val productLayoutEvidence = org.json.JSONObject()
     private val viewport = ScrollView(context).apply { tag = "product/history/preview-scroll"; addView(content) }
     // Exactly the production renderer's actual 14sp/400 Paint policy, not a fixed dp guess.
-    private val paintBudget = ProductHistoryChartRenderer(context, visual)
+    private val paintBudget = ProductHistoryChartRenderer(context, visual, embeddedHistory = true)
     init {
         orientation = VERTICAL; tag = "product/history/preview"
         addView(viewport, LayoutParams(-1, 0, 1f))
@@ -818,7 +832,11 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
         val chrome = measureChrome(sections)
         val firstScreenResolvedPx = firstScreenMinimum()
         val minimumContent = chrome + chartMargins + chartMinimum
-        chartParams.height = (available - chrome - chartMargins).coerceIn(chartMinimum, chartMinimum + style.dp(176))
+        val explanationHeight = requireNotNull(chart.embeddedExplanationView).measuredHeight
+        val roomThroughExplanation = available - (firstScreenResolvedPx - chartMinimum) - explanationHeight
+        val preferredChartHeight = minOf(chartMinimum + style.dp(128), roomThroughExplanation)
+        chartParams.height = maxOf(available - chrome - chartMargins, preferredChartHeight)
+            .coerceIn(chartMinimum, chartMinimum + style.dp(176))
         content.resolvedHeightPx = chrome + chartMargins + chartParams.height
         val scrolling = content.resolvedHeightPx > available
         productLayoutEvidence.put("availableHeightPx", available)
@@ -868,7 +886,9 @@ internal fun historyActionsNaturalWidth(widths:List<Int>, gap:Int):Int =
     widths.sum() + gap * (widths.size - 1).coerceAtLeast(0)
 
 private class EmbeddedHistoryActionsRow(context: android.content.Context, private val style: TaskProductVisualStyle,
-    private val actions: LinearLayout, rowTag: String) : android.view.ViewGroup(context) {
+    private val actions: LinearLayout, rowTag: String,
+    private val equalInlineHeight: Boolean = false,
+) : android.view.ViewGroup(context) {
     val productLayoutEvidence = org.json.JSONObject()
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
     init { tag = rowTag; addView(actions) }
@@ -876,9 +896,11 @@ private class EmbeddedHistoryActionsRow(context: android.content.Context, privat
         val available = (android.view.View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
         val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
         val widths = mutableListOf<Int>()
+        var tallest = 0
         for (index in 0 until actions.childCount) {
             val child = actions.getChildAt(index); child.forceLayout(); child.measure(natural, natural)
             widths += child.measuredWidth
+            tallest = maxOf(tallest, child.measuredHeight)
         }
         val actionsWidth = historyActionsNaturalWidth(widths,style.dp(16))
         val inline = actionsWidth <= available
@@ -887,6 +909,7 @@ private class EmbeddedHistoryActionsRow(context: android.content.Context, privat
             val child = actions.getChildAt(index)
             val params = child.layoutParams as LinearLayout.LayoutParams
             params.width = if (inline) -2 else -1
+            if (equalInlineHeight) params.height = if (inline) tallest else -2
             params.marginStart = if (inline && index > 0) style.dp(16) else 0
             params.topMargin = if (!inline && index > 0) style.dp(8) else 0
             params.resolveLayoutDirection(actions.layoutDirection)

@@ -3,7 +3,7 @@ package io.openhoyi.mobile
 import android.app.Instrumentation
 import android.os.SystemClock
 import android.view.View
-import android.widget.Button
+import android.widget.Spinner
 
 /** Real controls and actual cup identities. No journal or sample mutations. */
 internal object TwoCupComparisonPageChecks {
@@ -30,9 +30,6 @@ internal object TwoCupComparisonPageChecks {
         fun metricButton(metric: ChartMetric) = root.findViewWithTag<android.widget.Button>("comparison-metric-${metric.name}")
         fun selectMetric(metric: ChartMetric) { check(metricButton(metric).performClick()) }
         val swap = root.findViewWithTag<View>("comparison-swap")
-        val changeSecond = root.findViewWithTag<View>("comparison-change-second")
-        fun picker() = (activity.supportFragmentManager.findFragmentByTag(HistoryCupPicker.TAG) as HistoryCupPicker)
-            .requireDialog().window!!.decorView
         fun summary(column: Int) = (0..2).map {
             val row = root.findViewWithTag<android.widget.LinearLayout>("comparison-summary-row-$it")
             (row.getChildAt(column + 1) as android.widget.TextView).text.toString()
@@ -73,21 +70,13 @@ internal object TwoCupComparisonPageChecks {
             if (activity.resources.configuration.let {
                 it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
             }) {
-                val legend = root.findViewWithTag<View>("comparison-source-legend")
-                (historicalMetrics.map(::metricButton) + listOf(swap, changeSecond, legend)).forEach { control ->
+                (historicalMetrics.map(::metricButton) + listOf(swap, root.findViewWithTag<View>("comparison-first"),
+                    root.findViewWithTag<View>("comparison-second"))).forEach { control ->
                     val bounds = android.graphics.Rect()
                     check(control.isShown && control.getGlobalVisibleRect(bounds) &&
                         bounds.width() == control.width && bounds.height() == control.height && control.height > 0) {
                         "Comparison toolbar control clipped: ${control.tag} $bounds / ${control.width}x${control.height}"
                     }
-                }
-                val actions = root.findViewWithTag<View>("comparison-actions")
-                val header = actions.parent as android.view.ViewGroup
-                check(header.findViewWithTag<View>("task-tools-host") != null && swap.parent === actions &&
-                    changeSecond.parent === actions) { "Wide comparison actions must share the page title row" }
-                val cards = (0..2).map { root.findViewWithTag<View>("comparison-overview-card-$it") }
-                check(cards.all { it.width > 0 } && cards.maxOf { it.width } - cards.minOf { it.width } <= 1) {
-                    "A, B and the difference must share the wide comparison row evenly"
                 }
                 check(chart.width >= root.width * .8f) { "Comparison plot must span the landscape task area" }
             }
@@ -107,28 +96,20 @@ internal object TwoCupComparisonPageChecks {
                 }
                 captureMetric(metric)
             }
-            main { check(changeSecond.performClick()) }
+            // The real placeholder must clear identity and data, not only its displayed chip.
+            val firstSelector = root.findViewWithTag<Spinner>("comparison-first")
+            var originalFirstPosition = 0
+            main { originalFirstPosition = firstSelector.selectedItemPosition; firstSelector.setSelection(0) }
             test.waitForIdleSync()
+            await { id("firstId") == null && !chart.isLayoutRequested }
             main {
-                val dialog = picker()
-                val candidates = dialog.findViewWithTag<android.widget.ListView>("history-cup-options")
-                val entries = (0 until candidates.count).map { candidates.getItemAtPosition(it) as BrewJournal.Observation }
-                check(entries.none { it.id == first })
-                candidates.setSelection(entries.indexOfFirst { it.id == second }.also { check(it >= 0) })
+                check(chart.firstPoints.isEmpty() && chart.secondPoints.isEmpty() && chart.comparisonMessage != null)
+                check(summary(0) == listOf("—", "—", "—")) { "Cleared cup retained stale outcome values" }
+                check(differences.visibility == View.GONE) { "Cleared cup retained stale differences" }
+                firstSelector.setSelection(originalFirstPosition)
             }
             test.waitForIdleSync()
-            main {
-                val dialog = picker()
-                val confirm = dialog.findViewWithTag<Button>("history-cup-confirm")
-                check(!confirm.isEnabled)
-                check(dialog.findViewWithTag<View>("history-cup-option-$first") == null)
-                check(dialog.findViewWithTag<View>("history-cup-option-$second").performClick())
-                check(confirm.isEnabled && id("secondId") == second)
-                check(dialog.findViewWithTag<Button>("history-cup-cancel").performClick())
-            }
-            test.waitForIdleSync()
-            await { id("firstId") == first && id("secondId") == second &&
-                chart.firstPoints == firstSamples && chart.secondPoints == secondSamples }
+            await { id("firstId") == first && chart.firstPoints == firstSamples && chart.secondPoints == secondSamples }
             main {
                 swap.requestRectangleOnScreen(android.graphics.Rect(0, 0, swap.width, swap.height), true)
             }
@@ -146,6 +127,8 @@ internal object TwoCupComparisonPageChecks {
                 val lastDifference = difference(ComparisonDifferences.Metric.NET_WEIGHT)
                 lastDifference.requestRectangleOnScreen(android.graphics.Rect(0, 0, lastDifference.width, lastDifference.height), true)
                 check(summary(0) == originalSummaries[1] && summary(1) == originalSummaries[0]) { "Outcome table did not follow cup identities" }
+                check(root.findViewWithTag<Spinner>("comparison-first").selectedItemPosition !=
+                    root.findViewWithTag<Spinner>("comparison-second").selectedItemPosition)
             }
             test.waitForIdleSync()
             main {
@@ -159,6 +142,11 @@ internal object TwoCupComparisonPageChecks {
         } finally {
             main {
                 if (id("firstId") == second && id("secondId") == first) check(swap.performClick())
+                val firstSelector = root.findViewWithTag<Spinner>("comparison-first")
+                if (id("firstId") == null) {
+                    val entries = (activity.application as MobileApplication).journalResult.getOrThrow().entries()
+                    firstSelector.setSelection(entries.indexOfFirst { it.observation.id == first } + 1)
+                }
                 root.findViewWithTag<android.widget.ScrollView>("comparison-details-scroll").scrollTo(0, 0)
                 selectMetric(historicalMetrics.single { it.ordinal == originalMetric })
             }

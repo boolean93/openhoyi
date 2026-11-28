@@ -3,8 +3,11 @@ package io.openhoyi.mobile
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.AdapterView
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import java.util.concurrent.Executors
 
@@ -38,12 +41,20 @@ class BrewComparisonActivity : ThemedActivity() {
         val style = visual.palette
         val body = style.page(this, getString(R.string.journal_compare_title), getString(R.string.journal_compare_hint))
         val journal = journal(body) ?: return
+        val entries = journal.entries()
         firstId = if (savedInstanceState?.containsKey(FIRST_SHOT_ID) == true) savedInstanceState.getString(FIRST_SHOT_ID)
-            else intent.getStringExtra(FIRST_SHOT_ID)
+            else intent.getStringExtra(FIRST_SHOT_ID) ?: entries.getOrNull(0)?.observation?.id
         secondId = if (savedInstanceState?.containsKey(SECOND_SHOT_ID) == true) savedInstanceState.getString(SECOND_SHOT_ID)
-            else intent.getStringExtra(SECOND_SHOT_ID)
+            else intent.getStringExtra(SECOND_SHOT_ID) ?: entries.getOrNull(1)?.observation?.id
         selectedMetric = savedInstanceState?.getString(METRIC)?.let { name -> historicalMetrics.firstOrNull { it.name == name } }
             ?: ChartMetric.PRESSURE
+        if (entries.size < 2) {
+            HoyiUi.label(this, body, getString(R.string.journal_compare_need_two), 17)
+            if (listOfNotNull(firstId, secondId).any { journal.find(it) == null })
+                HoyiUi.label(this, body, getString(R.string.task_comparison_missing_selection), 14)
+            return
+        }
+
         val workspace = TaskComparisonLayout(this, visual)
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         val toolbarBody = workspace.toolbar
@@ -72,68 +83,77 @@ class BrewComparisonActivity : ThemedActivity() {
         toolbarBody.addView(metricLine, LinearLayout.LayoutParams(-1, -2))
         chart = TwoCupChartView(this, visual).apply { metric = selectedMetric }
         workspace.setChart(chart)
-        val actions = style.row("comparison-actions").apply { gravity = android.view.Gravity.END }
-        val swap = style.button(Button(this), outline = true).apply {
-            text = getString(R.string.task_comparison_swap)
-            tag = "comparison-swap"
-            setOnClickListener {
-                val previous = firstId
-                firstId = secondId
-                secondId = previous
-                refresh()
+        val selectors = ComparisonCupSelectors(this, dp(16), dp(8)).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+            toolbarBody.addView(this, 0)
+        }
+        workspace.productLayoutEvidence.put("cupSelectors", selectors.productLayoutEvidence)
+        val choiceIds = listOf<String?>(null) + entries.map { it.observation.id }
+        val labels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map {
+            getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
+        }
+        fun cupSelector(label: Int, selected: String?, changed: (String?) -> Unit): (String?) -> Unit {
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                background = style.shape(style.surface, true)
+            }
+            selectors.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+            style.add(cell, style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true))
+            // Track the displayed position separately from identity: an absent ID initially
+            // shares the placeholder position, but must survive its automatic initial callback.
+            var displayedPosition = choiceIds.indexOf(selected).coerceAtLeast(0)
+            val spinner = Spinner(this).apply {
+                tag = if (label == R.string.journal_first) "comparison-first" else "comparison-second"
+                adapter = visual.choiceAdapter(this@BrewComparisonActivity, labels)
+                contentDescription = getString(label)
+                minimumHeight = dp(52)
+                cell.addView(this, LinearLayout.LayoutParams(-1, -2))
+                setSelection(displayedPosition)
+                onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+                    override fun onItemSelected(parent: AdapterView<*>?, item: View?, position: Int, id: Long) {
+                        if (position != displayedPosition) {
+                            displayedPosition = position
+                            changed(choiceIds[position])
+                        }
+                    }
+                }
+            }
+            return { identity ->
+                // Swapping is an identity operation, not a user clearing an absent record.
+                displayedPosition = choiceIds.indexOf(identity).coerceAtLeast(0)
+                spinner.setSelection(displayedPosition)
             }
         }
-        val changeSecond = style.button(Button(this), outline = true).apply {
-            text = getString(R.string.history_cup_change_second)
-            tag = "comparison-change-second"
-            setOnClickListener { showHistoryCupPicker(firstId) }
+        val displayFirstSelection = cupSelector(R.string.journal_first, firstId) { id ->
+            if (firstId != id) { firstId = id; refresh() }
         }
-        actions.addView(swap, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
-        actions.addView(changeSecond, LinearLayout.LayoutParams(-2, -2))
-        val summaryGroup = style.column()
-        val screenWidth = resources.configuration.screenWidthDp
-        if (screenWidth >= 720) {
-            val header = (body.tag as BeanPageRegions).header
-            val tools = header.findViewWithTag<View>("task-tools-host")
-            header.addView(actions, header.indexOfChild(tools), LinearLayout.LayoutParams(-2, -2).apply {
-                marginStart = dp(8)
-                marginEnd = dp(8)
-            })
-        } else {
-            style.add(summaryGroup, actions)
+        val displaySecondSelection = cupSelector(R.string.journal_second, secondId) { id ->
+            if (secondId != id) { secondId = id; refresh() }
         }
-
-        val cardRow = style.row()
-        style.add(summaryGroup, cardRow, top = if (screenWidth >= 720) 0 else 8)
-        val cupCards = listOf(R.string.history_cup_first_mark, R.string.history_cup_second_mark, R.string.history_cup_difference)
-            .mapIndexed { index, label ->
-                val card = style.column("comparison-overview-card-$index").apply {
-                    setPadding(dp(10), dp(8), dp(10), dp(8))
-                    background = style.shape(style.surface, outline = true)
-                }
-                if (index == 2 && screenWidth < 620) {
-                    style.add(summaryGroup, card, top = 8)
-                } else {
-                    cardRow.addView(card, LinearLayout.LayoutParams(0, -1, 1f).apply {
-                        if (index > 0) marginStart = dp(8)
-                    })
-                }
-                val identity = style.text(getString(label), TaskProductVisualStyle.compactMetric, "comparison-cup-identity-$index")
-                style.add(card, identity)
-                val date = style.text("", TaskProductVisualStyle.auxiliary, secondary = true)
-                if (index < 2) style.add(card, date)
-
-                val measurements = HistoryVisualFlow(this, dp(12), 0).apply { tag = "comparison-cup-measurements-$index" }
-                val timer = style.text("", TaskProductVisualStyle.auxiliary)
-                val scale = style.text("", TaskProductVisualStyle.auxiliary)
-                measurements.addView(timer)
-                measurements.addView(scale)
-                style.add(card, measurements)
-                CupCard(identity, date, timer, scale)
-            }
-        val shared = style.text("", TaskProductVisualStyle.auxiliary, secondary = true)
-        style.add(summaryGroup, shared, top = 4)
-        toolbarBody.addView(summaryGroup, 0, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        HoyiUi.button(this, selectors, getString(R.string.task_comparison_swap)) {
+            val previous = firstId; firstId = secondId; secondId = previous
+            displayFirstSelection(firstId)
+            displaySecondSelection(secondId)
+            refresh()
+        }.apply {
+            tag = "comparison-swap"; style.button(this)
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
+            selectors.removeView(this)
+            selectors.addView(this, 1)
+        }
+        val shared = HoyiUi.label(this, toolbarBody, "", 14).apply {
+            setPadding(0, dp(4), 0, dp(4))
+            toolbarBody.removeView(this)
+            toolbarBody.addView(this, 1, LinearLayout.LayoutParams(-1, -2))
+        }
+        val selectionLine = HistoryToolbarRow(this, dp(16), dp(8)) { selectors.naturalInlineWidth() }
+        toolbarBody.removeView(selectors); toolbarBody.removeView(shared)
+        selectionLine.addView(selectors); selectionLine.addView(shared)
+        toolbarBody.addView(selectionLine, 0, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
         val summaryTable = ComparisonSummaryTable(this, visual)
         support.addView(summaryTable, LinearLayout.LayoutParams(-1, -2))
         val recordActions = LinearLayout(this).apply {
@@ -175,6 +195,7 @@ class BrewComparisonActivity : ThemedActivity() {
                 beanDetails(getString(label), journalObservationText(entry.observation) + "\n\n" + values.joinToString("\n"))
             }.apply { style.button(this); HomeVisualIcon.buttonIcon(this, "info") }
         }
+        style.apply(shared, TaskProductVisualStyle.auxiliary, true)
         style.apply(sourceLegend, TaskProductVisualStyle.auxiliary)
         sourceLegend.setTextColor(visual.metric(selectedMetric))
         sourceSummaries.forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
@@ -220,8 +241,7 @@ class BrewComparisonActivity : ThemedActivity() {
             chart.firstPoints = if (valid) points[0] else emptyList()
             chart.secondPoints = if (valid) points[1] else emptyList()
             chart.comparisonMessage = when {
-                first == null || second == null -> getString(if (journal.entries().size < 2)
-                    R.string.journal_compare_need_two else R.string.task_comparison_missing_selection)
+                first == null || second == null -> getString(R.string.task_comparison_missing_selection)
                 same -> getString(R.string.journal_choose_different)
                 else -> null
             }
@@ -244,24 +264,7 @@ class BrewComparisonActivity : ThemedActivity() {
                 }) + " · " + getString(if (first.observation.curveId == second.observation.curveId)
                     R.string.journal_same_curve else R.string.journal_different_curve)
             } else chart.comparisonMessage.orEmpty())
-            swap.isEnabled = valid
-            changeSecond.text = getString(if (valid || first != null) R.string.history_cup_change_second else R.string.journal_compare)
-            val outcome = if (valid) HistoryCupOutcome.difference(first?.observation, second?.observation)
-                else HistoryCupOutcome.Difference(null, null)
-            fun measured(label: Int, value: String) = getString(label) + " " + value
-            cupCards[2].timer.setIfChanged(measured(R.string.history_duration, historyCupSeconds(outcome.machineSeconds, signed = true)))
-            cupCards[2].scale.setIfChanged(measured(R.string.history_end_scale, historyCupGrams(outcome.scaleHundredths, signed = true)))
             selected.forEachIndexed { index, entry ->
-                val observation = entry?.observation
-                val card = cupCards[index]
-                val mark = getString(if (index == 0) R.string.history_cup_first_mark else R.string.history_cup_second_mark)
-                val name = observation?.let { journalCurve(it.curveId) } ?: "—"
-                card.identity.setIfChanged("$mark · $name")
-                card.date.setIfChanged(observation?.let { journalDate(it.startedAtMs) }.orEmpty())
-                card.timer.setIfChanged(measured(historyCupTimingLabel(observation),
-                    historyCupSeconds(observation?.observedMachineElapsedSeconds?.toLong())))
-                card.scale.setIfChanged(measured(R.string.history_end_scale,
-                    historyCupGrams(observation?.weightHundredthsGram?.toLong())))
                 summaryTable.update(index, entry)
                 detailButtons[index].isEnabled = entry != null
                 noteButtons[index].isEnabled = entry != null
@@ -299,13 +302,6 @@ class BrewComparisonActivity : ThemedActivity() {
         refresh = ::render
         render()
     }
-    internal fun setHistoryCupPair(first: String, second: String) {
-        firstId = first
-        secondId = second
-        refresh()
-    }
-    private data class CupCard(val identity: TextView, val date: TextView, val timer: TextView, val scale: TextView)
-
     override fun onResume() { super.onResume(); refresh() }
     override fun onDestroy() { destroyed = true; readers.shutdownNow(); refresh = {}; super.onDestroy() }
     override fun onSaveInstanceState(outState: Bundle) {
@@ -323,4 +319,68 @@ class BrewComparisonActivity : ThemedActivity() {
     })
     private fun TextView.setIfChanged(value: String) { if (text.toString() != value) text = value }
     private fun dp(value: Int) = HoyiUi.dp(this, value)
+}
+
+/** Permanent A/swap/B nodes. Only actual selected text and native control chrome decide wrapping. */
+private class ComparisonCupSelectors(context: android.content.Context, private val gap: Int, private val rowGap: Int) : LinearLayout(context) {
+    val productLayoutEvidence = org.json.JSONObject()
+    private var naturalWidths = emptyList<Int>()
+    private fun invalidateMeasured(view: View) {
+        view.forceLayout()
+        if (view is android.view.ViewGroup) (0 until view.childCount).forEach { invalidateMeasured(view.getChildAt(it)) }
+    }
+    fun naturalInlineWidth(): Int {
+        val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        naturalWidths = (0 until childCount).map { index ->
+            val child = getChildAt(index)
+            invalidateMeasured(child)
+            child.measure(free, free)
+            var naturalWidth = child.measuredWidth
+            if (child is android.view.ViewGroup && child.tag != "comparison-swap") {
+                val spinner = (0 until child.childCount).map(child::getChildAt).filterIsInstance<Spinner>().single()
+                val selected = spinner.selectedView as? TextView
+                if (selected != null) {
+                    val backgroundPadding = android.graphics.Rect()
+                    spinner.background?.getPadding(backgroundPadding)
+                    val selectedWidth = kotlin.math.ceil(android.text.Layout.getDesiredWidth(selected.text, selected.paint)).toInt() +
+                        selected.compoundPaddingLeft + selected.compoundPaddingRight
+                    val spinnerChrome = maxOf(spinner.paddingLeft, backgroundPadding.left) + maxOf(spinner.paddingRight, backgroundPadding.right)
+                    naturalWidth = maxOf(naturalWidth, child.paddingLeft + child.paddingRight + selectedWidth + spinnerChrome)
+                }
+            }
+            invalidateMeasured(child) // Restore real constraints after the native natural-width probe.
+            naturalWidth
+        }
+        return naturalWidths.sum() + gap * (childCount - 1).coerceAtLeast(0)
+    }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val natural = naturalInlineWidth()
+        val inline = natural <= available
+        orientation = if (inline) HORIZONTAL else VERTICAL
+        val flexibleCount = (0 until childCount).count { getChildAt(it).tag != "comparison-swap" }.coerceAtLeast(1)
+        val surplus = (available - natural).coerceAtLeast(0)
+        var distributed = 0
+        var flexibleIndex = 0
+        for (index in 0 until childCount) {
+            val child = getChildAt(index)
+            val params = child.layoutParams as LayoutParams
+            val flexible = child.tag != "comparison-swap"
+            val extra = if (inline && flexible) {
+                flexibleIndex++
+                (if (flexibleIndex == flexibleCount) surplus - distributed else surplus / flexibleCount).also { distributed += it }
+            } else 0
+            params.width = if (inline) naturalWidths[index] + extra else -1
+            params.weight = 0f
+            params.marginStart = if (inline && index > 0) gap else 0
+            params.marginEnd = 0
+            params.topMargin = if (!inline && index > 0) rowGap else 0
+            params.bottomMargin = 0
+            params.resolveLayoutDirection(this@ComparisonCupSelectors.layoutDirection)
+        }
+        productLayoutEvidence.put("availableWidthPx", available).put("naturalInlineWidthPx", natural)
+            .put("childNaturalWidthsPx", org.json.JSONArray(naturalWidths)).put("inline", inline)
+            .put("groupGapPx", gap).put("rowGapPx", rowGap)
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
 }

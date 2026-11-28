@@ -34,6 +34,7 @@ import android.widget.EditText
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.Spinner
 import android.widget.TextView
 import io.openhoyi.bean.Bean
 import io.openhoyi.bean.BeanBatch
@@ -1499,30 +1500,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         activity=recreate(activity); chartReady(activity)
         main { check(field(activity,"firstId")==second && field(activity,"secondId")==first && field(activity,"selectedMetric")==ChartMetric.TEMPERATURE) }
         capture(activity,File(folder,"states/swapped-recreated"))
-        main { check(root(activity).findViewWithTag<View>("comparison-change-second").performClick()) }
-        fun picker(): View = ((activity as BrewComparisonActivity).supportFragmentManager
-            .findFragmentByTag(HistoryCupPicker.TAG) as HistoryCupPicker).requireDialog().window!!.decorView
-        main {
-            val candidates = picker().findViewWithTag<android.widget.ListView>("history-cup-options")
-            val selection = (0 until candidates.count).first { (candidates.getItemAtPosition(it) as BrewJournal.Observation).id == first }
-            candidates.setSelection(selection)
-        }
-        await("explicit comparison candidate is visible") { picker().findViewWithTag<View>("history-cup-option-$first") != null }
-        main {
-            check(!picker().findViewWithTag<Button>("history-cup-confirm").isEnabled)
-            check(picker().findViewWithTag<View>("history-cup-option-$first").performClick())
-            check(picker().findViewWithTag<Button>("history-cup-confirm").isEnabled)
-        }
-        activity=recreate(activity)
-        main {
-            val confirm = picker().findViewWithTag<Button>("history-cup-confirm")
-            check(confirm.isEnabled && confirm.performClick())
-        }
-        chartReady(activity)
-        main { check(field(activity,"firstId")==second && field(activity,"secondId")==first && field(activity,"selectedMetric")==ChartMetric.TEMPERATURE) }
+        // Select the real placeholder; do not reflectively overwrite either identity.
+        main { root(activity).findViewWithTag<Spinner>("comparison-first").setSelection(0) }
+        await("placeholder clears cup and projection") { field(activity,"firstId")==null && (field(activity,"chart") as TwoCupChartView).firstPoints.isEmpty() }
+        capture(activity,File(folder,"states/placeholder-clears"))
         check(scope.journal.exportJson()==original)
         File(folder,"comparison-business.json").writeText(JSONObject().put("cases",cases).put("swapRecreateIdsAndMetric",true)
-            .put("replacementRequiresExplicitChoiceAndRestoresDraft",true).put("journalUnchanged",true).put("completed",true).toString(2))
+            .put("placeholderClearsIdentityAndProjection",true).put("journalUnchanged",true).put("completed",true).toString(2))
     }
     private fun <T> historyMainValue(block:()->T):T {
         var value:Any?=null
@@ -2600,11 +2584,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             check(it.isShown && it.isAttachedToWindow) {"M5 required comparison target missing/hidden: $tag"}
         }
         val targets=linkedMapOf<String,View>()
-        val controlTags=listOf("comparison-change-second","comparison-swap") +
+        val controlTags=listOf("comparison-first","comparison-second","comparison-swap") +
             listOf("PRESSURE","WATER","WEIGHT","TEMPERATURE").map {"comparison-metric-$it"}
-        controlTags.forEach {targets[it]=tagged(root(activity),it)}
+        controlTags.forEach {targets[it]=tagged(toolbar,it)}
         targets["comparison-source-legend"]=tagged(toolbar,"comparison-source-legend")
-        targets["comparison-cup-measurements-2"]=tagged(toolbar,"comparison-cup-measurements-2")
         val selectedStatuses=listOf(first,second).filterIsInstance<String>().map {requireNotNull(scope.journal.find(it)).observation.status}
         val expectedWarning=selectedStatuses.any {it=="UNKNOWN"}
         val warning=nodes(toolbar).filter {it.tag=="product/comparison/warning"}.single()
@@ -2616,7 +2599,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         check(rows.size==4 && rows.all {it.childCount==3})
         check((rows[0].getChildAt(0) as TextView).text.isEmpty())
         targets["summary-header"]=rows[0]
-        listOf("duration" to R.string.history_record_elapsed,"end-scale" to R.string.history_end_scale,"taste" to R.string.journal_taste)
+        listOf("duration" to R.string.history_duration,"end-scale" to R.string.history_end_scale,"taste" to R.string.journal_taste)
             .forEachIndexed {index,(key,label) ->
                 val row=rows[index+1]
                 check(row.tag=="comparison-summary-row-$index" && (row.getChildAt(0) as TextView).text.toString()==activity.getString(label))
@@ -3109,7 +3092,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             val compareRect=compareBounds.getJSONArray("rectPx")
             val moreRect=moreBounds.getJSONArray("rectPx")
             check(reviewRect.getInt(2)<=compareRect.getInt(0) && compareRect.getInt(2)<=moreRect.getInt(0))
-            check(reviewRect.getInt(1)<compareRect.getInt(3) && compareRect.getInt(1)<reviewRect.getInt(3))
+            check(reviewRect.getInt(1)==compareRect.getInt(1) && reviewRect.getInt(3)==compareRect.getInt(3))
+            val legend=requireNotNull(chart.findViewWithTag<View>("product/history/chart-legend"))
+            val legendButtons=nodes(legend).filterIsInstance<Button>()
+            check(legendButtons.map {it.top}.distinct().size==1 && legendButtons.all {it.lineCount==1 && it.height>=HoyiUi.dp(activity,48)})
             check(chart.points==samples)
             val visibleChart=Rect()
             check(chart.getGlobalVisibleRect(visibleChart) && visibleChart.height()>=HoyiUi.dp(activity,96))

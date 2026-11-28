@@ -29,10 +29,7 @@ internal fun ThemedActivity.showHistoryCupPicker(firstId: String? = null) {
     val fragments = supportFragmentManager
     if (isFinishing || fragments.isStateSaved || fragments.findFragmentByTag(HistoryCupPicker.TAG) != null) return
     HistoryCupPicker().apply {
-        arguments = bundleOf(
-            BrewComparisonActivity.FIRST_SHOT_ID to firstId,
-            HistoryCupPicker.REPLACE to (this@showHistoryCupPicker is BrewComparisonActivity),
-        )
+        arguments = bundleOf(BrewComparisonActivity.FIRST_SHOT_ID to firstId)
     }.showNow(fragments, HistoryCupPicker.TAG)
 }
 
@@ -40,7 +37,6 @@ internal fun ThemedActivity.showHistoryCupPicker(firstId: String? = null) {
 class HistoryCupPicker : DialogFragment() {
     companion object {
         internal const val TAG = "history-cup-picker"
-        internal const val REPLACE = "replaceSecond"
         private const val LIST_POSITION = "listPosition"
         private const val LIST_TOP = "listTop"
     }
@@ -99,11 +95,11 @@ class HistoryCupPicker : DialogFragment() {
         content.addView(list, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(8) })
 
         prompt = style.text("", TaskProductVisualStyle.auxiliary, "history-cup-selection", secondary = true)
-        ViewCompat.setAccessibilityLiveRegion(prompt, View.ACCESSIBILITY_LIVE_REGION_POLITE)
+        prompt.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         val actions = style.row().apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
         confirm = style.button(Button(host), primary = true).apply {
             tag = "history-cup-confirm"
-            text = getString(if (arguments?.getBoolean(REPLACE) == true) R.string.history_cup_apply_second else R.string.history_cup_start)
+            text = getString(R.string.history_cup_start)
             setOnClickListener { confirmPair() }
         }
         actions.addView(prompt, LinearLayout.LayoutParams(0, -2, 1f))
@@ -197,13 +193,9 @@ class HistoryCupPicker : DialogFragment() {
             return
         }
         confirm.isEnabled = false
-        if (arguments?.getBoolean(REPLACE) == true && host is BrewComparisonActivity) {
-            (host as BrewComparisonActivity).setHistoryCupPair(pair.first, pair.second)
-        } else {
-            host.startActivity(Intent(host, BrewComparisonActivity::class.java)
-                .putExtra(BrewComparisonActivity.FIRST_SHOT_ID, pair.first)
-                .putExtra(BrewComparisonActivity.SECOND_SHOT_ID, pair.second))
-        }
+        host.startActivity(Intent(host, BrewComparisonActivity::class.java)
+            .putExtra(BrewComparisonActivity.FIRST_SHOT_ID, pair.first)
+            .putExtra(BrewComparisonActivity.SECOND_SHOT_ID, pair.second))
         dismiss()
     }
 
@@ -284,19 +276,14 @@ class HistoryCupPicker : DialogFragment() {
     }
 }
 
-internal fun ThemedActivity.historyCupTimingLabel(shot: BrewJournal.Observation?) =
-    if (shot?.machineTimingInterrupted == true) R.string.history_pre_interruption_duration else R.string.history_duration
-
-internal fun ThemedActivity.historyCupSeconds(seconds: Long?, signed: Boolean = false): String =
-    seconds?.let { getString(R.string.history_duration_value, (if (signed && it > 0) "+" else "") + it) } ?: "—"
-
-internal fun ThemedActivity.historyCupGrams(hundredths: Long?, signed: Boolean = false): String =
-    hundredths?.let {
-        getString(R.string.journal_grams, (if (signed && it > 0) "+" else "") + "%.2f".format(Locale.ROOT, it / 100.0))
-    } ?: "—"
-
-private fun ThemedActivity.historyCupReadings(shot: BrewJournal.Observation) = listOf(
-    getString(historyCupTimingLabel(shot)) + " " + historyCupSeconds(shot.observedMachineElapsedSeconds?.toLong()),
-    getString(R.string.history_end_scale) + " " + historyCupGrams(shot.weightHundredthsGram?.toLong()),
-    journalStatus(shot.status).takeUnless { shot.status == "ENDED" },
-).filterNotNull().joinToString(" · ")
+private fun ThemedActivity.historyCupReadings(shot: BrewJournal.Observation): String {
+    val timing = getString(if (shot.machineTimingInterrupted == true)
+        R.string.history_pre_interruption_duration else R.string.history_duration)
+    val duration = shot.observedMachineElapsedSeconds?.let { getString(R.string.history_duration_value, it.toString()) } ?: "—"
+    val grams = shot.weightHundredthsGram?.let { getString(R.string.journal_grams, "%.2f".format(Locale.ROOT, it / 100.0)) } ?: "—"
+    return listOfNotNull(
+        "$timing $duration",
+        getString(R.string.history_end_scale) + " " + grams,
+        journalStatus(shot.status).takeUnless { shot.status == "ENDED" },
+    ).joinToString(" · ")
+}

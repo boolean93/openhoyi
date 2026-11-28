@@ -25,19 +25,6 @@ class HistoryCupSelectionTest {
         assertEquals(HistoryCupSelection(), pair.reconcile(listOf(records[1])))
     }
 
-    @Test fun comparesOnlyObservedEndValuesAndKeepsRealZeros() {
-        val first = shot("a", seconds = 28, weight = 3759)
-        val second = shot("b", seconds = 30, weight = 3800)
-        assertEquals(2L, HistoryCupOutcome.difference(first, second).machineSeconds)
-        assertEquals(-41L, HistoryCupOutcome.difference(second, first).scaleHundredths)
-        val noTimer = second.copy(observedMachineElapsedSeconds = null, weightHundredthsGram = 0)
-        assertNull(HistoryCupOutcome.difference(first, noTimer).machineSeconds)
-        assertEquals(-3759L, HistoryCupOutcome.difference(first, noTimer).scaleHundredths)
-        assertNull(HistoryCupOutcome.difference(first, second.copy(machineTimingInterrupted = true)).machineSeconds)
-        assertNull(HistoryCupOutcome.difference(first, second.copy(status = "UNKNOWN")).machineSeconds)
-    }
-
-    private fun shot(id: String, curve: String = "curve", startedAt: Long = 0, seconds: Int? = null, weight: Int? = null) =
-        BrewJournal.Observation(id, curve, startedAt, null, 33500, "ENDED", null, weight, seconds,
-            observedSampleCoverageMs = 27900L)
+    private fun shot(id: String, curve: String = "curve", startedAt: Long = 0) =
+        BrewJournal.Observation(id, curve, startedAt, null, null, "ENDED", null, null)
 }

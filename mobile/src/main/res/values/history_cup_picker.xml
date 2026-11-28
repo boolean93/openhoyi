@@ -7,11 +7,7 @@
     <string name="history_cup_from_journal">来自长期复盘</string>
     <string name="history_cup_previous">上一次用这条曲线</string>
     <string name="history_cup_first_mark">A · 第一杯</string>
-    <string name="history_cup_second_mark">B · 第二杯</string>
     <string name="history_cup_second_pending">尚未选择第二杯</string>
     <string name="history_cup_chosen_second">第二杯：%1$s</string>
     <string name="history_cup_start">开始对比</string>
-    <string name="history_cup_apply_second">确认换杯</string>
-    <string name="history_cup_change_second">换第二杯</string>
-    <string name="history_cup_difference">差异 · B − A</string>
 </resources>

@@ -7,11 +7,7 @@
     <string name="history_cup_from_journal">From the brew journal</string>
     <string name="history_cup_previous">Previous shot with this profile</string>
     <string name="history_cup_first_mark">A · First shot</string>
-    <string name="history_cup_second_mark">B · Second shot</string>
     <string name="history_cup_second_pending">No second shot selected</string>
     <string name="history_cup_chosen_second">Second shot: %1$s</string>
     <string name="history_cup_start">Compare shots</string>
-    <string name="history_cup_apply_second">Confirm second shot</string>
-    <string name="history_cup_change_second">Change second shot</string>
-    <string name="history_cup_difference">Difference · B − A</string>
 </resources>

@@ -97,6 +97,10 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             else startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
+        style.action(actions, getString(R.string.history_browser_legacy_menu), "product/history/open-legacy") {
+            toolsDialog?.dismiss()
+            startActivity(Intent(host, LegacyHistoryActivity::class.java))
+        }
         val ioMenu = ImageButton(host).apply {
             tag = "product/history/io-menu"; contentDescription = getString(R.string.task_tools)
             setImageDrawable(HomeVisualIcon.drawable(host, "more", style.accent))
@@ -115,12 +119,9 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         historyList = list
         adapter = HistoryBrowserAdapter(host, visual, showJournal) { selectedIds[showJournal] }
         list.adapter = adapter
-        collection = TaskCollectionLayout(host)
+        collection = historyBrowserCollection(host)
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
-        sources = HistoryBrowserSources(host, style, showJournal, ioMenu) {
-            if (it == 2) startActivity(Intent(host, LegacyHistoryActivity::class.java))
-            else showSource(it == 1)
-        }
+        sources = HistoryBrowserSources(host, style, showJournal, ioMenu, onSource = ::showSource)
         style.add(collection.browserBody, sources)
         val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }).also { portraitDetailBack = it }
         val screen = collection

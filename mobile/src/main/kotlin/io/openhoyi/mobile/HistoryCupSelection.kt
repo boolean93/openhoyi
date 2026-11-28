@@ -29,15 +29,3 @@ internal data class HistoryCupSelection(val firstId: String? = null, val secondI
         return listOfNotNull(previous) + records.filter { it.id != firstId && it.id != previous?.id }
     }
 }
-
-internal object HistoryCupOutcome {
-    data class Difference(val machineSeconds: Long?, val scaleHundredths: Long?)
-
-    fun difference(first: BrewJournal.Observation?, second: BrewJournal.Observation?): Difference {
-        fun subtract(a: Int?, b: Int?) = if (a == null || b == null) null else b.toLong() - a
-        fun completeTimer(shot: BrewJournal.Observation?) =
-            shot?.observedMachineElapsedSeconds?.takeIf { shot.status == "ENDED" && shot.machineTimingInterrupted != true }
-        fun endScale(shot: BrewJournal.Observation?) = shot?.weightHundredthsGram?.takeIf { shot.status == "ENDED" }
-        return Difference(subtract(completeTimer(first), completeTimer(second)), subtract(endScale(first), endScale(second)))
-    }
-}

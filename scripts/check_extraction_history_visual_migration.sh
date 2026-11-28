@@ -459,8 +459,8 @@ def require_reach(folder,page,expected_warning=False):
         reach=json.loads((folder/'comparison-reachability.json').read_text())
         assert reach['completed'] and reach['exactScrollRestored'] and reach['idsAndMetricUnchanged'] and reach['journalUnchanged']
         assert reach['initialScrollPx']==reach['restoredScrollPx'] and len(reach['initialScrollPx'])==2
-        assert reach['summaryRowCount']==4 and reach['tasteTargetCount']==2 and reach['toolbarControlCount']==6
-        expected={'comparison-change-second','comparison-swap','comparison-cup-measurements-2',
+        assert reach['summaryRowCount']==4 and reach['tasteTargetCount']==2 and reach['toolbarControlCount']==7
+        expected={'comparison-first','comparison-second','comparison-swap',
             'comparison-metric-PRESSURE','comparison-metric-WATER','comparison-metric-WEIGHT','comparison-metric-TEMPERATURE',
             'comparison-source-legend','comparison-source-1','comparison-source-2',
             'summary-header','summary-duration','summary-end-scale','summary-taste','taste-A','taste-B',

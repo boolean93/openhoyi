@@ -27,7 +27,7 @@ internal class HistoryBrowserSources(
     private val journal: Boolean,
     menu: View,
     navigationTools: View? = null,
-    onSource: (Int) -> Unit,
+    onSource: (journal: Boolean) -> Unit,
 ) : LinearLayout(activity) {
     private val source = if (journal) R.string.journal_tab else R.string.history_local_tab
     private val count = style.text("", TaskProductVisualStyle.auxiliary, "product/history/count").apply {
@@ -48,17 +48,17 @@ internal class HistoryBrowserSources(
 
     init {
         orientation = HORIZONTAL
-        gravity = Gravity.TOP
+        gravity = Gravity.CENTER_VERTICAL
         isBaselineAligned = false
         tag = "product/history/sources"
         setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
         protectRoundedBackdropContent(style.surface, style.dp(12), photoFill = wallpaperTint(style.surface, 228))
-        val tabs = HistoryVisualFlow(activity, style.dp(4), style.dp(4))
+        val tabs = style.row().apply { gravity = Gravity.CENTER_VERTICAL }
         addView(tabs, LayoutParams(0, -2, 1f))
-        val activeIndex = if (journal) 1 else 0
-        val labels = listOf(R.string.history_local_tab, R.string.journal_tab, R.string.history_legacy_tab)
-        labels.forEachIndexed { index, resource ->
-            val active = index == activeIndex
+        val labels = listOf(R.string.history_local_tab, R.string.journal_tab)
+        labels.forEach { resource ->
+            val isJournal = resource == R.string.journal_tab
+            val active = isJournal == journal
             val label = activity.getString(resource)
             val tab = style.text(label, TaskProductVisualStyle.auxiliary, secondary = !active).apply {
                 minWidth = style.dp(48)
@@ -74,14 +74,14 @@ internal class HistoryBrowserSources(
                 tabs.addView(style.row().apply {
                     gravity = Gravity.CENTER_VERTICAL
                     background = style.shape(style.selected, radius = 8)
-                    addView(tab, LayoutParams(-2, -2))
+                    addView(tab, LayoutParams(0, -2, 1f))
                     addView(count, LayoutParams(-2, -2))
-                })
+                }, LayoutParams(0, -2, 3f))
             } else {
                 tab.background = sourceRipple()
-                tab.setOnClickListener { onSource(index) }
+                tab.setOnClickListener { onSource(isJournal) }
                 tab.isFocusable = true
-                tabs.addView(tab)
+                tabs.addView(tab, LayoutParams(0, -2, 2f))
             }
         }
         addView(menu, LayoutParams(style.dp(48), style.dp(48)))
@@ -110,6 +110,9 @@ internal class HistoryBrowserSources(
             .setTitle(source).setMessage("$summary\n\n$rule").setPositiveButton(android.R.string.ok, null).create())
     }
 }
+
+internal fun historyBrowserCollection(activity: ThemedActivity) =
+    TaskCollectionLayout(activity, browserFraction = .30f, browserWidthDp = 280..300)
 
 internal fun historyBrowserList(activity: ThemedActivity, style: TaskProductVisualStyle) = ListView(activity).apply {
     tag = "product/history/list"

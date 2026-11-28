@@ -616,6 +616,8 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
 
         fun source(label: Int) = descendants(page).filterIsInstance<TextView>()
             .single { it.isShown && it.text.toString() == activity.getString(label) }
+        fun rulesDialog() = MainActivity::class.java.getDeclaredField("transientDialogs").apply { isAccessible = true }
+            .get(activity).let { it as List<*> }.filterIsInstance<android.app.AlertDialog>().last { it.isShowing }
 
         fun checkSource(label: Int, rules: Int) {
             test.runOnMainSync {
@@ -623,6 +625,11 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 val controls = requireNotNull(collection.browserBody.findViewWithTag<ViewGroup>("product/history/sources"))
                 check(page.findViewWithTag<View>("product/history/header") == null)
                 check(collection.browserBody.findViewWithTag<View>("product/history/compare-entry") == null)
+                check(descendants(controls).filterIsInstance<TextView>().none { it.text == activity.getString(R.string.history_legacy_tab) })
+                if (collection.detailBody.isShown) {
+                    val browserWidthDp = collection.browserBody.width / activity.resources.displayMetrics.density
+                    check(browserWidthDp in 279f..301f) { "History list was $browserWidthDp dp wide in split view" }
+                }
                 check(source(label).isSelected)
                 val count = requireNotNull(controls.findViewWithTag<TextView>("product/history/count"))
                 val list = requireNotNull(collection.browserBody.findViewWithTag<ListView>("product/history/list"))
@@ -631,11 +638,13 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 val minimum = HoyiUi.dp(activity, 48)
                 check(count.isShown && count.getGlobalVisibleRect(visible) &&
                     visible.width() >= minimum && visible.height() >= minimum)
-                check(controls.findViewWithTag<View>("product/history/io-menu")?.isShown == true)
+                val menu = requireNotNull(controls.findViewWithTag<View>("product/history/io-menu"))
+                val sameRow = listOf(source(R.string.history_local_tab), source(R.string.journal_tab), menu).map { control ->
+                    Rect().apply { check(control.getGlobalVisibleRect(this)) }
+                }
+                check(sameRow.maxOf { it.top } < sameRow.minOf { it.bottom })
                 check(count.performClick())
-                val tracked = MainActivity::class.java.getDeclaredField("transientDialogs").apply { isAccessible = true }
-                val dialog = (tracked.get(activity) as List<*>)
-                    .filterIsInstance<android.app.AlertDialog>().last { it.isShowing }
+                val dialog = rulesDialog()
                 check(dialog.findViewById<TextView>(android.R.id.message).text.toString()
                     .contains(activity.getString(rules)))
                 dialog.dismiss()
@@ -661,6 +670,26 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         test.runOnMainSync { check(source(R.string.journal_tab).performClick()) }
         test.waitForIdleSync()
         checkSource(R.string.journal_tab, R.string.history_browser_journal_retention)
+        val legacyMonitor = test.addMonitor(LegacyHistoryActivity::class.java.name, null, false)
+        var legacy: LegacyHistoryActivity? = null
+        try {
+            test.runOnMainSync {
+                check(page.findViewWithTag<View>("product/history/io-menu").performClick())
+                val dialog = HistoryFragment::class.java.getDeclaredField("toolsDialog").apply { isAccessible = true }
+                    .get(history) as android.app.AlertDialog
+                val legacyButton = requireNotNull(dialog.window?.decorView?.findViewWithTag<Button>("product/history/open-legacy"))
+                check(legacyButton.text.toString() == activity.getString(R.string.history_browser_legacy_menu))
+                check(legacyButton.performClick())
+            }
+            legacy = test.waitForMonitorWithTimeout(legacyMonitor, 10000) as? LegacyHistoryActivity
+            checkNotNull(legacy) { "History tools did not open legacy read-only records" }
+        } finally {
+            test.removeMonitor(legacyMonitor)
+            legacy?.let { test.runOnMainSync { it.finish() } }
+            test.waitForIdleSync()
+        }
+        check(host.active("root:HISTORY") === history)
+        test.runOnMainSync { check(source(R.string.journal_tab).isSelected) }
         test.runOnMainSync { check(source(R.string.history_local_tab).performClick()) }
         test.waitForIdleSync()
     }
