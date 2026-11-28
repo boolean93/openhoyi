@@ -88,6 +88,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
+    private fun mainServiceBound(activity: MainActivity): Boolean {
+        val lease = field(activity, "serviceBinding\$delegate") as Lazy<*>
+        return (lease.value as VisibleServiceBinding).bound
+    }
     private fun field(owner: Any, name: String): Any? {
         val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
         val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
@@ -728,7 +732,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                                 val extraction=activity.supportFragmentManager.findFragmentByTag("extraction") as? ExtractionFragment
                                     ?: return@forEach
                                 val handler=field(extraction,"handler") as Handler
-                                check(field(extraction,"service")==null && field(activity,"bound")==false && field(extraction,"visible")==false &&
+                                check(field(extraction,"service")==null && !mainServiceBound(activity) && field(extraction,"visible")==false &&
                                     !handler.hasCallbacks(field(extraction,"refresh") as Runnable)) { "M5 destroyed Extraction still holds a service or refresh" }
                             }
                             if(serviceBound) { context.unbindService(serviceConnection); serviceBound=false }
@@ -768,7 +772,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         main {
                             check(readOnlyHistoryRootService()) { "M5 History root changed its single read-only service" }
                             tracked.filterIsInstance<MainActivity>().forEach { activity ->
-                                check(field(activity,"service")==null && field(activity,"bound")==false) {
+                                check(activity.currentService==null && !mainServiceBound(activity)) {
                                     "M5 destroyed History Main retained a service binding" }
                             }
                             if(page=="history") check(context.stopService(Intent(context,MobileService::class.java))) {
