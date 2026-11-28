@@ -312,7 +312,7 @@ internal object FourMetricChartProjection {
         }
 
     private fun value(point: ShotPoint, metric: ChartMetric): Float? = when (metric) {
-        ChartMetric.PRESSURE -> (point.pressureTenthsBar / 10f).takeUnless { point.brewing == false }
+        ChartMetric.PRESSURE -> point.chartPressureBar
         ChartMetric.WATER -> point.waterTenthsMl / 10f
         ChartMetric.WEIGHT -> point.weightHundredthsGram?.div(100f)
         ChartMetric.YIELD -> point.beverageHundredthsGram?.div(100f)

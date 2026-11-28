@@ -163,6 +163,13 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                             texts.any { it.optString("role") == "time-tick" && it.optString("text").endsWith(" s") }) {
                             "$name: time unit must share the last tick row"
                         }
+                        if (name == "real-replay-77470050eda7") {
+                            val pressurePath = (0 until evidence.length()).map { evidence.getJSONObject(it) }
+                                .filter { it.optString("operation") == "path" && it.optString("metric") == "PRESSURE" }
+                            check(pressurePath.size == 1) { "Observed bloom must not split the pressure path" }
+                            check(!probe.overviewExplanation().contains(activity.getString(R.string.legacy_detail_missing_heading)))
+                            check(!probe.overviewExplanation().contains(activity.getString(R.string.live_pressure_pause_explanation)))
+                        }
                         if (name == "preinfusion-pause") {
                             val phase = FourMetricChartProjection.build(points,reference,livePauseBaseline=true)
                             check(phase.pauseBaselineMs == (8..14).map { it*800L }.toSet())

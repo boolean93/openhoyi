@@ -774,7 +774,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private fun hasGaps() = listOf(points, reference).any { samples ->
         samples.zipWithNext().any { (a, b) -> b.elapsedMs - a.elapsedMs > 1500 } ||
             samples.any { it.weightHundredthsGram == null } && samples.any { it.weightHundredthsGram != null } ||
-            samples.any { it.brewing == false }
+            samples.any { it.chartPressureBar == null }
     }
 
     private fun fixedAxisWarning(): String {
