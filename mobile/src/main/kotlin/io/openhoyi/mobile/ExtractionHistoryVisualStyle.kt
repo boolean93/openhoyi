@@ -17,6 +17,7 @@ import java.util.Locale
 /** M5-only visual input. No state, sampling or projection is changed here. */
 internal class ExtractionHistoryVisualStyle(val context: Context) {
     val palette = TaskProductVisualStyle(context)
+    val embeddedChartSurface = androidx.core.graphics.ColorUtils.blendARGB(palette.page, palette.surface, .72f)
     val focus = TaskProductVisualStyle.Type(48, 700, 72)
     val focusUnit = TaskProductVisualStyle.Type(22, 400, 34)
     private val dark = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
@@ -79,7 +80,9 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
 
 /** Independent M5 Paint and actual-draw evidence; consumes the existing validated projection only. */
 internal class ProductHistoryChartRenderer(private val context: Context, private val style: ExtractionHistoryVisualStyle,
-    private val liveMode: Boolean = false, private val standaloneAxes: Boolean = false) {
+    private val liveMode: Boolean = false, private val standaloneAxes: Boolean = false,
+    private val embeddedHistory: Boolean = false,
+) {
     private val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = TaskTypography.face(context, 400); textSize = this@ProductHistoryChartRenderer.style.palette.sp(14); isFakeBoldText = false
         letterSpacingCompat()
@@ -101,8 +104,9 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     fun minimumAxisHeight(width: Int, data: FourMetricChartData, focused: ChartMetric) =
         kotlin.math.ceil(if (liveMode) line * 4.5f + dp(32f) + liveCaptionExtra(width, data, focused)
             else line * 5 + dp(48f)).toInt()
-    // Non-comparison bounds reserve 1.5 lines + 16dp above and 2.5 lines + 24dp below the real plot.
-    fun minimumEmbeddedHistoryHeight() = kotlin.math.ceil(dp(96f) + line * 4 + dp(40f)).toInt()
+    private val embeddedAxisTop get() = line * 1.5f + dp(4f)
+    private val embeddedAxisBottom get() = line * 1.4f + dp(6f)
+    fun minimumEmbeddedHistoryHeight() = kotlin.math.ceil(dp(96f) + embeddedAxisTop + embeddedAxisBottom).toInt()
     fun minimumComparisonHeight(plotMinimumDp: Float = 96f) = kotlin.math.ceil(dp(plotMinimumDp) + line * 3 + dp(24f)).toInt()
     fun minimumHeightForPlot(plotMinimumDp: Float) = HistoryPlotBudget.minimumHeight(line,
         context.resources.displayMetrics.density, liveMode, plotMinimumDp)
@@ -147,10 +151,10 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val ticks = current + target
         if (stackedLiveAxes) return ticks.maxOf(::extent) + liveTickGap
         return (ticks + (if (compact || standaloneAxes) displayUnit(series.metric) else axisTitle(series.metric)))
-            .maxOf(::extent) + dp(if (liveMode) 12f else 16f)
+            .maxOf(::extent) + dp(if (liveMode || embeddedHistory) 12f else 16f)
     }
     private fun tickText(series: MetricChartSeries, value: Float): String =
-        if (liveMode) axisNumber(value) else number(value)
+        if (liveMode || embeddedHistory) axisNumber(value) else number(value)
     private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode &&
         (width <= dp(600f) || width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f))
     fun allAxes(width: Int, data: FourMetricChartData) = width - data.series.sumOf { column(it).toDouble() } - dp(16f) >= dp(96f)
@@ -253,6 +257,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val tailWidth = 0f // Live endpoint names live in the persistent metric tiles.
         val right = width - dp(8f) - rightAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat() - tailWidth
         return if (comparison) RectF(left, line * 1.5f + dp(12f), right, height - line * 1.5f - dp(12f))
+            else if (embeddedHistory) RectF(left, embeddedAxisTop, right, height - embeddedAxisBottom)
             else RectF(left, HistoryPlotBudget.top(line, context.resources.displayMetrics.density, liveMode) + standaloneTitleExtra(width, data) + standaloneLegendExtra(),
                 right, height - HistoryPlotBudget.bottom(line, context.resources.displayMetrics.density, liveMode))
     }
@@ -325,7 +330,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
             x = box.right + dp(8f)
             rightAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
         }
-        val timeBaseline = box.bottom + line / 2 + dp(8f) - fm.ascent
+        val timeBaseline = box.bottom + (if (embeddedHistory) line * .25f + dp(2f) else line / 2 + dp(8f)) - fm.ascent
         // Shared time grid on a nice seconds step; the final tick keeps the established
         // "<seconds> s" endpoint contract in live/comparison charts.
         // projection already snapped historical/comparison timeEndMs; never re-round here so the
@@ -346,7 +351,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
             }
             val tickX = when (align) { Paint.Align.LEFT -> box.left; Paint.Align.RIGHT -> box.right; else -> tickPx }
             val label = when {
-                isEnd -> seconds(timeAxis.endMs) + if (comparison || liveMode) " s" else ""
+                isEnd -> seconds(timeAxis.endMs) + if (comparison || liveMode || embeddedHistory) " s" else ""
                 tick == 0L -> "0"
                 else -> seconds(tick)
             }
@@ -369,7 +374,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
                 if (!collides) texts += candidate
             }
         }
-        if (!comparison && !liveMode) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
+        if (!comparison && !liveMode && !embeddedHistory) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
         if ((data.observedThroughMs == null && data.series.all { it.reference.isEmpty() }) || data.series.isEmpty()) {
             val empty = context.getString(if (simpleLivePresentation && data.series.isEmpty()) R.string.chart_series_yield_unavailable
                 else if(simpleLivePresentation) R.string.live_chart_no_data else R.string.chart_empty_title)

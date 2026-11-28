@@ -57,7 +57,12 @@ internal class HistoryFooterChecks(private val test:Instrumentation) {
                     }
                     await {val chart=nodes(root).filterIsInstance<ShotChartView>().singleOrNull();page.hasWindowFocus() && chart?.points?.size==31 && root.isLaidOut && !root.isLayoutRequested && !chart.isLayoutRequested}
                     lateinit var chart:ExtractionOverlayView;lateinit var footer:View;lateinit var actions:List<Button>
-                    main {chart=nodes(root).filterIsInstance<ExtractionOverlayView>().single();footer=requireNotNull(root.findViewWithTag("product/history/standalone-footer-row"));actions=nodes(footer).filterIsInstance<Button>();check(actions.size==3)}
+                    main {
+                        chart=nodes(root).filterIsInstance<ExtractionOverlayView>().single()
+                        footer=requireNotNull(root.findViewWithTag("product/history/standalone-footer-row"))
+                        actions=nodes(footer).filterIsInstance<Button>()
+                        check(actions.map {it.tag}==listOf("product/history/review","product/history/details"))
+                    }
                     fun snapshot():JSONObject {
                         val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"));val origin=IntArray(2);plot.getLocationOnScreen(origin)
                         val operation=(0 until chart.visualEvidence.length()).map {chart.visualEvidence.getJSONObject(it)}.single {it.optString("operation")=="plot"}

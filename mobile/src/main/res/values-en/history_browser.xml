@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_browser_source_info">%1$s, %2$d records, view retention rules</string>
+    <string name="history_browser_source_info_unknown">%1$s, record count unavailable, view retention rules</string>
+    <string name="history_browser_record_count">Records: %1$d</string>
+    <string name="history_browser_legacy_menu">Legacy records</string>
+    <string name="history_browser_local_retention">Keeps up to 500 records for up to 30 days.</string>
+    <string name="history_browser_journal_retention">Shot summaries and personal notes are kept long term. Raw samples follow the local cache retention rules.</string>
+    <string name="history_browser_scale_reading">Scale reading %1$s</string>
+</resources>

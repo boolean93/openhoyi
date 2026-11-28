@@ -4,22 +4,16 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.view.WindowInsets
 import android.widget.*
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /** Native extraction outcomes with separate legacy import actions. */
 class HistoryActivity : ThemedActivity() {
     private val visual by lazy { ExtractionHistoryVisualStyle(this) }
     private val style get() = visual.palette
-    private data class RowViews(val day: TextView, val title: TextView, val status: TextView,
-        val meta: LinearLayout, val chunks: List<TextView>, val taste: TextView)
-    private lateinit var adapter: ArrayAdapter<ShotHistory.Entry>
+    private lateinit var adapter: HistoryBrowserAdapter
     private lateinit var historyList: ListView
     private val listStates = mutableMapOf<Boolean, android.os.Parcelable>()
-    private lateinit var count: TextView
+    private lateinit var sources: HistoryBrowserSources
     private lateinit var emptyTitle: TextView
     private lateinit var emptyMessage: TextView
     private lateinit var emptyAction: Button
@@ -30,6 +24,7 @@ class HistoryActivity : ThemedActivity() {
     private val selectedIds = mutableMapOf<Boolean, String>()
     private var restoreDetail = false
     private var compact = true
+    private var renderedPreview: HistoryPreview? = null
     private var backCallback: android.window.OnBackInvokedCallback? = null
     private val journalActions = mutableListOf<Button>()
 
@@ -58,30 +53,14 @@ class HistoryActivity : ThemedActivity() {
     }
     private fun buildScreen() {
         updateBack(false)
+        renderedPreview = null
         journalActions.clear()
         val body = style.page(this, getString(R.string.home_history), navigation = HistoryActivity::class.java)
         val header = (body.tag as BeanPageRegions).header
-        count = style.text("", TaskProductVisualStyle.auxiliary, "product/history/count", true).also { style.add(body, it, 8) }
-        val sourcesIndex = body.childCount
-        HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
-            if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
-            else { rememberList(); showJournal = it == 1; restoreDetail = false; buildScreen(); render() }
-        }
-        val sources = body.getChildAt(sourcesIndex)
-        fun styleSources(view: View) {
-            if (view is Button) style.button(view)
-            else if (view is TextView) {
-                style.apply(view, TaskProductVisualStyle.auxiliary)
-                view.gravity = android.view.Gravity.CENTER
-                view.minHeight = dp(48); view.minimumHeight = dp(48)
-                view.setTextColor(if (view.isSelected) style.accent else style.muted)
-                view.background = style.shape(if (view.isSelected) style.selected else style.surface)
-            }
-            if (view is android.view.ViewGroup) (0 until view.childCount).forEach { styleSources(view.getChildAt(it)) }
-        }
-        styleSources(sources)
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        actions.orientation = LinearLayout.VERTICAL
+        val navigationTools = header.findViewWithTag<View>("task-tools-host")
+        header.removeView(navigationTools)
+        header.visibility = View.GONE
+        val actions = style.column()
         fun action(title: String, click: () -> Unit) {
             val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             actions.addView(box, LinearLayout.LayoutParams(-1, -2))
@@ -98,6 +77,9 @@ class HistoryActivity : ThemedActivity() {
             else startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
+        style.action(actions, getString(R.string.history_browser_legacy_menu), "product/history/open-legacy") {
+            startActivity(Intent(this, LegacyHistoryActivity::class.java))
+        }
         val ioMenu = ImageButton(this).apply {
             tag = "product/history/io-menu"; contentDescription = getString(R.string.task_tools)
             setImageDrawable(HomeVisualIcon.drawable(this@HistoryActivity, "more", style.accent))
@@ -112,105 +94,20 @@ class HistoryActivity : ThemedActivity() {
                 beanShowDialog(dialog)
             }
         }
-        header.addView(ioMenu, LinearLayout.LayoutParams(dp(48), dp(48)))
-        val list = ListView(this).apply {
-            divider = android.graphics.drawable.ColorDrawable(style.border)
-            dividerHeight = dp(1)
-        }
-        adapter = object : ArrayAdapter<ShotHistory.Entry>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
-            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                val card = convertView as? LinearLayout ?: LinearLayout(this@HistoryActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    minimumHeight = dp(64)
-                    setPadding(dp(16), dp(8), dp(16), dp(8))
-                    background = style.shape(style.surface, radius = 0)
-                    val day = HoyiUi.label(this@HistoryActivity, this, "", 14, true).apply {
-                        setTextColor(appColor(R.color.mobile_accent))
-                        setPadding(0, 0, 0, dp(8))
-                    }
-                    val header = LinearLayout(this@HistoryActivity).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        isBaselineAligned = false
-                        gravity = android.view.Gravity.CENTER_VERTICAL
-                    }
-                    addView(header)
-                    val title = TextView(this@HistoryActivity).apply {
-                        textSize = 17f
-                        typeface = TaskTypography.face(this@HistoryActivity, 500)
-                        includeFontPadding = false
-                        setTextColor(getColor(R.color.mobile_text))
-                        maxLines = 2
-                        ellipsize = android.text.TextUtils.TruncateAt.END
-                    }
-                    val identity = style.column()
-                    header.addView(identity, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) })
-                    identity.addView(title, LinearLayout.LayoutParams(-1, -2))
-                    val state = TextView(this@HistoryActivity).apply {
-                        textSize = 14f
-                        typeface = TaskTypography.face(this@HistoryActivity, 400)
-                        includeFontPadding = false
-                    }
-                    header.addView(state, LinearLayout.LayoutParams(-2, -2))
-                    val meta = style.column().apply {
-                        setPadding(0, dp(8), 0, 0)
-                    }
-                    identity.addView(meta)
-                    val flow = HistoryVisualFlow(this@HistoryActivity, dp(8), dp(8))
-                    meta.addView(flow, LinearLayout.LayoutParams(-1, -2))
-                    val chunks = (0..3).map {
-                        style.text("", TaskProductVisualStyle.auxiliary, secondary = true).also { flow.addView(it) }
-                    }
-                    val taste = style.text("", TaskProductVisualStyle.auxiliary, secondary = true)
-                    meta.addView(taste, LinearLayout.LayoutParams(-1, -2))
-                    tag = RowViews(day, title, state, meta, chunks, taste)
-                }
-                val entry = requireNotNull(getItem(position))
-                card.setBackgroundColor(if (selectedIds[showJournal] == entry.id) style.selected else android.graphics.Color.TRANSPARENT)
-                val views = card.tag as RowViews
-                style.apply(views.day, TaskProductVisualStyle.auxiliary, true)
-                style.apply(views.title, TaskProductVisualStyle.action)
-                style.apply(views.status, TaskProductVisualStyle.auxiliary)
-                (views.chunks + views.taste).forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
-                views.title.tag = "product/history/list/${entry.id}/name"
-                views.status.tag = "product/history/list/${entry.id}/status"
-                views.meta.tag = "product/history/list/${entry.id}/metadata"
-                views.chunks.forEachIndexed { index, view -> view.tag = "product/history/list/${entry.id}/metadata/$index" }
-                views.taste.tag = "product/history/list/${entry.id}/metadata/taste"
-                val day = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(entry.startedAtMs))
-                val previousDay = if (position > 0) getItem(position - 1)?.let {
-                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.startedAtMs))
-                } else null
-                views.day.text = day
-                views.day.visibility = if (day != previousDay) View.VISIBLE else View.GONE
-                views.title.text = if (entry.curveId == "manual") getString(R.string.extraction_manual_label)
-                    else (application as MobileApplication).historicalCurveName(entry.curveId) ?: CurveCatalog.find(entry.curveId)?.name ?: entry.curveId
-                views.status.text = status(entry.status)
-                views.status.setTextColor(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningInk else style.accent)
-                val metadata = listOf(date(entry.startedAtMs),
-                    shotTimingSummary(entry),
-                    entry.weightHundredthsGram?.let { getString(R.string.history_meta_scale, "%.2f".format(Locale.ROOT, it / 100.0)) },
-                    entry.slot?.takeIf { it in 1..5 }?.let { getString(R.string.extraction_slot_suffix, it.toString()) })
-                views.chunks.forEachIndexed { index, view ->
-                    // Whole semantic chunks flow between rows; keep Latin numeric units bound together within a chunk.
-                    view.text = metadata[index]?.replace(' ', '\u00a0').orEmpty()
-                    view.visibility = if (metadata[index] == null) View.GONE else View.VISIBLE
-                }
-                val taste = if (showJournal) (application as MobileApplication).journalResult.getOrNull()?.find(entry.id)?.notes?.taste?.takeIf { it.isNotBlank() } else null
-                views.taste.text = taste?.let { getString(R.string.journal_field_value, getString(R.string.journal_taste), it) }.orEmpty()
-                views.taste.visibility = if (taste == null) View.GONE else View.VISIBLE
-                return card
-            }
-        }
+        val list = historyBrowserList(this, style)
         historyList = list
+        adapter = HistoryBrowserAdapter(this, visual, showJournal) { selectedIds[showJournal] }
         list.adapter = adapter
-        collection = TaskCollectionLayout(this)
-        body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
-        // Source controls belong to the record browser, not above the selected chart.
-        listOf(sources, count).forEach { control ->
-            body.removeView(control)
-            collection.browserBody.addView(control, LinearLayout.LayoutParams(-1, -2))
+        collection = historyBrowserCollection(this)
+        body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
+        sources = HistoryBrowserSources(this, style, showJournal, ioMenu, navigationTools) { journal ->
+            rememberList()
+            showJournal = journal
+            restoreDetail = false
+            buildScreen()
+            render()
         }
-        style.addHistoryComparisonEntry(this, collection.browserBody)
+        style.add(collection.browserBody, sources)
         val back = style.button(HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() })
         collection.onPresentationChanged = { split, visible ->
             compact = !split
@@ -221,14 +118,18 @@ class HistoryActivity : ThemedActivity() {
         detailContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         collection.detailBody.addView(detailContent, LinearLayout.LayoutParams(-1, 0, 1f))
         val content = FrameLayout(this)
-        collection.browserBody.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
+        collection.browserBody.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         content.addView(list, FrameLayout.LayoutParams(-1, -1))
-        val emptyHolder = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = android.view.Gravity.CENTER
+        val emptyHolder = style.column().apply { gravity = android.view.Gravity.CENTER }
+        val empty = ScrollView(this).apply {
+            isFillViewport = true
+            addView(emptyHolder, FrameLayout.LayoutParams(-1, -2))
         }
-        content.addView(emptyHolder, FrameLayout.LayoutParams(-1, -1))
-        val emptyCard = HoyiUi.card(this, emptyHolder)
+        content.addView(empty, FrameLayout.LayoutParams(-1, -1))
+        val emptyCard = HoyiUi.card(this, emptyHolder).apply {
+            tag = "product/history/empty-card"
+            keepOwnBackdropTreatment()
+        }
         if (HoyiUi.wide(this)) (emptyCard.layoutParams as LinearLayout.LayoutParams).apply {
             width = -1
             gravity = android.view.Gravity.CENTER_HORIZONTAL
@@ -239,13 +140,14 @@ class HistoryActivity : ThemedActivity() {
         emptyAction = HoyiUi.button(this, emptyCard, getString(R.string.history_select_curve), primary = true) {
             if (showJournal) migrateRecent() else startActivity(Intent(this, CurveActivity::class.java))
         }
-        list.emptyView = emptyHolder
+        style.addEmptyHistoryCompare(this, emptyCard)
+        list.emptyView = empty
         listStates[showJournal]?.let { list.onRestoreInstanceState(it) }
         list.setOnItemClickListener { _, _, position, _ ->
             rememberList()
             selectedIds[showJournal] = rows[position].id
             collection.detailRequested = true
-            renderSelection()
+            renderSelection(refresh = true)
             adapter.notifyDataSetChanged()
         }
     }
@@ -282,53 +184,67 @@ class HistoryActivity : ThemedActivity() {
     }
     private fun render() {
         // Adapter refreshes must not send a returning reader back to the first record.
-        val position = if (historyList.isShown && historyList.childCount > 0) historyList.onSaveInstanceState() else null
+        rememberList()
         if (showJournal) {
             val journal = (application as MobileApplication).journalResult.getOrNull()
             rows = journal?.entries()?.map { it.observation.historySummary() }.orEmpty()
             journalActions.forEach { it.isEnabled = journal != null }
-            count.text = if (journal == null) getString(R.string.journal_unavailable) else getString(R.string.journal_count, rows.size)
+            sources.setCount(rows.size.takeIf { journal != null })
             emptyTitle.text = getString(if (journal == null) R.string.journal_unavailable else R.string.journal_empty)
             emptyMessage.text = getString(if (journal == null) R.string.journal_unavailable else R.string.journal_empty_hint)
             emptyAction.text = getString(R.string.journal_migrate)
             emptyAction.visibility = if (journal == null) View.GONE else View.VISIBLE
-            adapter.clear(); adapter.addAll(rows)
-            (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
+            adapter.replaceRows(rows)
+            listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) }
             renderSelection()
             return
         }
         val history = runCatching { (application as MobileApplication).history }.getOrNull()
         if (history == null) {
-            count.text = getString(R.string.history_unavailable); rows = emptyList()
+            rows = emptyList()
+            sources.setCount(null)
             emptyTitle.text = getString(R.string.history_unavailable)
             emptyMessage.text = getString(R.string.history_unavailable_message)
             emptyAction.visibility = View.GONE
         } else {
             rows = history.entries
-            count.text = if (rows.isEmpty()) getString(R.string.history_no_local) else getString(R.string.history_count, rows.size.toString())
+            sources.setCount(rows.size)
             emptyTitle.text = getString(R.string.history_empty_title)
             emptyMessage.text = getString(R.string.history_empty_message)
             emptyAction.visibility = View.VISIBLE
         }
-        adapter.clear()
-        adapter.addAll(rows)
-        (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
+        adapter.replaceRows(rows)
+        listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) }
         renderSelection()
     }
-    private fun renderSelection() {
-        detailContent.removeAllViews()
-        detailContent.tag = null
+    private fun renderSelection(refresh: Boolean = false) {
         val selected = rows.firstOrNull { it.id == selectedIds[showJournal] }
-        if (selected == null) {
+        val preview = selected?.let { historyPreview(it) }
+        val selectionTag = selected?.let { "history-selection-${it.id}" }
+        if (!refresh && preview != null && detailContent.tag == selectionTag && detailContent.childCount > 0) {
+            val previous = renderedPreview
+            if (previous == preview) return
+            if (previous != null && previous.hasSamePreviewExceptNotes(preview) &&
+                refreshHistoryPreviewNotes(detailContent, preview)) {
+                renderedPreview = preview
+                return
+            }
+        }
+        renderedPreview = preview
+        detailContent.removeAllViews()
+        detailContent.tag = selectionTag
+        if (preview == null) {
             selectedIds.remove(showJournal)
             collection.detailRequested = false
             HoyiUi.label(this, detailContent, getString(R.string.history_select_record), 18)
+            if (rows.isNotEmpty()) style.addEmptyHistoryCompare(this, detailContent)
             return
         }
-        detailContent.tag = "history-selection-${selected.id}"
-        renderHistoryDetail(detailContent, selected.id, openFullPage = {
-            startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", selected.id))
-        }, visual = visual)
+        renderHistoryPreview(detailContent, preview, recoverTiming = collection.detailRequested, openFullPage = {
+            startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", preview.entry.id))
+        }, visual = visual, onReadFailure = {
+            if (renderedPreview === preview) renderedPreview = null
+        })
     }
     private fun rememberList() {
         if (::historyList.isInitialized && historyList.isShown && !historyList.isLayoutRequested && historyList.childCount > 0)
@@ -354,15 +270,6 @@ class HistoryActivity : ThemedActivity() {
     override fun onBackPressed() { if (compact && collection.detailRequested) showList() else super.onBackPressed() }
     override fun onStop() { if (!redirectedRoot) rememberList(); super.onStop() }
     override fun onDestroy() { if (!redirectedRoot) updateBack(false); super.onDestroy() }
-    private fun status(value: ShotHistory.Status) = when (value) {
-        ShotHistory.Status.STARTING -> getString(R.string.extraction_state_starting)
-        ShotHistory.Status.RUNNING -> getString(R.string.extraction_state_running)
-        ShotHistory.Status.STOP_REQUESTED -> getString(R.string.history_status_stop_requested)
-        ShotHistory.Status.ENDED -> getString(R.string.history_status_ended)
-        ShotHistory.Status.UNKNOWN -> getString(R.string.extraction_state_unknown)
-        ShotHistory.Status.NOT_STARTED -> getString(R.string.history_status_not_started)
-    }
-    private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
     private fun dp(value: Int) = HoyiUi.dp(this, value)
     companion object {
         const val EXTRA_HISTORY_SOURCE = "historySource"

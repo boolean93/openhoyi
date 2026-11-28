@@ -422,14 +422,14 @@ internal class PageBackgroundRuntimeChecks(private val test: Instrumentation) {
         if (mode == "dark") captureDarkCurveDetails(host, curves)
         captureScalePage(host, go(TaskDestination.SCALE), "$mode-scale.png")
         val history = go(TaskDestination.HISTORY)
-        captureApplied(host, history, "$mode-history.png", backing = style.surface,
+        captureApplied(host, history, "$mode-history.png", backing = style.surface, translucentCover = true,
             requiredWallpaper = { sampleGap ->
-                shieldCorners(history, history.findViewWithTag("product/history/header")) +
+                shieldCorners(history, history.findViewWithTag("product/history/sources")) +
                     shortCollectionGap(history, "product/history/list", sampleGap)
             },
             foregroundSurfaces = { visibleCollectionSurfaces(host, history,
                 "product/history/list", "product/history/empty-card") },
-        ) { history.findViewWithTag("product/history/count") }
+        ) { history.findViewWithTag("product/history/io-menu") }
         val beans = go(TaskDestination.BEANS)
         captureApplied(host, beans, "$mode-beans.png", backing = style.surface, translucentCover = true,
             requiredWallpaper = { sampleGap ->

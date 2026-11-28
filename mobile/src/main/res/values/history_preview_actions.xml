@@ -1,0 +1,12 @@
+<resources>
+    <item type="id" name="history_detail_scroll" />
+    <string name="history_preview_more_actions">本杯更多操作</string>
+    <string name="history_preview_personal_review">个人复盘</string>
+    <string name="history_preview_edit_review">编辑</string>
+    <string name="history_preview_edit_review_description">编辑个人复盘</string>
+    <string name="history_preview_dose">投粉</string>
+    <string name="history_preview_legend_water">累计注水</string>
+    <string name="history_preview_legend_scale">秤读数</string>
+    <string name="history_preview_legend_temperature">温度</string>
+    <string name="history_preview_legend_yield">出液重</string>
+</resources>
