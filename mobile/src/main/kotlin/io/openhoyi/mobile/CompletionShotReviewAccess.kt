@@ -19,6 +19,7 @@ internal class CompletionShotReviewAccess(
     fun availability(feedback: BrewFeedbackResult) = route.availability(feedback)
     fun isReady(feedback: BrewFeedbackResult): Boolean = route.ready(feedback)
     fun issue(feedback: BrewFeedbackResult): String? = route.issue(feedback, savedRevision())
+    fun issueHistory(historyId: String): String? = route.issueHistory(historyId, savedRevision())
     fun abandon(token: String) = route.abandon(token)
 
     fun consume(token: String, consent: Boolean): CompletionShotReview.Request? =

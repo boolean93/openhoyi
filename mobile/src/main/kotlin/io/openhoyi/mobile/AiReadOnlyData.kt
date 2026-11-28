@@ -16,7 +16,11 @@ internal interface AiReadOnlyData {
 }
 
 /** Read only on demand. The caller supplies a main-thread-safe snapshot supplier, not a service. */
-internal class LocalAiReadOnlyData(context: Context, private val snapshot: () -> MobileSnapshot?) : AiReadOnlyData {
+internal class LocalAiReadOnlyData(
+    context: Context,
+    private val selectedHistoryId: String? = null,
+    private val snapshot: () -> MobileSnapshot?,
+) : AiReadOnlyData {
     private val context = context.applicationContext
 
     override fun currentStatus(): String = safe {
@@ -72,7 +76,8 @@ internal class LocalAiReadOnlyData(context: Context, private val snapshot: () ->
             val observations = document?.let {
                 BrewJournal.readOnlyObservations(it, readPersistedShotTimingEvidence(context))
             }.orEmpty()
-            AiReadOnlyQuery.history(observations, curveId, offset, limit)
+            val selected = if (selectedHistoryId == null) observations else observations.filter { it.id == selectedHistoryId }
+            AiReadOnlyQuery.history(selected, curveId, offset, limit)
         }
     }
 
@@ -81,7 +86,8 @@ internal class LocalAiReadOnlyData(context: Context, private val snapshot: () ->
             observations = {
                 readBounded(File(context.filesDir, "brew_journal_v1.json"))
                     ?.let(BrewJournal::readOnlyObservations).orEmpty()
-            }, load = { ShotSamplesStore(File(context.filesDir, "shot_samples")).load(it) }).toString()
+            }, load = ShotSamplesStore(File(context.filesDir, "shot_samples"))::load,
+            selectedHistoryId = selectedHistoryId).toString()
 
     private fun age(at: Long?, now: Long): Any =
         if (at != null && at >= 0 && now >= at) now - at else JSONObject.NULL

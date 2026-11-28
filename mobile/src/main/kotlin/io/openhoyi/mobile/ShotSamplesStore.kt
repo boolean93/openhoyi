@@ -245,7 +245,10 @@ class ShotSamplesRepository(directory: File, private val onError: (Throwable) ->
             }
         }
     }
-    fun load(id: String): List<ShotPoint> = pending[id]?.points ?: store.load(id)
+    fun load(id: String): List<ShotPoint> = pending[id]?.points ?: loadPersisted(id)
+
+    /** Explicit review must not promise a sample file that is still queued for persistence. */
+    internal fun loadPersisted(id: String): List<ShotPoint> = store.load(id)
     fun prune(retainedIds: Set<String>) {
         writer.execute { try { store.prune(retainedIds) } catch (error: Throwable) { onError(error) } }
     }

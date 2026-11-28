@@ -258,7 +258,8 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
             val enteringSplit = compact && split
             compact = !split
             back.visibility = if (compact) View.VISIBLE else View.GONE
-            header.visibility = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT && compact && visible) View.GONE else View.VISIBLE
+            val hideListHeader = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT && compact && visible
+            header.visibility = if (hideListHeader) View.GONE else View.VISIBLE
             updateBack(compact && visible)
             if (enteringSplit) screen.post {
                 if (collection === screen && screen.isAttachedToWindow && !compact) renderSelection()

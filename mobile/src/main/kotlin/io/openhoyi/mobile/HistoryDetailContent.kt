@@ -367,6 +367,8 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     title.addView(identity, LinearLayout.LayoutParams(0, -2, 1f))
     val titleSpacer = android.view.View(this)
     title.addView(titleSpacer, LinearLayout.LayoutParams(0, 0))
+    val review = historyAiReviewButton(style, entry.id)
+    title.addView(review, LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(8) })
     val more = android.widget.ImageButton(this).apply {
         tag = "product/history/more"; contentDescription = getString(R.string.ui_full_details)
         setImageDrawable(HomeVisualIcon.drawable(this@renderEmbeddedHistoryPreview, "more", style.accent))
@@ -384,7 +386,7 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
             (this@renderEmbeddedHistoryPreview as? MainActivity)?.trackDialog(dialog)
         }
     }
-    title.addView(more, LinearLayout.LayoutParams(style.dp(48), style.dp(48)).apply { marginStart = style.dp(16) })
+    title.addView(more, LinearLayout.LayoutParams(style.dp(48), style.dp(48)).apply { marginStart = style.dp(4) })
     val meta = HistoryVisualFlow(this, style.dp(16), style.dp(8)).apply { tag = "product/history/identity-meta" }
     meta.addView(style.text(date(entry.startedAtMs), TaskProductVisualStyle.auxiliary, "product/history/date", true))
     meta.addView(style.text(status(entry.status), TaskProductVisualStyle.auxiliary, "product/history/status").apply {
@@ -400,7 +402,7 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
             setTextColor(visual.warningInk)
             tintPanelForWallpaper(app.pageBackgrounds, style.shape(visual.warningSurface))
         } else null
-    val header = EmbeddedHistoryHeader(this, title, identity, titleSpacer, more, meta, warning, style.dp(16), style.dp(8))
+    val header = EmbeddedHistoryHeader(this, title, identity, titleSpacer, review, more, meta, warning, style.dp(16), style.dp(8))
     header.protectPhotoSection(style)
     style.add(preview.content, header)
     val metrics = preview.metrics
@@ -536,7 +538,7 @@ private class StandaloneHistoryPlot(context: android.content.Context, visual: Ex
 /** The UNKNOWN warning keeps its one TextView; only its measured position changes. */
 private class EmbeddedHistoryHeader(context: android.content.Context, private val titleRow: LinearLayout,
     private val identity: android.widget.TextView, private val spacer: android.view.View,
-    private val more: android.widget.ImageButton, private val meta: android.view.View,
+    private val review: android.widget.Button, private val more: android.widget.ImageButton, private val meta: android.view.View,
     private val warning: android.widget.TextView?, private val inlineGapPx: Int, private val rowGapPx: Int
 ) : android.view.ViewGroup(context) {
     var inlineWarning = false
@@ -546,13 +548,15 @@ private class EmbeddedHistoryHeader(context: android.content.Context, private va
     var warningNaturalWidthPx = 0; private set
     var moreOccupationPx = 0; private set
     var rowAvailableWidthPx = 0; private set
+    private var leadingOccupationPx = 0
+    private var reviewOccupationPx = 0
     init {
         tag = "product/history/preview-header"
         addView(titleRow); addView(meta); warning?.let { addView(it) }
     }
     override fun generateDefaultLayoutParams() = LayoutParams(-1, -2)
     fun fitsInline(width: Int): Boolean = warning != null &&
-        titleNaturalWidthPx + inlineGapPx + warningNaturalWidthPx <= width - moreOccupationPx
+        titleNaturalWidthPx + inlineGapPx + warningNaturalWidthPx <= width - leadingOccupationPx - reviewOccupationPx - moreOccupationPx
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
         val exact = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY)
@@ -562,8 +566,17 @@ private class EmbeddedHistoryHeader(context: android.content.Context, private va
         warning?.let { it.forceLayout(); it.measure(free, free) }
         warningNaturalWidthPx = warning?.measuredWidth ?: 0
         val moreParams = more.layoutParams as LinearLayout.LayoutParams
+        val reviewParams = review.layoutParams as LinearLayout.LayoutParams
+        review.forceLayout(); review.measure(free, free)
         moreOccupationPx = moreParams.width + moreParams.marginStart + moreParams.marginEnd
-        rowAvailableWidthPx = width - moreOccupationPx
+        reviewOccupationPx = review.measuredWidth + reviewParams.marginStart + reviewParams.marginEnd
+        // The compact portrait host can insert its fixed-width back button before the title.
+        val leading = titleRow.getChildAt(0)
+        leadingOccupationPx = if (leading !== identity && leading.visibility != android.view.View.GONE) {
+            val params = leading.layoutParams as LinearLayout.LayoutParams
+            params.width + params.marginStart + params.marginEnd
+        } else 0
+        rowAvailableWidthPx = width - leadingOccupationPx - reviewOccupationPx - moreOccupationPx
         resolvedInline = inlineWarning && fitsInline(width)
         (identity.layoutParams as LinearLayout.LayoutParams).apply {
             this.width = if (resolvedInline) titleNaturalWidthPx else 0
@@ -588,8 +601,8 @@ private class EmbeddedHistoryHeader(context: android.content.Context, private va
         meta.layout(0, metaTop, width, metaTop + meta.measuredHeight)
         warning?.let {
             val left = if (resolvedInline && layoutDirection == LAYOUT_DIRECTION_RTL)
-                width - titleNaturalWidthPx - inlineGapPx - it.measuredWidth
-            else if (resolvedInline) titleNaturalWidthPx + inlineGapPx else 0
+                width - leadingOccupationPx - titleNaturalWidthPx - inlineGapPx - it.measuredWidth
+            else if (resolvedInline) leadingOccupationPx + titleNaturalWidthPx + inlineGapPx else 0
             val top = if (resolvedInline) (titleRow.measuredHeight - it.measuredHeight) / 2 else metaTop + meta.measuredHeight + rowGapPx
             it.layout(left, top, left + it.measuredWidth, top + it.measuredHeight)
         }
