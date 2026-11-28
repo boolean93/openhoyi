@@ -361,7 +361,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
         }
-        fun prepare() {
+        fun prepare(includeHistoryYield: Boolean = false) {
             check(!::logs.isInitialized && !::samples.isInitialized)
             logs=TraceStore(File(ownedDirectory,"traces"))
             samples=ShotSamplesRepository(File(ownedDirectory,"samples")) { sampleFailures.add(it); logs.record("fixture.samples_error",mapOf("type" to it.javaClass.simpleName)) }
@@ -392,7 +392,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "后段流速略快，希望更平稳。","柑橘酸质，焦糖甜感，尾段略干。","研磨调细一点，其他条件不变。")
             journal.edit(firstId,notes)
             journal.edit(secondId,notes.copy(taste="焦糖甜感更明显。",nextAdjustment="保持当前参数。"))
-            val first=points(27400,604,3620); val second=points(31000,650,3950)
+            val first=points(27400,604,3620).let { points ->
+                if (includeHistoryYield) points.map { point ->
+                    point.copy(beverageHundredthsGram = requireNotNull(point.weightHundredthsGram) * 9 / 10,
+                        beverageSource = BeverageWeightSource.CONFIRMED, beverageSegmentId = 0)
+                } else points
+            }
+            val second=points(31000,650,3950)
             sampleInputs[firstId]=first; sampleInputs[secondId]=second
             (1..37).forEach { index ->
                 val ordinary=points(30000,620,3600)
@@ -3045,7 +3051,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 val collectionDirectory=File(directory,"collection").apply {check(mkdirs())}
                 val collectionScope=Scope(collectionDirectory,"history")
                 scope=collectionScope
-                collectionScope.prepare()
+                collectionScope.prepare(includeHistoryYield = true)
                 collectionScope.install(dark=true)
                 captureHistoryAiReview(collectionScope,collectionDirectory)
             }
@@ -3087,6 +3093,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             check(review.isEnabled && review.text==activity.getString(R.string.completion_card_review))
             val colors=TaskProductVisualStyle(activity)
             check(review.currentTextColor==colors.onPrimary && compare.currentTextColor==colors.accent)
+            check(listOf(review,compare).all { it.background.current is android.graphics.drawable.RippleDrawable })
             check(reviewBounds.getBoolean("complete") && compareBounds.getBoolean("complete") && moreBounds.getBoolean("complete"))
             val reviewRect=reviewBounds.getJSONArray("rectPx")
             val compareRect=compareBounds.getJSONArray("rectPx")
@@ -3095,12 +3102,15 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             check(reviewRect.getInt(1)==compareRect.getInt(1) && reviewRect.getInt(3)==compareRect.getInt(3))
             val legend=requireNotNull(chart.findViewWithTag<View>("product/history/chart-legend"))
             val legendButtons=nodes(legend).filterIsInstance<Button>()
+            check(legendButtons.map {it.tag}==listOf("chart-metric:PRESSURE","chart-metric:WATER",
+                "chart-metric:WEIGHT","chart-metric:TEMPERATURE","chart-metric:YIELD"))
             check(legendButtons.map {it.top}.distinct().size==1 && legendButtons.all {it.lineCount==1 && it.height>=HoyiUi.dp(activity,48)})
             check(chart.points==samples)
-            val visibleChart=Rect()
-            check(chart.getGlobalVisibleRect(visibleChart) && visibleChart.height()>=HoyiUi.dp(activity,96))
+            val visiblePlotDp=requireNotNull(embeddedHistoryEvidence(activity)).getDouble("initialVisiblePlotHeightDp")
+            check(visiblePlotDp>=160.0)
             JSONObject().put("selectedShot",scope.firstId).put("samples",chart.points.size)
                 .put("review",reviewBounds).put("compare",compareBounds).put("more",moreBounds)
+                .put("legend",JSONArray(legendButtons.map(::historyVisibility))).put("visiblePlotDp",visiblePlotDp)
         }
         WindowProofStreamingWriter.writeStrict(capture.target,File(directory,"geometry.json"))
         val position=capture.target.getJSONObject("review").getJSONArray("rectPx")
