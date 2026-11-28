@@ -59,7 +59,8 @@ Actions 全局 concurrency 仅序列化整条分发运行，默认 pending 可�
 - “公开成功但响应丢失”：下一次先比较服务端公开状态与**公开前持久保存的精确哈希**，一致则补记已完成，不重建/重发；缺失或不一致则停下调查。状态仅 reserved、没有 prepared 哈希的陌生公开版本不擅自认领。
 - 账本锁属于另一仍在运行的 workflow：不抢占。只有 GitHub 确认前一个 run 已 completed（或同 run 的后续 attempt）才能回收取消/崩溃留下的锁，不按短 TTL 强抢。
 - 设置 `DEVELOP_APK_ENABLED=false` 暂停新规划。**在途任务读取的是启动时变量快照**，暂停不瞬间终止；须等待/取消并确认全部 running/pending run 结束及账本 lease 释放。不要直接删除状态分支、重置高水位或改标签。
-- API 错误/权限不足/超时一律停发，未知写入不盲重试。当前 GitHub 对相对默认分支增改 workflow 的目标提交可能要求 `Workflows:write`，`GITHUB_TOKEN` 不能额外获得此权限；历史补扫可能因此被拒绝。遇到此情况须实际核查最窄 GitHub App 权限并另行授权，不能回退构建最新 develop 或默默塞入 PAT。见 [官方 release API](https://docs.github.com/en/rest/releases/releases#create-a-release)。此权限路径未用真实云端发布验证。
+- 查询 GitHub 或下载附件的 GET 请求遇到 HTTP 502，会依次等待 2、5、10 秒，最多重试三次。读取成功就从原处继续；第四次仍是 502 则停止。写请求遇到 502 不自动重发：响应失败不代表服务端没写入，先核对台账、标签或 Release 的实际状态。其他 API 错误和超时沿用原有处理。
+- 当前 GitHub 对相对默认分支增改 workflow 的目标提交可能要求 `Workflows:write`，`GITHUB_TOKEN` 不能额外获得此权限；历史补扫可能因此被拒绝。遇到此情况须实际核查最窄 GitHub App 权限并另行授权，不能回退构建最新 develop 或默默塞入 PAT。见 [官方 release API](https://docs.github.com/en/rest/releases/releases#create-a-release)。此权限路径未用真实云端发布验证。
 
 ## 人工 RC / 稳定版窗口
 
