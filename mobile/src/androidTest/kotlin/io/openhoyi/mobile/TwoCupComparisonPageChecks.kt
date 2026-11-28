@@ -73,12 +73,21 @@ internal object TwoCupComparisonPageChecks {
             if (activity.resources.configuration.let {
                 it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
             }) {
-                (historicalMetrics.map(::metricButton) + listOf(swap, changeSecond)).forEach { control ->
+                val legend = root.findViewWithTag<View>("comparison-source-legend")
+                (historicalMetrics.map(::metricButton) + listOf(swap, changeSecond, legend)).forEach { control ->
                     val bounds = android.graphics.Rect()
                     check(control.isShown && control.getGlobalVisibleRect(bounds) &&
                         bounds.width() == control.width && bounds.height() == control.height && control.height > 0) {
                         "Comparison toolbar control clipped: ${control.tag} $bounds / ${control.width}x${control.height}"
                     }
+                }
+                val actions = root.findViewWithTag<View>("comparison-actions")
+                val header = actions.parent as android.view.ViewGroup
+                check(header.findViewWithTag<View>("task-tools-host") != null && swap.parent === actions &&
+                    changeSecond.parent === actions) { "Wide comparison actions must share the page title row" }
+                val cards = (0..2).map { root.findViewWithTag<View>("comparison-overview-card-$it") }
+                check(cards.all { it.width > 0 } && cards.maxOf { it.width } - cards.minOf { it.width } <= 1) {
+                    "A, B and the difference must share the wide comparison row evenly"
                 }
                 check(chart.width >= root.width * .8f) { "Comparison plot must span the landscape task area" }
             }

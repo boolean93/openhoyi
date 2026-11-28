@@ -72,7 +72,7 @@ class BrewComparisonActivity : ThemedActivity() {
         toolbarBody.addView(metricLine, LinearLayout.LayoutParams(-1, -2))
         chart = TwoCupChartView(this, visual).apply { metric = selectedMetric }
         workspace.setChart(chart)
-        val actions = style.row().apply { gravity = android.view.Gravity.END }
+        val actions = style.row("comparison-actions").apply { gravity = android.view.Gravity.END }
         val swap = style.button(Button(this), outline = true).apply {
             text = getString(R.string.task_comparison_swap)
             tag = "comparison-swap"
@@ -91,32 +91,46 @@ class BrewComparisonActivity : ThemedActivity() {
         actions.addView(swap, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
         actions.addView(changeSecond, LinearLayout.LayoutParams(-2, -2))
         val summaryGroup = style.column()
-        style.add(summaryGroup, actions)
-        val cupValues = style.row()
-        val cardRow = HistoryToolbarRow(this, dp(8), dp(8)) { dp(320) }
-        cardRow.addView(cupValues)
+        val screenWidth = resources.configuration.screenWidthDp
+        if (screenWidth >= 720) {
+            val header = (body.tag as BeanPageRegions).header
+            val tools = header.findViewWithTag<View>("task-tools-host")
+            header.addView(actions, header.indexOfChild(tools), LinearLayout.LayoutParams(-2, -2).apply {
+                marginStart = dp(8)
+                marginEnd = dp(8)
+            })
+        } else {
+            style.add(summaryGroup, actions)
+        }
+
+        val cardRow = style.row()
+        style.add(summaryGroup, cardRow, top = if (screenWidth >= 720) 0 else 8)
         val cupCards = listOf(R.string.history_cup_first_mark, R.string.history_cup_second_mark, R.string.history_cup_difference)
             .mapIndexed { index, label ->
-                val card = style.column().apply {
+                val card = style.column("comparison-overview-card-$index").apply {
                     setPadding(dp(10), dp(8), dp(10), dp(8))
                     background = style.shape(style.surface, outline = true)
                 }
-                if (index == 2) cardRow.addView(card)
-                else cupValues.addView(card, LinearLayout.LayoutParams(0, -1, 1f).apply {
-                    if (index == 1) marginStart = dp(8)
-                })
-                style.add(card, style.text(getString(label), TaskProductVisualStyle.auxiliary))
-                val identity = style.text("", TaskProductVisualStyle.compactMetric, "comparison-cup-identity-$index")
-                val date = style.text("", TaskProductVisualStyle.auxiliary, secondary = true)
-                if (index < 2) {
-                    style.add(card, identity)
-                    style.add(card, date)
+                if (index == 2 && screenWidth < 620) {
+                    style.add(summaryGroup, card, top = 8)
+                } else {
+                    cardRow.addView(card, LinearLayout.LayoutParams(0, -1, 1f).apply {
+                        if (index > 0) marginStart = dp(8)
+                    })
                 }
-                val measurements = style.text("", TaskProductVisualStyle.auxiliary, "comparison-cup-measurements-$index")
+                val identity = style.text(getString(label), TaskProductVisualStyle.compactMetric, "comparison-cup-identity-$index")
+                style.add(card, identity)
+                val date = style.text("", TaskProductVisualStyle.auxiliary, secondary = true)
+                if (index < 2) style.add(card, date)
+
+                val measurements = HistoryVisualFlow(this, dp(12), 0).apply { tag = "comparison-cup-measurements-$index" }
+                val timer = style.text("", TaskProductVisualStyle.auxiliary)
+                val scale = style.text("", TaskProductVisualStyle.auxiliary)
+                measurements.addView(timer)
+                measurements.addView(scale)
                 style.add(card, measurements)
-                CupCard(identity, date, measurements)
+                CupCard(identity, date, timer, scale)
             }
-        style.add(summaryGroup, cardRow, top = 8)
         val shared = style.text("", TaskProductVisualStyle.auxiliary, secondary = true)
         style.add(summaryGroup, shared, top = 4)
         toolbarBody.addView(summaryGroup, 0, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
@@ -235,19 +249,19 @@ class BrewComparisonActivity : ThemedActivity() {
             val outcome = if (valid) HistoryCupOutcome.difference(first?.observation, second?.observation)
                 else HistoryCupOutcome.Difference(null, null)
             fun measured(label: Int, value: String) = getString(label) + " " + value
-            cupCards[2].measurements.setIfChanged(listOf(
-                measured(R.string.history_duration, historyCupSeconds(outcome.machineSeconds, signed = true)),
-                measured(R.string.history_end_scale, historyCupGrams(outcome.scaleHundredths, signed = true)),
-            ).joinToString("\n"))
+            cupCards[2].timer.setIfChanged(measured(R.string.history_duration, historyCupSeconds(outcome.machineSeconds, signed = true)))
+            cupCards[2].scale.setIfChanged(measured(R.string.history_end_scale, historyCupGrams(outcome.scaleHundredths, signed = true)))
             selected.forEachIndexed { index, entry ->
                 val observation = entry?.observation
                 val card = cupCards[index]
-                card.identity.setIfChanged(observation?.let { journalCurve(it.curveId) } ?: "—")
+                val mark = getString(if (index == 0) R.string.history_cup_first_mark else R.string.history_cup_second_mark)
+                val name = observation?.let { journalCurve(it.curveId) } ?: "—"
+                card.identity.setIfChanged("$mark · $name")
                 card.date.setIfChanged(observation?.let { journalDate(it.startedAtMs) }.orEmpty())
-                card.measurements.setIfChanged(listOf(
-                    measured(historyCupTimingLabel(observation), historyCupSeconds(observation?.observedMachineElapsedSeconds?.toLong())),
-                    measured(R.string.history_end_scale, historyCupGrams(observation?.weightHundredthsGram?.toLong())),
-                ).joinToString("\n"))
+                card.timer.setIfChanged(measured(historyCupTimingLabel(observation),
+                    historyCupSeconds(observation?.observedMachineElapsedSeconds?.toLong())))
+                card.scale.setIfChanged(measured(R.string.history_end_scale,
+                    historyCupGrams(observation?.weightHundredthsGram?.toLong())))
                 summaryTable.update(index, entry)
                 detailButtons[index].isEnabled = entry != null
                 noteButtons[index].isEnabled = entry != null
@@ -290,7 +304,7 @@ class BrewComparisonActivity : ThemedActivity() {
         secondId = second
         refresh()
     }
-    private data class CupCard(val identity: TextView, val date: TextView, val measurements: TextView)
+    private data class CupCard(val identity: TextView, val date: TextView, val timer: TextView, val scale: TextView)
 
     override fun onResume() { super.onResume(); refresh() }
     override fun onDestroy() { destroyed = true; readers.shutdownNow(); refresh = {}; super.onDestroy() }

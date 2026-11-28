@@ -2602,7 +2602,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val targets=linkedMapOf<String,View>()
         val controlTags=listOf("comparison-change-second","comparison-swap") +
             listOf("PRESSURE","WATER","WEIGHT","TEMPERATURE").map {"comparison-metric-$it"}
-        controlTags.forEach {targets[it]=tagged(toolbar,it)}
+        controlTags.forEach {targets[it]=tagged(root(activity),it)}
         targets["comparison-source-legend"]=tagged(toolbar,"comparison-source-legend")
         targets["comparison-cup-measurements-2"]=tagged(toolbar,"comparison-cup-measurements-2")
         val selectedStatuses=listOf(first,second).filterIsInstance<String>().map {requireNotNull(scope.journal.find(it)).observation.status}
